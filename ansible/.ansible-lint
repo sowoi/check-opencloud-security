@@ -1,0 +1,10 @@
+---
+# The var-naming[no-role-prefix] rule is intentionally disabled: both
+# opencloud_check_native and opencloud_check_docker roles deliberately share
+# the same opencloud_check_* variable namespace (instead of role-prefixed
+# opencloud_check_native_*/opencloud_check_docker_* names) so a single
+# inventory/group_vars value set (host, port, proxy, insecure, debug, retries,
+# backoff-factor, service naming, etc.) works unmodified with either
+# playbook. See ansible/README.md's "Variable reference" section.
+skip_list:
+  - var-naming[no-role-prefix]

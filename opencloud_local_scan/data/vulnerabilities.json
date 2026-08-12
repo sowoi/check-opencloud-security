@@ -1,0 +1,19 @@
+{
+  "$schema": "https://github.com/sowoi/check-opencloud-security/blob/main/opencloud_local_scan/data/vulnerabilities.schema.json",
+  "updated": "2026-08-12",
+  "source": "bundled",
+  "comment": "Local advisory database used by the built-in scanner. Entries are matched against the detected OpenCloud version using the half-open range [introduced, fixed). No public GHSA or CVE has been published for opencloud-eu/opencloud so far, so this database ships empty on purpose. Add your own entries here, or point --vulnerability-feed at a JSON feed - the native format, the GitHub Advisory API format and the OSV format (https://api.osv.dev/v1/query) are all understood.",
+  "advisories": [
+    {
+      "id": "OC-EOL",
+      "cwe": "CWE-1104",
+      "title": "Unmaintained OpenCloud release",
+      "description": "The detected release no longer receives security fixes. This entry is reported by the scanner itself when the release schedule flags the version as end-of-life; it is listed here for documentation only and is never matched by version range.",
+      "severity": "critical",
+      "url": "https://github.com/opencloud-eu/opencloud/releases",
+      "introduced": null,
+      "fixed": null,
+      "enabled": false
+    }
+  ]
+}

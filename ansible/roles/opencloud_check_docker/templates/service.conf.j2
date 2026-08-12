@@ -1,0 +1,36 @@
+// Managed by Ansible - role: opencloud_check_docker
+// Do not edit by hand, changes will be overwritten.
+//
+// The scan only talks to your own instance, so there is no external rate
+// limit to respect. A full scan still issues a few dozen requests plus the
+// debug-port probes, so one check every 24 hours is a sensible default.
+object Service "{{ opencloud_check_service_name }}" {
+    import "generic-service"
+    host_name = "{{ opencloud_check_icinga_host_name }}"
+    check_command = "{{ opencloud_check_command_name }}"
+    check_interval = {{ opencloud_check_interval }}
+
+    vars.opencloud_host = "{{ opencloud_check_host }}"
+{% if opencloud_check_proxy %}
+    vars.opencloud_proxy = "{{ opencloud_check_proxy }}"
+{% endif %}
+{% if opencloud_check_port %}
+    vars.opencloud_port = {{ opencloud_check_port }}
+{% endif %}
+    vars.opencloud_insecure = {{ opencloud_check_insecure | lower }}
+    vars.opencloud_no_debug_ports = {{ opencloud_check_no_debug_ports | lower }}
+    vars.opencloud_update_source = "{{ opencloud_check_update_source }}"
+    vars.opencloud_update_warning = {{ opencloud_check_update_warning | lower }}
+    vars.opencloud_debug = {{ opencloud_check_debug | lower }}
+    vars.opencloud_retries = {{ opencloud_check_retries }}
+    vars.opencloud_backoff_factor = {{ opencloud_check_backoff_factor }}
+    vars.opencloud_timeout = {{ opencloud_check_timeout }}
+    vars.opencloud_warning = {{ opencloud_check_warning }}
+    vars.opencloud_critical = {{ opencloud_check_critical }}
+    vars.opencloud_check_hardening = {{ opencloud_check_check_hardening | lower }}
+{% if opencloud_check_webhook_url %}
+    vars.opencloud_webhook_url = "{{ opencloud_check_webhook_url }}"
+    vars.opencloud_webhook_on = "{{ opencloud_check_webhook_on }}"
+    vars.opencloud_webhook_timeout = {{ opencloud_check_webhook_timeout }}
+{% endif %}
+}

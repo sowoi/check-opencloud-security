@@ -1,0 +1,67 @@
+---
+# Source repository used to install the plugin with pip.
+opencloud_check_repo_url: "https://github.com/sowoi/check-opencloud-security.git"
+opencloud_check_repo_version: "main"
+
+# Where the dedicated virtualenv is created. The plugin and its dependencies
+# are installed here, isolated from system Python packages.
+opencloud_check_venv_path: /opt/check-opencloud-security/venv
+opencloud_check_venv_python: /usr/bin/python3
+
+# Nagios/Icinga2 plugin directory. The venv's console-script is symlinked here.
+opencloud_check_plugin_dir: /usr/lib/nagios/plugins
+
+# Icinga2 configuration.
+opencloud_check_icinga_conf_dir: /etc/icinga2/conf.d
+opencloud_check_command_name: check_opencloud_security
+opencloud_check_service_name: "OpenCloud Security Scan"
+opencloud_check_interval: 24h
+# Name of the existing Icinga2 Host object the Service is attached to.
+# Defaults to the Ansible inventory_hostname.
+opencloud_check_icinga_host_name: "{{ inventory_hostname }}"
+
+# Marker files used to detect (and refuse) conflicting native/Docker
+# deployments on the same host - both roles must not manage the same
+# CheckCommand object.
+opencloud_check_native_marker: /etc/icinga2/conf.d/.check_opencloud_security_native
+opencloud_check_docker_marker: /etc/icinga2/conf.d/.check_opencloud_security_docker
+
+# Plugin options - map 1:1 to the COS_* environment variables / CLI flags
+# documented in the project README.
+opencloud_check_host: "{{ inventory_hostname }}"
+opencloud_check_proxy: ""
+# Port the instance listens on. OpenCloud's own proxy uses 9200; leave empty
+# to take the port from the host (or 443).
+opencloud_check_port: ""
+# OpenCloud terminates TLS itself and 'opencloud init' self-signs. Set true
+# for such an instance: the untrusted chain is still reported, it just stops
+# counting against the rating.
+opencloud_check_insecure: false
+# The service debug ports (9205, 9141, 9124, 9134, 9239) are probed by
+# default. Each probe is a TCP connect, so a firewalled host costs time.
+opencloud_check_no_debug_ports: false
+# Where the newest release is looked up: auto, feed, pinned, bundled, off.
+opencloud_check_update_source: auto
+# Raise an otherwise OK result to WARNING when an update is available.
+opencloud_check_update_warning: false
+opencloud_check_debug: false
+opencloud_check_retries: 2
+opencloud_check_backoff_factor: 0.5
+opencloud_check_timeout: 10
+# Rating thresholds (0-5, where 5 == A+ and 0 == F). A rating at or below
+# the value reports the corresponding state.
+opencloud_check_warning: 3
+opencloud_check_critical: 1
+# Also report missing hardening measures and security headers.
+opencloud_check_check_hardening: false
+# Optional webhook notification. Leave the URL empty to disable the feature.
+opencloud_check_webhook_url: ""
+opencloud_check_webhook_on: critical
+opencloud_check_webhook_timeout: 10
+
+# Set to false to skip `icinga2 daemon -C` validation (not recommended).
+opencloud_check_validate_config: true
+
+# Set to false to skip restarting/reloading icinga2 (e.g. when applying this
+# role in a larger batch and reloading separately afterwards).
+opencloud_check_manage_icinga_service: true

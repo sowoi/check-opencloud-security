@@ -1,0 +1,98 @@
+// Managed by Ansible - role: opencloud_check_docker
+// Do not edit by hand, changes will be overwritten.
+//
+// Runs the check via `docker run --rm <image> ...`. Instance-specific
+// values (host, port, proxy, insecure, debug, retries, backoff-factor) are
+// intentionally NOT set here - they are set as custom variables on the
+// Service object(s) using this CheckCommand, so the same command
+// definition can be reused for multiple OpenCloud instances. Arguments
+// whose macro resolves to null are omitted automatically by Icinga2.
+object CheckCommand "{{ opencloud_check_command_name }}" {
+    import "plugin-check-command"
+    command = [ "{{ opencloud_check_docker_binary }}" ]
+
+    arguments += {
+        "run" = {
+            order = -5
+            value = "run"
+        }
+        "--rm" = {
+            order = -4
+            value = "--rm"
+        }
+        "image" = {
+            order = -3
+            skip_key = true
+            value = "{{ opencloud_check_docker_image_name }}:{{ opencloud_check_docker_image_tag }}"
+        }
+        "--host" = {
+            description = "OpenCloud hostname, IP or URL"
+            required = true
+            value = "$opencloud_host$"
+        }
+        "--proxy" = {
+            description = "HTTP/HTTPS proxy (optional)"
+            value = "$opencloud_proxy$"
+        }
+        "--port" = {
+            description = "Port the instance listens on, e.g. 9200 (optional)"
+            value = "$opencloud_port$"
+        }
+        "--insecure" = {
+            description = "Do not verify the instance's TLS certificate (optional)"
+            set_if = "$opencloud_insecure$"
+        }
+        "--no-debug-ports" = {
+            description = "Skip probing the OpenCloud debug ports (optional)"
+            set_if = "$opencloud_no_debug_ports$"
+        }
+        "--update-source" = {
+            description = "Where the newest release is looked up: auto, feed, pinned, bundled, off"
+            value = "$opencloud_update_source$"
+        }
+        "--update-warning" = {
+            description = "Report WARNING when a newer release is available (optional)"
+            set_if = "$opencloud_update_warning$"
+        }
+        "--debug" = {
+            description = "Enable debugging output (optional)"
+            set_if = "$opencloud_debug$"
+        }
+        "--retries" = {
+            description = "Retry attempts for transient network errors"
+            value = "$opencloud_retries$"
+        }
+        "--backoff-factor" = {
+            description = "Exponential backoff factor (seconds) between retries"
+            value = "$opencloud_backoff_factor$"
+        }
+        "--timeout" = {
+            description = "HTTP timeout in seconds per request"
+            value = "$opencloud_timeout$"
+        }
+        "--warning" = {
+            description = "Rating (0-5) at or below which the check warns"
+            value = "$opencloud_warning$"
+        }
+        "--critical" = {
+            description = "Rating (0-5) at or below which the check is critical"
+            value = "$opencloud_critical$"
+        }
+        "--check-hardening" = {
+            description = "Also report missing hardening measures and security headers"
+            set_if = "$opencloud_check_hardening$"
+        }
+        "--webhook-url" = {
+            description = "Optional endpoint notified when the check turns critical"
+            value = "$opencloud_webhook_url$"
+        }
+        "--webhook-on" = {
+            description = "Lowest state that triggers the webhook"
+            value = "$opencloud_webhook_on$"
+        }
+        "--webhook-timeout" = {
+            description = "HTTP timeout in seconds for the webhook call"
+            value = "$opencloud_webhook_timeout$"
+        }
+    }
+}

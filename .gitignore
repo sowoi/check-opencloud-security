@@ -216,3 +216,32 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- check-opencloud-security -----------------------------------------------
+# uv.lock is committed on purpose: it is what makes an install reproducible,
+# and CI installs from it (see CONTRIBUTING.md).
+!/uv.lock
+
+/.nox
+/.mypy_cache
+
+# Local configuration; only the committed example is tracked.
+/check-opencloud-security.yml
+/check-opencloud-security.yaml
+/config/*.yml
+/config/*.yaml
+!/config/*.example.yml
+
+# Local secret files for docker-compose (only the *.example files are tracked)
+/secrets/*
+!/secrets/*.example
+!/secrets/README.md
+
+# Generated with `uv export` when a deployment tool needs it - never committed
+/requirements.txt
+/requirements-*.txt
+
+# Editor state
+.idea/
+.vscode/
+/.ansible/

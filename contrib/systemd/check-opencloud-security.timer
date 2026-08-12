@@ -1,0 +1,13 @@
+[Unit]
+Description=Run check-opencloud-security once a day
+
+[Timer]
+OnCalendar=daily
+# The scan itself only talks to your own instance, but the update check reads
+# the GitHub release feed, which is rate limited per IP address. Spreading the
+# runs keeps many hosts behind one address from hitting that limit at once.
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
