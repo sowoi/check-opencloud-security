@@ -1,3 +1,5 @@
+## check-opencloud-security 1.0.0
+
 First release. A Nagios/Icinga plugin that checks an OpenCloud instance for
 known vulnerabilities and misconfiguration. OpenCloud has no public scan API,
 so the plugin scans entirely on its own. The ratings follow the scale of the
