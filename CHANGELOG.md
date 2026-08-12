@@ -9,6 +9,18 @@ New entries are added on top by the release workflow whenever the version in
 `pyproject.toml` changes; the same entry is written to `RELEASE.md` and used as
 the body of the GitHub release.
 
+## [1.0.1] - 2026-08-12
+
+### Changed
+
+- Bumped version to 1.0.1
+- Version 1.0.0 commit
+- Initial commit
+
+### Documentation
+
+- Release notes for v1.0.0 [skip ci]
+
 ## [1.0.0] - 2026-08-12
 
 First release. A Nagios/Icinga plugin that checks an OpenCloud instance for
