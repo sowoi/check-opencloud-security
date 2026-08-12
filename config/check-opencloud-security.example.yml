@@ -1,0 +1,125 @@
+# Example configuration for check-opencloud-security and its built-in scanner.
+#
+# Copy this file to one of the default locations
+#   ./check-opencloud-security.yml
+#   /etc/check-opencloud-security/config.yml
+# or point at it with --config / COS_CONFIG_FILE.
+#
+# Every key below has an equivalent environment variable: nested keys are
+# joined with '_' and prefixed with 'COS_', so 'scanner.timeout' becomes
+# COS_SCANNER_TIMEOUT and 'releases.token' becomes COS_RELEASES_TOKEN.
+# Command line flags override environment variables, which override this file.
+#
+# Any value may be replaced by a secret reference:
+#   secret://name          -> read <secrets.dir>/name (Docker/Kubernetes secret)
+#   file:///path/to/file   -> read a file
+#   env://VARIABLE         -> read an environment variable
+#   exec://command         -> run a command (requires secrets.allow_exec)
+# Alternatively append '_file' to a key: 'token_file: /run/secrets/token'.
+
+# --- what to check -----------------------------------------------------------
+host: cloud.example.com          # comma separated list for several instances
+# proxy: http://proxy.example.com:3128
+timeout: 10
+retries: 2
+backoff_factor: 0.5
+
+warning: 3                       # rating <= 3 (C) -> WARNING
+critical: 1                      # rating <= 1 (E) -> CRITICAL
+check_hardening: true
+update_warning: false            # pending OpenCloud update -> WARNING
+
+# --- the built-in scanner ----------------------------------------------------
+#
+# OpenCloud offers no scan API, so there is nothing to configure here about
+# where the scan runs: it always runs in this process. Only 'service' below
+# turns the very same scanner into a long-running HTTP service.
+scanner:
+  timeout: 10
+  # OpenCloud terminates TLS itself and 'opencloud init' creates a self-signed
+  # certificate. Leave this at true for a properly certified instance - the
+  # scanner then reports an untrusted certificate as a finding instead of
+  # quietly accepting it. Set it to false only for a knowingly self-signed
+  # deployment.
+  verify_tls: true
+  scheme: https                  # use http only for testing
+  # target_port: 9200            # OpenCloud's own port when no proxy is in front
+  extra_checks: true             # TLS, exposed paths, WebDAV, modern headers
+  extra_checks_rating: true      # let failed extra checks lower the rating
+  tls_min_days: 14
+  # The OpenCloud services expose /metrics, /config and /debug/pprof on
+  # separate debug ports. They bind to loopback by default, so a reachable
+  # debug port from the outside is a real finding.
+  check_debug_ports: true
+  # debug_ports: [9205, 9141, 9124, 9134, 9239]
+  # debug_port_timeout: 3
+  # OpenCloud maintains rolling (3 weeks), production (~6 months) and LTS
+  # (2 years) releases side by side, so whether a version still receives fixes
+  # depends on the track it was published on. A release line that is out of
+  # support is rated F.
+  use_release_schedule: true     # false disables the end-of-life check
+  # Use your own schedule instead of the bundled one, e.g. when your vendor
+  # has committed to a different support window.
+  # release_schedule: /etc/check-opencloud-security/release_schedule.json
+  # The track this instance follows: rolling, production or lts. Without it the
+  # track is inferred, which reads a version as generously as is true - 7.2.3
+  # counts as a production release. Declare it and the version is judged on
+  # that track alone, so on 'rolling' the same 7.2.3 is out of support as soon
+  # as the next rolling release ships.
+  # release_track: production
+  # Hardening measures and additional checks to accept. A waived finding no
+  # longer lowers the rating and no longer alerts, but is still recorded in the
+  # result document and explained by --debug. Wildcards are allowed, and only
+  # findings that actually fail can be waived.
+  # ignore_hardenings:
+  #   - cspWithoutUnsafeInline   # default csp.yaml, tightening it breaks the web UI
+  #   - hstsPreload              # the reverse proxy sets its own HSTS header
+  #   - 'debugPort:*'
+  bundled_db: true
+  # vulnerability_db:            # additional advisory files (JSON)
+  #   - /etc/check-opencloud-security/advisories.json
+  # OSV and the GitHub advisory API are both understood:
+  # vulnerability_feed: https://api.osv.dev/v1/query
+  # user_agent: check-opencloud-security
+
+# --- the scan service inside the container -----------------------------------
+service:
+  listen: 0.0.0.0
+  port: 8080
+  cache_ttl: 900
+  # token: secret://scanner_token
+
+# --- update check via the OpenCloud release feed -----------------------------
+#
+# OpenCloud has no serverinfo app and no update endpoint, so the newest
+# release is looked up on GitHub and compared against the 'productversion'
+# the instance reports on /status.php.
+releases:
+  # auto | feed | pinned | bundled | off
+  #   auto    - try the feed, fall back to the bundled release schedule
+  #   feed    - only the feed; a failure is reported as unknown
+  #   pinned  - use 'latest_version' below, no network access
+  #   bundled - use the version shipped in the package, no network access
+  #   off     - skip the update check (same as --no-update-check)
+  mode: auto
+  feed_url: https://api.github.com/repos/opencloud-eu/opencloud/releases/latest
+  # An unauthenticated feed is rate limited per IP address. A token - a plain
+  # fine-grained token without any scope is enough - raises that limit.
+  # token: secret://releases_token
+  # latest_version: "7.2.0"      # used when mode is 'pinned'
+  timeout: 10
+  verify_tls: true
+
+# --- notifications -----------------------------------------------------------
+webhook:
+  # url: https://hooks.example.com/opencloud
+  on: critical                   # critical | warning | unknown | always
+  timeout: 10
+  # headers:
+  #   - "X-Auth-Token: secret://webhook_token"
+
+# --- secret provider ---------------------------------------------------------
+secrets:
+  dir: /run/secrets
+  allow_exec: false              # enable to use exec:// references
+  exec_timeout: 10

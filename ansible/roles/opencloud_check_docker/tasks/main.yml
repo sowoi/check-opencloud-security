@@ -1,0 +1,96 @@
+---
+- name: Fail if a conflicting native deployment is present on this host
+  ansible.builtin.stat:
+    path: "{{ opencloud_check_native_marker }}"
+  register: __opencloud_check_native_marker_stat
+
+- name: Assert no native deployment already manages this host
+  ansible.builtin.fail:
+    msg: >-
+      A native check-opencloud-security deployment already manages this
+      host ({{ opencloud_check_native_marker }} exists). Remove it first
+      before applying the Docker role, to avoid duplicate Icinga2 objects.
+  when: __opencloud_check_native_marker_stat.stat.exists
+
+- name: Verify the Docker CLI is available
+  ansible.builtin.command: "{{ opencloud_check_docker_binary }} version"
+  register: __opencloud_check_docker_version
+  changed_when: false
+  failed_when: false
+
+- name: Fail with guidance if Docker is not installed/usable
+  ansible.builtin.fail:
+    msg: >-
+      Docker does not appear to be installed or usable at
+      {{ opencloud_check_docker_binary }} on this host. This role assumes
+      Docker Engine is already installed (e.g. via the official
+      get.docker.com script or your OS package manager / the
+      community.docker / geerlingguy.docker Ansible role) - install it
+      first, then re-run this playbook.
+  when: __opencloud_check_docker_version.rc != 0
+
+- name: Ensure git is installed (needed to clone the source repository)
+  ansible.builtin.package:
+    name: git
+    state: present
+
+- name: Clone check-opencloud-security
+  ansible.builtin.git:
+    repo: "{{ opencloud_check_repo_url }}"
+    dest: "{{ opencloud_check_clone_dest }}"
+    version: "{{ opencloud_check_repo_version }}"
+    force: true
+  register: __opencloud_check_git_clone
+
+- name: Build the check-opencloud-security Docker image
+  community.docker.docker_image:
+    name: "{{ opencloud_check_docker_image_name }}"
+    tag: "{{ opencloud_check_docker_image_tag }}"
+    source: build
+    build:
+      path: "{{ opencloud_check_clone_dest }}"
+      pull: true
+    force_source: "{{ opencloud_check_force_rebuild or __opencloud_check_git_clone.changed }}"
+
+- name: Add the Icinga2 service account to the docker group
+  ansible.builtin.user:
+    name: "{{ opencloud_check_icinga_user }}"
+    groups: docker
+    append: true
+  register: __opencloud_check_icinga_user
+  notify: Restart icinga2
+
+- name: Ensure the Icinga2 conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ opencloud_check_icinga_conf_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Template the Icinga2 CheckCommand object (Docker-based)
+  ansible.builtin.template:
+    src: checkcommand.conf.j2
+    dest: "{{ opencloud_check_icinga_conf_dir }}/{{ opencloud_check_command_name }}.conf"
+    mode: "0644"
+  notify: Reload icinga2
+
+- name: Template the Icinga2 Service object
+  ansible.builtin.template:
+    src: service.conf.j2
+    dest: "{{ opencloud_check_icinga_conf_dir }}/{{ opencloud_check_command_name }}_service.conf"
+    mode: "0644"
+  notify: Reload icinga2
+
+- name: Create the docker-deployment marker file
+  ansible.builtin.file:
+    path: "{{ opencloud_check_docker_marker }}"
+    state: touch
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Validate the Icinga2 configuration
+  ansible.builtin.command: icinga2 daemon -C
+  register: __opencloud_check_icinga_validate
+  changed_when: false
+  failed_when: __opencloud_check_icinga_validate.rc != 0
+  when: opencloud_check_validate_config | bool

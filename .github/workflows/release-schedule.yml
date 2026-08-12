@@ -1,0 +1,49 @@
+name: OpenCloud release schedule
+
+# Whether an OpenCloud instance still receives security fixes depends on the
+# track its release was published on: a rolling release is superseded after
+# about three weeks, a production release after about six months, and an LTS
+# line is backported for two years. That answer changes over time without
+# anything in this repository changing, so the schedule is refreshed weekly in
+# addition to the refresh that happens during a release. The same run also
+# records the newest release of each track, which the built-in scanner uses as
+# the offline fallback for its update check.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: Refresh release schedule
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Refresh the release schedule
+        run: python scripts/update_release_schedule.py
+
+      - name: Open pull request on change
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: opencloud_local_scan/data/release_schedule.json
+          branch: chore/release-schedule
+          commit-message: "chore: refresh the OpenCloud release schedule"
+          title: "chore: refresh the OpenCloud release schedule"
+          body: |
+            Automated refresh of `opencloud_local_scan/data/release_schedule.json`
+            from the [OpenCloud release lifecycle](https://docs.opencloud.eu/docs/admin/resources/lifecycle/).
+
+            A rolling or production release line is supported until the next
+            line on the same track is released; an LTS line is supported for
+            two years from its first release. A line that is out of support is
+            rated `F` (end of life) by the built-in scanner, and
+            `latest_release` is the per-track version the update check compares
+            against when it cannot reach the release feed.
+          delete-branch: true

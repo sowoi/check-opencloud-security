@@ -1,0 +1,23 @@
+---
+# Shared defaults applied to all hosts in the icinga_targets group.
+# Override per-host in the inventory (see inventory.example.ini) or in
+# host_vars/<hostname>.yml for anything host-specific.
+
+# opencloud_check_host: opencloud.example.com   # usually set per-host
+# opencloud_check_proxy: ""
+# opencloud_check_port: 9200
+# opencloud_check_insecure: false
+# opencloud_check_no_debug_ports: false
+# opencloud_check_update_source: auto
+# opencloud_check_update_warning: false
+# opencloud_check_debug: false
+# opencloud_check_retries: 2
+# opencloud_check_backoff_factor: 0.5
+# opencloud_check_timeout: 10
+# opencloud_check_warning: 3
+# opencloud_check_critical: 1
+# opencloud_check_check_hardening: false
+# opencloud_check_webhook_url: "https://hooks.example.com/opencloud"
+# opencloud_check_webhook_on: critical
+# opencloud_check_webhook_timeout: 10
+# opencloud_check_interval: 24h

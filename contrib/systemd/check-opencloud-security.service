@@ -1,0 +1,13 @@
+[Unit]
+Description=Check an OpenCloud instance for known vulnerabilities and misconfiguration
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Copy check-opencloud-security.env.example to /etc/check-opencloud-security/env
+# and set at least COS_HOST there.
+EnvironmentFile=/etc/check-opencloud-security/env
+# Adjust the path if you installed the plugin elsewhere (see README.md).
+ExecStart=/usr/local/bin/check-opencloud-security
+DynamicUser=yes

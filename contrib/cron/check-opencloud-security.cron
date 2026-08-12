@@ -1,0 +1,22 @@
+# Example /etc/cron.d/check-opencloud-security entry.
+#
+# Runs once a day at 03:00 as the "nagios" user. Adjust the user, path, and
+# schedule to match your environment. The scan only talks to your own
+# instance, but the update check reads the GitHub release feed - see the
+# "Update check" section in README.md before scheduling it much more often.
+#
+# Install:
+#   sudo cp check-opencloud-security.cron /etc/cron.d/check-opencloud-security
+#   sudo chmod 644 /etc/cron.d/check-opencloud-security
+#
+# All options can be set via COS_-prefixed environment variables instead of
+# command-line flags, as shown below.
+
+COS_HOST=opencloud.example.com
+#COS_PROXY=http://proxy.example.com:3128
+#COS_RETRIES=2
+#COS_BACKOFF_FACTOR=0.5
+# OpenCloud self-signs its certificate unless you put a proxy in front of it.
+#COS_SCANNER_VERIFY_TLS=false
+
+0 3 * * * nagios /usr/local/bin/check-opencloud-security >> /var/log/check-opencloud-security.log 2>&1

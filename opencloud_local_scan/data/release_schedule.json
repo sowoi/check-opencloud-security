@@ -1,0 +1,235 @@
+{
+  "_comment": "OpenCloud release schedule, grouped by release line (MAJOR.MINOR). 'tracks' names the release types a line was published on. A rolling or production line is supported until the next line on the same track is released; an LTS line is supported for two years from its first release. Regenerate with scripts/update_release_schedule.py.",
+  "source": "https://docs.opencloud.eu/docs/admin/resources/lifecycle/",
+  "updated": "2026-08-12",
+  "lifetime_days": {
+    "rolling": 21,
+    "production": 183,
+    "lts": 730
+  },
+  "lines": [
+    {
+      "line": "7.4",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-08-03",
+      "latest": "7.4.0"
+    },
+    {
+      "line": "7.3",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-07-14",
+      "latest": "7.3.0"
+    },
+    {
+      "line": "7.2",
+      "tracks": [
+        "production",
+        "rolling"
+      ],
+      "released": "2026-06-25",
+      "latest": "7.2.3"
+    },
+    {
+      "line": "7.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-06-02",
+      "latest": "7.1.0"
+    },
+    {
+      "line": "7.0",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-05-21",
+      "latest": "7.0.0"
+    },
+    {
+      "line": "6.2",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-05-11",
+      "latest": "6.2.0"
+    },
+    {
+      "line": "6.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-04-20",
+      "latest": "6.1.0"
+    },
+    {
+      "line": "6.0",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-03-30",
+      "latest": "6.0.0"
+    },
+    {
+      "line": "5.2",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-03-09",
+      "latest": "5.2.0"
+    },
+    {
+      "line": "5.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-02-16",
+      "latest": "5.1.0"
+    },
+    {
+      "line": "5.0",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-01-26",
+      "latest": "5.0.2"
+    },
+    {
+      "line": "4.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-12-15",
+      "latest": "4.1.0"
+    },
+    {
+      "line": "4.0",
+      "tracks": [
+        "lts",
+        "production"
+      ],
+      "released": "2025-12-01",
+      "latest": "4.0.8"
+    },
+    {
+      "line": "3.7",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-11-03",
+      "latest": "3.7.0"
+    },
+    {
+      "line": "3.6",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-10-27",
+      "latest": "3.6.0"
+    },
+    {
+      "line": "3.5",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-09-22",
+      "latest": "3.5.0"
+    },
+    {
+      "line": "3.4",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-09-02",
+      "latest": "3.4.0"
+    },
+    {
+      "line": "3.3",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-08-11",
+      "latest": "3.3.0"
+    },
+    {
+      "line": "3.2",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-07-21",
+      "latest": "3.2.0"
+    },
+    {
+      "line": "3.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-06-30",
+      "latest": "3.1.0"
+    },
+    {
+      "line": "3.0",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-06-10",
+      "latest": "3.0.0"
+    },
+    {
+      "line": "2.3",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-05-19",
+      "latest": "2.3.0"
+    },
+    {
+      "line": "2.2",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-04-28",
+      "latest": "2.2.0"
+    },
+    {
+      "line": "2.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-04-07",
+      "latest": "2.1.0"
+    },
+    {
+      "line": "2.0",
+      "tracks": [
+        "production",
+        "rolling"
+      ],
+      "released": "2025-03-26",
+      "latest": "2.0.5"
+    },
+    {
+      "line": "1.1",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-03-18",
+      "latest": "1.1.0"
+    },
+    {
+      "line": "1.0",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2025-02-24",
+      "latest": "1.0.0"
+    }
+  ],
+  "latest_release": {
+    "production": "7.2.3",
+    "rolling": "7.4.0"
+  }
+}
