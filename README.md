@@ -56,7 +56,7 @@
 <!-- TOC -->
 
 # check-opencloud-security
-Check the security level of your OpenCloud instance from your own monitoring
+Check the security level of your [OpenCloud](https://opencloud.eu/), instance from your own monitoring
 system.
 
 This plugin ships its own **built-in scanner** and runs **every check
@@ -238,8 +238,10 @@ Completion is optional and off by default; it needs one extra dependency:
 
 ```shell
 pipx install 'check-opencloud-security[completion]'
+uv tool install 'check-opencloud-security[completion]'
 # or, into an existing install:
 pipx inject check-opencloud-security argcomplete
+uv tool install --with argcomplete check-opencloud-security --force
 ```
 
 Then register the two commands with your shell. For **bash**, in `~/.bashrc`:
@@ -1816,6 +1818,9 @@ privately, as described in [SECURITY.md](SECURITY.md).
 
 # License
 Licensed under the terms of GNU General Public License v3.0. See LICENSE file.
+
+This project is built for [OpenCloud](https://opencloud.eu/), whose work makes
+secure, self-hosted collaboration possible. Thank you to the OpenCloud team.
 
 ![Linting](https://github.com/sowoi/check-opencloud-security/actions/workflows/run-ruff-check.yml/badge.svg)
 ![Unittests](https://github.com/sowoi/check-opencloud-security/actions/workflows/run-tests.yml/badge.svg)

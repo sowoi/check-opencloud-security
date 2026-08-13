@@ -12,6 +12,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-13
+
+### Documentation
+
+- Documented shell-completion installation with uv and added an acknowledgment
+  of the OpenCloud project to the README.
+
 ## [1.2.0] - 2026-08-13
 
 ### Added
