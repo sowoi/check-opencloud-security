@@ -29,6 +29,15 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _installed_version
 from pathlib import Path
 
+from .baseline import (
+    Baseline,
+    BaselineError,
+    Comparison,
+    Snapshot,
+    load_baseline,
+    snapshot_of,
+)
+from .completion import enable as enable_completion
 from .config import (
     DEFAULT_CONFIG_NAME,
     DEFAULT_CONFIG_PATHS,
@@ -63,7 +72,14 @@ from .scanner import (
     scan,
 )
 from .secrets import SecretProvider, SecretResolutionError
-from .selfupdate import UpgradeError, UpgradePlan, plan_upgrade, upgrade_self
+from .selfupdate import (
+    UpgradeError,
+    UpgradePlan,
+    latest_released_version,
+    plan_upgrade,
+    self_update_note,
+    upgrade_self,
+)
 from .service import ScanStore, build_server, serve
 from .versions import (
     LifecycleStatus,
@@ -145,6 +161,9 @@ __all__ = [
     "MAX_CONCURRENCY",
     "RELEASE_MODES",
     "Advisory",
+    "Baseline",
+    "BaselineError",
+    "Comparison",
     "Configuration",
     "ConfigurationError",
     "Finding",
@@ -161,6 +180,7 @@ __all__ = [
     "SecretProvider",
     "SecretResolutionError",
     "SetupAborted",
+    "Snapshot",
     "UpdateInfo",
     "UpgradeError",
     "UpgradePlan",
@@ -170,12 +190,15 @@ __all__ = [
     "compare_versions",
     "derive_hardenings",
     "describe_hardening",
+    "enable_completion",
     "failed_extra_checks",
     "fetch_update_info",
     "is_actionable",
     "is_end_of_life",
     "is_legacy_version",
+    "latest_released_version",
     "lifecycle_status",
+    "load_baseline",
     "load_config_file",
     "load_configuration",
     "load_database",
@@ -191,6 +214,8 @@ __all__ = [
     "scan",
     "scanner_settings_from_config",
     "select_version",
+    "self_update_note",
     "serve",
+    "snapshot_of",
     "upgrade_self",
 ]

@@ -12,6 +12,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -263,7 +264,7 @@ def test_scanner_cli_help_lists_both_subcommands():
 
 def test_configure_and_upgrade_self_do_not_require_a_host():
     """Both modes are for a host that has not been configured yet."""
-    upgrade = run_plugin("--upgrade-self", "--dry-run")
+    upgrade = run_plugin("--upgrade-self=check")
     configure = run_plugin("--configure", env={"COS_HOST": ""})
 
     for result in (upgrade, configure):
@@ -273,17 +274,59 @@ def test_configure_and_upgrade_self_do_not_require_a_host():
 
 def test_upgrade_self_refuses_to_install_over_this_checkout():
     """Running it in a working copy must be reported, not silently attempted."""
-    result = run_plugin("--upgrade-self", "--dry-run")
+    result = run_plugin("--upgrade-self=check")
 
     assert result.returncode == UNKNOWN
     assert "source checkout" in result.stdout
     assert "git pull" in result.stdout
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--upgrade-self"],
+        ["--upgrade-self", "run"],
+        ["--upgrade-self", "check"],
+        ["--upgrade-self=check"],
+    ],
+)
+def test_upgrade_self_accepts_its_two_values_in_every_spelling(args):
+    """`--upgrade-self`, `--upgrade-self check` and `--upgrade-self=check` are one flag."""
+    result = run_plugin(*args)
+
+    assert result.returncode == UNKNOWN, result.stderr
+    assert "invalid choice" not in result.stderr
+    # It got as far as the checkout refusal, so the value parsed.
+    assert "source checkout" in result.stdout
+
+
+def test_upgrade_self_rejects_a_value_it_does_not_know():
+    """A typo like --upgrade-self=dry must not be read as 'go ahead and upgrade'."""
+    result = run_plugin("--upgrade-self=dry")
+
+    assert result.returncode != 0
+    assert "invalid choice" in result.stderr
+    assert "source checkout" not in result.stdout
+
+
+def test_the_old_dry_run_flag_is_rejected_rather_than_ignored():
+    """
+    It used to be accepted and silently do nothing on its own; a flag promising
+    'this changes nothing' has to fail loudly once it no longer exists.
+    """
+    alone = run_plugin("--dry-run", env={"COS_HOST": "opencloud.example.com"})
+    combined = run_plugin("--upgrade-self", "--dry-run")
+
+    for result in (alone, combined):
+        assert result.returncode != 0
+        assert "--dry-run" in result.stderr
+
+
 def test_configure_writes_a_file_the_next_run_finds(tmp_path):
     """The whole point of --configure is that afterwards no arguments are needed."""
     target = tmp_path / ".env.json"
-    answers = "opencloud.example.com\nn\n"
+    # host, no optional settings, no test scan (there is no instance to reach).
+    answers = "opencloud.example.com\nn\nn\n"
 
     written = subprocess.run(
         [sys.executable, str(PLUGIN), "--configure", "--config", str(target)],
@@ -309,3 +352,130 @@ def test_help_documents_the_new_modes():
 
     assert "--configure" in text
     assert "--upgrade-self" in text
+    assert "--baseline" in text
+    assert "--warn-on-new" in text
+    assert "--self-update-check" in text
+
+
+# --- Baseline: reporting only what changed ---
+
+
+def test_the_first_run_records_a_baseline_and_still_reports_normally(tmp_path):
+    """Starting to use --baseline must not blind the very first check."""
+    baseline = tmp_path / "baseline.json"
+    behaviour = InstanceBehaviour(exposed_paths={"/opencloud.yaml"})
+    with FakeOpenCloud(behaviour) as instance:
+        result = run_plugin(
+            "-H", instance.host, "--baseline", str(baseline), "--warn-on-new"
+        )
+
+    assert result.returncode == WARNING, result.stdout
+    assert "becomes the baseline" in result.stdout
+    stored = json.loads(baseline.read_text())["hosts"][instance.host]
+    assert "check:exposed:/opencloud.yaml" in stored["findings"]
+
+
+def test_warn_on_new_stays_quiet_while_nothing_changes(tmp_path):
+    """A problem someone is already working on must not page anyone twice."""
+    baseline = tmp_path / "baseline.json"
+    behaviour = InstanceBehaviour(exposed_paths={"/opencloud.yaml"})
+    with FakeOpenCloud(behaviour) as instance:
+        first = run_plugin("-H", instance.host, "--baseline", str(baseline), "--warn-on-new")
+        second = run_plugin("-H", instance.host, "--baseline", str(baseline), "--warn-on-new")
+        without = run_plugin("-H", instance.host)
+
+    assert first.returncode == WARNING, first.stdout
+    assert second.returncode == OK, second.stdout
+    assert "nothing new since the last run" in second.stdout
+    # The state itself is still reported, only the alert is suppressed.
+    assert "exposed:/opencloud.yaml" in second.stdout
+    assert "would otherwise be WARNING" in second.stdout
+    # And without the flag the same instance still alerts.
+    assert without.returncode == WARNING
+
+
+def test_a_new_problem_alerts_even_with_a_baseline(tmp_path):
+    """Suppressing what is known must never suppress what is new."""
+    baseline = tmp_path / "baseline.json"
+    with FakeOpenCloud(InstanceBehaviour(exposed_paths={"/opencloud.yaml"})) as instance:
+        run_plugin("-H", instance.host, "--baseline", str(baseline), "--warn-on-new")
+
+    worse = InstanceBehaviour(exposed_paths={"/opencloud.yaml", "/.env"})
+    with FakeOpenCloud(worse) as instance2:
+        # Same host name, different port, so rewrite the stored key.
+        stored = json.loads(baseline.read_text())
+        stored["hosts"][instance2.host] = next(iter(stored["hosts"].values()))
+        baseline.write_text(json.dumps(stored))
+        result = run_plugin(
+            "-H", instance2.host, "--baseline", str(baseline), "--warn-on-new"
+        )
+
+    assert result.returncode != OK, result.stdout
+    assert "New since last run" in result.stdout
+    assert "exposed:/.env" in result.stdout
+
+
+def test_an_end_of_life_release_is_never_grandfathered_in(tmp_path):
+    """A release that gets no security fixes must alert on every single run."""
+    baseline = tmp_path / "baseline.json"
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "2.0.0"
+    with FakeOpenCloud(behaviour) as instance:
+        first = run_plugin("-H", instance.host, "--baseline", str(baseline), "--warn-on-new")
+        second = run_plugin("-H", instance.host, "--baseline", str(baseline), "--warn-on-new")
+
+    assert first.returncode == CRITICAL, first.stdout
+    assert second.returncode == CRITICAL, second.stdout
+    assert "end of life" in second.stdout
+
+
+def test_warn_on_new_without_a_baseline_is_rejected():
+    """Without somewhere to remember the last run it would report 'nothing new' forever."""
+    result = run_plugin("-H", "opencloud.example.com", "--warn-on-new")
+
+    assert result.returncode == 2
+    assert "--warn-on-new needs --baseline" in result.stderr
+
+
+def test_a_baseline_that_cannot_be_written_does_not_change_the_verdict(tmp_path, healthy):
+    """Bookkeeping must never decide whether an instance is healthy."""
+    unwritable = tmp_path / "nope"
+    unwritable.write_text("not a directory")
+
+    result = run_plugin("-H", healthy.host, "--baseline", str(unwritable / "b.json"))
+
+    assert result.returncode == OK, result.stdout
+    assert "Baseline could not be written" in result.stdout
+
+
+def test_check_only_is_only_accepted_together_with_upgrade_self():
+    """A flag that means nothing on its own has to say so instead of being ignored."""
+    paired = run_plugin("--upgrade-self", "--check-only")
+    alone = run_plugin("--check-only", "-H", "opencloud.example.com")
+
+    assert paired.returncode == UNKNOWN
+    assert "source checkout" in paired.stdout
+    assert "upgraded" not in paired.stdout
+    assert alone.returncode == 2
+    assert "--check-only is only meaningful" in alone.stderr
+
+
+def test_a_plugin_update_is_a_note_and_never_the_verdict(tmp_path, healthy):
+    """PyPI being reachable says nothing about the instance being monitored."""
+    cache = tmp_path / "check-opencloud-security"
+    cache.mkdir()
+    (cache / "pypi-version.json").write_text(
+        json.dumps({"version": "99.0.0", "checkedAt": time.time()})
+    )
+
+    result = run_plugin(
+        "-H",
+        healthy.host,
+        "--self-update-check",
+        env={"XDG_CACHE_HOME": str(tmp_path)},
+    )
+    without = run_plugin("-H", healthy.host, env={"XDG_CACHE_HOME": str(tmp_path)})
+
+    assert result.returncode == OK, result.stdout
+    assert "Plugin update available: check-opencloud-security 99.0.0" in result.stdout
+    assert "99.0.0" not in without.stdout, "the check must be off by default"

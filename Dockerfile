@@ -42,6 +42,18 @@ USER nagios
 # Port of the optional scan service (`check-opencloud-scanner serve`).
 EXPOSE 8080
 
+# The image is normally a one-shot check, so this verifies the image itself
+# rather than any instance: the package imports, and the two data files it
+# rates against - the release schedule and the bundled advisory database -
+# parse. That is what a truncated layer or a botched build actually breaks.
+# It touches no network, so it stays honest on an air-gapped host.
+#
+# Containers running `check-opencloud-scanner serve` want the HTTP liveness
+# probe instead - see the healthcheck on the 'scanner' service in
+# docker-compose.yml, which overrides this one.
+HEALTHCHECK --interval=5m --timeout=15s --start-period=10s --retries=2 \
+    CMD ["python", "-c", "import opencloud_local_scan as s; s.load_release_schedule(); s.load_database()"]
+
 ENTRYPOINT ["check-opencloud-security"]
 # No default CMD: with no arguments, the entrypoint relies entirely on
 # COS_-prefixed environment variables (see README.md "Environment variables").
@@ -56,4 +68,4 @@ ENTRYPOINT ["check-opencloud-security"]
 # and a one-shot scan that prints the result document as JSON:
 #   docker run --rm \
 #     --entrypoint check-opencloud-scanner check-opencloud-security \
-#     scan cloud.example.com
+#     scan opencloud.example.com

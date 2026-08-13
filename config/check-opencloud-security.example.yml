@@ -35,6 +35,16 @@ critical: 1                      # rating <= 1 (E) -> CRITICAL
 check_hardening: true
 update_warning: false            # pending OpenCloud update -> WARNING
 
+# Report only what changed since the last run. 'baseline' remembers the
+# findings per host; 'warn_on_new' then alerts only on something new or worse.
+# A release past its end of life always alerts, baseline or not.
+# baseline: /var/lib/check_opencloud/baseline.json
+# warn_on_new: false
+
+# Ask PyPI once a day whether a newer version of this plugin exists and add a
+# note to the output. Never changes the exit code.
+# self_update_check: false
+
 # --- the built-in scanner ----------------------------------------------------
 #
 # The built-in scanner always runs in this process, so there is nothing to

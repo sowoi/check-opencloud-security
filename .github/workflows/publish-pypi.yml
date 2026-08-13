@@ -7,7 +7,10 @@ on:
 
 permissions:
   contents: write
+  # id-token and attestations are what let a downloader verify with
+  # `gh attestation verify` that an artifact really came out of this workflow.
   id-token: write
+  attestations: write
 
 jobs:
   publish:
@@ -71,6 +74,35 @@ jobs:
         if: steps.check_tag.outputs.exists != 'true'
         run: uv build
 
+      # The SBOM is generated from a resolved runtime environment rather than
+      # from the metadata alone, so it lists the versions that were actually
+      # installed, transitive ones included. It is kept out of dist/ because
+      # `uv publish` uploads everything it finds there.
+      - name: Generate SBOM
+        if: steps.check_tag.outputs.exists != 'true'
+        run: |
+          mkdir -p sbom
+          uv sync --no-dev
+          uvx --from cyclonedx-bom cyclonedx-py environment .venv \
+            --of JSON --pyproject pyproject.toml --mc-type application \
+            -o "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
+
+      # Provenance ties each artifact to this workflow, this commit and this
+      # runner. Signed with a short-lived Sigstore certificate, so there is no
+      # signing key for this project to leak.
+      - name: Attest build provenance
+        if: steps.check_tag.outputs.exists != 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+
+      - name: Attest SBOM
+        if: steps.check_tag.outputs.exists != 'true'
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: "dist/*.whl"
+          sbom-path: "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
+
       - name: Publish to PyPI
         if: steps.check_tag.outputs.exists != 'true'
         run: uv publish
@@ -86,7 +118,7 @@ jobs:
           # --notes-file provides the body, --generate-notes appends GitHub's
           # own "What's Changed" section below it.
           gh release create "v${{ steps.version.outputs.version }}" \
-            dist/* \
+            dist/* sbom/* \
             --title "v${{ steps.version.outputs.version }}" \
             --notes-file RELEASE.md \
             --generate-notes

@@ -416,3 +416,37 @@ result = scan(
     release_settings=ReleaseSettings(mode="bundled"),
 )
 ```
+
+## Comparing a scan with the last one
+
+`opencloud_local_scan.baseline` reduces a result document to the findings that
+are worth comparing - vulnerabilities, missing hardening measures that are
+actionable and not waived, failed additional checks and a pending update - and
+remembers them per host. It is what `--baseline` / `--warn-on-new` are built
+on.
+
+```python
+from opencloud_local_scan import load_baseline, scan, snapshot_of
+
+result = scan("opencloud.example.com")
+store = load_baseline("/var/lib/check_opencloud/baseline.json")
+comparison = store.compare("opencloud.example.com", snapshot_of(result))
+
+if comparison.regressed:
+    print(comparison.summary())
+
+store.record("opencloud.example.com", snapshot_of(result))
+store.save()
+```
+
+`Comparison.regressed` is true on the first run (there is nothing to compare
+against, so staying quiet would hide a real problem), when a finding is new,
+when the rating has dropped, and whenever the release is past its end of life -
+that last one however long it has been true, because a release that receives
+no security fixes gets worse every day it stays in production.
+
+The scan timestamp, the duration and the version string are deliberately not
+part of a snapshot: they change on their own and would make every run look
+new. Writing is atomic and owner-only, and a corrupt or future-format file is
+read as "no baseline yet" rather than raising - degrading to the normal check
+is never worse than refusing to run.

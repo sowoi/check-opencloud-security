@@ -76,6 +76,24 @@ Out of scope:
   operate. Scan only instances you are responsible for.
 - Reports produced solely by an automated scanner, without a working example.
 
+## Verifying what you downloaded
+
+Every release is built by a GitHub Actions workflow that signs a provenance
+statement with a short-lived [Sigstore](https://www.sigstore.dev/) certificate,
+so this project holds no signing key that could leak. The statement ties each
+artifact to the workflow, the commit and the runner that produced it.
+
+```shell
+gh attestation verify check_opencloud_security-<version>-py3-none-any.whl \
+  --repo sowoi/check-opencloud-security
+```
+
+A CycloneDX SBOM listing every dependency that ended up in the release is
+attached to the same GitHub release as
+`check-opencloud-security-<version>.cdx.json`, and is itself attested. Feed it
+to your own vulnerability scanner rather than trusting this list of
+dependencies to stay current.
+
 ## How the plugin handles your data
 
 Worth knowing when you assess the risk of running it:

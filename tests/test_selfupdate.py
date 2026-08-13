@@ -110,7 +110,7 @@ def test_an_installed_copy_is_not_mistaken_for_a_checkout(monkeypatch):
 
 
 def test_a_dry_run_changes_nothing_but_still_names_the_command(monkeypatch):
-    """The point of --dry-run is to see the command without a host changing itself."""
+    """--upgrade-self=check shows the command without a host changing itself."""
     pretend_installed_at(
         monkeypatch, "/home/u/.local/pipx/venvs/check-opencloud-security/x.py"
     )
@@ -127,7 +127,7 @@ def test_a_dry_run_changes_nothing_but_still_names_the_command(monkeypatch):
 
 
 def test_a_real_run_executes_the_planned_command(monkeypatch):
-    """Without --dry-run the command has to actually run, or nothing is upgraded."""
+    """With --upgrade-self=run the command has to run, or nothing is upgraded."""
     pretend_installed_at(
         monkeypatch, "/home/u/.local/pipx/venvs/check-opencloud-security/x.py"
     )
@@ -184,3 +184,116 @@ def test_the_command_is_never_a_shell_string(monkeypatch):
         assert isinstance(plan.command, tuple)
         assert all(isinstance(part, str) for part in plan.command)
         assert not any(char in part for part in plan.command for char in ";|&$")
+
+
+# --- Is the plugin itself out of date? ---
+
+
+class FakeResponse:
+    """Just enough of a requests response for the PyPI lookup."""
+
+    def __init__(self, payload, status: int = 200) -> None:
+        self._payload = payload
+        self.status = status
+
+    def raise_for_status(self) -> None:
+        if self.status >= 400:
+            raise selfupdate.requests.HTTPError(f"status {self.status}")
+
+    def json(self):
+        return self._payload
+
+
+def answer_pypi(monkeypatch, payload, *, calls=None):
+    """Make the PyPI lookup return a fixed document without touching the network."""
+
+    def fake_get(url, timeout=None):
+        if calls is not None:
+            calls.append(url)
+        if isinstance(payload, Exception):
+            raise payload
+        return FakeResponse(payload)
+
+    monkeypatch.setattr(selfupdate.requests, "get", fake_get)
+
+
+def test_a_newer_published_version_becomes_a_note(monkeypatch, tmp_path):
+    """A plugin that never reports its own age is a blind spot in the monitoring."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    answer_pypi(monkeypatch, {"info": {"version": "9.9.9"}})
+
+    note = selfupdate.self_update_note("1.0.0")
+
+    assert note is not None
+    assert "9.9.9" in note
+    assert "--upgrade-self" in note
+
+
+def test_an_up_to_date_installation_says_nothing(monkeypatch, tmp_path):
+    """A note on every single run would be noise, and noise gets filtered out."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    answer_pypi(monkeypatch, {"info": {"version": "1.0.0"}})
+
+    assert selfupdate.self_update_note("1.0.0") is None
+    assert selfupdate.self_update_note("1.1.0") is None, "a dev build is not out of date"
+
+
+def test_the_answer_is_cached_so_every_check_does_not_hit_pypi(monkeypatch, tmp_path):
+    """A check running every minute must not query PyPI every minute."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    calls: list[str] = []
+    answer_pypi(monkeypatch, {"info": {"version": "9.9.9"}}, calls=calls)
+
+    assert selfupdate.self_update_note("1.0.0") is not None
+    assert selfupdate.self_update_note("1.0.0") is not None
+
+    assert len(calls) == 1, calls
+    assert selfupdate.cache_path().exists()
+
+
+def test_a_stale_cache_is_refreshed(monkeypatch, tmp_path):
+    """Cached forever would be the same blind spot with extra steps."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    calls: list[str] = []
+    answer_pypi(monkeypatch, {"info": {"version": "9.9.9"}}, calls=calls)
+
+    selfupdate.self_update_note("1.0.0")
+    selfupdate.self_update_note("1.0.0", max_age=-1)
+
+    assert len(calls) == 2, calls
+
+
+def test_an_unreachable_pypi_is_silent(monkeypatch, tmp_path):
+    """Whether PyPI answered says nothing about the instance being monitored."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    answer_pypi(monkeypatch, selfupdate.requests.ConnectionError("no route to host"))
+
+    assert selfupdate.self_update_note("1.0.0") is None
+    assert selfupdate.latest_released_version() is None
+
+
+def test_a_nonsense_answer_is_silent(monkeypatch, tmp_path):
+    """A captive portal returning HTML must not be read as a version."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    answer_pypi(monkeypatch, {"nothing": "useful"})
+
+    assert selfupdate.self_update_note("1.0.0") is None
+
+
+def test_check_only_is_the_same_request_as_upgrade_self_check(monkeypatch):
+    """The pairing spelling must not accidentally upgrade a monitoring host."""
+    import check_opencloud_security as check
+
+    seen: list[bool] = []
+
+    def fake_upgrade(*, dry_run=False, version=None):
+        seen.append(dry_run)
+        return 0
+
+    monkeypatch.setattr(check, "upgrade_self", fake_upgrade)
+
+    check._run_early_commands(["--upgrade-self", "--check-only"])
+    check._run_early_commands(["--upgrade-self=check"])
+    check._run_early_commands(["--upgrade-self"])
+
+    assert seen == [True, True, False]

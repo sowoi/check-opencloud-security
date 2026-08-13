@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.1.0"
+version = "1.2.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -12,6 +12,11 @@ dependencies = [
     "types-requests>=2.33.0.20260712",
     "PyYAML>=6.0.3",
 ]
+
+[project.optional-dependencies]
+# Shell completion. Optional on purpose: a monitoring host running this from
+# cron has no use for it, and the plugin works without it.
+completion = ["argcomplete>=3.6.2"]
 
 [project.scripts]
 check-opencloud-security = "check_opencloud_security:main"
@@ -42,6 +47,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 test = [
+    "argcomplete>=3.6.2",
     "mypy>=2.3.0",
     "nox>=2026.8.10",
     "pytest>=9.1.1",

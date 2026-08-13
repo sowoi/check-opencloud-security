@@ -186,7 +186,7 @@ wheels = [
 
 [[package]]
 name = "check-opencloud-security"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -195,8 +195,14 @@ dependencies = [
     { name = "types-requests" },
 ]
 
+[package.optional-dependencies]
+completion = [
+    { name = "argcomplete" },
+]
+
 [package.dev-dependencies]
 test = [
+    { name = "argcomplete" },
     { name = "mypy" },
     { name = "nox" },
     { name = "pytest" },
@@ -205,14 +211,17 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "argcomplete", marker = "extra == 'completion'", specifier = ">=3.6.2" },
     { name = "certifi", specifier = ">=2026.7.22" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "types-requests", specifier = ">=2.33.0.20260712" },
 ]
+provides-extras = ["completion"]
 
 [package.metadata.requires-dev]
 test = [
+    { name = "argcomplete", specifier = ">=3.6.2" },
     { name = "mypy", specifier = ">=2.3.0" },
     { name = "nox", specifier = ">=2026.8.10" },
     { name = "pytest", specifier = ">=9.1.1" },

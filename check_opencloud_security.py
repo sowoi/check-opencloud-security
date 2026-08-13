@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 """
 Check an OpenCloud instance for known vulnerabilities.
 
@@ -45,14 +46,38 @@ from opencloud_local_scan import (
     upgrade_self,
 )
 from opencloud_local_scan import scan as local_scan
+from opencloud_local_scan.baseline import BaselineError, load_baseline, snapshot_of
+from opencloud_local_scan.completion import enable as enable_completion
 from opencloud_local_scan.hardening import describe as describe_hardening
 from opencloud_local_scan.hardening import is_actionable
 from opencloud_local_scan.releases import MODES as UPDATE_SOURCES
+from opencloud_local_scan.selfupdate import self_update_note
 from opencloud_local_scan.versions import RELEASE_TRACKS
 
 LOGGER = logging.getLogger("check_opencloud")
 
 DEFAULT_TIMEOUT_SECONDS = 10
+
+# Values accepted by --upgrade-self. 'check' is the dry run: it works out and
+# prints the command without letting a monitoring host change itself.
+UPGRADE_RUN = "run"
+UPGRADE_CHECK = "check"
+
+PROGRAM_NAME = "check_opencloud_security"
+
+# --check-only is a synonym of --upgrade-self=check, because that is the
+# spelling people reach for first. It means nothing on its own, so using it
+# alone is rejected rather than ignored.
+CHECK_ONLY_FLAG = "--check-only"
+
+# Flags that were removed but are still in people's shell history and in their
+# monitoring definitions. Silently ignoring one of these is worse than not
+# recognising it, so each names its replacement.
+RETIRED_FLAGS = {"--dry-run": "--upgrade-self=check"}
+
+# argparse's own exit code for a usage error; reused so that a rejected flag
+# looks the same however it was rejected.
+ARGPARSE_ERROR = 2
 
 # Rating values produced by the built-in scanner, from best (5) to worst (0).
 # The scale follows the ratings of the Nextcloud scan API, so that existing
@@ -128,6 +153,11 @@ class ScanContext:
     release_settings: ReleaseSettings | None = None
     update_check: bool = True
     update_warning: bool = False
+    # Remember the findings of the last run and report only what changed.
+    baseline_path: str | None = None
+    warn_on_new: bool = False
+    # Look up whether a newer plugin version has been published.
+    self_update_check: bool = False
 
 
 @dataclass
@@ -376,6 +406,20 @@ def check_vulnerabilities(
             )
             exit_code = NagiosExitCode.WARNING
 
+    msg, exit_code, baseline_lines = _apply_baseline(
+        context,
+        response_scan,
+        hardenings=actionable_hardenings if context.check_hardening else [],
+        waived=waived,
+        message=msg,
+        exit_code=exit_code,
+    )
+    detail_lines.extend(baseline_lines)
+
+    note = _self_update_line(context)
+    if note:
+        detail_lines.append(note)
+
     if context.debug:
         detail_lines.extend(
             _explain_lines(context, response_scan, missing_hardenings, extra_failures)
@@ -412,6 +456,69 @@ def check_vulnerabilities(
             detail_lines.append("Webhook delivery failed (see debug log)")
 
     _fail(f"{msg}\n" + "\n".join(detail_lines) + f" | {perfdata}", exit_code)
+
+
+def _apply_baseline(
+    context: ScanContext,
+    response_scan: dict[str, Any],
+    *,
+    hardenings: list[str],
+    waived: list[str],
+    message: str,
+    exit_code: NagiosExitCode,
+) -> tuple[str, NagiosExitCode, list[str]]:
+    """
+    Compare this run against the last one and record it.
+
+    With ``--warn-on-new`` an unchanged picture stops alerting, so that a
+    problem someone is already working on does not page anyone a second time.
+    Anything new, a worse rating, and a release past its end of life all keep
+    their original status - see opencloud_local_scan.baseline for why.
+
+    A baseline that cannot be written is reported as a line of output and
+    nothing more: it would be absurd for a bookkeeping failure to change the
+    verdict on the instance.
+    """
+    if not context.baseline_path:
+        return message, exit_code, []
+
+    store = load_baseline(context.baseline_path)
+    current = snapshot_of(response_scan, waived=waived, missing_hardenings=hardenings)
+    comparison = store.compare(context.host, current)
+
+    lines = [f"Baseline: {comparison.summary()}"]
+    if context.warn_on_new and not comparison.regressed and exit_code is not NagiosExitCode.OK:
+        lines.append(
+            f"Suppressed by --warn-on-new: this run would otherwise be {exit_code.name} "
+            f"({message})"
+        )
+        message = f"OK: nothing new since the last run ({exit_code.name} state unchanged)."
+        exit_code = NagiosExitCode.OK
+
+    store.record(context.host, current)
+    try:
+        store.save()
+    except BaselineError as exc:
+        LOGGER.debug("Baseline not written: %s", exc)
+        lines.append(f"Baseline could not be written: {exc}")
+
+    return message, exit_code, lines
+
+
+def _self_update_line(context: ScanContext) -> str | None:
+    """
+    Report a newer published version of the plugin itself, as a note.
+
+    Never touches the exit code: whether PyPI answered says nothing about the
+    health of the instance being monitored.
+    """
+    if not context.self_update_check:
+        return None
+    try:
+        return self_update_note(__version__)
+    except OSError as exc:  # pragma: no cover - defensive
+        LOGGER.debug("Self-update check failed: %s", exc)
+        return None
 
 
 def _resolve_update_info(
@@ -892,7 +999,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     always takes precedence over its environment variable counterpart.
     """
     parser = argparse.ArgumentParser(
-        prog="check_opencloud_security",
+        prog=PROGRAM_NAME,
         description=__doc__,
     )
 
@@ -916,18 +1023,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--upgrade-self",
-        action="store_true",
-        default=False,
+        nargs="?",
+        const=UPGRADE_RUN,
+        default=None,
+        choices=(UPGRADE_RUN, UPGRADE_CHECK),
+        metavar="{run,check}",
         help=(
             "Upgrade this program with whichever tool installed it (pipx, uv or "
-            "pip) and exit. Add --dry-run to only print the command."
+            "pip) and exit. '--upgrade-self=check' only prints the command that "
+            "would run, and changes nothing."
         ),
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="With --upgrade-self: show what would be run without running it.",
     )
     parser.add_argument(
         "-d",
@@ -1094,6 +1199,42 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--baseline",
+        default=_env("BASELINE"),
+        metavar="PATH",
+        help=(
+            "Remember the findings of this run in PATH and report what changed "
+            "since the last one. One entry per host, so a single file can serve "
+            "a whole --host list. "
+            f"Example: /var/lib/check_opencloud/baseline.json (env: {ENV_PREFIX}BASELINE)."
+        ),
+    )
+    parser.add_argument(
+        "--warn-on-new",
+        action="store_true",
+        default=_env_bool("WARN_ON_NEW"),
+        help=(
+            "Only alert when something is new or worse than in the baseline. "
+            "Requires --baseline. A release past its end of life always alerts. "
+            f"Default: False (env: {ENV_PREFIX}WARN_ON_NEW)."
+        ),
+    )
+    parser.add_argument(
+        "--self-update-check",
+        action="store_true",
+        default=_env_bool("SELF_UPDATE_CHECK"),
+        help=(
+            "Add a note when a newer version of this plugin is published on "
+            "PyPI. Cached for a day and never changes the exit code. "
+            f"Default: False (env: {ENV_PREFIX}SELF_UPDATE_CHECK)."
+        ),
+    )
+    parser.add_argument(
+        CHECK_ONLY_FLAG,
+        action="store_true",
+        help="Only valid with --upgrade-self: print the upgrade command without running it.",
+    )
+    parser.add_argument(
         "--concurrency",
         type=int,
         # Left unset on purpose, so that a 'scanner.concurrency:' from the
@@ -1208,6 +1349,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    enable_completion(parser)
     return parser
 
 
@@ -1261,6 +1403,15 @@ def _validate_thresholds(parser: argparse.ArgumentParser, args: argparse.Namespa
         )
     if args.webhook_url and not args.webhook_url.lower().startswith(("http://", "https://")):
         parser.error(f"--webhook-url must be an http(s) URL, got {args.webhook_url!r}.")
+    # A --warn-on-new with nowhere to remember the last run would report
+    # "nothing new" forever without ever having compared anything.
+    if args.warn_on_new and not args.baseline:
+        parser.error("--warn-on-new needs --baseline PATH to compare this run against.")
+    if args.check_only:
+        parser.error(
+            f"{CHECK_ONLY_FLAG} is only meaningful together with --upgrade-self "
+            f"(use: --upgrade-self {CHECK_ONLY_FLAG}, or --upgrade-self=check)."
+        )
 
 
 def _normalise_host(raw: str) -> str:
@@ -1349,6 +1500,9 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         release_settings=release_settings,
         update_check=not args.no_update_check,
         update_warning=args.update_warning,
+        baseline_path=args.baseline,
+        warn_on_new=args.warn_on_new,
+        self_update_check=args.self_update_check,
     )
 
 
@@ -1437,15 +1591,51 @@ def _run_early_commands(argv: list[str] | None = None) -> int | None:
     """
     early = argparse.ArgumentParser(add_help=False)
     early.add_argument("--configure", action="store_true")
-    early.add_argument("--upgrade-self", action="store_true")
-    early.add_argument("--dry-run", action="store_true")
+    early.add_argument(
+        "--upgrade-self",
+        nargs="?",
+        const=UPGRADE_RUN,
+        default=None,
+        choices=(UPGRADE_RUN, UPGRADE_CHECK),
+    )
+    early.add_argument(CHECK_ONLY_FLAG, action="store_true")
     early.add_argument("--config", default=None)
-    known, _ = early.parse_known_args(argv)
+    try:
+        known, remaining = early.parse_known_args(argv)
+    except SystemExit:
+        # An invalid value: let the real parser report it against the full
+        # option list rather than this stripped-down one.
+        return None
 
-    if known.upgrade_self:
-        return upgrade_self(dry_run=known.dry_run, version=__version__)
+    if known.upgrade_self is not None:
+        retired = _retired_flag_error(remaining)
+        if retired is not None:
+            print(retired, file=sys.stderr)
+            return ARGPARSE_ERROR
+        return upgrade_self(
+            dry_run=known.upgrade_self == UPGRADE_CHECK or known.check_only,
+            version=__version__,
+        )
     if known.configure:
         return run_setup(path=known.config)
+    return None
+
+
+def _retired_flag_error(remaining: list[str]) -> str | None:
+    """
+    Report a flag that used to work here, instead of ignoring it.
+
+    ``--upgrade-self --dry-run`` was the spelling of a check that changed
+    nothing. Everything else in this mode is harmlessly ignored, but that one
+    would now upgrade for real - the exact opposite of what it asked for.
+    """
+    for argument in remaining:
+        name = argument.split("=", 1)[0]
+        if name in RETIRED_FLAGS:
+            return (
+                f"{PROGRAM_NAME}: error: unrecognized arguments: {name} "
+                f"(use {RETIRED_FLAGS[name]} instead)"
+            )
     return None
 
 

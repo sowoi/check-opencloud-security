@@ -19,14 +19,20 @@ Detection order, most specific first:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
 import subprocess  # nosec B404 - fixed argv built here, never a shell string
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+import requests
+
+from .versions import compare_versions
 
 LOGGER = logging.getLogger("check_opencloud.selfupdate")
 
@@ -205,3 +211,121 @@ def upgrade_self(
     say("")
     say(f"{package} upgraded. Check the result with: {package} --version")
     return 0
+
+
+# --- Is the plugin itself out of date? ---
+#
+# A monitoring plugin that reports on everyone else's updates but never on its
+# own is a blind spot: an instance can be checked for years by a version that
+# no longer knows about the advisories that matter. The check is off by
+# default, cached, and can only ever add a note - it must never decide the
+# exit code, because whether PyPI is reachable says nothing about the health
+# of the host being monitored.
+
+PYPI_URL = "https://pypi.org/pypi/{package}/json"
+CACHE_FILENAME = "pypi-version.json"
+CACHE_MAX_AGE_SECONDS = 24 * 60 * 60
+PYPI_TIMEOUT_SECONDS = 5
+
+
+def cache_path(package: str = PACKAGE_NAME) -> Path:
+    """Where the last answer from PyPI is remembered."""
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(
+        os.path.expanduser("~"), ".cache"
+    )
+    return Path(base) / package / CACHE_FILENAME
+
+
+def _read_cache(path: Path, max_age: float) -> str | None:
+    """Return the cached version if it is still fresh, otherwise None."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    try:
+        checked_at = float(raw.get("checkedAt", 0))
+    except (TypeError, ValueError):
+        return None
+    if time.time() - checked_at > max_age:
+        return None
+    version = raw.get("version")
+    return str(version) if version else None
+
+
+def _write_cache(path: Path, version: str) -> None:
+    """Remember an answer. Failing to cache is not worth reporting."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"version": version, "checkedAt": time.time()}),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        LOGGER.debug("Could not write %s: %s", path, exc)
+
+
+def _fetch_latest(package: str, timeout: float) -> str | None:
+    """Ask PyPI for the newest published version."""
+    try:
+        response = requests.get(
+            PYPI_URL.format(package=package), timeout=timeout
+        )
+        response.raise_for_status()
+        info = response.json().get("info", {})
+    except (requests.RequestException, ValueError) as exc:
+        LOGGER.debug("PyPI lookup for %s failed: %s", package, exc)
+        return None
+    version = info.get("version") if isinstance(info, dict) else None
+    return str(version) if version else None
+
+
+def latest_released_version(
+    *,
+    package: str = PACKAGE_NAME,
+    max_age: float = CACHE_MAX_AGE_SECONDS,
+    timeout: float = PYPI_TIMEOUT_SECONDS,
+    use_cache: bool = True,
+) -> str | None:
+    """
+    The newest version of the package on PyPI, or None if it cannot be found.
+
+    Every failure - no network, a proxy in the way, PyPI down, a response that
+    is not the JSON we expect - returns None silently. This is a footnote, not
+    a check.
+    """
+    path = cache_path(package)
+    if use_cache:
+        cached = _read_cache(path, max_age)
+        if cached is not None:
+            return cached
+    version = _fetch_latest(package, timeout)
+    if version is not None and use_cache:
+        _write_cache(path, version)
+    return version
+
+
+def self_update_note(
+    current: str,
+    *,
+    package: str = PACKAGE_NAME,
+    max_age: float = CACHE_MAX_AGE_SECONDS,
+    timeout: float = PYPI_TIMEOUT_SECONDS,
+    use_cache: bool = True,
+) -> str | None:
+    """
+    A one-line note when a newer plugin version exists, otherwise None.
+
+    Returns None when the installed version is newer than the published one
+    too, which is the normal state of a source checkout between releases.
+    """
+    latest = latest_released_version(
+        package=package, max_age=max_age, timeout=timeout, use_cache=use_cache
+    )
+    if latest is None or compare_versions(latest, current) <= 0:
+        return None
+    return (
+        f"Plugin update available: {package} {latest} is published, "
+        f"this is {current} (upgrade with --upgrade-self)"
+    )

@@ -1,0 +1,129 @@
+name: Bug report
+description: The plugin crashes, hangs, or does something other than what it documents.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Two things first:**
+
+        - If the plugin *runs* but reports the wrong thing about an instance,
+          use the **Wrong finding or rating** template instead - it asks for
+          the evidence needed to fix that.
+        - If this is a vulnerability **in the plugin itself**, do not file it
+          here. Report it privately via
+          [Security → Report a vulnerability](https://github.com/sowoi/check-opencloud-security/security/advisories/new).
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before you file
+      options:
+        - label: I am on the latest release (`check-opencloud-security --upgrade-self`).
+          required: true
+        - label: I searched the existing issues.
+          required: true
+        - label: >-
+            Everything I paste below is redacted - no tokens, no passwords, and
+            no hostname or IP of a real instance. I will use
+            `opencloud.example.com` instead.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did the plugin do, and what did you expect it to do instead?
+      placeholder: |
+        It exits UNKNOWN with "Could not determine the version" against an
+        instance behind a reverse proxy. I expected it to rate the instance.
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command you ran
+      description: >-
+        Redact tokens and real hostnames. Add `--debug`, which prints what was
+        requested and what came back - that is usually what the fix depends on.
+      render: shell
+      placeholder: |
+        check-opencloud-security --host opencloud.example.com:9200 --insecure --debug
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The full output, including the traceback if there was one.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: The output of `check-opencloud-security --version`.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it is installed
+      options:
+        - pipx
+        - uv tool
+        - pip
+        - Docker image
+        - git checkout
+        - Ansible role
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: The output of `python3 --version`. Skip this if you use the Docker image.
+      placeholder: "3.12.3"
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Debian 12, Ubuntu 24.04, Alpine 3.20, ..."
+
+  - type: input
+    id: opencloud
+    attributes:
+      label: OpenCloud version being checked
+      description: Leave this empty if the plugin cannot read it - that may be the bug.
+      placeholder: "7.4.0"
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Anything unusual about the setup
+      description: >-
+        A reverse proxy, a load balancer terminating TLS, a self-signed
+        certificate, a non-default port, an air-gapped network, a proxy server -
+        these are where most of the bugs are.
+      placeholder: nginx in front, TLS terminated there, the plugin talks plain HTTP to port 9200.
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration file
+      description: >-
+        Optional, and only if it is relevant. **Redact every secret and every
+        real hostname** - the values, not just the keys.
+      render: yaml
