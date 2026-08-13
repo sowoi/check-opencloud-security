@@ -1,9 +1,9 @@
 """
 A stand-in for a real OpenCloud instance, used by the scanner tests.
 
-OpenCloud has no scan API, so there is nothing to fake on that side - what
-the tests need instead is an *instance*. This module serves the handful of
-endpoints the built-in scanner actually looks at:
+What the tests need is an *instance*, since the scanner is built in. This
+module serves the handful of endpoints the built-in scanner actually looks
+at:
 
 * ``/status.php`` and ``/status`` - the unauthenticated status document
 * ``/ocs/v1.php/cloud/capabilities`` - the public capabilities document

@@ -21,6 +21,7 @@ from .releases import (
     DEFAULT_TIMEOUT_SECONDS as DEFAULT_RELEASE_TIMEOUT_SECONDS,
 )
 from .scanner import (
+    DEFAULT_CONCURRENCY,
     DEFAULT_DEBUG_PORT_TIMEOUT_SECONDS,
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TLS_MIN_DAYS,
@@ -97,6 +98,7 @@ def scanner_settings_from_config(
         debug_port_timeout=config.get_int(
             "SCANNER_DEBUG_PORT_TIMEOUT", DEFAULT_DEBUG_PORT_TIMEOUT_SECONDS
         ),
+        concurrency=config.get_int("SCANNER_CONCURRENCY", DEFAULT_CONCURRENCY),
         use_release_schedule=config.get_bool("SCANNER_USE_RELEASE_SCHEDULE", True),
         release_schedule=_release_schedule(config),
         release_track=_release_track(config),

@@ -8,6 +8,7 @@
 # opencloud_check_port: 9200
 # opencloud_check_insecure: false
 # opencloud_check_no_debug_ports: false
+# opencloud_check_concurrency: 1
 # opencloud_check_update_source: auto
 # opencloud_check_update_warning: false
 # opencloud_check_debug: false

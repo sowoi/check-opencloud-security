@@ -72,6 +72,7 @@ your inventory (see `inventory.example.ini`) or in `group_vars`/`host_vars`.
 | `opencloud_check_port`                 | Port the instance listens on, e.g. `9200`                  | `""` (from the host, else 443) |
 | `opencloud_check_insecure`             | Do not verify the instance's TLS certificate               | `false`                         |
 | `opencloud_check_no_debug_ports`       | Skip probing the OpenCloud service debug ports             | `false`                         |
+| `opencloud_check_concurrency`          | Probes run in parallel; `1` means no multithreading        | `1`                             |
 | `opencloud_check_update_source`        | Where the newest release is looked up (`auto`, `feed`, `pinned`, `bundled`, `off`) | `auto` |
 | `opencloud_check_update_warning`       | Report WARNING when a newer release is available           | `false`                         |
 | `opencloud_check_debug`                | Enable verbose debugging output                            | `false`                         |

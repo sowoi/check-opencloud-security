@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """Maintain CHANGELOG.md and RELEASE.md for a release.
 
-The version is read from ``pyproject.toml``. Whenever it changes, the release
-workflow calls this script to
+The version is read from ``pyproject.toml`` and is only ever bumped by hand.
+Whenever it changes, the release workflow calls this script to
 
 * write ``RELEASE.md`` (overwritten on every release) with the notes of the
   version being released, and
-* prepend that same entry to ``CHANGELOG.md`` (older releases are kept).
+* turn the ``## [Unreleased]`` section of ``CHANGELOG.md`` into the section of
+  that version (older releases are kept below it).
 
-If ``CHANGELOG.md`` already contains a section for the version, that section is
-reused verbatim - hand-written notes always win over generated ones. Otherwise
-the notes are generated from the commit subjects since the previous tag,
-grouped by their Conventional Commit type.
+Changes are collected under ``## [Unreleased]`` while they are developed, so
+the notes of a release are written by the people who made the changes rather
+than derived from commit subjects afterwards. The order of preference is:
+
+1. a section already headed ``## [<version>]`` - notes written for exactly
+   this release win over everything else,
+2. the ``## [Unreleased]`` section, which is renamed to ``## [<version>]``,
+3. failing both, notes generated from the commit subjects since the previous
+   tag, grouped by their Conventional Commit type.
 """
 
 from __future__ import annotations
@@ -36,6 +42,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 """
+
+# The heading changes are collected under until a release claims them.
+UNRELEASED = "Unreleased"
 
 # Conventional Commit type -> Keep a Changelog section.
 SECTIONS: dict[str, str] = {
@@ -148,28 +157,86 @@ def generate_body(since: str | None) -> str:
     return "\n".join(parts)
 
 
+def _section_re(label: str) -> re.Pattern[str]:
+    """Match one '## [label]' section and capture its body."""
+    return re.compile(
+        rf"^## \[{re.escape(label)}\][^\n]*\n(?P<body>.*?)(?=^## \[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+
+
+def _has_content(body: str | None) -> bool:
+    """
+    Whether a changelog body says anything.
+
+    An ``## [Unreleased]`` heading that nobody wrote under - the empty scaffold
+    this script leaves behind after a release - must not be published as the
+    notes of the next version.
+    """
+    if body is None:
+        return False
+    return any(
+        line.strip() and not line.lstrip().startswith("#") for line in body.splitlines()
+    )
+
+
 def existing_entry(version: str) -> str | None:
     """Return the body of an already documented changelog section, if any."""
     if not CHANGELOG.exists():
         return None
-    text = CHANGELOG.read_text(encoding="utf-8")
-    pattern = re.compile(
-        rf"^## \[{re.escape(version)}\][^\n]*\n(?P<body>.*?)(?=^## \[|\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    match = pattern.search(text)
+    match = _section_re(version).search(CHANGELOG.read_text(encoding="utf-8"))
     if match is None:
         return None
-    return match.group("body").strip("\n")
+    body = match.group("body").strip("\n")
+    return body if _has_content(body) else None
+
+
+def unreleased_entry() -> str | None:
+    """Return the collected but unpublished notes, if there are any."""
+    if not CHANGELOG.exists():
+        return None
+    match = _section_re(UNRELEASED).search(CHANGELOG.read_text(encoding="utf-8"))
+    if match is None:
+        return None
+    body = match.group("body").strip("\n")
+    return body if _has_content(body) else None
+
+
+def promote_unreleased(version: str, released: str, body: str) -> None:
+    """
+    Turn the '[Unreleased]' section into the section of this version.
+
+    The heading is replaced in place rather than a copy being prepended, so
+    that the notes never end up in the file twice. A fresh empty
+    '[Unreleased]' heading is left on top, ready for the next change.
+    """
+    text = CHANGELOG.read_text(encoding="utf-8")
+    match = _section_re(UNRELEASED).search(text)
+    if match is None:  # pragma: no cover - guarded by the caller
+        prepend_changelog(version, released, body)
+        return
+    entry = f"## [{UNRELEASED}]\n\n## [{version}] - {released}\n\n{body.rstrip()}\n\n"
+    CHANGELOG.write_text(text[: match.start()] + entry + text[match.end():], encoding="utf-8")
 
 
 def prepend_changelog(version: str, released: str, body: str) -> None:
-    """Insert a new version section directly below the changelog header."""
+    """
+    Insert a new version section above the previous release.
+
+    It goes *below* an ``## [Unreleased]`` heading, which always stays on top
+    so that the next change has somewhere to go.
+    """
     entry = f"## [{version}] - {released}\n\n{body.rstrip()}\n"
     if not CHANGELOG.exists():
         CHANGELOG.write_text(f"{CHANGELOG_HEADER}\n{entry}", encoding="utf-8")
         return
     text = CHANGELOG.read_text(encoding="utf-8")
+    unreleased = _section_re(UNRELEASED).search(text)
+    if unreleased is not None:
+        head = text[: unreleased.end()].rstrip("\n")
+        tail = text[unreleased.end():].lstrip("\n")
+        CHANGELOG.write_text(f"{head}\n\n{entry}\n{tail}", encoding="utf-8")
+        return
     marker = re.search(r"^## \[", text, re.MULTILINE)
     if marker is None:
         CHANGELOG.write_text(f"{text.rstrip()}\n\n{entry}", encoding="utf-8")
@@ -185,14 +252,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", default=None, help="Version to document. Default: pyproject.toml.")
     parser.add_argument("--previous-tag", default=None, help="Tag to compare against. Default: latest tag.")
     parser.add_argument("--date", default=None, help="Release date. Default: today (UTC).")
+    parser.add_argument(
+        "--require-unreleased",
+        action="store_true",
+        help="Fail instead of generating notes from commit subjects.",
+    )
     args = parser.parse_args(argv)
 
     version = args.version or project_version()
     released = args.date or datetime.now(tz=timezone.utc).date().isoformat()
 
     body = existing_entry(version)
-    reused = body is not None
+    source = "Reused"
     if body is None:
+        body = unreleased_entry()
+        if body is not None:
+            source = "Promoted [Unreleased] to"
+            promote_unreleased(version, released, body)
+    if body is None:
+        if args.require_unreleased:
+            print(
+                f"No [Unreleased] section in {CHANGELOG.name} and no notes for {version}. "
+                "Collect the changes under '## [Unreleased]' before releasing.",
+                file=sys.stderr,
+            )
+            return 1
+        source = "Generated"
         since = args.previous_tag or previous_tag(version)
         body = generate_body(since)
         prepend_changelog(version, released, body)
@@ -200,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     RELEASE.write_text(
         f"## check-opencloud-security {version}\n\n{body.rstrip()}\n", encoding="utf-8"
     )
-    print(f"{'Reused' if reused else 'Generated'} release notes for {version}", file=sys.stderr)
+    print(f"{source} release notes for {version}", file=sys.stderr)
     return 0
 
 

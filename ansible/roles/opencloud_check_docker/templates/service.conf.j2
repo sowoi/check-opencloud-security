@@ -19,6 +19,7 @@ object Service "{{ opencloud_check_service_name }}" {
 {% endif %}
     vars.opencloud_insecure = {{ opencloud_check_insecure | lower }}
     vars.opencloud_no_debug_ports = {{ opencloud_check_no_debug_ports | lower }}
+    vars.opencloud_concurrency = {{ opencloud_check_concurrency }}
     vars.opencloud_update_source = "{{ opencloud_check_update_source }}"
     vars.opencloud_update_warning = {{ opencloud_check_update_warning | lower }}
     vars.opencloud_debug = {{ opencloud_check_debug | lower }}

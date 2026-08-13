@@ -47,8 +47,8 @@ ENTRYPOINT ["check-opencloud-security"]
 # COS_-prefixed environment variables (see README.md "Environment variables").
 # Run `docker run --rm check-opencloud-security --help` explicitly for usage.
 #
-# The plugin always scans in process - OpenCloud has no scan API, so there is
-# no remote backend to point it at. The same image also ships the scanner as a
+# The plugin always scans in process with its built-in scanner, so there is no
+# remote backend to point it at. The same image also ships the scanner as a
 # standalone service for scheduled scans and for reusing one cached result
 # across several monitoring consumers:
 #   docker run --rm -p 8080:8080 \

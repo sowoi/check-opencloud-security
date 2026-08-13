@@ -1,7 +1,7 @@
 # Optional scan service plus a plugin run against it.
 #
-# OpenCloud has no scan API, so the plugin always scans in process - unlike
-# there is no remote backend it *has* to reach.
+# The plugin always scans in process with its built-in scanner, so there is no
+# remote backend it *has* to reach.
 # The service below is still useful when several monitoring consumers should
 # share one cached result, or when the scan should run from a host that is
 # closer to the instance than the monitoring server.
