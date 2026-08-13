@@ -155,6 +155,7 @@ def test_scanner_settings_are_built_from_the_configuration(tmp_path):
           tls_min_days: 30
           check_debug_ports: false
           debug_ports: "9205,9141"
+          concurrency: 8
           user_agent: custom-agent
         """,
     )
@@ -168,7 +169,23 @@ def test_scanner_settings_are_built_from_the_configuration(tmp_path):
     assert settings.tls_min_days == 30
     assert settings.check_debug_ports is False
     assert settings.debug_ports == (9141, 9205)
+    assert settings.concurrency == 8
     assert settings.user_agent == "custom-agent"
+
+
+def test_scanning_stays_single_threaded_unless_asked(tmp_path):
+    """An operator who says nothing about concurrency must get none."""
+    config_file = _write(tmp_path, "config.yml", "scanner:\n  timeout: 20\n")
+
+    settings = scanner_settings_from_config(load_configuration(str(config_file), environ={}))
+
+    assert settings.concurrency == 1
+    assert (
+        scanner_settings_from_config(
+            load_configuration(str(config_file), environ={"COS_SCANNER_CONCURRENCY": "6"})
+        ).concurrency
+        == 6
+    )
 
 
 def test_scanner_overrides_win_over_the_configuration(tmp_path):
@@ -292,3 +309,60 @@ def test_no_release_schedule_key_means_the_bundled_one(tmp_path):
     settings = scanner_settings_from_config(load_configuration(str(config_file), environ={}))
 
     assert settings.release_schedule is None
+
+
+def test_a_json_file_is_read_the_same_way_as_yaml(tmp_path):
+    """The wizard writes JSON, so it has to reach the settings unchanged."""
+    document = {
+        "host": "cloud.example.com",
+        "webhook": {"url": "https://hooks.example.com/opencloud"},
+        "scanner": {"timeout": 25, "extra_checks": False, "concurrency": 4},
+        "releases": {"mode": "bundled"},
+    }
+    config_file = _write(tmp_path, ".env.json", json.dumps(document))
+
+    config = load_configuration(str(config_file), environ={})
+
+    assert config.get("HOST") == "cloud.example.com"
+    assert config.get("WEBHOOK_URL") == "https://hooks.example.com/opencloud"
+    assert config.get("RELEASES_MODE") == "bundled"
+    assert config.get_int("SCANNER_TIMEOUT", 10) == 25
+    assert config.get_bool("SCANNER_EXTRA_CHECKS", True) is False
+    assert scanner_settings_from_config(config).concurrency == 4
+
+
+def test_the_format_follows_the_suffix_not_the_content(tmp_path):
+    """JSON is valid YAML, but a .json file must never depend on PyYAML."""
+    from opencloud_local_scan.config import load_config_file
+
+    as_json = _write(tmp_path, "settings.json", '{"host": "a.example.com"}')
+    as_yaml = _write(tmp_path, "settings.yml", "host: b.example.com\n")
+
+    assert load_config_file(as_json) == {"host": "a.example.com"}
+    assert load_config_file(as_yaml) == {"host": "b.example.com"}
+
+    broken = _write(tmp_path, "broken.json", "host: not-json\n")
+    with pytest.raises(ConfigurationError):
+        load_config_file(broken)
+
+
+def test_env_json_in_the_working_directory_is_found_automatically(tmp_path, monkeypatch):
+    """After --configure the check must run with no arguments at all."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env.json").write_text('{"host": "found.example.com"}')
+
+    assert load_configuration(None, environ={}).get("HOST") == "found.example.com"
+
+    (tmp_path / ".env.json").unlink()
+    assert load_configuration(None, environ={}).get("HOST") is None
+
+
+def test_an_explicit_file_still_wins_over_the_discovered_one(tmp_path, monkeypatch):
+    """--config must not be quietly overridden by a stray .env.json in the cwd."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env.json").write_text('{"host": "discovered.example.com"}')
+    explicit = _write(tmp_path, "explicit.json", '{"host": "explicit.example.com"}')
+
+    config = load_configuration(str(explicit), environ={})
+
+    assert config.get("HOST") == "explicit.example.com"

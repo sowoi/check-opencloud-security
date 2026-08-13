@@ -189,13 +189,13 @@ def test_version_flag_reports_the_plugin_version():
     assert "check_opencloud_security" in result.stdout
 
 
-def test_help_mentions_that_no_api_is_used():
-    """A literal address is a perfectly normal target for the scanner."""
+def test_help_mentions_the_built_in_scanner():
+    """Operators must be able to see from --help alone where the verdict comes from."""
     result = run_plugin("--help")
     text = " ".join(result.stdout.split())
 
     assert result.returncode == 0
-    assert "OpenCloud offers no public scan API" in text
+    assert "built-in scanner" in text
     assert "every check runs locally" in text
 
 
@@ -259,3 +259,53 @@ def test_scanner_cli_help_lists_both_subcommands():
     assert result.returncode == 0
     assert "scan" in result.stdout
     assert "serve" in result.stdout
+
+
+def test_configure_and_upgrade_self_do_not_require_a_host():
+    """Both modes are for a host that has not been configured yet."""
+    upgrade = run_plugin("--upgrade-self", "--dry-run")
+    configure = run_plugin("--configure", env={"COS_HOST": ""})
+
+    for result in (upgrade, configure):
+        assert "the following arguments are required" not in result.stderr
+        assert "--host" not in result.stderr
+
+
+def test_upgrade_self_refuses_to_install_over_this_checkout():
+    """Running it in a working copy must be reported, not silently attempted."""
+    result = run_plugin("--upgrade-self", "--dry-run")
+
+    assert result.returncode == UNKNOWN
+    assert "source checkout" in result.stdout
+    assert "git pull" in result.stdout
+
+
+def test_configure_writes_a_file_the_next_run_finds(tmp_path):
+    """The whole point of --configure is that afterwards no arguments are needed."""
+    target = tmp_path / ".env.json"
+    answers = "opencloud.example.com\nn\n"
+
+    written = subprocess.run(
+        [sys.executable, str(PLUGIN), "--configure", "--config", str(target)],
+        input=answers,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO_ROOT)},
+        check=False,
+    )
+
+    assert written.returncode == 0, written.stderr
+    assert json.loads(target.read_text()) == {"host": "opencloud.example.com"}
+    assert "Example:" in written.stdout
+
+    used = run_plugin("--config", str(target), "--timeout", "1")
+    assert "the following arguments are required" not in used.stderr
+
+
+def test_help_documents_the_new_modes():
+    """An option nobody can discover from --help may as well not exist."""
+    text = " ".join(run_plugin("--help").stdout.split())
+
+    assert "--configure" in text
+    assert "--upgrade-self" in text

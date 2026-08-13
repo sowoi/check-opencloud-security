@@ -46,6 +46,10 @@ object CheckCommand "{{ opencloud_check_command_name }}" {
             description = "Skip probing the OpenCloud debug ports (optional)"
             set_if = "$opencloud_no_debug_ports$"
         }
+        "--concurrency" = {
+            description = "Probes run in parallel; 1 means no multithreading"
+            value = "$opencloud_concurrency$"
+        }
         "--update-source" = {
             description = "Where the newest release is looked up: auto, feed, pinned, bundled, off"
             value = "$opencloud_update_source$"

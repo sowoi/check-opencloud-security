@@ -3,9 +3,7 @@
 The scan engine behind `check-opencloud-security` and the
 `check-opencloud-scanner` service.
 
-OpenCloud has no hosted security scanner and no scan API, so there is nothing
-to reproduce and nothing to fall back on: this package **is** the scanner. It
-talks to an instance over HTTP(S), reads what OpenCloud exposes without
+This package **is** the built-in scanner. It talks to an instance over HTTP(S), reads what OpenCloud exposes without
 authentication, probes for the misconfigurations that actually occur in
 OpenCloud deployments, and returns a single result document with a `0`-`5`
 rating.
@@ -331,10 +329,29 @@ that published a port range wholesale. Five are probed by default:
 
 Each probe is one TCP connect with a three second timeout, so a firewalled host
 costs up to fifteen seconds per scan. `check_debug_ports: false`,
-`debug_port_timeout` and a shorter `debug_ports` list are all available.
+`debug_port_timeout`, a shorter `debug_ports` list and `concurrency` are all
+available.
 
 The same handlers are also probed on the main address, where they must never
 appear at all (`debugEndpoint:` findings).
+
+## Concurrency
+
+A scan is dominated by waiting: around twenty HTTP requests plus the debug-port
+connects, issued one after the other. `concurrency` runs the independent ones
+in parallel:
+
+```python
+result = scan("opencloud.example.com", settings=ScannerSettings(concurrency=8))
+```
+
+The default is `1`, which uses no threads at all, and values above `32` are
+clamped. Each worker gets its own `requests.Session`, since a session is not
+safe to share across threads.
+
+The setting affects timing only. Results are collected back in the order the
+probes were issued, so a parallel scan reports exactly the same findings, in
+exactly the same order, as a sequential one.
 
 ## TLS
 
@@ -381,10 +398,12 @@ OpenCloud - an unreachable `/status.php`, a non-JSON response, or a JSON
 document without any recognisable version field.
 
 Every setting in `ScannerSettings` and `ReleaseSettings` can also come from a
-YAML file, an environment variable or a secret provider - see
+configuration file (YAML, or JSON when the name ends in `.json`), an
+environment variable or a secret provider - see
 [`config/check-opencloud-security.example.yml`](../config/check-opencloud-security.example.yml)
 and the [Configuration file and secrets](../README.md#configuration-file-and-secrets)
-section of the main README.
+section of the main README. `check-opencloud-scanner configure` writes such a
+file interactively.
 
 For a scan that must not touch the network beyond the instance itself:
 

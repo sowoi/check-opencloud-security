@@ -31,6 +31,7 @@ from .service import (
     ScanStore,
     serve,
 )
+from .wizard import run as run_setup
 
 LOGGER = logging.getLogger("check_opencloud.cli")
 
@@ -80,6 +81,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     scan_parser.add_argument("--port", type=int, help="Override the target port.")
     scan_parser.add_argument(
+        "--concurrency",
+        type=int,
+        help="Number of probes to run in parallel (default 1, no multithreading).",
+    )
+    scan_parser.add_argument(
         "--scheme", choices=("https", "http"), help="Scheme used to reach the instance."
     )
     scan_parser.add_argument(
@@ -99,11 +105,33 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--token", help="Require this token on API requests.")
     serve_parser.add_argument(
+        "--concurrency",
+        type=int,
+        help="Number of probes to run in parallel per scan (default 1).",
+    )
+    serve_parser.add_argument(
         "--insecure",
         dest="verify_tls",
         action="store_false",
         default=None,
         help="Do not verify TLS certificates of scanned instances.",
+    )
+
+    configure_parser = sub.add_parser(
+        "configure",
+        help="Ask for the settings interactively and save them as JSON.",
+    )
+    configure_parser.add_argument(
+        "--all",
+        dest="include_optional",
+        action="store_true",
+        default=None,
+        help="Go through the optional settings without asking first.",
+    )
+    configure_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing file without confirming.",
     )
     return parser
 
@@ -141,6 +169,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
 
+    if args.command == "configure":
+        return run_setup(
+            path=args.config,
+            include_optional=args.include_optional,
+            force=args.force,
+        )
+
     try:
         config = load_configuration(args.config)
     except ConfigurationError as exc:
@@ -155,6 +190,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         check_debug_ports=getattr(args, "check_debug_ports", None),
         port=getattr(args, "port", None) if args.command == "scan" else None,
         scheme=getattr(args, "scheme", None),
+        concurrency=getattr(args, "concurrency", None),
     )
     release_settings = release_settings_from_config(config)
     if getattr(args, "no_update_check", False):

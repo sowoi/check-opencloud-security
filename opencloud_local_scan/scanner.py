@@ -1,11 +1,11 @@
 """
 Built-in security scanner for OpenCloud.
 
-OpenCloud has no public scan API, so every check in this module runs locally:
-the scanner talks to the instance directly and produces a result document
-(``product``, ``version``, ``rating``, ``hardenings``, ``setup``,
-``vulnerabilities``) that drives the plugin, the webhook payload and the
-performance data. The ratings follow the scale of the Nextcloud scan API.
+Every check in this module runs locally: the scanner talks to the instance
+directly and produces a result document (``product``, ``version``,
+``rating``, ``hardenings``, ``setup``, ``vulnerabilities``) that drives the
+plugin, the webhook payload and the performance data. The ratings follow the
+scale of the Nextcloud scan API.
 
 What is inspected:
 
@@ -38,10 +38,13 @@ import logging
 import re
 import socket
 import ssl
-from collections.abc import Iterable, Mapping
+import threading
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from typing import Any
+from functools import partial
+from typing import Any, TypeVar
 
 import requests
 
@@ -143,6 +146,11 @@ DEFAULT_TIMEOUT_SECONDS = 10
 DEFAULT_TLS_MIN_DAYS = 14
 DEFAULT_DEBUG_PORT_TIMEOUT_SECONDS = 3
 
+# One worker means "scan sequentially", which stays the default: a monitoring
+# plugin must not surprise an instance with a burst of parallel requests.
+DEFAULT_CONCURRENCY = 1
+MAX_CONCURRENCY = 32
+
 USER_AGENT = "check-opencloud-security local scanner"
 
 REQUEST_ERRORS = (requests.exceptions.RequestException, ValueError)
@@ -167,6 +175,14 @@ class ScannerSettings:
     check_debug_ports: bool = True
     debug_ports: tuple[int, ...] = ()
     debug_port_timeout: int = DEFAULT_DEBUG_PORT_TIMEOUT_SECONDS
+    concurrency: int = DEFAULT_CONCURRENCY
+    """How many probes may be in flight at once.
+
+    The scan is dominated by waiting for the instance to answer, so raising
+    this shortens a run considerably. It stays at 1 by default because that
+    is the only setting whose load on the instance is beyond argument, and
+    because a sequential run is reproducible when a check turns flaky.
+    """
     use_release_schedule: bool = True
     release_schedule: ReleaseSchedule | None = None
     """Overrides the bundled schedule; ``None`` loads the bundled one."""
@@ -195,6 +211,34 @@ class ScannerSettings:
     def proxies(self) -> dict[str, str] | None:
         """requests-style proxy mapping."""
         return {"http": self.proxy, "https": self.proxy} if self.proxy else None
+
+    @property
+    def workers(self) -> int:
+        """The concurrency actually used, clamped to something sane."""
+        return max(1, min(int(self.concurrency), MAX_CONCURRENCY))
+
+
+_T = TypeVar("_T")
+
+
+def _run_all(
+    settings: ScannerSettings, tasks: Sequence[Callable[[], _T]]
+) -> list[_T]:
+    """
+    Run independent probes, in parallel when the operator asked for it.
+
+    Results keep the order of ``tasks`` regardless of how they were run, so
+    that the findings a scan reports never depend on which probe answered
+    first. Call sites must not nest: every one of them owns its pool, and a
+    nested pool would multiply the configured concurrency.
+    """
+    if settings.workers == 1 or len(tasks) < 2:
+        return [task() for task in tasks]
+    with ThreadPoolExecutor(
+        max_workers=min(settings.workers, len(tasks)),
+        thread_name_prefix="opencloud-scan",
+    ) as pool:
+        return list(pool.map(lambda task: task(), tasks))
 
 
 @dataclass
@@ -231,6 +275,29 @@ class _Probe:
     base_url: str
     settings: ScannerSettings
     session: requests.Session = field(default_factory=requests.Session)
+    _sessions: threading.local = field(default_factory=threading.local, repr=False)
+    _owner: int = field(default_factory=threading.get_ident, repr=False)
+
+    def derive(self, base_url: str) -> _Probe:
+        """A probe for another base URL that reuses this one's connections."""
+        return replace(self, base_url=base_url)
+
+    @property
+    def _session(self) -> requests.Session:
+        """
+        The session belonging to the calling thread.
+
+        A :class:`requests.Session` keeps mutable state that is not safe to
+        share, so a parallel scan hands every worker its own rather than
+        risking responses that belong to another probe.
+        """
+        if threading.get_ident() == self._owner:
+            return self.session
+        session = getattr(self._sessions, "session", None)
+        if session is None:
+            session = requests.Session()
+            self._sessions.session = session
+        return session
 
     def get(
         self,
@@ -243,7 +310,7 @@ class _Probe:
         """Perform one request, returning None when it fails."""
         url = f"{base_url or self.base_url}{path}"
         try:
-            return self.session.request(
+            return self._session.request(
                 method,
                 url,
                 timeout=self.settings.timeout,
@@ -381,12 +448,12 @@ def _csp_has_unsafe_inline(value: str | None) -> bool | None:
     return "'unsafe-inline'" in value.lower()
 
 
-def _check_https(probe: _Probe, hostname: str, settings: ScannerSettings) -> dict[str, Any]:
+def _check_https(probe: _Probe, hostname: str) -> dict[str, Any]:
     """Determine whether HTTPS is used and enforced for plain HTTP requests."""
     used = probe.base_url.startswith("https://")
     enforced = False
 
-    plain = _Probe(base_url=f"http://{hostname}", settings=settings, session=probe.session)
+    plain = probe.derive(f"http://{hostname}")
     response = plain.get("/", allow_redirects=False)
     if response is not None:
         location = response.headers.get("Location", "")
@@ -544,10 +611,18 @@ def _looks_like_catch_all(response: requests.Response, control: requests.Respons
 
 def _exposed_path_findings(probe: _Probe) -> list[Finding]:
     """Check that deployment internals are not readable over HTTP."""
-    control = _catch_all_probe(probe)
+    # The control probe joins the batch: it is independent of the paths and
+    # only needed once every answer is in.
+    control, *responses = _run_all(
+        probe.settings,
+        [partial(_catch_all_probe, probe)]
+        + [
+            partial(probe.get, path, allow_redirects=False)
+            for path, _ in EXPOSED_PATHS
+        ],
+    )
     findings: list[Finding] = []
-    for path, severity in EXPOSED_PATHS:
-        response = probe.get(path, allow_redirects=False)
+    for (path, severity), response in zip(EXPOSED_PATHS, responses):
         if response is None:
             findings.append(Finding(f"exposed:{path}", severity, True, "Not reachable"))
             continue
@@ -566,9 +641,15 @@ def _exposed_path_findings(probe: _Probe) -> list[Finding]:
 
 def _authentication_findings(probe: _Probe) -> list[Finding]:
     """Every protected endpoint must demand authentication."""
+    responses = _run_all(
+        probe.settings,
+        [
+            partial(probe.get, path, allow_redirects=False)
+            for path, _ in PROTECTED_ENDPOINTS
+        ],
+    )
     findings: list[Finding] = []
-    for path, severity in PROTECTED_ENDPOINTS:
-        response = probe.get(path, allow_redirects=False)
+    for (path, severity), response in zip(PROTECTED_ENDPOINTS, responses):
         if response is None:
             findings.append(
                 Finding(f"authentication:{path}", severity, True, "Endpoint not reachable")
@@ -619,8 +700,15 @@ def _directory_listing_finding(
     directory - which then also serves opencloud.yaml and the boltdb files.
     """
     candidates = [root_response]
-    for path in ("/storage/", "/data/"):
-        candidates.append(probe.get(path, allow_redirects=False))
+    candidates.extend(
+        _run_all(
+            probe.settings,
+            [
+                partial(probe.get, path, allow_redirects=False)
+                for path in ("/storage/", "/data/")
+            ],
+        )
+    )
 
     for response in candidates:
         if response is None or response.status_code != 200:
@@ -638,10 +726,13 @@ def _directory_listing_finding(
 
 def _debug_endpoint_findings(probe: _Probe) -> list[Finding]:
     """The service debug endpoints must not be served on the public address."""
+    control, *responses = _run_all(
+        probe.settings,
+        [partial(_catch_all_probe, probe)]
+        + [partial(probe.get, path, allow_redirects=False) for path in DEBUG_ENDPOINTS],
+    )
     findings: list[Finding] = []
-    control = _catch_all_probe(probe)
-    for path in DEBUG_ENDPOINTS:
-        response = probe.get(path, allow_redirects=False)
+    for path, response in zip(DEBUG_ENDPOINTS, responses):
         if response is None:
             findings.append(
                 Finding(f"debugEndpoint:{path}", "high", True, "Not reachable")
@@ -671,21 +762,27 @@ def _debug_port_findings(hostname: str, settings: ScannerSettings) -> list[Findi
     """
     configured = settings.debug_ports or tuple(port for port, _ in DEFAULT_DEBUG_PORTS)
     names = dict(DEFAULT_DEBUG_PORTS)
-    findings: list[Finding] = []
-    for port in configured:
-        service = names.get(port, "service")
+
+    def reachable(port: int) -> bool:
         try:
-            with socket.create_connection((hostname, port), timeout=settings.debug_port_timeout):
-                reachable = True
+            with socket.create_connection(
+                (hostname, port), timeout=settings.debug_port_timeout
+            ):
+                return True
         except OSError:
-            reachable = False
+            return False
+
+    states = _run_all(settings, [partial(reachable, port) for port in configured])
+    findings: list[Finding] = []
+    for port, is_reachable in zip(configured, states):
+        service = names.get(port, "service")
         findings.append(
             Finding(
                 f"debugPort:{port}",
                 "high",
-                not reachable,
+                not is_reachable,
                 f"{service} debug port {port} is reachable"
-                if reachable
+                if is_reachable
                 else f"{service} debug port {port} is closed",
             )
         )
@@ -1184,16 +1281,20 @@ def scan(
         https_unavailable,
     ) = _open_instance(host, settings)
 
-    root_response = probe.get("/", allow_redirects=True)
-    capabilities = _fetch_capabilities(probe)
-    challenge = _authentication_challenge(probe)
+    # The instance answers these three independently of one another.
+    opening: list[Callable[[], Any]] = [
+        partial(probe.get, "/", allow_redirects=True),
+        partial(_fetch_capabilities, probe),
+        partial(_authentication_challenge, probe),
+    ]
+    root_response, capabilities, challenge = _run_all(settings, opening)
 
     version = select_version(status) or select_version(_dig(capabilities, "version") or {})
     product = str(status.get("productname") or status.get("product") or "OpenCloud")
     edition = str(status.get("edition") or "")
 
     headers = _check_headers(root_response)
-    https = _check_https(probe, hostname, settings)
+    https = _check_https(probe, hostname)
     hardenings = derive_hardenings(root_response, capabilities, challenge)
 
     schedule = settings.release_schedule

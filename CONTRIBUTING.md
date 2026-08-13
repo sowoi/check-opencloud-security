@@ -8,10 +8,21 @@
   * [Running Tests](#running-tests)
     * [End-to-end tests](#end-to-end-tests)
   * [Linting](#linting)
+  * [Changelog entries](#changelog-entries)
+  * [Releasing](#releasing)
 <!-- TOC -->
 
 # CONTRIBUTING
 We welcome and appreciate all contributions to this project! Before submitting a Pull Request (PR), please take a moment to review this guide.
+
+By taking part you agree to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). The short version: review the change
+rather than the person, and never post a token, a password or the hostname of
+a real instance - in an issue, a pull request, a test or a commit message. Use
+`opencloud.example.com`.
+
+A vulnerability **in this plugin** is reported privately and never as a public
+issue or pull request - see [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -131,27 +142,56 @@ To run the linting check:
 uvx ruff check
 ```
 
-## Releasing
-Releases are driven entirely by the `version` field in `pyproject.toml`. Once a
-change of that field lands on `main`, the
-[publish workflow](.github/workflows/publish-pypi.yml) takes over:
+## Changelog entries
+Describe your change under the `## [Unreleased]` heading at the top of
+[`CHANGELOG.md`](CHANGELOG.md), in the
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) section it belongs to
+(`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`,
+`Documentation`). Create the heading if the previous release has just consumed
+it:
 
-1. `scripts/release_notes.py` writes the notes of the new version to
-   `RELEASE.md` (overwritten on every release) and prepends the same entry to
-   the top of [`CHANGELOG.md`](CHANGELOG.md).
+```markdown
+## [Unreleased]
+
+### Added
+
+- What you added, and why it matters to an operator.
+```
+
+Do not write a `## [x.y.z]` heading and do not bump the version - the release
+picks your entry up under whichever number the maintainer chooses.
+
+## Releasing
+**The version in `pyproject.toml` is bumped by hand, by a maintainer, and
+nobody else.** It is the only trigger there is: once the bump lands on `main`,
+the [publish workflow](.github/workflows/publish-pypi.yml) publishes to PyPI.
+It is also the only place the number is written: `opencloud_local_scan`
+derives `__version__` from it - from the installed package metadata, or from
+the file itself when running out of a checkout - and the plugin imports that.
+Nothing else needs editing.
+
+The workflow then:
+
+1. `scripts/release_notes.py` renames `## [Unreleased]` in
+   [`CHANGELOG.md`](CHANGELOG.md) to `## [<version>] - <date>`, writes the same
+   body to `RELEASE.md` (overwritten on every release) and leaves a fresh empty
+   `## [Unreleased]` behind.
 2. Both files are committed back to `main` with `[skip ci]`.
 3. The package is built and published to PyPI.
 4. The tag `v<version>` is created and a GitHub release is opened with
    `RELEASE.md` as its body, followed by GitHub's generated
    "What's Changed" section.
 
-If `CHANGELOG.md` already contains a `## [<version>]` section, those
-hand-written notes are used as-is. Otherwise they are generated from the commit
-subjects since the previous tag, grouped by their
+A `## [<version>]` section that already exists wins over `## [Unreleased]`. If
+neither has any content, the notes fall back to the commit subjects since the
+previous tag, grouped by their
 [Conventional Commit](https://www.conventionalcommits.org/) type (`feat` ->
 Added, `fix` -> Fixed, `security` -> Security, ...; `chore`, `ci`, `build`,
-`test` and `style` are skipped). Preview the result locally with:
+`test` and `style` are skipped); `--require-unreleased` turns that fallback
+into an error instead. Preview the result locally - it rewrites both files, so
+revert afterwards:
 
 ```shell
-python scripts/release_notes.py
+python scripts/release_notes.py --version 0.0.0 --date 2000-01-01
+git checkout CHANGELOG.md RELEASE.md
 ```

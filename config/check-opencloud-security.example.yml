@@ -1,7 +1,13 @@
 # Example configuration for check-opencloud-security and its built-in scanner.
 #
+# The quickest way to produce one is 'check-opencloud-security --configure',
+# which asks for the settings it needs, explains each one and writes JSON.
+# This file is the same thing in YAML - the two formats are interchangeable
+# and a '.json' suffix is all that selects between them.
+#
 # Copy this file to one of the default locations
-#   ./check-opencloud-security.yml
+#   ./.env.json  (JSON)          ./check-opencloud-security.yml
+#   ~/.config/check-opencloud-security/.env.json
 #   /etc/check-opencloud-security/config.yml
 # or point at it with --config / COS_CONFIG_FILE.
 #
@@ -31,9 +37,9 @@ update_warning: false            # pending OpenCloud update -> WARNING
 
 # --- the built-in scanner ----------------------------------------------------
 #
-# OpenCloud offers no scan API, so there is nothing to configure here about
-# where the scan runs: it always runs in this process. Only 'service' below
-# turns the very same scanner into a long-running HTTP service.
+# The built-in scanner always runs in this process, so there is nothing to
+# configure here about where the scan runs. Only 'service' below turns the
+# very same scanner into a long-running HTTP service.
 scanner:
   timeout: 10
   # OpenCloud terminates TLS itself and 'opencloud init' creates a self-signed
@@ -53,6 +59,11 @@ scanner:
   check_debug_ports: true
   # debug_ports: [9205, 9141, 9124, 9134, 9239]
   # debug_port_timeout: 3
+  # A scan is almost entirely spent waiting for the instance to answer, so
+  # running the probes in parallel shortens it considerably. The default of 1
+  # means no multithreading: a plain sequential scan. Values above 32 are
+  # clamped. It changes the timing only, never the findings.
+  # concurrency: 8
   # OpenCloud maintains rolling (3 weeks), production (~6 months) and LTS
   # (2 years) releases side by side, so whether a version still receives fixes
   # depends on the track it was published on. A release line that is out of

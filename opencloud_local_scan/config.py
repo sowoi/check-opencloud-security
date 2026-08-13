@@ -3,13 +3,15 @@ Layered configuration for check-opencloud-security.
 
 Values can come from three places, in increasing order of precedence:
 
-1. A YAML configuration file (``--config``, ``COS_CONFIG_FILE`` or one of the
-   default locations in :data:`DEFAULT_CONFIG_PATHS`).
+1. A configuration file (``--configure`` writes one, or ``--config``,
+   ``COS_CONFIG_FILE`` or one of the default locations in
+   :data:`DEFAULT_CONFIG_PATHS`). ``.json`` files are read as JSON, everything
+   else as YAML; both use the same key names.
 2. ``COS_``-prefixed environment variables.
 3. Command line flags (handled by the caller, which passes the values from
    here as argparse defaults).
 
-Nested YAML keys map one to one onto environment variable names, so
+Nested keys map one to one onto environment variable names, so
 
 .. code-block:: yaml
 
@@ -18,7 +20,13 @@ Nested YAML keys map one to one onto environment variable names, so
     scanner:
       port: 8080
 
-is equivalent to ``COS_WEBHOOK_URL`` and ``COS_SCANNER_PORT``.
+and its JSON equivalent
+
+.. code-block:: json
+
+    {"webhook": {"url": "https://example.com/hook"}, "scanner": {"port": 8080}}
+
+are both equivalent to ``COS_WEBHOOK_URL`` and ``COS_SCANNER_PORT``.
 
 Any value may also be delivered by a secret provider, either through a
 reference such as ``secret://opencloud_token`` (see
@@ -28,6 +36,7 @@ reference such as ``secret://opencloud_token`` (see
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from collections.abc import Mapping
@@ -42,12 +51,21 @@ LOGGER = logging.getLogger("check_opencloud.config")
 ENV_PREFIX = "COS_"
 FILE_SUFFIX = "_FILE"
 
+DEFAULT_CONFIG_NAME = ".env.json"
+"""Written by the setup wizard (``--configure``) and found automatically."""
+
 DEFAULT_CONFIG_PATHS = (
+    f"./{DEFAULT_CONFIG_NAME}",
     "./check-opencloud-security.yml",
     "./check-opencloud-security.yaml",
+    f"~/.config/check-opencloud-security/{DEFAULT_CONFIG_NAME}",
+    f"/etc/check-opencloud-security/{DEFAULT_CONFIG_NAME}",
     "/etc/check-opencloud-security/config.yml",
     "/etc/check-opencloud-security/config.yaml",
 )
+
+# Extensions parsed as JSON; everything else is treated as YAML.
+JSON_SUFFIXES = frozenset({".json"})
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
@@ -200,6 +218,32 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
+def _load_json(path: Path) -> dict[str, Any]:
+    """Parse a JSON configuration file into a plain dictionary."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigurationError(f"Cannot read configuration file {path}: {exc}") from exc
+
+    try:
+        data = json.loads(content or "{}")
+    except json.JSONDecodeError as exc:
+        raise ConfigurationError(f"Cannot parse configuration file {path}: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ConfigurationError(
+            f"Configuration file {path} must contain an object at the top level."
+        )
+    return data
+
+
+def load_config_file(path: Path) -> dict[str, Any]:
+    """Parse a configuration file, picking the format from its extension."""
+    if path.suffix.lower() in JSON_SUFFIXES:
+        return _load_json(path)
+    return _load_yaml(path)
+
+
 def _discover_config_path(
     explicit: str | None, environ: Mapping[str, str]
 ) -> tuple[Path | None, bool]:
@@ -213,7 +257,7 @@ def _discover_config_path(
     if candidate:
         return Path(candidate).expanduser(), True
     for default in DEFAULT_CONFIG_PATHS:
-        path = Path(default)
+        path = Path(default).expanduser()
         if path.is_file():
             return path, False
     return None, False
@@ -262,7 +306,7 @@ def load_configuration(
     source: str | None = None
     if path is not None:
         if path.is_file():
-            raw = _load_yaml(path)
+            raw = load_config_file(path)
             source = str(path)
             LOGGER.debug("Loaded configuration from %s", path)
         elif explicit:

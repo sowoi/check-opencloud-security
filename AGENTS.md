@@ -8,13 +8,13 @@ Guidance for AI coding agents working on **check-opencloud-security**
 A Nagios/Icinga plugin that checks an OpenCloud instance for known
 vulnerabilities and misconfiguration, plus the scanner library it is built on.
 
-The single most important fact about it: **OpenCloud has no public scan API.**
-There is no remote service to ask for a verdict, so everything the plugin
+The single most important fact about it: **the plugin uses a built-in
+scanner.** It never asks a remote service for a verdict - everything it
 reports it works out itself by talking to the instance over HTTP. The ratings
 follow the `0`-`5` scale of the Nextcloud scan API purely so that existing
 thresholds, graphs and alert rules keep their meaning - that is the only place
 Nextcloud may be mentioned. Do not introduce API clients, tokens or endpoints
-for a scan service that does not exist.
+for a remote scan service.
 
 ## Layout
 
@@ -26,22 +26,62 @@ for a scan service that does not exist.
 | `opencloud_local_scan/releases.py` | The update check and its track-aware recommendation |
 | `opencloud_local_scan/hardening.py` | Catalogue explaining every hardening identifier |
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
+| `opencloud_local_scan/wizard.py` | The interactive setup behind `--configure` |
+| `opencloud_local_scan/selfupdate.py` | `--upgrade-self`, via pipx, uv or pip |
 | `opencloud_local_scan/data/release_schedule.json` | Bundled release schedule |
 | `scripts/update_release_schedule.py` | Regenerates that file from the published documentation |
+| `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
 | `ansible/`, `contrib/`, `config/` | Deployment role, Icinga definitions, example config |
 
 ## Ground rules
 
-- **Never modify `check-nextcloud-security`.** It is a sibling repository used
-  only as a reference. `git status` in it must stay empty.
 - **Do not reference any real instance.** The project is tested against a live
   server, but its hostname must never appear in code, tests, documentation or
   commit messages. Use `opencloud.example.com` in examples.
-- **Do not add a scan API.** See above.
-- Keep the version in `pyproject.toml`, `check_opencloud_security.py` and
-  `opencloud_local_scan/__init__.py` **identical**. They have drifted before.
+- **Do not add a remote scan API.** See above.
+- **Never bump the version.** See [Versioning and
+  releases](#versioning-and-releases) - that is the user's decision alone.
+- **`pyproject.toml` is the only place the version is written.**
+  `opencloud_local_scan.__version__` derives it from there (package metadata
+  when installed, the file itself in a checkout) and the plugin imports that.
+  Never reintroduce a literal - that is how the numbers drifted apart before.
 - Comment only what needs clarification. Explain *why*, not *what*.
+
+## Versioning and releases
+
+**The version is bumped manually by the user, never by an agent.** Do not edit
+the `version` in `pyproject.toml` - it is the *only* place the number is
+written. `opencloud_local_scan.__version__` derives it from there and
+`check_opencloud_security.py` imports that, so there is nothing to keep in
+sync. Do not create tags or releases either. Deciding that a set of changes is
+a patch, a minor or a major release is a judgement call about the project, not
+a mechanical step - and a bump that lands on `main` publishes to PyPI
+immediately.
+
+Write what you changed under the **`## [Unreleased]`** heading at the top of
+`CHANGELOG.md` instead, in the [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/) sections (`Added`, `Changed`,
+`Deprecated`, `Removed`, `Fixed`, `Security`, `Documentation`). Create the
+heading if a release has just consumed it. Never write a `## [x.y.z]` heading
+yourself.
+
+When the user bumps the version, `scripts/release_notes.py` renames
+`## [Unreleased]` to `## [<version from pyproject.toml>] - <date>`, copies that
+body into `RELEASE.md` for the GitHub release, and leaves a fresh empty
+`## [Unreleased]` behind. So an entry only needs writing once, and everything
+collected since the last release ships under the version the user chose.
+
+Preview what the next release would look like. It rewrites `CHANGELOG.md` and
+`RELEASE.md`, so do it on a scratch copy or revert afterwards:
+
+```bash
+python scripts/release_notes.py --version 0.0.0 --date 2000-01-01
+git checkout CHANGELOG.md RELEASE.md
+```
+
+`--require-unreleased` makes the script fail rather than fall back to
+generating notes from commit subjects.
 
 ## Working on the rating
 
@@ -119,4 +159,5 @@ positive case.
 must be kept in sync with its headings. `opencloud_local_scan/README.md`
 documents the library and service. Every new option needs a row in the CLI
 option table, an entry in `config/check-opencloud-security.example.yml` and a
-line in `CHANGELOG.md`.
+line under `## [Unreleased]` in `CHANGELOG.md` - never under a version
+heading, see [Versioning and releases](#versioning-and-releases).

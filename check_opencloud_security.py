@@ -2,9 +2,9 @@
 """
 Check an OpenCloud instance for known vulnerabilities.
 
-OpenCloud offers no public scan API, so every check runs locally: the plugin
-talks to the instance itself, reads the endpoints OpenCloud exposes without
-authentication, probes for common misconfigurations and rates the result.
+The plugin uses a built-in scanner: every check runs locally, talking to the
+instance itself, reading the endpoints OpenCloud exposes without
+authentication, probing for common misconfigurations and rating the result.
 No data about the instance leaves your network - the only optional outbound
 request is the release feed used for the update check.
 
@@ -27,25 +27,28 @@ from typing import Any, NoReturn, TypeVar
 import requests
 
 from opencloud_local_scan import (
+    DEFAULT_CONCURRENCY,
+    MAX_CONCURRENCY,
     Configuration,
     ConfigurationError,
     ReleaseSettings,
     ScanError,
     ScannerSettings,
     UpdateInfo,
+    __version__,
     failed_extra_checks,
     fetch_update_info,
     load_configuration,
     release_settings_from_config,
+    run_setup,
     scanner_settings_from_config,
+    upgrade_self,
 )
 from opencloud_local_scan import scan as local_scan
 from opencloud_local_scan.hardening import describe as describe_hardening
 from opencloud_local_scan.hardening import is_actionable
 from opencloud_local_scan.releases import MODES as UPDATE_SOURCES
 from opencloud_local_scan.versions import RELEASE_TRACKS
-
-__version__ = "1.0.0"
 
 LOGGER = logging.getLogger("check_opencloud")
 
@@ -264,9 +267,8 @@ def send_scan_request(context: ScanContext) -> ScanResult:
     """
     Obtain a scan result for the configured host.
 
-    OpenCloud has no scan API, so this always runs the built-in scanner
-    in-process. The function exists to keep the request, retry and error
-    handling in one place.
+    The built-in scanner always runs in-process. The function exists to keep
+    the request, retry and error handling in one place.
     """
     LOGGER.debug("Running local scan for host: %s", context.host)
     try:
@@ -901,6 +903,33 @@ def build_arg_parser() -> argparse.ArgumentParser:
         version=f"%(prog)s {__version__}\nhttps://github.com/sowoi/check-opencloud-security",
     )
     parser.add_argument(
+        "--configure",
+        action="store_true",
+        default=False,
+        help=(
+            "Ask for the settings this check needs, explaining each one, and save "
+            "them as JSON. Only required settings are asked for; optional ones "
+            "are offered group by group and skipped with Enter. The file is "
+            "found automatically afterwards. Combine with --config to choose "
+            "where it is written."
+        ),
+    )
+    parser.add_argument(
+        "--upgrade-self",
+        action="store_true",
+        default=False,
+        help=(
+            "Upgrade this program with whichever tool installed it (pipx, uv or "
+            "pip) and exit. Add --dry-run to only print the command."
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="With --upgrade-self: show what would be run without running it.",
+    )
+    parser.add_argument(
         "-d",
         "--debug",
         action="store_true",
@@ -928,9 +957,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--config",
         default=None,
         help=(
-            "Path to a YAML configuration file. Default: the first existing file "
-            "of ./check-opencloud-security.yml or /etc/check-opencloud-security/config.yml "
-            f"(env: {ENV_PREFIX}CONFIG_FILE)."
+            "Path to a configuration file ('.json' is read as JSON, anything else "
+            "as YAML). Default: the first existing file of ./.env.json, "
+            "./check-opencloud-security.yml, ~/.config/check-opencloud-security/.env.json "
+            "or /etc/check-opencloud-security/ (env: "
+            f"{ENV_PREFIX}CONFIG_FILE). With --configure, where to save."
         ),
     )
     parser.add_argument(
@@ -1060,6 +1091,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Report WARNING when a newer OpenCloud release is available. "
             f"Default: False (env: {ENV_PREFIX}UPDATE_WARNING)."
+        ),
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        # Left unset on purpose, so that a 'scanner.concurrency:' from the
+        # configuration file survives.
+        default=None,
+        help=(
+            "Number of probes the scanner runs at the same time. Raising this "
+            "shortens a scan, which mostly waits for the instance to answer, at "
+            "the price of a burst of parallel requests. "
+            f"Default: {DEFAULT_CONCURRENCY} (no multithreading) "
+            f"(env: {ENV_PREFIX}SCANNER_CONCURRENCY)."
         ),
     )
     parser.add_argument(
@@ -1210,6 +1255,10 @@ def _validate_thresholds(parser: argparse.ArgumentParser, args: argparse.Namespa
         )
     if args.port is not None and not 1 <= args.port <= 65535:
         parser.error(f"--port must be between 1 and 65535, got {args.port}.")
+    if args.concurrency is not None and not 1 <= args.concurrency <= MAX_CONCURRENCY:
+        parser.error(
+            f"--concurrency must be between 1 and {MAX_CONCURRENCY}, got {args.concurrency}."
+        )
     if args.webhook_url and not args.webhook_url.lower().startswith(("http://", "https://")):
         parser.error(f"--webhook-url must be an http(s) URL, got {args.webhook_url!r}.")
 
@@ -1264,6 +1313,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         extra_checks=False if args.no_extra_checks else None,
         verify_tls=False if args.insecure else None,
         check_debug_ports=False if args.no_debug_ports else None,
+        concurrency=args.concurrency,
         release_track=args.release_track,
         ignore_hardenings=_waiver_patterns(args.ignore_hardening),
     )
@@ -1377,6 +1427,28 @@ def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> Nagios
     return _aggregate_exit_code(exit_codes)
 
 
+def _run_early_commands(argv: list[str] | None = None) -> int | None:
+    """
+    Handle the modes that do not scan anything.
+
+    ``--configure`` and ``--upgrade-self`` are intercepted before the real
+    parser is built, because that parser insists on a host and neither of
+    these has one. Returns an exit code when it handled the run.
+    """
+    early = argparse.ArgumentParser(add_help=False)
+    early.add_argument("--configure", action="store_true")
+    early.add_argument("--upgrade-self", action="store_true")
+    early.add_argument("--dry-run", action="store_true")
+    early.add_argument("--config", default=None)
+    known, _ = early.parse_known_args(argv)
+
+    if known.upgrade_self:
+        return upgrade_self(dry_run=known.dry_run, version=__version__)
+    if known.configure:
+        return run_setup(path=known.config)
+    return None
+
+
 def _preparse_config(argv: list[str] | None = None) -> Configuration:
     """
     Load the configuration file before the real parser is built.
@@ -1392,6 +1464,10 @@ def _preparse_config(argv: list[str] | None = None) -> Configuration:
 
 def main() -> None:
     """Main entry point."""
+    early = _run_early_commands()
+    if early is not None:
+        sys.exit(early)
+
     try:
         _set_configuration(_preparse_config())
     except ConfigurationError as exc:

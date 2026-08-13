@@ -14,11 +14,12 @@
 * [Options:](#options)
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Environment variables](#environment-variables)
-* [Why there is no API backend](#why-there-is-no-api-backend)
+* [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
   * [Reading the version correctly](#reading-the-version-correctly)
   * [TLS and self-signed certificates](#tls-and-self-signed-certificates)
   * [Debug ports](#debug-ports)
+    * [Speeding the scan up](#speeding-the-scan-up)
   * [End-of-life detection](#end-of-life-detection)
   * [Advisory database](#advisory-database)
   * [Running the scanner as a service](#running-the-scanner-as-a-service)
@@ -32,6 +33,7 @@
   * [Accepting a finding you are not going to fix](#accepting-a-finding-you-are-not-going-to-fix)
 * [Explaining a rating](#explaining-a-rating)
 * [Webhook notifications](#webhook-notifications)
+  * [Uptime Kuma](#uptime-kuma)
 * [Retries and backoff](#retries-and-backoff)
 * [Performance data](#performance-data)
 * [Caching](#caching)
@@ -59,9 +61,8 @@
 Check the security level of your OpenCloud instance from your own monitoring
 system.
 
-OpenCloud has no public security scan service and no scan API - there is no
-`scan.opencloud.eu` to ask. This plugin therefore ships its own scanner and
-runs **every check locally**: it talks to the instance directly, reads the
+This plugin ships its own **built-in scanner** and runs **every check
+locally**: it talks to the instance directly, reads the
 endpoints OpenCloud exposes without authentication, probes for the
 misconfigurations that actually occur in OpenCloud deployments, and rates the
 result on a `0`-`5` scale. The ratings follow the scale of the Nextcloud scan
@@ -158,6 +159,16 @@ instead: `pipx install git+https://github.com/sowoi/check-opencloud-security.git
 
 ### Updating
 ```shell
+check-opencloud-security --upgrade-self
+```
+
+That works out how the plugin was installed and runs the right command for it.
+Add `--dry-run` to see what it would run without running it. A git checkout is
+refused - update that with `git pull`.
+
+The commands it picks between, if you would rather run them yourself:
+
+```shell
 pipx upgrade check-opencloud-security          # pipx
 pipx upgrade-all                               # ... or every pipx tool at once
 
@@ -243,8 +254,8 @@ Or configure it entirely through [environment variables](#environment-variables)
 docker run --rm -e COS_HOST=opencloud.example.com check-opencloud-security
 ```
 
-The check container needs no network ports, but - unlike a plugin that calls a
-hosted scan API - it does need to reach the OpenCloud instance itself. If the
+The check container needs no network ports, but it does need to reach the
+OpenCloud instance itself. If the
 instance is only reachable on the Docker host's own network, add
 `--network host` or the appropriate `--add-host`. It runs as an unprivileged
 `nagios` user and exits with the same Nagios-style codes (`0`/`1`/`2`/`3`) as
@@ -429,6 +440,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--insecure`        | Do not verify the instance's TLS certificate           | *False*      | `COS_INSECURE`        |
 | `--no-extra-checks` | Only check product, version and security headers       | *False*      | `COS_NO_EXTRA_CHECKS` |
 | `--no-debug-ports`  | Skip probing the OpenCloud debug ports                 | *False*      | `COS_NO_DEBUG_PORTS`  |
+| `--concurrency`     | Probes run in parallel; `1` means no multithreading    | `1`          | `COS_SCANNER_CONCURRENCY` |
 | `--ignore-hardening`| Hardening measure or check to accept, repeatable, comma-separated and wildcard capable | *None* | `COS_SCANNER_IGNORE_HARDENINGS` |
 | `--release-track`   | Release track this instance follows: `rolling`, `production` or `lts` | inferred | `COS_SCANNER_RELEASE_TRACK` |
 | `--update-source`   | Where the newest release comes from: `auto`, `feed`, `pinned`, `bundled`, `off` | `auto` | `COS_UPDATE_SOURCE` |
@@ -443,7 +455,10 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--webhook-timeout` | HTTP timeout in seconds for the webhook call           | `10`         | `COS_WEBHOOK_TIMEOUT` |
 | `--retries`         | Retry attempts for transient network errors            | `2`          | `COS_RETRIES`         |
 | `--backoff-factor`  | Exponential backoff factor (seconds) between retries   | `0.5`        | `COS_BACKOFF_FACTOR`  |
-| `--config`          | Path to the YAML configuration file                    | auto-discovered | `COS_CONFIG_FILE`  |
+| `--config`          | Path to the configuration file (`.json` as JSON, else YAML) | auto-discovered | `COS_CONFIG_FILE`  |
+| `--configure`       | Ask for the settings interactively and save them, then exit | —          | —                     |
+| `--upgrade-self`    | Upgrade the plugin with pipx, uv or pip, then exit     | —            | —                     |
+| `--dry-run`         | With `--upgrade-self`: print the command instead of running it | `False` | —                 |
 | `-V, --version`     | Show the installed version and exit                    | —            | —                     |
 | `-h, --help`        | Show help and exit                                     | —            | —                     |
 
@@ -494,20 +509,18 @@ disabled.
 The same values can also come from a YAML file or a secret provider - see
 [Configuration file and secrets](#configuration-file-and-secrets).
 
-# Why there is no API backend
-OpenCloud publishes no hosted scan service and no API that reports an
-instance's security state, so there is nothing for the plugin to ask.
-
-That turns out to be less of a loss than it sounds. A hosted scanner can only
-see what is reachable from the internet, refuses IP addresses and internal
-hostnames, rate-limits its callers and learns about your instance in the
-process. Scanning locally has none of those constraints, so this plugin has
-**one** backend: the scanner in
+# The built-in scanner
+The plugin has **one** backend: the scanner in
 [`opencloud_local_scan/`](opencloud_local_scan/README.md), which runs in the
-plugin process.
+plugin process and works the verdict out itself.
+
+That is deliberate. A hosted scanner can only see what is reachable from the
+internet, refuses IP addresses and internal hostnames, rate-limits its callers
+and learns about your instance in the process. Scanning locally has none of
+those constraints.
 
 There is nothing to enable and no `--scan-backend` flag to pass. Everything
-below describes what that scanner does and how to tune it.
+below describes what the built-in scanner does and how to tune it.
 
 ## What the scanner checks
 
@@ -609,14 +622,38 @@ the whole port range. The scanner probes the five most informative ones:
 | 9239 | idm |
 
 Each probe is a single TCP connect with a three second timeout, so a firewalled
-host costs up to 15 seconds. Turn the probes off with `--no-debug-ports`, or
-tune them:
+host costs up to 15 seconds. Turn the probes off with `--no-debug-ports`, run
+them in parallel with [`--concurrency`](#speeding-the-scan-up), or tune them:
 
 ```yaml
 scanner:
   check_debug_ports: true
   debug_ports: [9205, 9141]
   debug_port_timeout: 1
+```
+
+### Speeding the scan up
+
+A scan spends nearly all of its time waiting for the instance to answer: around
+twenty HTTP requests and five TCP connects, one after the other. `--concurrency`
+runs them in parallel instead:
+
+```bash
+check-opencloud-security --host opencloud.example.com --concurrency 8
+```
+
+The default is `1`, which means no multithreading at all - a plain sequential
+scan, exactly as before. Raising it shortens a run considerably, at the price of
+a burst of parallel requests against the instance, and is most noticeable when
+debug-port probing runs into a firewall that swallows the connections.
+
+The setting changes only the timing, never the verdict: the result document
+lists the same findings in the same order whatever the value is. Values above
+`32` are clamped. It can also be set once for every host:
+
+```yaml
+scanner:
+  concurrency: 8
 ```
 
 ## End-of-life detection
@@ -883,9 +920,32 @@ An unknown value is ignored rather than treated as an error, so a typo in a
 config file degrades to the default behaviour instead of taking the check down.
 
 # Configuration file and secrets
-All settings can live in a YAML file instead of the command line. It is read
-from `--config`, `COS_CONFIG_FILE`, `./check-opencloud-security.yml` or
-`/etc/check-opencloud-security/config.yml` (first match wins). See
+All settings can live in a file instead of the command line, and the quickest
+way to write one is to let the plugin ask:
+
+```shell
+check-opencloud-security --configure
+```
+
+The wizard asks for the one required setting - the host - explains what it is
+for, and shows an example. Everything else has a working default, so the
+optional settings are offered group by group and only asked for if you say
+yes. The result is written as JSON with mode `0600`, and found automatically
+from then on:
+
+```shell
+check-opencloud-security          # no arguments needed any more
+```
+
+Use `--config` to say where it should go, e.g.
+`--configure --config /etc/check-opencloud-security/.env.json`. An existing
+file is shown and confirmed before it is replaced. The equivalent for the
+scanner on its own is `check-opencloud-scanner configure`.
+
+The file is read from `--config`, `COS_CONFIG_FILE`, `./.env.json`,
+`./check-opencloud-security.yml`, `~/.config/check-opencloud-security/.env.json`
+or `/etc/check-opencloud-security/` (first match wins). A `.json` suffix is
+read as JSON, anything else as YAML - the two are interchangeable. See
 [`config/check-opencloud-security.example.yml`](config/check-opencloud-security.example.yml)
 for a fully commented example.
 
@@ -1239,6 +1299,68 @@ Notifications sent for a failed scan carry only the common fields (`plugin`,
 > replacement. It is fire-and-forget and is not retried beyond the configured
 > retry budget.
 
+## Uptime Kuma
+Uptime Kuma has no plugin system, but its **Push** monitor is a URL that
+expects to be called regularly - which is exactly what the webhook does. The
+check becomes a monitor in three steps.
+
+**1. Create the monitor.** In Uptime Kuma choose *Add New Monitor*, monitor
+type **Push**, and name it after the instance. Uptime Kuma shows a *Push URL*
+of the form `https://kuma.example.com/api/push/<token>`. Set *Heartbeat
+Interval* a little longer than the interval you will run the check at - 300
+seconds for a check every four minutes - so a single slow scan does not
+already count as down.
+
+**2. Point the webhook at it**, and set `--webhook-on always` so that a
+healthy result also reports in. Without it Uptime Kuma would only ever hear
+from the check when something is wrong, and treat silence as down:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url 'https://kuma.example.com/api/push/<token>' \
+  --webhook-on always
+```
+
+Or in the configuration file, so the token is not in the process list:
+
+```yaml
+host: opencloud.example.com
+webhook:
+  url: secret://kuma_push_url
+  on: always
+```
+
+**3. Run it on a schedule** - see [systemd timer](#systemd-timer) or
+[cron](#cron). Uptime Kuma goes red when no push arrives within the heartbeat
+interval, so a plugin that cannot run at all shows up as well.
+
+Uptime Kuma stores the JSON body it receives and shows it on the monitor, so
+the rating, the OpenCloud version and the reason for the state are visible in
+the heartbeat detail. To surface the state in the message column too, use the
+push URL's own query parameters alongside the webhook:
+
+| Field in the payload | What it tells you in Uptime Kuma |
+|:---------------------|:---------------------------------|
+| `status` / `exit_code` | `OK`, `WARNING`, `CRITICAL` or `UNKNOWN` |
+| `message` | The one-line reason, ready to paste into an alert |
+| `rating`, `rating_label` | The `0`-`5` score and its `A`-`F` label |
+| `product_version`, `eol` | Which OpenCloud release, and whether it still gets fixes |
+| `update.availableVersion` | What to upgrade to |
+| `duration_seconds` | How long the scan took |
+
+If you would rather have Uptime Kuma go down on *any* problem, keep
+`--webhook-on always` and add a keyword check on the JSON, or run a second
+Push monitor fed by a wrapper that only pushes when the plugin exits `0`:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  && curl -fsS 'https://kuma.example.com/api/push/<token>?status=up' \
+  || curl -fsS 'https://kuma.example.com/api/push/<token>?status=down&msg=opencloud'
+```
+
+The webhook route is the better one of the two: it pushes on every outcome and
+carries the detail, while the wrapper only carries up or down.
+
 # Retries and backoff
 Transient network errors (timeouts, connection resets, `5xx` responses from the
 instance) are retried automatically with exponential backoff before the check
@@ -1467,7 +1589,8 @@ fallback rule.
 **The check is slow**
 Debug-port probing costs up to `debug_port_timeout` seconds per port on a
 firewalled host. Use `--no-debug-ports`, lower
-`COS_SCANNER_DEBUG_PORT_TIMEOUT`, or shorten the port list.
+`COS_SCANNER_DEBUG_PORT_TIMEOUT`, shorten the port list, or scan in parallel
+with `--concurrency` (see [Speeding the scan up](#speeding-the-scan-up)).
 
 **`UNKNOWN` on the update check / GitHub rate limit**
 Sixty anonymous API requests per hour and IP address are shared with everything
@@ -1677,7 +1800,16 @@ check-opencloud-scanner scan opencloud.example.com | jq '.ignored, .extraChecks'
 # Contributing
 Bug reports, feature requests and pull requests are welcome. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the test suite,
-the linting rules and how releases are cut.
+the linting rules and how releases are cut, and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for what to expect from everyone
+involved.
+
+The issue templates ask for the `--debug` output, which is usually what a fix
+depends on. **Redact tokens and real hostnames before you paste anything** -
+use `opencloud.example.com`, as the codebase does throughout.
+
+Found a vulnerability *in the plugin*? Do not open an issue - report it
+privately, as described in [SECURITY.md](SECURITY.md).
 
 # License
 Licensed under the terms of GNU General Public License v3.0. See LICENSE file.
