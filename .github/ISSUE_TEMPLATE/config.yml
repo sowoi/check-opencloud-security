@@ -1,0 +1,25 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/sowoi/check-opencloud-security/security/advisories/new
+    about: >-
+      A vulnerability in this plugin is reported privately, never in a public
+      issue. See SECURITY.md for what is in scope.
+
+  - name: A vulnerability in OpenCloud itself
+    url: https://github.com/opencloud-eu/opencloud/security
+    about: >-
+      This repository only contains a monitoring plugin. Report a problem with
+      OpenCloud to the OpenCloud project.
+
+  - name: Documentation and options
+    url: https://github.com/sowoi/check-opencloud-security#readme
+    about: >-
+      The README covers every option, the rating, end-of-life detection,
+      waivers, webhooks and the Icinga and Uptime Kuma integrations.
+
+  - name: Setting it up
+    url: https://github.com/sowoi/check-opencloud-security#configuration-file-and-secrets
+    about: >-
+      Run 'check-opencloud-security --configure' - it asks for what it needs
+      and explains each setting.

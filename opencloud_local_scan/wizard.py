@@ -16,6 +16,12 @@ Two rules shape the questions:
   wants a webhook does not have to page through TLS and threshold questions
   to reach it.
 
+An existing configuration is loaded first and every stored value is offered
+as the default for its question, which makes ``--configure`` an editor rather
+than a form that has to be filled in again from the top. Pressing Enter keeps
+what is already configured, so the risky operation - replacing a working setup
+with an empty one - takes deliberate effort.
+
 The file is written with owner-only permissions, because a webhook URL or a
 release token is a credential. Values that really are secrets can be kept out
 of the file entirely by answering with a ``secret://``, ``file://`` or
@@ -27,12 +33,18 @@ from __future__ import annotations
 import json
 import os
 import stat
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from .config import DEFAULT_CONFIG_NAME, JSON_SUFFIXES, load_config_file
+from .config import (
+    DEFAULT_CONFIG_NAME,
+    DEFAULT_CONFIG_PATHS,
+    JSON_SUFFIXES,
+    load_config_file,
+)
 from .releases import MODES as UPDATE_MODES
 from .scanner import DEFAULT_CONCURRENCY, MAX_CONCURRENCY
 from .versions import RELEASE_TRACKS
@@ -49,6 +61,13 @@ FILE_MODE = stat.S_IRUSR | stat.S_IWUSR
 
 YES = {"y", "yes", "j", "ja", "1", "true"}
 NO = {"n", "no", "nein", "0", "false"}
+
+CLEAR = "-"
+"""Typed at a prompt to remove a configured value rather than keep it.
+
+Enter keeps the current value, which is what makes the wizard an editor - so
+there has to be some way of saying "remove this", and it cannot be the empty
+answer without taking Enter's meaning away."""
 
 
 class SetupAborted(RuntimeError):
@@ -70,6 +89,8 @@ class Question:
     cast: Callable[[str], Any] = str
     secret: bool = False
     """Hint that the answer may be a secret reference rather than a value."""
+    current: bool = False
+    """Whether the default shown is the value already configured."""
 
 
 @dataclass
@@ -420,6 +441,64 @@ def optional_groups() -> list[Group]:
     ]
 
 
+def _lookup(data: Mapping[str, Any], key: str) -> Any:
+    """Read a dotted key out of a nested configuration document."""
+    current: Any = data
+    for part in key.split("."):
+        if not isinstance(current, Mapping) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _as_answer(value: Any) -> str | None:
+    """
+    Render a stored value the way the operator would have typed it.
+
+    The prompt loop only speaks strings, and a default has to survive being
+    read back and cast again, so a boolean becomes 'yes'/'no' and a list
+    becomes the comma-separated form the questions document.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, (list, tuple)):
+        rendered = ", ".join(str(item) for item in value)
+        return rendered or None
+    text = str(value)
+    return text or None
+
+
+def existing_configuration(path: str | None) -> tuple[dict[str, Any], Path | None]:
+    """
+    Load the configuration --configure should start from.
+
+    An explicit ``--config`` wins; otherwise the first of the default
+    locations that exists is used, which is the same file the check itself
+    would have picked up. An unreadable file is not an error here: the wizard
+    is how an operator recovers from one.
+    """
+    candidates = [path] if path else list(DEFAULT_CONFIG_PATHS)
+    for candidate in candidates:
+        target = Path(candidate).expanduser()
+        if not target.is_file():
+            continue
+        try:
+            return load_config_file(target), target
+        except Exception:  # noqa: BLE001 - a broken file is what we are replacing
+            return {}, target
+    return {}, None
+
+
+def _with_existing(question: Question, existing: Mapping[str, Any]) -> Question:
+    """Offer the configured value as the default, keeping the original as a hint."""
+    stored = _as_answer(_lookup(existing, question.key))
+    if stored is None:
+        return question
+    return replace(question, default=stored, current=True)
+
+
 # --- prompting --------------------------------------------------------------
 @dataclass
 class Prompter:
@@ -437,7 +516,8 @@ class Prompter:
         Ask one question until the answer is usable.
 
         Returns None when the operator left it empty and it has no default,
-        which means "do not write this key at all".
+        which means "do not write this key at all", and :data:`CLEAR` when
+        they asked for a configured value to be removed.
         """
         self.say()
         self.say(f"  {question.prompt}")
@@ -447,11 +527,20 @@ class Prompter:
         if question.secret:
             self.say("    May be a secret://, file:// or env:// reference.")
 
-        suffix = f" [{question.default}]" if question.default else " [skip]"
+        if question.default and question.current:
+            self.say(f"    Configured now: {question.default}")
+            self.say(f"    Enter keeps it, '{CLEAR}' removes it.")
+            suffix = f" [{question.default}]"
+        elif question.default:
+            suffix = f" [{question.default}]"
+        else:
+            suffix = " [skip]"
         while True:
             answer = self.read(f"    > {question.prompt}{suffix}: ").strip()
             if not answer:
                 return question.default
+            if answer == CLEAR and question.current:
+                return CLEAR
             error = question.validate(answer)
             if error is None:
                 return answer
@@ -521,55 +610,214 @@ def _assign(data: dict[str, Any], key: str, value: Any) -> None:
     target[parts[-1]] = value
 
 
+def _remove(data: dict[str, Any], key: str) -> None:
+    """Delete a dotted key, and any mapping it leaves empty behind it."""
+    parts = key.split(".")
+    trail: list[tuple[dict[str, Any], str]] = []
+    target: Any = data
+    for part in parts[:-1]:
+        nested = target.get(part)
+        if not isinstance(nested, dict):
+            return
+        trail.append((target, part))
+        target = nested
+    target.pop(parts[-1], None)
+    for parent, name in reversed(trail):
+        if parent[name] == {}:
+            del parent[name]
+
+
 def _split_list(value: str) -> list[str]:
     """Split a comma or semicolon separated answer into a list."""
     parts = [part.strip() for part in value.replace(";", ",").split(",")]
     return [part for part in parts if part]
 
 
-def collect(prompter: Prompter, *, include_optional: bool | None = None) -> dict[str, Any]:
+def collect(
+    prompter: Prompter,
+    *,
+    include_optional: bool | None = None,
+    existing: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Run the interview and return the configuration document.
 
     ``include_optional`` forces the optional part on or off; the default asks.
+    ``existing`` is a configuration already on disk: each stored value becomes
+    the default for its question, so Enter keeps it and the wizard edits
+    instead of starting over.
     """
-    data: dict[str, Any] = {}
+    existing = existing or {}
+    # Start from what is already there: the wizard asks about a subset of the
+    # settings, and rewriting the file from scratch would silently drop the
+    # hand-edited keys it has no question for.
+    data: dict[str, Any] = deepcopy(dict(existing))
 
     prompter.say("check-opencloud-security setup")
     prompter.say("=" * 30)
+    if existing:
+        prompter.say()
+        prompter.say(
+            "Editing the existing configuration. The value in brackets is what "
+            "is configured now; press Enter to keep it."
+        )
     prompter.say()
     prompter.say("Required settings. Everything else already has a working default.")
 
     for question in required_questions():
-        answer = prompter.ask(question)
-        if answer is not None:
+        answer = prompter.ask(_with_existing(question, existing))
+        if answer == CLEAR:
+            _remove(data, question.key)
+        elif answer is not None:
             _assign(data, question.key, question.cast(answer))
 
     prompter.say()
     wants_optional = (
-        prompter.confirm("Configure optional settings as well?")
+        prompter.confirm(
+            "Review the optional settings as well?", default=bool(existing)
+        )
         if include_optional is None
         else include_optional
     )
     if not wants_optional:
         prompter.say()
-        prompter.say("Skipping the optional settings - defaults apply.")
+        if existing:
+            prompter.say("Keeping the optional settings that are already configured.")
+        else:
+            prompter.say("Skipping the optional settings - defaults apply.")
         return data
 
     for group in optional_groups():
         prompter.say()
-        if not prompter.confirm(f"Configure {group.name} ({group.summary})?"):
+        configured = [
+            question.key
+            for question in group.questions
+            if _lookup(existing, question.key) is not None
+        ]
+        summary = group.summary
+        if configured:
+            summary += f"; {len(configured)} configured"
+        if not prompter.confirm(
+            f"Configure {group.name} ({summary})?", default=bool(configured)
+        ):
             continue
         for question in group.questions:
-            answer = prompter.ask(question)
+            answer = prompter.ask(_with_existing(question, existing))
             if answer is None:
                 continue
-            if question.key in {"scanner.ignore_hardenings", "webhook.headers"}:
+            if answer == CLEAR:
+                _remove(data, question.key)
+            elif question.key in {"scanner.ignore_hardenings", "webhook.headers"}:
                 _assign(data, question.key, _split_list(answer))
             else:
                 _assign(data, question.key, question.cast(answer))
 
     return data
+
+
+
+# --- the test scan ----------------------------------------------------------
+def _hosts(data: Mapping[str, Any]) -> list[str]:
+    """The instances the collected configuration would check."""
+    raw = _lookup(data, "host")
+    if not raw:
+        return []
+    return [part.strip() for part in str(raw).split(",") if part.strip()]
+
+
+def test_scan(data: Mapping[str, Any], prompter: Prompter) -> bool:
+    """
+    Scan the configured host with the answers just given, and report.
+
+    A configuration is only worth saving if it works, and the two mistakes
+    that make it not work - the wrong port and a self-signed certificate - are
+    invisible until something scans. Returns whether the scan succeeded.
+    """
+    from .config import Configuration, _flatten
+    from .factory import release_settings_from_config, scanner_settings_from_config
+    from .scanner import ScanError, scan
+
+    hosts = _hosts(data)
+    if not hosts:  # pragma: no cover - the host question is required
+        return False
+
+    config = Configuration(values=_flatten(dict(data)), raw=dict(data))
+    try:
+        settings = scanner_settings_from_config(config)
+        releases = release_settings_from_config(config)
+    except Exception as exc:  # noqa: BLE001 - a bad answer must not crash the wizard
+        prompter.say(f"  The settings could not be used: {exc}")
+        return False
+
+    ok = True
+    for host in hosts:
+        prompter.say()
+        prompter.say(f"  Scanning {host} ...")
+        try:
+            result = scan(host, settings=settings, release_settings=releases)
+        except ScanError as exc:
+            ok = False
+            prompter.say(f"  Failed: {exc}")
+            for line in _wrap(_diagnose(str(exc)), width=68):
+                prompter.say(f"    {line}")
+            continue
+        except Exception as exc:  # noqa: BLE001 - report, never traceback at a prompt
+            ok = False
+            prompter.say(f"  Failed: {exc}")
+            continue
+
+        for line in _summarize(result):
+            prompter.say(f"    {line}")
+    return ok
+
+
+def _summarize(result: Mapping[str, Any]) -> list[str]:
+    """The few lines of a result document worth showing at a prompt."""
+    rating = result.get("rating")
+    grade = rating if rating is not None else "?"
+    product = result.get("product", "OpenCloud")
+    lines = [f"{product} {result.get('version', '?')} - rating {grade}/5"]
+    if result.get("EOL"):
+        lines.append("This release no longer receives security fixes.")
+
+    failed = [
+        check["id"]
+        for check in result.get("extraChecks", [])
+        if not check.get("passed") and not check.get("ignored")
+    ]
+    advisories = len(result.get("vulnerabilities", []))
+    lines.append(f"{len(failed)} failed check(s), {advisories} advisory match(es)")
+
+    updates = result.get("updates") or {}
+    if updates.get("error"):
+        lines.append(f"Update check: {updates['error']}")
+    elif updates.get("available"):
+        lines.append(f"A newer release is available: {updates.get('availableVersion')}")
+    return lines
+
+
+def _diagnose(error: str) -> str:
+    """Turn the usual scan failure into the answer that most often fixes it."""
+    lowered = error.lower()
+    if "certificate" in lowered or "ssl" in lowered:
+        return (
+            "That looks like the self-signed certificate 'opencloud init' "
+            "creates. Answer no to 'Verify the TLS certificate' - the finding "
+            "is still reported, it just stops counting against the rating."
+        )
+    if "unreachable" in lowered or "timed out" in lowered or "timeout" in lowered:
+        return (
+            "Nothing answered there. OpenCloud's own proxy usually listens on "
+            "9200 rather than 443, so check the port, and check that this host "
+            "may reach the instance at all."
+        )
+    if "no opencloud instance" in lowered:
+        return (
+            "Something answered, but not with an OpenCloud status document. "
+            "Either the address belongs to something else, or a reverse proxy "
+            "in front of it does not forward /status.php."
+        )
+    return "Check the address, the port and the scheme before saving."
 
 
 def save(data: dict[str, Any], path: Path) -> Path:
@@ -614,23 +862,59 @@ def choose_path(prompter: Prompter, explicit: str | None) -> Path:
     return Path(SAVE_LOCATIONS[index]).expanduser()
 
 
+def _verify_before_saving(
+    prompter: Prompter, data: Mapping[str, Any], *, verify: bool | None
+) -> bool:
+    """
+    Offer a scan with the answers just given. Returns whether to save.
+
+    A wizard that cannot tell you whether its output works is a form. The scan
+    is offered rather than imposed, because the instance may be unreachable
+    from where the file is being written, and a failing scan does not block
+    saving - the operator decides.
+    """
+    prompter.say()
+    if verify is None:
+        verify = prompter.confirm(
+            "Test these settings against the instance now?", default=True
+        )
+    if not verify:
+        return True
+
+    if test_scan(data, prompter):
+        prompter.say()
+        prompter.say("  The settings work.")
+        return True
+
+    prompter.say()
+    return prompter.confirm("The test scan failed. Save anyway?", default=True)
+
+
 def run(
     prompter: Prompter | None = None,
     *,
     path: str | None = None,
     include_optional: bool | None = None,
     force: bool = False,
+    verify: bool | None = None,
 ) -> int:
     """
     Run the wizard end to end. Returns a process exit code.
 
-    An existing file is shown and confirmed before it is replaced, so that a
-    misremembered ``--configure`` cannot quietly discard a working setup.
+    The configuration already on disk is loaded first and offered value by
+    value, so this edits a setup rather than replacing it. An existing file is
+    still shown and confirmed before it is written, so that a misremembered
+    ``--configure`` cannot quietly discard a working one.
+
+    ``verify`` forces the closing test scan on or off; the default asks.
     """
     prompter = prompter or Prompter()
     try:
-        data = collect(prompter, include_optional=include_optional)
-        target = choose_path(prompter, path)
+        existing, source = existing_configuration(path)
+        if source is not None:
+            prompter.say(f"Reading the current configuration from {source}")
+        data = collect(prompter, include_optional=include_optional, existing=existing)
+        target = choose_path(prompter, path if path else (str(source) if source else None))
 
         if target.suffix.lower() not in JSON_SUFFIXES:
             prompter.say()
@@ -654,6 +938,9 @@ def run(
             if not prompter.confirm("Overwrite it?"):
                 prompter.say("Nothing was written.")
                 return 1
+
+        if not _verify_before_saving(prompter, data, verify=verify):
+            return 1
 
         written = save(data, target)
     except SetupAborted as exc:

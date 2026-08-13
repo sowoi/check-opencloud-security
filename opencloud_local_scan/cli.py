@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 """
 Command line entry point of the bundled scanner.
 
@@ -21,6 +22,7 @@ import logging
 import sys
 from collections.abc import Sequence
 
+from .completion import enable as enable_completion
 from .config import ConfigurationError, load_configuration
 from .factory import release_settings_from_config, scanner_settings_from_config
 from .scanner import ScanError, scan
@@ -133,6 +135,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Replace an existing file without confirming.",
     )
+    configure_parser.add_argument(
+        "--no-test-scan",
+        dest="verify",
+        action="store_false",
+        default=None,
+        help="Do not offer a test scan of the host before saving.",
+    )
+
+    enable_completion(parser)
     return parser
 
 
@@ -174,6 +185,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             path=args.config,
             include_optional=args.include_optional,
             force=args.force,
+            verify=args.verify,
         )
 
     try:

@@ -1,0 +1,92 @@
+name: Feature request
+description: Suggest a new check, option or integration.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem before the solution - the shape of a good
+        fix often turns out to be different from the one that first comes to
+        mind.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change
+      options:
+        - A new security or hardening check
+        - A new option or a change to an existing one
+        - An integration (Icinga, Uptime Kuma, Prometheus, ...)
+        - Output, exit codes or performance data
+        - Packaging or deployment
+        - Documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What are you trying to do that you cannot do today? Concrete beats
+        general - "I cannot alert separately on an expiring certificate" is
+        easier to act on than "more TLS options".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: If you have a flag name or an output format in mind, show it.
+      placeholder: |
+        check-opencloud-security --host opencloud.example.com --tls-min-days 30
+    validations:
+      required: true
+
+  - type: textarea
+    id: detection
+    attributes:
+      label: How would the plugin detect it?
+      description: >-
+        For a new check only, and the part that decides whether it is
+        possible. Everything is worked out from what the instance returns over
+        HTTP without authentication. Which endpoint, header or response body
+        gives the answer? Can an operator actually change the setting - if it
+        is hardcoded in OpenCloud, the check can be recorded but must not
+        alert. A link to the OpenCloud source or documentation is ideal.
+      placeholder: |
+        /ocs/v1.php/cloud/capabilities returns files_sharing.public.expire_date,
+        and it is set in the proxy service configuration, so it is changeable.
+
+  - type: textarea
+    id: severity
+    attributes:
+      label: How serious is it?
+      description: >-
+        For a new check only. What does an attacker gain when it fails? The
+        answer decides how far it may pull the rating down - critical caps at
+        2, high at 3, medium at 4, low at 5.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >-
+        Existing options, a wrapper script, another tool - and why they did not
+        work. If nothing exists, say so.
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to implement it?
+      description: >-
+        Entirely optional. Saying no does not make the request less welcome.
+      options:
+        - "Yes, I would like to open a pull request"
+        - "Yes, with some guidance on where to start"
+        - "No, I am just suggesting it"
+    validations:
+      required: true

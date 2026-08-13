@@ -6,6 +6,7 @@
 * [Installation](#installation)
   * [Using pipx / uv / pip (recommended)](#using-pipx--uv--pip-recommended)
     * [Updating](#updating)
+    * [Shell completion](#shell-completion)
   * [Docker](#docker)
   * [Icinga2 / Nagios](#icinga2--nagios)
     * [Using the Docker image instead](#using-the-docker-image-instead)
@@ -34,16 +35,13 @@
 * [Explaining a rating](#explaining-a-rating)
 * [Webhook notifications](#webhook-notifications)
   * [Uptime Kuma](#uptime-kuma)
+* [Reporting only what changed](#reporting-only-what-changed)
+* [Is the plugin itself up to date?](#is-the-plugin-itself-up-to-date)
 * [Retries and backoff](#retries-and-backoff)
 * [Performance data](#performance-data)
 * [Caching](#caching)
 * [Example output](#example-output)
-* [Icinga Director](#icinga-director)
-  * [Automated deployment with Ansible](#automated-deployment-with-ansible)
-* [Scheduling without Icinga2 / Nagios (systemd timer / cron)](#scheduling-without-icinga2--nagios-systemd-timer--cron)
-  * [systemd timer](#systemd-timer)
-  * [cron](#cron)
-* [Troubleshooting](#troubleshooting)
+* [Deployment guides](#deployment-guides)
 * [Examples](#examples)
   * [The basics](#the-basics)
   * [Release track examples](#release-track-examples)
@@ -153,6 +151,10 @@ uv tool install check-opencloud-security
 pip install check-opencloud-security
 ```
 
+Every release ships a CycloneDX SBOM and a Sigstore provenance attestation;
+see [Verifying what you downloaded](SECURITY.md#verifying-what-you-downloaded)
+if you would rather not take the artifact on trust.
+
 To install the latest unreleased changes, point any of them at the repository
 instead: `pipx install git+https://github.com/sowoi/check-opencloud-security.git`
 (likewise `uv tool install git+https://...` and `pip install git+https://...`).
@@ -163,8 +165,8 @@ check-opencloud-security --upgrade-self
 ```
 
 That works out how the plugin was installed and runs the right command for it.
-Add `--dry-run` to see what it would run without running it. A git checkout is
-refused - update that with `git pull`.
+Use `--upgrade-self=check` to see what it would run without running it. A git
+checkout is refused - update that with `git pull`.
 
 The commands it picks between, if you would rather run them yourself:
 
@@ -231,6 +233,39 @@ uv export --no-emit-project --format requirements.txt -o requirements-dev.txt
 Such a file is a build artefact - do not commit it, it goes stale the moment
 `uv.lock` changes.
 
+### Shell completion
+Completion is optional and off by default; it needs one extra dependency:
+
+```shell
+pipx install 'check-opencloud-security[completion]'
+# or, into an existing install:
+pipx inject check-opencloud-security argcomplete
+```
+
+Then register the two commands with your shell. For **bash**, in `~/.bashrc`:
+
+```shell
+eval "$(register-python-argcomplete check-opencloud-security)"
+eval "$(register-python-argcomplete check-opencloud-scanner)"
+```
+
+For **zsh**, the same two lines in `~/.zshrc`, preceded once by
+`autoload -U bashcompinit && bashcompinit`. For **fish**, write the output to a
+completion file instead:
+
+```shell
+register-python-argcomplete --shell fish check-opencloud-security \
+  > ~/.config/fish/completions/check-opencloud-security.fish
+```
+
+Completion knows the option names, the values of the options that take a fixed
+set (`--webhook-on`, `--release-track`, `--update-source`, `--upgrade-self`),
+and - the one that saves real typing - the hardening identifiers accepted by
+`--ignore-hardening` and their long, camel-cased names.
+
+Without `argcomplete` installed, nothing is registered and the plugin behaves
+exactly as before; it is never a hard dependency of a monitoring plugin.
+
 ## Docker
 Use this if you would rather not install anything on the host. The image also
 ships the scan service (see
@@ -254,6 +289,14 @@ Or configure it entirely through [environment variables](#environment-variables)
 docker run --rm -e COS_HOST=opencloud.example.com check-opencloud-security
 ```
 
+The image carries a `HEALTHCHECK` that verifies the image rather than any
+instance: that the package imports and that the release schedule and bundled
+advisory database parse. It needs no network, so it also passes on an
+air-gapped host. It is there for the long-running scan service; a one-shot
+check container exits before Docker gets round to running it. The service in
+`docker-compose.yml` overrides it with the HTTP `/healthz` probe, which is the
+more useful check once something is actually listening.
+
 The check container needs no network ports, but it does need to reach the
 OpenCloud instance itself. If the
 instance is only reachable on the Docker host's own network, add
@@ -261,7 +304,7 @@ instance is only reachable on the Docker host's own network, add
 `nagios` user and exits with the same Nagios-style codes (`0`/`1`/`2`/`3`) as
 the native script, so it can be dropped straight into any monitoring pipeline
 that already understands `docker run` as a check command (see
-[Icinga2 / Nagios](#icinga2--nagios) and [Icinga Director](#icinga-director)
+[Icinga2 / Nagios](#icinga2--nagios) and [Icinga Director](docs/icinga-director.md)
 below).
 
 If you'd rather not build locally, push the built image to your own registry
@@ -449,6 +492,9 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--latest-version`  | Newest release, given explicitly; implies `--update-source pinned` | *None* | `COS_RELEASES_LATEST_VERSION` |
 | `--no-update-check` | Disable the update check (same as `--update-source off`)| *False*     | `COS_NO_UPDATE_CHECK` |
 | `--update-warning`  | Report WARNING when a newer release is available       | *False*      | `COS_UPDATE_WARNING`  |
+| `--baseline`        | File that remembers the findings of the last run, one entry per host | *None* | `COS_BASELINE` |
+| `--warn-on-new`     | Only alert on findings that are new or worse than the baseline; needs `--baseline` | *False* | `COS_WARN_ON_NEW` |
+| `--self-update-check` | Note when a newer version of the plugin is published on PyPI; never changes the exit code | *False* | `COS_SELF_UPDATE_CHECK` |
 | `--webhook-url`     | Optional endpoint notified when the check reaches the configured state | *None* (disabled) | `COS_WEBHOOK_URL` |
 | `--webhook-on`      | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`) | `critical` | `COS_WEBHOOK_ON` |
 | `--webhook-header`  | Extra header for the webhook request, repeatable       | *None*       | `COS_WEBHOOK_HEADERS` |
@@ -457,8 +503,8 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--backoff-factor`  | Exponential backoff factor (seconds) between retries   | `0.5`        | `COS_BACKOFF_FACTOR`  |
 | `--config`          | Path to the configuration file (`.json` as JSON, else YAML) | auto-discovered | `COS_CONFIG_FILE`  |
 | `--configure`       | Ask for the settings interactively and save them, then exit | —          | —                     |
-| `--upgrade-self`    | Upgrade the plugin with pipx, uv or pip, then exit     | —            | —                     |
-| `--dry-run`         | With `--upgrade-self`: print the command instead of running it | `False` | —                 |
+| `--upgrade-self [run\|check]` | Upgrade the plugin with pipx, uv or pip, then exit; `check` prints the command instead of running it | `run` when given without a value | — |
+| `--check-only`      | Only with `--upgrade-self`: another spelling of `--upgrade-self check` | —  | —                     |
 | `-V, --version`     | Show the installed version and exit                    | —            | —                     |
 | `-h, --help`        | Show help and exit                                     | —            | —                     |
 
@@ -480,7 +526,9 @@ one result block per host. The plugin exits with the worst status found
 across all hosts, using the usual Nagios/Icinga priority: `CRITICAL` >
 `WARNING` > `UNKNOWN` > `OK`. A single host still produces the original,
 single-block output and exit code, so existing single-host setups are
-unaffected.
+unaffected. Once the instances stop resembling each other, one configuration
+file per instance scales better - see
+[Checking a fleet of instances](docs/many-instances.md).
 
 Whitespace around each hostname is ignored, and empty entries (e.g. from a
 trailing comma) are dropped. Because there is no hosted API involved, each
@@ -1299,6 +1347,10 @@ Notifications sent for a failed scan carry only the common fields (`plugin`,
 > replacement. It is fire-and-forget and is not retried beyond the configured
 > retry budget.
 
+Receivers that want their own JSON - Slack, Discord, ntfy, Alertmanager - need
+a few lines of translation in between. [Webhook recipes](docs/webhook-recipes.md)
+has one for each.
+
 ## Uptime Kuma
 Uptime Kuma has no plugin system, but its **Push** monitor is a URL that
 expects to be called regularly - which is exactly what the webhook does. The
@@ -1330,9 +1382,11 @@ webhook:
   on: always
 ```
 
-**3. Run it on a schedule** - see [systemd timer](#systemd-timer) or
-[cron](#cron). Uptime Kuma goes red when no push arrives within the heartbeat
-interval, so a plugin that cannot run at all shows up as well.
+**3. Run it on a schedule** - see
+[systemd timer](docs/scheduling.md#systemd-timer) or
+[cron](docs/scheduling.md#cron). Uptime Kuma goes red when no push arrives
+within the heartbeat interval, so a plugin that cannot run at all shows up as
+well.
 
 Uptime Kuma stores the JSON body it receives and shows it on the monitor, so
 the rating, the OpenCloud version and the reason for the state are visible in
@@ -1360,6 +1414,82 @@ check-opencloud-security --host opencloud.example.com \
 
 The webhook route is the better one of the two: it pushes on every outcome and
 carries the detail, while the wrapper only carries up or down.
+
+# Reporting only what changed
+A check that runs every five minutes reports the same finding until someone
+fixes it, which is how people learn to acknowledge an alert and stop reading
+it. `--baseline` writes the findings of each run to a file and compares the
+next run against it:
+
+```bash
+check-opencloud-security -H opencloud.example.com \
+    --check-hardening \
+    --baseline /var/lib/check_opencloud/baseline.json
+```
+
+On its own this only adds a line to the output (`Baseline: ...`). Add
+`--warn-on-new` to act on it:
+
+```bash
+check-opencloud-security -H opencloud.example.com \
+    --check-hardening \
+    --baseline /var/lib/check_opencloud/baseline.json \
+    --warn-on-new
+```
+
+The check then reports `OK` while the picture is unchanged, and its normal
+status as soon as anything is new or worse. The full state is still printed
+either way - only the alert is suppressed, never the evidence:
+
+```
+OK: nothing new since the last run (WARNING state unchanged).
+OpenCloud 7.2.3 on opencloud.example.com, rating: C, last scanned: 2026-01-14
+Missing hardening: cspWithoutUnsafeInline (run with --debug for what each means and how to fix it)
+Baseline: No new findings since 2026-01-14T09:00:00+00:00 (1 known issue(s) unchanged)
+Suppressed by --warn-on-new: this run would otherwise be WARNING (WARNING: 1 hardening measure(s) missing, but no known vulnerabilities.)
+```
+
+What counts as a regression, and therefore still alerts:
+
+- a finding that was not there last time - a new advisory, a hardening measure
+  that has regressed, an additional check that started failing, a newly
+  available update;
+- a rating lower than the one recorded;
+- **a release past its end of life, always.** It receives no security fixes,
+  so it gets worse every day it stays in production and can never be
+  grandfathered in by a baseline.
+
+Points worth knowing:
+
+- The first run has nothing to compare against, so it reports normally and
+  becomes the baseline. Starting to use the flag never hides anything.
+- One file holds one entry per host, so a comma-separated `--host` list can
+  share it.
+- Findings that are waived with `--ignore-hardening`, and measures OpenCloud
+  hardcodes, are left out - exactly as they are left out of the alert line.
+- `--warn-on-new` without `--baseline` is rejected: with nowhere to remember
+  the last run it would report "nothing new" forever.
+- A baseline that cannot be written is reported as a line of output and
+  nothing more. Bookkeeping never decides the verdict on an instance.
+- The file is written atomically with owner-only permissions. Put it somewhere
+  the monitoring user owns, e.g. `/var/lib/check_opencloud/`.
+
+# Is the plugin itself up to date?
+The plugin reports on OpenCloud's updates but says nothing about its own age,
+and a check running an old advisory database is a blind spot. `--self-update-check`
+asks PyPI once a day and appends a note:
+
+```
+Plugin update available: check-opencloud-security 1.2.0 is published, this is 1.1.0 (upgrade with --upgrade-self)
+```
+
+It is off by default, cached under `${XDG_CACHE_HOME:-~/.cache}/check-opencloud-security/`,
+and **never changes the exit code**: whether PyPI answered says nothing about
+the health of the instance being monitored. Every failure - no network, a
+proxy in the way, PyPI down - is silent.
+
+Upgrade with [`--upgrade-self`](#updating), or look at what it would do first
+with `--upgrade-self check` (`--upgrade-self --check-only` is the same thing).
 
 # Retries and backoff
 Transient network errors (timeouts, connection resets, `5xx` responses from the
@@ -1400,6 +1530,10 @@ the graph without extra configuration.
 | `extra_checks_failed` | Number of failed additional checks                           |
 | `update_available` | `1` when a newer OpenCloud release exists                       |
 | `support_days_left` | Days until the release line loses support (negative when overdue) |
+
+Outside Icinga2, the same numbers reach Prometheus through the node_exporter
+textfile collector or a Pushgateway - see
+[Prometheus and Grafana](docs/prometheus.md).
 
 # Caching
 The plugin holds no cache: every run scans the instance afresh, so there is
@@ -1460,168 +1594,37 @@ lowering the grade. Add `--debug` to have the check spell that out, along with
 what each identifier means - see
 [Explaining a rating](#explaining-a-rating).
 
-# Icinga Director
-[Icinga Director](https://icinga.com/docs/icinga-director/latest/) manages
-`CheckCommand`, `Service Template`, and `Service` objects through its web UI
-instead of hand-written config files. The steps below work for either the
-native install or the [Docker](#docker) image.
+# Deployment guides
+The longer deployment walk-throughs live in [`docs/`](docs/README.md), so that
+this file stays the reference for the options themselves.
 
-1. **Create the Command**
-   - Navigate to *Icinga Director → Commands → Add*.
-   - **Command name:** `check_opencloud_security`
-   - **Command:**
-     - Native install: `/usr/lib/nagios/plugins/check-opencloud-security` (wherever you installed/symlinked it, see [Installation](#installation)).
-     - Docker: `/usr/bin/docker` (see the [Docker CheckCommand](#using-the-docker-image-instead) example for the required fixed arguments `run`, `--rm`, and the image name).
-   - **Command type:** *Plugin Check Command*.
+| Guide | What it covers |
+|:------|:---------------|
+| [Icinga Director](docs/icinga-director.md) | The `CheckCommand`, data fields, service template and apply rule, through the web UI |
+| [Automated deployment with Ansible](docs/ansible.md) | The native and Docker roles, their variables, and deploying the Icinga2 objects unattended |
+| [Scheduling without Icinga2 / Nagios](docs/scheduling.md) | systemd timer and cron, using the files in [`contrib/`](contrib/) |
+| [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
+| [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
+| [Checking a fleet of instances](docs/many-instances.md) | One configuration file per instance, and keeping waivers honest |
+| [Prometheus and Grafana](docs/prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
+| [Webhook recipes](docs/webhook-recipes.md) | Adapters for Slack, Discord, ntfy and Alertmanager |
+| [Troubleshooting](docs/troubleshooting.md) | The errors people actually hit, and the exit code reference |
 
-2. **Add the arguments** on the same Command object (*Fields* tab → *Add argument*):
+Something not working? Start with
+[Troubleshooting](docs/troubleshooting.md), which also carries the exit code
+reference.
 
-   | Argument     | Value                       | Description                        |
-   |:-------------|:----------------------------|:------------------------------------|
-   | `--host`     | `$address$` (or a custom Director Data Field, e.g. `$opencloud_host$`) | OpenCloud hostname, IP or URL, required |
-   | `--port`     | Data Field `$opencloud_port$`, optional | Port, e.g. `9200` |
-   | `--insecure` | Set-if Data Field `$opencloud_insecure$` (boolean), optional | Self-signed instance |
-   | `--proxy`    | Data Field `$opencloud_proxy$`, optional | HTTP/HTTPS proxy |
-   | `--debug`    | Set-if Data Field `$opencloud_debug$` (boolean), optional | Verbose debug output |
-
-   For each optional argument, tick *Skip this argument on empty value* so
-   Director omits the flag entirely when the field isn't set.
-
-3. **Expose the fields to services** by defining matching *Data Fields* under
-   the Command (*Fields* tab → *Add data field*), e.g. `opencloud_host`,
-   `opencloud_port`, `opencloud_insecure`, `opencloud_debug` - then set their
-   *Data Type* (`String` or `Boolean`) and *Var Filter* as needed.
-
-4. **Create a Service Template**
-   - *Icinga Director → Service Templates → Add*.
-   - **Check command:** `check_opencloud_security`.
-   - **Check interval:** `24h` is a good default; see the note under
-     [Icinga2 / Nagios](#icinga2--nagios) before going much lower.
-   - Leave the Data Fields empty here so they can be filled in per service/host.
-
-5. **Apply it to a host or host group**
-   - *Icinga Director → Services → Add* (or a *Service Apply Rule* for a whole host group).
-   - Import the Service Template created above.
-   - Fill in `opencloud_host` (or rely on `$address$` if you didn't override it) and any optional fields.
-   - Deploy the configuration from *Icinga Director → Deployments*.
-
-Once deployed, Icinga2 will invoke the command exactly as described in the
-[Icinga2 / Nagios](#icinga2--nagios) section, whether that resolves to the
-native binary or `docker run` under the hood.
-
-## Automated deployment with Ansible
-
-Prefer not to click through Icinga Director or configure hosts by hand?
-[`ansible/`](ansible/README.md) contains ready-to-use playbooks that install
-and configure check-opencloud-security (native or Docker) on one or more
-Icinga2 hosts, including the `CheckCommand`/`Service` objects described
-above. See [`ansible/README.md`](ansible/README.md) for prerequisites and
-usage.
-
-# Scheduling without Icinga2 / Nagios (systemd timer / cron)
-If you don't run Icinga2/Nagios, you can still schedule regular scans with
-systemd timers or cron. Ready-to-adapt example files live in
-[`contrib/`](contrib/):
-
-- [`contrib/systemd/check-opencloud-security.service`](contrib/systemd/check-opencloud-security.service)
-  and [`.timer`](contrib/systemd/check-opencloud-security.timer)
-- [`contrib/systemd/check-opencloud-security.env.example`](contrib/systemd/check-opencloud-security.env.example)
-- [`contrib/cron/check-opencloud-security.cron`](contrib/cron/check-opencloud-security.cron)
-
-## systemd timer
-```shell
-sudo mkdir -p /etc/check-opencloud-security
-sudo cp contrib/systemd/check-opencloud-security.env.example /etc/check-opencloud-security/env
-sudo $EDITOR /etc/check-opencloud-security/env   # set COS_HOST (and any other options)
-
-sudo cp contrib/systemd/check-opencloud-security.service /etc/systemd/system/
-sudo cp contrib/systemd/check-opencloud-security.timer /etc/systemd/system/
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now check-opencloud-security.timer
-
-# Run it once immediately to verify the setup:
-sudo systemctl start check-opencloud-security.service
-journalctl -u check-opencloud-security.service
-```
-
-## cron
-```shell
-sudo cp contrib/cron/check-opencloud-security.cron /etc/cron.d/check-opencloud-security
-sudo chmod 644 /etc/cron.d/check-opencloud-security
-sudo $EDITOR /etc/cron.d/check-opencloud-security   # set COS_HOST (and any other options)
-```
-
-Both examples configure the check entirely through [environment
-variables](#environment-variables), so the same binary or Docker image can be
-reused unmodified across hosts - only the environment file/cron entry changes.
-
-# Troubleshooting
-
-**`UNKNOWN: ... /status.php is unreachable`**
-The plugin has to reach the instance itself; there is no hosted scanner doing
-it on your behalf. Check that the monitoring host can connect, and remember
-that OpenCloud's own proxy listens on **9200**, not 443:
-`--host opencloud.example.com:9200` or `--port 9200`.
-
-**`UNKNOWN: No OpenCloud instance found at ...`**
-`/status.php` did not answer with an OpenCloud status document. Either
-something other than OpenCloud is on that address, or a reverse proxy in front
-of it does not forward `/status.php`. Run with `--debug` to see the response.
-
-**Certificate errors on a fresh instance**
-`opencloud init` creates a self-signed certificate. Pass `--insecure` (the
-untrusted chain is still reported, it just stops counting against the rating),
-or put a reverse proxy with a real certificate in front of the instance.
-
-**The version looks wrong (`0.1.0`)**
-That is the hardcoded legacy field, not the release - see
-[Reading the version correctly](#reading-the-version-correctly). The plugin
-reports `legacyVersion` when the instance offered nothing better; upgrading the
-instance or letting the plugin reach
-`/ocs/v1.php/cloud/capabilities` resolves it.
-
-**Every path is reported as exposed**
-Something in front of the instance answers `200` for everything, including the
-path the scanner probes to detect exactly that. Check the reverse proxy's
-fallback rule.
-
-**The check is slow**
-Debug-port probing costs up to `debug_port_timeout` seconds per port on a
-firewalled host. Use `--no-debug-ports`, lower
-`COS_SCANNER_DEBUG_PORT_TIMEOUT`, shorten the port list, or scan in parallel
-with `--concurrency` (see [Speeding the scan up](#speeding-the-scan-up)).
-
-**`UNKNOWN` on the update check / GitHub rate limit**
-Sixty anonymous API requests per hour and IP address are shared with everything
-else on that address. Supply `--release-token`, or use `--update-source
-bundled` / `pinned` to avoid the network entirely.
-
-**Docker: `permission denied while trying to connect to the Docker socket`**
-The user running Icinga2/cron/systemd needs permission to talk to the Docker
-daemon - either add it to the `docker` group, or run the check via `sudo`,
-depending on your security policy.
-
-**Nothing happens / no output from cron or systemd**
-- Cron and systemd units don't have a login shell's `PATH` or environment by
-  default - use the full path to `check-opencloud-security` and set
-  `COS_HOST` explicitly (see [Scheduling](#scheduling-without-icinga2--nagios-systemd-timer--cron)).
-- Check logs with `journalctl -u check-opencloud-security.service` (systemd)
-  or your configured log file (cron, see the example cron file).
-
-**Exit code reference**
-
-| Exit code | Meaning    |
-|:----------|:-----------|
-| `0`       | OK         |
-| `1`       | WARNING    |
-| `2`       | CRITICAL   |
-| `3`       | UNKNOWN    |
 
 # Examples
 
 A collection of complete, copy-and-paste invocations for the situations that
 come up most often. Every example uses `opencloud.example.com` as the host.
+
+Longer, platform-specific examples live in [`docs/`](docs/README.md):
+[Kubernetes](docs/kubernetes.md), [CI pipelines](docs/ci.md),
+[Prometheus and Grafana](docs/prometheus.md),
+[webhook adapters](docs/webhook-recipes.md) and
+[fleets of instances](docs/many-instances.md).
 
 ## The basics
 

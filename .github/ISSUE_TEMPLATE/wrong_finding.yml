@@ -1,0 +1,132 @@
+name: Wrong finding or rating
+description: The plugin runs, but says something untrue about an instance.
+title: "[Finding]: "
+labels: ["finding"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable kind of report for a scanner, and the one
+        that most often needs evidence to act on. Every check runs inside the
+        plugin, so a wrong verdict is a bug in this repository - there is no
+        remote service to blame.
+
+        **Redact everything.** Use `opencloud.example.com`, and remove tokens
+        and internal hostnames from any output you paste.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong
+      options:
+        - False positive - it reports a problem that is not there
+        - False negative - it misses a problem that is there
+        - Wrong rating - the findings look right but the score does not
+        - Wrong version or end-of-life verdict
+        - Wrong upgrade recommendation
+        - Unhelpful or misleading wording
+    validations:
+      required: true
+
+  - type: textarea
+    id: reported
+    attributes:
+      label: What the plugin reported
+      description: The output line, and the identifier if there is one.
+      render: text
+      placeholder: |
+        CRITICAL: Rating 2/5 (D) - hardening not in place: publicLinkExpirationEnforced
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What it should have reported, and why
+      description: >-
+        What is actually true about the instance, and how you know. For a
+        hardening finding, the setting you have in place. For a version or
+        end-of-life verdict, the release you are on and its track.
+    validations:
+      required: true
+
+  - type: textarea
+    id: explain
+    attributes:
+      label: Output of --debug
+      description: >-
+        `--debug` prints where the rating started, what capped it, and which
+        findings were waived. For a hardening question, add `--check-hardening`.
+        This is usually enough on its own to identify the cause.
+      render: text
+      placeholder: |
+        check-opencloud-security --host opencloud.example.com --check-hardening --debug
+    validations:
+      required: true
+
+  - type: input
+    id: opencloud
+    attributes:
+      label: OpenCloud version
+      placeholder: "7.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: track
+    attributes:
+      label: Release track
+      description: Which track this instance follows, if you know.
+      options:
+        - rolling
+        - production
+        - lts
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: The output of `check-opencloud-security --version`.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What the instance actually returns
+      description: >-
+        Optional, but it makes the difference between a guess and a fix. The
+        relevant response from the instance, redacted - for example
+        `curl -sk https://opencloud.example.com/status.php`, or the response
+        headers for a header finding. A maintainer cannot reach your instance,
+        so this is the only way to reproduce it.
+      render: text
+
+  - type: textarea
+    id: hardcoded
+    attributes:
+      label: Is it actually configurable?
+      description: >-
+        For a hardening finding only. Some flags are hardcoded in OpenCloud and
+        no operator can change them - those are recorded but deliberately kept
+        out of the alert. If you found the setting in the OpenCloud source or
+        documentation, a link here settles the question immediately.
+      placeholder: "https://github.com/opencloud-eu/opencloud/blob/main/..."
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Confirmations
+      options:
+        - label: I am on the latest release, and the problem is still there.
+          required: true
+        - label: >-
+            I redacted every secret and every real hostname from what I pasted
+            above.
+          required: true
+        - label: I am responsible for the instance these results came from.
+          required: true

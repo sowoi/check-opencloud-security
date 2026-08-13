@@ -33,6 +33,7 @@ for a remote scan service.
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
 | `ansible/`, `contrib/`, `config/` | Deployment role, Icinga definitions, example config |
+| `docs/` | Deployment guides and worked examples, indexed by `docs/README.md` |
 
 ## Ground rules
 
@@ -161,3 +162,14 @@ documents the library and service. Every new option needs a row in the CLI
 option table, an entry in `config/check-opencloud-security.example.yml` and a
 line under `## [Unreleased]` in `CHANGELOG.md` - never under a version
 heading, see [Versioning and releases](#versioning-and-releases).
+
+`docs/` holds the deployment guides and the worked examples, indexed by
+`docs/README.md`. Long, platform-specific material belongs there rather than
+in `README.md`; a new page needs a row in the guide table under
+`# Deployment guides` and a row in the `docs/README.md` index. Relative links
+in `docs/` point one level up (`../README.md#anchor`), so moving a section
+means fixing the links that reached it by anchor.
+
+`.github/copilot-instructions.md` is the same guidance in the form GitHub
+Copilot reads automatically. This file stays the authoritative one; keep the
+two consistent when a rule here changes.
