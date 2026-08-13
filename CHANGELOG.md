@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-08-13
+
 ### Security
 
 - Block webhook notifications to private, loopback, and link-local addresses
