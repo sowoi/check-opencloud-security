@@ -65,8 +65,8 @@ CLI flags    ───┘        (flat COS_ names)     (builds)       (dataclass
 `config.py` (only if a new default path), `factory.py`, the plugin flag in
 `check_opencloud_security.py`, the subcommand in `opencloud_local_scan/cli.py`,
 the question in `wizard.py`, the CLI option table in `README.md`,
-`config/check-opencloud-security.example.yml`, and a line under
-`## [Unreleased]` in `CHANGELOG.md`.
+`config/check-opencloud-security.example.yml`, plus matching entries in
+`CHANGELOG.md` and `RELEASE.md` under the version declared in `pyproject.toml`.
 
 **Plugin startup order** in `check_opencloud_security.py`:
 `_run_early_commands()` → `_preparse_config()` → `_set_configuration()` →
@@ -99,9 +99,9 @@ the file itself in a checkout) and the plugin imports that. Never write a
 `__version__ = "x.y.z"` literal - `tests/test_version.py` fails if you do. And
 never bump the number: a bump landing on `main` publishes to PyPI.
 
-**Changelog entries go under `## [Unreleased]`**, never under a version
-heading. `scripts/release_notes.py` promotes that section when the user cuts a
-release.
+**Document every change in both `CHANGELOG.md` and `RELEASE.md` under the
+version declared in `pyproject.toml`.** Never invent or bump a version number;
+the user decides that number.
 
 **Some hardening findings can never be fixed.** Flags OpenCloud hardcodes are
 marked `actionable=False` in `hardening.py`: they stay in the result document

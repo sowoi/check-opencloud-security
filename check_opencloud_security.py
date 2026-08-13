@@ -13,24 +13,28 @@ Authors: Massoud Ahmed
 """
 import argparse
 import contextlib
+import contextvars
 import io
 import ipaddress
 import logging
 import socket
 import sys
+import threading
 import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import IntEnum
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, NoReturn, TypeVar
 from urllib.parse import urlsplit
 
 import requests
 
 from opencloud_local_scan import (
-    DEFAULT_CONCURRENCY,
     MAX_CONCURRENCY,
     Configuration,
     ConfigurationError,
@@ -48,10 +52,16 @@ from opencloud_local_scan import (
     upgrade_self,
 )
 from opencloud_local_scan import scan as local_scan
-from opencloud_local_scan.baseline import BaselineError, load_baseline, snapshot_of
+from opencloud_local_scan.baseline import (
+    BaselineError,
+    Comparison,
+    load_baseline,
+    snapshot_of,
+)
 from opencloud_local_scan.completion import enable as enable_completion
 from opencloud_local_scan.hardening import describe as describe_hardening
 from opencloud_local_scan.hardening import is_actionable
+from opencloud_local_scan.prometheus import render as render_prometheus_metrics
 from opencloud_local_scan.releases import MODES as UPDATE_SOURCES
 from opencloud_local_scan.selfupdate import self_update_note
 from opencloud_local_scan.versions import RELEASE_TRACKS
@@ -59,6 +69,8 @@ from opencloud_local_scan.versions import RELEASE_TRACKS
 LOGGER = logging.getLogger("check_opencloud")
 
 DEFAULT_TIMEOUT_SECONDS = 10
+DEFAULT_HOST_CONCURRENCY = 5
+DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS = 60
 
 # Values accepted by --upgrade-self. 'check' is the dry run: it works out and
 # prints the command without letting a monitoring host change itself.
@@ -95,6 +107,13 @@ DEFAULT_CRITICAL_RATING = 1
 
 # Prefix for all environment variables recognized by this plugin, e.g. COS_HOST.
 ENV_PREFIX = "COS_"
+
+# Worker-local result buffers let concurrent host scans keep their output and
+# perfdata separate until the coordinator renders the ordered result blocks.
+_RESULT_BUFFER: contextvars.ContextVar[io.StringIO | None] = contextvars.ContextVar(
+    "result_buffer", default=None
+)
+_BASELINE_LOCK = threading.Lock()
 
 # Nagios states that may trigger the optional webhook, keyed by the value
 # accepted for --webhook-on.
@@ -159,6 +178,7 @@ class ScanContext:
     # Remember the findings of the last run and report only what changed.
     baseline_path: str | None = None
     warn_on_new: bool = False
+    diff_format: str = "text"
     # Look up whether a newer plugin version has been published.
     self_update_check: bool = False
 
@@ -238,7 +258,8 @@ def _env_float(name: str, default: float) -> float:
 
 def _fail(message: str, exit_code: NagiosExitCode = NagiosExitCode.UNKNOWN) -> NoReturn:
     """Print a Nagios-formatted failure message and terminate the program."""
-    print(message)
+    buffer = _RESULT_BUFFER.get()
+    print(message, file=buffer)
     sys.exit(int(exit_code))
 
 
@@ -420,7 +441,7 @@ def check_vulnerabilities(
             )
             exit_code = NagiosExitCode.WARNING
 
-    msg, exit_code, baseline_lines = _apply_baseline(
+    msg, exit_code, baseline_lines, baseline_diff = _apply_baseline(
         context,
         response_scan,
         hardenings=actionable_hardenings if context.check_hardening else [],
@@ -465,6 +486,7 @@ def check_vulnerabilities(
             duration_seconds=duration_seconds,
             update_info=update_info,
             extra_failures=extra_failures,
+            baseline_diff=baseline_diff,
         )
         if not _send_webhook(context, payload):
             detail_lines.append("Webhook delivery failed (see debug log)")
@@ -480,7 +502,7 @@ def _apply_baseline(
     waived: list[str],
     message: str,
     exit_code: NagiosExitCode,
-) -> tuple[str, NagiosExitCode, list[str]]:
+) -> tuple[str, NagiosExitCode, list[str], Comparison | None]:
     """
     Compare this run against the last one and record it.
 
@@ -494,29 +516,32 @@ def _apply_baseline(
     verdict on the instance.
     """
     if not context.baseline_path:
-        return message, exit_code, []
+        return message, exit_code, [], None
 
-    store = load_baseline(context.baseline_path)
-    current = snapshot_of(response_scan, waived=waived, missing_hardenings=hardenings)
-    comparison = store.compare(context.host, current)
+    # Loading, comparing and saving form one read-modify-write operation; two
+    # host workers must not overwrite one another's snapshots.
+    with _BASELINE_LOCK:
+        store = load_baseline(context.baseline_path)
+        current = snapshot_of(response_scan, waived=waived, missing_hardenings=hardenings)
+        comparison = store.compare(context.host, current)
 
-    lines = [f"Baseline: {comparison.summary()}"]
-    if context.warn_on_new and not comparison.regressed and exit_code is not NagiosExitCode.OK:
-        lines.append(
-            f"Suppressed by --warn-on-new: this run would otherwise be {exit_code.name} "
-            f"({message})"
-        )
-        message = f"OK: nothing new since the last run ({exit_code.name} state unchanged)."
-        exit_code = NagiosExitCode.OK
+        lines = [f"Baseline: {comparison.summary()}", comparison.render(context.diff_format)]
+        if context.warn_on_new and not comparison.regressed and exit_code is not NagiosExitCode.OK:
+            lines.append(
+                f"Suppressed by --warn-on-new: this run would otherwise be {exit_code.name} "
+                f"({message})"
+            )
+            message = f"OK: nothing new since the last run ({exit_code.name} state unchanged)."
+            exit_code = NagiosExitCode.OK
 
-    store.record(context.host, current)
-    try:
-        store.save()
-    except BaselineError as exc:
-        LOGGER.debug("Baseline not written: %s", exc)
-        lines.append(f"Baseline could not be written: {exc}")
+        store.record(context.host, current)
+        try:
+            store.save()
+        except BaselineError as exc:
+            LOGGER.debug("Baseline not written: %s", exc)
+            lines.append(f"Baseline could not be written: {exc}")
 
-    return message, exit_code, lines
+    return message, exit_code, lines, comparison
 
 
 def _self_update_line(context: ScanContext) -> str | None:
@@ -602,6 +627,7 @@ def _build_webhook_payload(
     duration_seconds: float | None,
     update_info: UpdateInfo | None = None,
     extra_failures: list[str] | None = None,
+    baseline_diff: Comparison | None = None,
 ) -> dict[str, Any]:
     """
     Build the JSON document posted to the webhook.
@@ -610,7 +636,7 @@ def _build_webhook_payload(
     consumed by generic receivers (alertmanager bridges, chat bots, ticket
     systems) without needing to parse the plugin's human-readable output.
     """
-    return {
+    payload = {
         **_build_base_payload(context, message, exit_code),
         "rating": rating,
         "rating_label": rate,
@@ -634,6 +660,13 @@ def _build_webhook_payload(
         "update": update_info.as_dict() if update_info is not None else None,
         "duration_seconds": round(duration_seconds, 3) if duration_seconds is not None else None,
     }
+    if baseline_diff is not None:
+        payload["baseline_diff"] = baseline_diff.as_dict()
+        if context.diff_format in {"slack", "json"}:
+            slack = baseline_diff.slack_blocks()
+            payload["blocks"] = slack["blocks"]
+            payload["attachments"] = slack["attachments"]
+    return payload
 
 
 def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
@@ -1252,6 +1285,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--diff-format",
+        choices=("text", "markdown", "slack", "json"),
+        default=_env("DIFF_FORMAT") or "text",
+        help=(
+            "Render baseline changes as concise text, Markdown, or Slack Block Kit JSON. "
+            f"Default: text (env: {ENV_PREFIX}DIFF_FORMAT)."
+        ),
+    )
+    parser.add_argument(
         "--self-update-check",
         action="store_true",
         default=_env_bool("SELF_UPDATE_CHECK"),
@@ -1269,15 +1311,54 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--concurrency",
         type=int,
-        # Left unset on purpose, so that a 'scanner.concurrency:' from the
-        # configuration file survives.
-        default=None,
+        default=_env_int("CONCURRENCY", DEFAULT_HOST_CONCURRENCY),
         help=(
-            "Number of probes the scanner runs at the same time. Raising this "
-            "shortens a scan, which mostly waits for the instance to answer, at "
-            "the price of a burst of parallel requests. "
-            f"Default: {DEFAULT_CONCURRENCY} (no multithreading) "
-            f"(env: {ENV_PREFIX}SCANNER_CONCURRENCY)."
+            "Maximum number of target hosts checked in parallel. One worker is "
+            "used per host up to this ceiling; a single-host check stays "
+            "single-threaded. "
+            f"Default: {DEFAULT_HOST_CONCURRENCY} (env: {ENV_PREFIX}CONCURRENCY)."
+        ),
+    )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=("nagios", "prometheus"),
+        default=_env("FORMAT") or "nagios",
+        help=(
+            "Output format for a one-shot scan: 'nagios' or Prometheus text exposition. "
+            f"Default: nagios (env: {ENV_PREFIX}FORMAT)."
+        ),
+    )
+    parser.add_argument(
+        "--prometheus-listen-port",
+        type=int,
+        default=_env_int("PROMETHEUS_LISTEN_PORT", 0),
+        metavar="PORT",
+        help=(
+            "Serve Prometheus metrics on PORT until stopped; /metrics refreshes scans "
+            f"after --scrape-interval (env: {ENV_PREFIX}PROMETHEUS_LISTEN_PORT)."
+        ),
+    )
+    parser.add_argument(
+        "--prometheus-listen-addr",
+        default=_env("PROMETHEUS_LISTEN_ADDR") or "0.0.0.0",
+        metavar="ADDRESS",
+        help=(
+            "Address for the Prometheus exporter server. "
+            f"Default: 0.0.0.0 (env: {ENV_PREFIX}PROMETHEUS_LISTEN_ADDR)."
+        ),
+    )
+    parser.add_argument(
+        "--scrape-interval",
+        type=int,
+        default=_env_int(
+            "SCRAPE_INTERVAL", DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS
+        ),
+        metavar="SECONDS",
+        help=(
+            "Seconds to cache Prometheus scan results; 0 scans on every scrape. "
+            f"Default: {DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS} "
+            f"(env: {ENV_PREFIX}SCRAPE_INTERVAL)."
         ),
     )
     parser.add_argument(
@@ -1442,6 +1523,13 @@ def _validate_thresholds(parser: argparse.ArgumentParser, args: argparse.Namespa
         parser.error(
             f"--concurrency must be between 1 and {MAX_CONCURRENCY}, got {args.concurrency}."
         )
+    if args.prometheus_listen_port and not 1 <= args.prometheus_listen_port <= 65535:
+        parser.error(
+            "--prometheus-listen-port must be between 1 and 65535, "
+            f"got {args.prometheus_listen_port}."
+        )
+    if args.scrape_interval < 0:
+        parser.error(f"--scrape-interval must not be negative, got {args.scrape_interval}.")
     if args.webhook_url and not args.webhook_url.lower().startswith(("http://", "https://")):
         parser.error(f"--webhook-url must be an http(s) URL, got {args.webhook_url!r}.")
     # A --warn-on-new with nowhere to remember the last run would report
@@ -1505,7 +1593,6 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         extra_checks=False if args.no_extra_checks else None,
         verify_tls=False if args.insecure else None,
         check_debug_ports=False if args.no_debug_ports else None,
-        concurrency=args.concurrency,
         release_track=args.release_track,
         ignore_hardenings=_waiver_patterns(args.ignore_hardening),
     )
@@ -1544,6 +1631,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         update_warning=args.update_warning,
         baseline_path=args.baseline,
         warn_on_new=args.warn_on_new,
+        diff_format=args.diff_format,
         self_update_check=args.self_update_check,
     )
 
@@ -1570,21 +1658,26 @@ def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
 
     Unlike calling check_if_ip_or_host/send_scan_request/check_vulnerabilities
     directly, this captures the printed result and exit code instead of
-    terminating the process, so that a list of hosts can be processed one
-    by one without one host's failure aborting the rest.
+    terminating the process. Its ContextVar buffer is local to the worker, so
+    parallel host checks cannot mix their detail lines or perfdata.
     """
     buffer = io.StringIO()
+    token = _RESULT_BUFFER.set(buffer)
     exit_code = NagiosExitCode.UNKNOWN
     try:
-        with contextlib.redirect_stdout(buffer):
-            check_if_ip_or_host(context.host, context)
-            start = time.perf_counter()
-            scan_result = send_scan_request(context)
-            duration_seconds = time.perf_counter() - start
-            check_vulnerabilities(context, scan_result, duration_seconds=duration_seconds)
+        check_if_ip_or_host(context.host, context)
+        start = time.perf_counter()
+        scan_result = send_scan_request(context)
+        duration_seconds = time.perf_counter() - start
+        check_vulnerabilities(context, scan_result, duration_seconds=duration_seconds)
     except SystemExit as exc:
         if isinstance(exc.code, int):
             exit_code = NagiosExitCode(exc.code)
+    except Exception as exc:
+        LOGGER.exception("Unhandled scan failure for host %s", context.host)
+        print(f"UNKNOWN: {context.host} Scan failed: {exc}", file=buffer)
+    finally:
+        _RESULT_BUFFER.reset(token)
     return buffer.getvalue().rstrip("\n"), exit_code
 
 
@@ -1600,27 +1693,177 @@ def _summarize_multi_host_result(exit_codes: list[NagiosExitCode]) -> str:
     return f"Checked {len(exit_codes)} host(s): overall {overall.name} ({breakdown})"
 
 
+def _host_worker_count(hosts: list[str], args: argparse.Namespace) -> int:
+    """Return one host worker per target, constrained by the configured ceiling."""
+    return min(len(hosts), args.concurrency)
+
+
+def _serial_host_context(context: ScanContext) -> ScanContext:
+    """Disable probe parallelism when an outer host-worker pool is active."""
+    if context.scanner_settings is None:
+        return context
+    return replace(
+        context,
+        scanner_settings=replace(context.scanner_settings, concurrency=1),
+    )
+
+
 def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> NagiosExitCode:
     """
-    Run the scan-and-check flow for each host in turn.
+    Run the scan-and-check flow for several hosts in parallel.
 
-    Prints a summary line followed by one result block per host, and
-    returns the aggregated (worst) exit code across all hosts.
+    A ThreadPoolExecutor creates one worker per host up to --concurrency
+    (default five). Each worker captures its own output; after all workers
+    finish, this coordinator prints result blocks in host input order and
+    returns the worst status across them.
     """
-    blocks = []
-    exit_codes = []
-    for host in hosts:
-        context = _build_context(host, args)
+    contexts = [_build_context(host, args) for host in hosts]
+    workers = _host_worker_count(hosts, args)
+    LOGGER.debug("Running %d host scans with %d worker(s)", len(hosts), workers)
+
+    def _run(context: ScanContext) -> tuple[str, NagiosExitCode]:
         LOGGER.debug("Starting scan for host: %s", context.host)
-        message, exit_code = _run_single_host_check(context)
-        blocks.append(f"[{host}]\n{message}")
-        exit_codes.append(exit_code)
+        # Host and probe pools must not nest. Scanner concurrency remains
+        # available for single-host checks through scanner.concurrency.
+        return _run_single_host_check(_serial_host_context(context))
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="opencloud-host") as pool:
+        results = list(pool.map(_run, contexts))
+
+    blocks = [f"[{host}]\n{message}" for host, (message, _) in zip(hosts, results)]
+    exit_codes = [exit_code for _, exit_code in results]
 
     print(_summarize_multi_host_result(exit_codes))
     print()
     print("\n\n".join(blocks))
 
     return _aggregate_exit_code(exit_codes)
+
+
+def _prometheus_scan(context: ScanContext) -> str:
+    """Run one scan and render either its metrics or a scrape-success failure sample."""
+    start = time.perf_counter()
+    try:
+        response = _call_with_retry(
+            lambda: local_scan(
+                context.host,
+                settings=context.scanner_settings
+                or ScannerSettings(timeout=context.timeout),
+                release_settings=context.release_settings,
+            ),
+            retries=context.retries,
+            backoff_factor=context.backoff_factor,
+            description=f"Scanning {context.host}",
+        )
+    except (ScanError, *REQUEST_ERRORS) as exc:
+        LOGGER.info("Prometheus scan of %s failed: %s", context.host, exc)
+        return render_prometheus_metrics(
+            context.host,
+            None,
+            duration_seconds=time.perf_counter() - start,
+            success=False,
+        )
+    return render_prometheus_metrics(
+        context.host,
+        response,
+        duration_seconds=time.perf_counter() - start,
+        success=True,
+    )
+
+
+def _prometheus_metrics(hosts: list[str], args: argparse.Namespace) -> str:
+    """
+    Collect Prometheus metrics for all requested hosts.
+
+    Multi-host collections use the same bounded host pool as normal checks,
+    while each worker scans its instance serially to avoid nested pools.
+    """
+    contexts = [_build_context(host, args) for host in hosts]
+    if len(contexts) == 1:
+        return _prometheus_scan(contexts[0])
+    with ThreadPoolExecutor(
+        max_workers=_host_worker_count(hosts, args),
+        thread_name_prefix="opencloud-prometheus",
+    ) as pool:
+        documents = list(pool.map(_prometheus_scan, map(_serial_host_context, contexts)))
+    declarations: set[str] = set()
+    lines: list[str] = []
+    for document in documents:
+        for line in document.splitlines():
+            if line.startswith("#"):
+                if line in declarations:
+                    continue
+                declarations.add(line)
+            lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
+class _PrometheusExporter:
+    """Thread-safe cache that refreshes one or more scan results for /metrics."""
+
+    def __init__(self, hosts: list[str], args: argparse.Namespace) -> None:
+        self.hosts = hosts
+        self.args = args
+        self._body = ""
+        self._created_at = 0.0
+        self._lock = threading.Lock()
+
+    def metrics(self) -> str:
+        """Return cached metrics, refreshing them after the configured interval."""
+        with self._lock:
+            if (
+                not self._body
+                or time.monotonic() - self._created_at >= self.args.scrape_interval
+            ):
+                self._body = _prometheus_metrics(self.hosts, self.args)
+                self._created_at = time.monotonic()
+            return self._body
+
+
+def build_prometheus_server(
+    hosts: list[str], args: argparse.Namespace
+) -> ThreadingHTTPServer:
+    """Build a /metrics-only HTTP exporter without starting it, for tests and callers."""
+    exporter = _PrometheusExporter(hosts, args)
+
+    class Handler(BaseHTTPRequestHandler):
+        """Serve the current OpenCloud scan metrics."""
+
+        def log_message(self, format: str, *args: Any) -> None:
+            LOGGER.debug("%s - %s", self.address_string(), format % args)
+
+        def do_GET(self) -> None:
+            """Return Prometheus metrics only at the conventional /metrics endpoint."""
+            if self.path.split("?", 1)[0] != "/metrics":
+                self.send_error(HTTPStatus.NOT_FOUND, "Use /metrics")
+                return
+            body = exporter.metrics().encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
+
+    return ThreadingHTTPServer(
+        (args.prometheus_listen_addr, args.prometheus_listen_port), Handler
+    )
+
+
+def serve_prometheus_metrics(hosts: list[str], args: argparse.Namespace) -> None:
+    """Run the Prometheus /metrics exporter until interrupted by its supervisor."""
+    server = build_prometheus_server(hosts, args)
+    LOGGER.info(
+        "OpenCloud Prometheus exporter listening on %s:%d",
+        args.prometheus_listen_addr,
+        args.prometheus_listen_port,
+    )
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:  # pragma: no cover - interactive shutdown
+        LOGGER.info("Shutting down Prometheus exporter")
+    finally:
+        server.server_close()
 
 
 def _run_early_commands(argv: list[str] | None = None) -> int | None:
@@ -1724,6 +1967,14 @@ def main() -> None:
     )
     if _CONFIG.source:
         LOGGER.debug("Using configuration file %s", _CONFIG.source)
+
+    if args.prometheus_listen_port:
+        serve_prometheus_metrics(hosts, args)
+        return
+
+    if args.output_format == "prometheus":
+        print(_prometheus_metrics(hosts, args), end="")
+        return
 
     if len(hosts) == 1:
         try:

@@ -29,6 +29,12 @@ host: cloud.example.com          # comma separated list for several instances
 timeout: 10
 retries: 2
 backoff_factor: 0.5
+# When checking several comma-separated hosts, one worker runs per host up to
+# this ceiling. A single-host scan creates no host worker pool.
+# concurrency: 5
+# prometheus_listen_port: 9102  # serves /metrics; omit to keep one-shot mode
+# prometheus_listen_addr: 0.0.0.0
+# scrape_interval: 60           # cache duration; 0 refreshes every scrape
 
 warning: 3                       # rating <= 3 (C) -> WARNING
 critical: 1                      # rating <= 1 (E) -> CRITICAL
@@ -40,6 +46,7 @@ update_warning: false            # pending OpenCloud update -> WARNING
 # A release past its end of life always alerts, baseline or not.
 # baseline: /var/lib/check_opencloud/baseline.json
 # warn_on_new: false
+# diff_format: text              # text | markdown | slack (Slack Block Kit JSON)
 
 # Ask PyPI once a day whether a newer version of this plugin exists and add a
 # note to the output. Never changes the exit code.
