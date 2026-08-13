@@ -66,6 +66,10 @@ misconfigurations that actually occur in OpenCloud deployments, and rates the
 result on a `0`-`5` scale. The ratings follow the scale of the Nextcloud scan
 API, so existing thresholds, graphs and alert rules keep their meaning.
 
+**Important:** The scanner is not exhaustive. Its rating does not mean an
+OpenCloud instance is completely secure or that no vulnerability,
+misconfiguration, or other issue has been overlooked.
+
 Nothing about your instance is ever sent to a third party. The only optional
 outbound request is the [update check](#update-check), which asks GitHub for
 the newest OpenCloud release - and even that can be pinned, bundled or turned
