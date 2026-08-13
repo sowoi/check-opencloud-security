@@ -60,18 +60,16 @@ a patch, a minor or a major release is a judgement call about the project, not
 a mechanical step - and a bump that lands on `main` publishes to PyPI
 immediately.
 
-Write what you changed under the **`## [Unreleased]`** heading at the top of
-`CHANGELOG.md` instead, in the [Keep a
-Changelog](https://keepachangelog.com/en/1.1.0/) sections (`Added`, `Changed`,
-`Deprecated`, `Removed`, `Fixed`, `Security`, `Documentation`). Create the
-heading if a release has just consumed it. Never write a `## [x.y.z]` heading
-yourself.
+**Every change must be documented in both `CHANGELOG.md` and `RELEASE.md`
+under the version currently declared in `pyproject.toml`.** Read that version
+before editing either file, add the entry to the matching Keep a Changelog
+section (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, or
+`Documentation`), and keep the two release notes consistent. Never invent or
+bump a version heading yourself.
 
-When the user bumps the version, `scripts/release_notes.py` renames
-`## [Unreleased]` to `## [<version from pyproject.toml>] - <date>`, copies that
-body into `RELEASE.md` for the GitHub release, and leaves a fresh empty
-`## [Unreleased]` behind. So an entry only needs writing once, and everything
-collected since the last release ships under the version the user chose.
+When the user bumps the version, `scripts/release_notes.py` prepares the notes
+for that `pyproject.toml` version and writes `RELEASE.md` for the GitHub
+release. Keep the release documents synchronized before that workflow runs.
 
 Preview what the next release would look like. It rewrites `CHANGELOG.md` and
 `RELEASE.md`, so do it on a scratch copy or revert afterwards:
@@ -159,9 +157,9 @@ positive case.
 `README.md` is the reference for operators and carries a table of contents that
 must be kept in sync with its headings. `opencloud_local_scan/README.md`
 documents the library and service. Every new option needs a row in the CLI
-option table, an entry in `config/check-opencloud-security.example.yml` and a
-line under `## [Unreleased]` in `CHANGELOG.md` - never under a version
-heading, see [Versioning and releases](#versioning-and-releases).
+option table, an entry in `config/check-opencloud-security.example.yml`, and
+matching entries in `CHANGELOG.md` and `RELEASE.md` under the version in
+`pyproject.toml`; see [Versioning and releases](#versioning-and-releases).
 
 `docs/` holds the deployment guides and the worked examples, indexed by
 `docs/README.md`. Long, platform-specific material belongs there rather than

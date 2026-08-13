@@ -1,5 +1,7 @@
 """Tests for host parsing, target validation, retries and multi-host runs."""
 
+import threading
+
 import pytest
 import requests
 
@@ -220,6 +222,64 @@ def test_multi_host_prints_one_block_per_host(scans, capsys):
     assert "[b.example.com]" in output
 
 
+@pytest.mark.parametrize(
+    ("hosts", "concurrency", "expected_workers"),
+    [
+        (["only.example.com"], None, 1),
+        (["a.example.com", "b.example.com", "c.example.com"], None, 3),
+        (["a.example.com", "b.example.com", "c.example.com"], 2, 2),
+    ],
+)
+def test_multi_host_workers_match_the_host_count_up_to_the_configured_cap(
+    scans, monkeypatch, hosts, concurrency, expected_workers
+):
+    """Host pools must avoid idle workers while respecting an operator's ceiling."""
+    scans.update({host: {} for host in hosts})
+    workers = []
+    real_executor = plugin.ThreadPoolExecutor
+
+    class RecordingExecutor:
+        def __init__(self, *, max_workers, thread_name_prefix):
+            workers.append(max_workers)
+            self._executor = real_executor(
+                max_workers=max_workers, thread_name_prefix=thread_name_prefix
+            )
+
+        def __enter__(self):
+            self._executor.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self._executor.__exit__(*args)
+
+        def map(self, *args):
+            return self._executor.map(*args)
+
+    monkeypatch.setattr(plugin, "ThreadPoolExecutor", RecordingExecutor)
+    arguments = ["-H", ",".join(hosts)]
+    if concurrency is not None:
+        arguments.extend(["--concurrency", str(concurrency)])
+    args = parse_args(arguments)
+
+    plugin._run_multi_host_checks(hosts, args)
+
+    assert workers == [expected_workers]
+
+
+def test_multi_host_uses_critical_as_the_overall_exit_code(scans, capsys):
+    """A warning must never mask a confirmed critical result from another host."""
+    scans["warning.example.com"] = {"rating": 3}
+    scans["critical.example.com"] = {"rating": 0, "EOL": True}
+    args = parse_args(["-H", "warning.example.com,critical.example.com"])
+
+    code = plugin._run_multi_host_checks(
+        ["warning.example.com", "critical.example.com"], args
+    )
+
+    assert code is NagiosExitCode.CRITICAL
+    assert "overall CRITICAL" in capsys.readouterr().out
+
+
 def test_one_failing_host_does_not_abort_the_others(scans, capsys):
     """A single unreachable instance must not hide the rest of the fleet."""
     scans["good.example.com"] = {}
@@ -231,6 +291,28 @@ def test_one_failing_host_does_not_abort_the_others(scans, capsys):
     assert code is NagiosExitCode.UNKNOWN
     assert "is unreachable" in output
     assert "OpenCloud 7.2.0 on good.example.com" in output
+
+
+def test_a_slow_host_does_not_prevent_a_fast_host_from_running(monkeypatch, capsys):
+    """A timeout-bound worker must not serialize a healthy host behind it."""
+    fast_started = threading.Event()
+
+    def _run(context):
+        if context.host == "slow.example.com":
+            assert fast_started.wait(timeout=1)
+            return "UNKNOWN: slow.example.com Scan failed: timed out", NagiosExitCode.UNKNOWN
+        fast_started.set()
+        return "OK: fast.example.com", NagiosExitCode.OK
+
+    monkeypatch.setattr(plugin, "_run_single_host_check", _run)
+    args = parse_args(["-H", "slow.example.com,fast.example.com"])
+
+    code = plugin._run_multi_host_checks(["slow.example.com", "fast.example.com"], args)
+
+    assert code is NagiosExitCode.UNKNOWN
+    output = capsys.readouterr().out
+    assert "[fast.example.com]\nOK: fast.example.com" in output
+    assert "[slow.example.com]\nUNKNOWN: slow.example.com Scan failed: timed out" in output
 
 
 def test_summarize_multi_host_result_orders_by_severity():

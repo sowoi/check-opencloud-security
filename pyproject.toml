@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.2.3"
+version = "1.3.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"

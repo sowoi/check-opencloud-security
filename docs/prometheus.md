@@ -1,9 +1,13 @@
 # Prometheus and Grafana
 
-The plugin is a Nagios plugin, not an exporter, and it stays one - a scan
-takes seconds and hits a real instance, so it must not run on a scrape. The
-two workable shapes are both *push*: write the metrics to a file that
-node_exporter serves, or push them once per scan to a Pushgateway.
+The plugin has a native Prometheus exporter. Run it with
+`--prometheus-listen-port 9102` to serve `/metrics`; it caches a scan for
+`--scrape-interval` seconds (60 by default), so normal scrapes do not trigger
+another scan. For a batch job, `--format=prometheus` prints one text exposition
+payload and exits. Both modes require no extra dependency.
+
+The textfile collector and Pushgateway patterns below remain useful when a
+scheduled scan is a better fit than a long-running exporter.
 
 If you already run Icinga2, you do not need any of this: the
 [performance data](../README.md#performance-data) the plugin prints is picked

@@ -145,6 +145,99 @@ def test_a_resolved_finding_is_not_a_regression(tmp_path):
     assert comparison.resolved_findings == ("b:two",)
 
 
+def test_itemized_diffs_categorize_vulnerabilities_hardening_and_versions(tmp_path):
+    """Reports need the exact security change, not merely a changed/not-changed flag."""
+    store = load_baseline(tmp_path / "baseline.json")
+    store.record(
+        "opencloud.example.com",
+        Snapshot(
+            rating=5,
+            eol=False,
+            findings=("hardening:basicAuthDisabled",),
+            version="7.2.0",
+            update_version="7.3.0",
+            support_days=45,
+        ),
+    )
+
+    comparison = store.compare(
+        "opencloud.example.com",
+        Snapshot(
+            rating=3,
+            eol=True,
+            findings=("vuln:CVE-2026-0001",),
+            version="7.3.0",
+            update_version="7.4.0",
+            support_days=5,
+        ),
+    )
+
+    changes = comparison.items()
+
+    assert {"category": "Vulnerability", "change": "+ CVE-2026-0001"} in changes
+    assert {"category": "Hardening", "change": "- basicAuthDisabled"} in changes
+    assert {"category": "Rating", "change": "A+ (5) -> C (3)"} in changes
+    assert {"category": "Lifecycle", "change": "EOL: False -> True"} in changes
+    assert {"category": "Lifecycle", "change": "Support days: 45 days -> 5 days"} in changes
+    assert {"category": "Version", "change": "7.2.0 -> 7.3.0"} in changes
+    assert {"category": "Update", "change": "Target version: 7.3.0 -> 7.4.0"} in changes
+
+
+def test_markdown_diff_is_a_table_with_the_itemized_changes(tmp_path):
+    """CI summaries need Markdown that renders without a custom parser."""
+    store = load_baseline(tmp_path / "baseline.json")
+    store.record("opencloud.example.com", Snapshot(rating=5, eol=False))
+    comparison = store.compare("opencloud.example.com", Snapshot(rating=3, eol=False))
+
+    markdown = comparison.render("markdown")
+
+    assert markdown.startswith("### OpenCloud baseline diff\n\n| Category | Change |")
+    assert "| Rating | A+ (5) -> C (3) |" in markdown
+
+
+def test_slack_diff_is_valid_block_kit_json(tmp_path):
+    """Webhook receivers can use the diff without scraping human-readable output."""
+    store = load_baseline(tmp_path / "baseline.json")
+    store.record("opencloud.example.com", Snapshot(rating=5, eol=False))
+    comparison = store.compare("opencloud.example.com", Snapshot(rating=3, eol=False))
+
+    slack = json.loads(comparison.render("slack"))
+
+    assert slack["attachments"][0]["color"] == "warning"
+    assert slack["blocks"][0] == {
+        "type": "header",
+        "text": {"type": "plain_text", "text": "OpenCloud baseline diff"},
+    }
+    assert slack["blocks"][1]["type"] == "section"
+    assert slack["blocks"][1]["text"]["type"] == "mrkdwn"
+
+
+def test_slack_format_adds_structured_diff_to_the_webhook_payload(tmp_path):
+    """Slack receivers need blocks as well as the portable structured comparison."""
+    store = load_baseline(tmp_path / "baseline.json")
+    store.record("opencloud.example.com", Snapshot(rating=5, eol=False))
+    comparison = store.compare("opencloud.example.com", Snapshot(rating=3, eol=False))
+    context = check.ScanContext(host="opencloud.example.com", diff_format="slack")
+
+    payload = check._build_webhook_payload(
+        context,
+        scan_result=check.ScanResult(response={}, uuid="local-opencloud.example.com"),
+        response_scan={},
+        message="WARNING: rating dropped",
+        exit_code=check.NagiosExitCode.WARNING,
+        rating=3,
+        rate="C",
+        vulnerabilities=[],
+        missing_hardenings=[],
+        duration_seconds=1,
+        baseline_diff=comparison,
+    )
+
+    assert payload["baseline_diff"]["changes"] == comparison.items()
+    assert payload["blocks"][0]["type"] == "header"
+    assert payload["attachments"][0]["color"] == "warning"
+
+
 def test_a_worse_rating_alone_is_a_regression(tmp_path):
     """A new advisory can lower the rating without adding a finding of its own."""
     store = load_baseline(tmp_path / "baseline.json")

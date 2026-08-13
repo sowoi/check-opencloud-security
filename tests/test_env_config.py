@@ -110,6 +110,18 @@ def test_numeric_options_are_read_from_the_environment(monkeypatch, reload_plugi
     assert module._build_context("cloud.example.com", args).timeout == 30
 
 
+def test_concurrency_ceiling_comes_from_the_environment(monkeypatch, reload_plugin):
+    """COS_CONCURRENCY caps multi-host workers without changing scan probes."""
+    monkeypatch.setenv("COS_HOST", "cloud.example.com")
+    monkeypatch.setenv("COS_CONCURRENCY", "2")
+
+    module = reload_plugin()
+    args = module.build_arg_parser().parse_args([])
+
+    assert args.concurrency == 2
+    assert module._build_context("cloud.example.com", args).scanner_settings.concurrency == 1
+
+
 def test_invalid_numeric_environment_value_falls_back(monkeypatch, reload_plugin):
     """A typo in the environment must not crash the monitoring daemon."""
     monkeypatch.setenv("COS_HOST", "cloud.example.com")

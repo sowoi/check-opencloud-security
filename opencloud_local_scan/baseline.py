@@ -58,6 +58,9 @@ class Snapshot:
     eol: bool
     findings: tuple[str, ...] = ()
     recorded_at: str = ""
+    version: str = ""
+    update_version: str = ""
+    support_days: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Render the snapshot in the shape stored on disk."""
@@ -66,6 +69,9 @@ class Snapshot:
             "eol": self.eol,
             "findings": list(self.findings),
             "recordedAt": self.recorded_at,
+            "version": self.version,
+            "updateVersion": self.update_version,
+            "supportDays": self.support_days,
         }
 
     @classmethod
@@ -84,6 +90,9 @@ class Snapshot:
             eol=bool(data.get("eol", False)),
             findings=findings,
             recorded_at=str(data.get("recordedAt", "")),
+            version=str(data.get("version", "")),
+            update_version=str(data.get("updateVersion", "")),
+            support_days=data.get("supportDays") if isinstance(data.get("supportDays"), int) else None,
         )
 
 
@@ -146,6 +155,122 @@ class Comparison:
         if known:
             return f"No new findings{tail} ({known} known issue(s) unchanged)"
         return f"No new findings{tail}"
+
+    def items(self) -> list[dict[str, str]]:
+        """Return ordered, machine-readable changes for logs and rich renderers."""
+        if self.previous is None:
+            return [{"category": "Baseline", "change": "Baseline created"}]
+        previous = self.previous
+        changes: list[dict[str, str]] = []
+        labels = {
+            "vuln:": "Vulnerability",
+            "hardening:": "Hardening",
+            "check:": "Security check",
+            "update:": "Update",
+        }
+        for finding in self.new_findings:
+            prefix = next((key for key in labels if finding.startswith(key)), "")
+            changes.append(
+                {
+                    "category": labels.get(prefix, "Finding"),
+                    "change": f"+ {finding.removeprefix(prefix)}",
+                }
+            )
+        for finding in self.resolved_findings:
+            prefix = next((key for key in labels if finding.startswith(key)), "")
+            changes.append(
+                {
+                    "category": labels.get(prefix, "Finding"),
+                    "change": f"- {finding.removeprefix(prefix)}",
+                }
+            )
+        if previous.rating != self.current.rating:
+            changes.append(
+                {
+                    "category": "Rating",
+                    "change": (
+                        f"{_rating_label(previous.rating)} ({previous.rating}) -> "
+                        f"{_rating_label(self.current.rating)} ({self.current.rating})"
+                    ),
+                }
+            )
+        if previous.eol != self.current.eol:
+            changes.append(
+                {
+                    "category": "Lifecycle",
+                    "change": f"EOL: {previous.eol} -> {self.current.eol}",
+                }
+            )
+        if previous.support_days != self.current.support_days:
+            changes.append(
+                {
+                    "category": "Lifecycle",
+                    "change": (
+                        f"Support days: {_display_days(previous.support_days)} -> "
+                        f"{_display_days(self.current.support_days)}"
+                    ),
+                }
+            )
+        if previous.version and self.current.version and previous.version != self.current.version:
+            changes.append(
+                {
+                    "category": "Version",
+                    "change": f"{previous.version} -> {self.current.version}",
+                }
+            )
+        if previous.update_version != self.current.update_version:
+            changes.append(
+                {
+                    "category": "Update",
+                    "change": (
+                        f"Target version: {previous.update_version or 'none'} -> "
+                        f"{self.current.update_version or 'none'}"
+                    ),
+                }
+            )
+        return changes
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the structured comparison included in webhook payloads."""
+        return {
+            "first_run": self.first_run,
+            "regressed": self.regressed,
+            "summary": self.summary(),
+            "changes": self.items(),
+        }
+
+    def render(self, format: str = "text") -> str:
+        """Render itemized changes as text, Markdown, or Slack Block Kit JSON."""
+        changes = self.items()
+        if format == "text":
+            return "\n".join(f"{item['category']}: {item['change']}" for item in changes)
+        if format == "markdown":
+            rows = ["### OpenCloud baseline diff", "", "| Category | Change |", "|:--|:--|"]
+            rows.extend(
+                f"| {item['category']} | {_markdown_cell(item['change'])} |"
+                for item in changes
+            )
+            return "\n".join(rows)
+        if format in {"slack", "json"}:
+            return json.dumps(self.slack_blocks(), sort_keys=True)
+        raise ValueError(f"Unknown diff format: {format}")
+
+    def slack_blocks(self) -> dict[str, Any]:
+        """Return a Slack Block Kit-compatible structured baseline diff."""
+        banner = "warning" if self.regressed else "good"
+        lines = "\n".join(
+            f"• *{item['category']}*: {item['change']}" for item in self.items()
+        )
+        return {
+            "attachments": [{"color": banner}],
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "OpenCloud baseline diff"},
+                },
+                {"type": "section", "text": {"type": "mrkdwn", "text": lines}},
+            ],
+        }
 
 
 @dataclass
@@ -234,6 +359,21 @@ def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _rating_label(rating: int) -> str:
+    """Name a rating without importing plugin-layer presentation code."""
+    return {5: "A+", 4: "A", 3: "C", 2: "D", 1: "E", 0: "F"}.get(rating, "Unknown")
+
+
+def _display_days(days: int | None) -> str:
+    """Present unknown lifecycle horizons distinctly from zero days."""
+    return "unknown" if days is None else f"{days} days"
+
+
+def _markdown_cell(value: str) -> str:
+    """Keep an itemized change inside its Markdown table cell."""
+    return value.replace("|", "\\|")
+
+
 def _vulnerability_ids(response: dict[str, Any]) -> Iterable[str]:
     """Every known vulnerability, by its identifier."""
     for entry in response.get("vulnerabilities", []) or []:
@@ -316,8 +456,16 @@ def snapshot_of(
         }
     )
     update = response.get("updates")
+    update_version = ""
     if isinstance(update, dict) and update.get("available"):
-        findings.append(f"update:{update.get('availableVersion') or 'unknown'}")
+        update_version = str(update.get("availableVersion") or "unknown")
+        findings.append(f"update:{update_version}")
+    lifecycle = response.get("lifecycle")
+    support_days = (
+        lifecycle.get("daysRemaining")
+        if isinstance(lifecycle, dict) and isinstance(lifecycle.get("daysRemaining"), int)
+        else None
+    )
     try:
         rating = int(response.get("rating", -1))
     except (TypeError, ValueError):
@@ -327,4 +475,7 @@ def snapshot_of(
         eol=bool(response.get("EOL", False)),
         findings=tuple(findings),
         recorded_at=_now(),
+        version=str(response.get("version") or ""),
+        update_version=update_version,
+        support_days=support_days,
     )

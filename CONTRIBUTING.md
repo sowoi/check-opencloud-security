@@ -109,6 +109,11 @@ every unrelated test. And it answers unknown paths the way OpenCloud's
 single-page frontend does, which is exactly what the catch-all detection in
 the scanner exists to survive.
 
+Multi-host changes also need coverage for worker sizing, result ordering and
+the aggregate Nagios exit-code priority. Use `tests/test_multi_host.py` for
+those cases; workers must keep per-host output and perfdata isolated until the
+coordinator renders the final blocks.
+
 ### The bundled release schedule
 
 `opencloud_local_scan/data/release_schedule.json` is generated, not written by

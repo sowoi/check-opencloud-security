@@ -14,6 +14,7 @@
   * [Command](#command)
 * [Options:](#options)
 * [Checking multiple hosts](#checking-multiple-hosts)
+* [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
@@ -489,7 +490,11 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--insecure`        | Do not verify the instance's TLS certificate           | *False*      | `COS_INSECURE`        |
 | `--no-extra-checks` | Only check product, version and security headers       | *False*      | `COS_NO_EXTRA_CHECKS` |
 | `--no-debug-ports`  | Skip probing the OpenCloud debug ports                 | *False*      | `COS_NO_DEBUG_PORTS`  |
-| `--concurrency`     | Probes run in parallel; `1` means no multithreading    | `1`          | `COS_SCANNER_CONCURRENCY` |
+| `--concurrency`     | Maximum parallel host workers; one is used per host up to this ceiling | `5` | `COS_CONCURRENCY` |
+| `--format`          | One-shot output format: `nagios` or `prometheus` | `nagios` | `COS_FORMAT` |
+| `--prometheus-listen-port` | Serve native `/metrics` on this port until stopped | disabled | `COS_PROMETHEUS_LISTEN_PORT` |
+| `--prometheus-listen-addr` | Bind address for the native Prometheus exporter | `0.0.0.0` | `COS_PROMETHEUS_LISTEN_ADDR` |
+| `--scrape-interval` | Seconds to cache exporter scan results (`0` scans on every scrape) | `60` | `COS_SCRAPE_INTERVAL` |
 | `--ignore-hardening`| Hardening measure or check to accept, repeatable, comma-separated and wildcard capable | *None* | `COS_SCANNER_IGNORE_HARDENINGS` |
 | `--release-track`   | Release track this instance follows: `rolling`, `production` or `lts` | inferred | `COS_SCANNER_RELEASE_TRACK` |
 | `--update-source`   | Where the newest release comes from: `auto`, `feed`, `pinned`, `bundled`, `off` | `auto` | `COS_UPDATE_SOURCE` |
@@ -500,6 +505,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--update-warning`  | Report WARNING when a newer release is available       | *False*      | `COS_UPDATE_WARNING`  |
 | `--baseline`        | File that remembers the findings of the last run, one entry per host | *None* | `COS_BASELINE` |
 | `--warn-on-new`     | Only alert on findings that are new or worse than the baseline; needs `--baseline` | *False* | `COS_WARN_ON_NEW` |
+| `--diff-format`     | Render baseline changes as `text`, `markdown`, or Slack Block Kit `slack`/`json` | `text` | `COS_DIFF_FORMAT` |
 | `--self-update-check` | Note when a newer version of the plugin is published on PyPI; never changes the exit code | *False* | `COS_SELF_UPDATE_CHECK` |
 | `--webhook-url`     | Optional endpoint notified when the check reaches the configured state | *None* (disabled) | `COS_WEBHOOK_URL` |
 | `--webhook-on`      | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`) | `critical` | `COS_WEBHOOK_ON` |
@@ -527,9 +533,14 @@ environment variables.
 check-opencloud-security --host opencloud1.example.com,opencloud2.example.com
 ```
 
-Hosts are processed one by one. The output starts with a one-line summary
+Hosts run concurrently: the plugin creates one worker per host, up to the
+default ceiling of five. A single-host check remains strictly single-threaded,
+with no host worker pool. Set `--concurrency` or `COS_CONCURRENCY` to lower or
+raise the ceiling (up to 32), for example `--concurrency 2` for at most two
+hosts at a time. Each worker keeps its result and Nagios perfdata separate;
+the output starts with a one-line summary
 (e.g. `Checked 2 host(s): overall CRITICAL (1 CRITICAL, 1 OK)`), followed by
-one result block per host. The plugin exits with the worst status found
+one result block per host in the same order as the input. The plugin exits with the worst status found
 across all hosts, using the usual Nagios/Icinga priority: `CRITICAL` >
 `WARNING` > `UNKNOWN` > `OK`. A single host still produces the original,
 single-block output and exit code, so existing single-host setups are
@@ -542,6 +553,50 @@ trailing comma) are dropped. Because there is no hosted API involved, each
 entry may be a hostname, an IPv4 address, a bracketed IPv6 address or a full
 URL, with or without a port:
 `--host 10.0.0.5:9200,[2001:db8::1],https://cloud.example.com/`.
+
+# Prometheus & Kubernetes integration
+
+Use `--format=prometheus` to produce a one-shot Prometheus text payload:
+
+```shell
+check-opencloud-security --host opencloud.example.com --format=prometheus
+```
+
+For pull-based monitoring, run the built-in exporter. It serves `/metrics`,
+refreshing each configured target on the first scrape and then at the
+`--scrape-interval` (60 seconds by default). Set it to `0` only when every
+scrape should trigger a scan:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  --prometheus-listen-port 9102 --prometheus-listen-addr 0.0.0.0
+```
+
+The Docker image needs no extra package or sidecar:
+
+```shell
+docker run --rm -p 9102:9102 check-opencloud-security \
+  --host opencloud.example.com --prometheus-listen-port 9102
+```
+
+In Kubernetes, run the same command in a Deployment, expose port `9102`, and
+point a ServiceMonitor or scrape configuration at `/metrics`. The exporter
+publishes `opencloud_security_rating_score`,
+`opencloud_security_vulnerabilities_total`,
+`opencloud_security_hardenings_missing_total`,
+`opencloud_security_failed_extra_checks_total`,
+`opencloud_security_support_days_remaining`,
+`opencloud_security_update_available`,
+`opencloud_security_scan_duration_seconds`, and
+`opencloud_security_scrape_success`. The `host` label identifies the configured
+target; rating also carries `domain`, `product`, and `version`.
+
+For Grafana, show `opencloud_security_rating_score` in a stat panel with
+thresholds at `3` (warning) and `1` (critical), graph
+`opencloud_security_support_days_remaining`, and alert when
+`opencloud_security_scrape_success == 0`. See the
+[Prometheus and Grafana guide](docs/prometheus.md) for alerting and legacy
+textfile/Pushgateway patterns.
 
 # Environment variables
 Every option has a `COS_`-prefixed environment variable equivalent (see the
@@ -690,17 +745,13 @@ scanner:
 ### Speeding the scan up
 
 A scan spends nearly all of its time waiting for the instance to answer: around
-twenty HTTP requests and five TCP connects, one after the other. `--concurrency`
-runs them in parallel instead:
-
-```bash
-check-opencloud-security --host opencloud.example.com --concurrency 8
-```
-
-The default is `1`, which means no multithreading at all - a plain sequential
-scan, exactly as before. Raising it shortens a run considerably, at the price of
-a burst of parallel requests against the instance, and is most noticeable when
-debug-port probing runs into a firewall that swallows the connections.
+twenty HTTP requests and five TCP connects, one after the other.
+`scanner.concurrency` runs those probes in parallel for a single-host scan;
+raising it shortens a run considerably, at the price of a burst of parallel
+requests against the instance, and is most noticeable when debug-port probing
+runs into a firewall that swallows the connections. `--concurrency` instead
+controls the outer host-worker ceiling described in
+[Checking multiple hosts](#checking-multiple-hosts).
 
 The setting changes only the timing, never the verdict: the result document
 lists the same findings in the same order whatever the value is. Values above
@@ -1458,6 +1509,29 @@ OpenCloud 7.2.3 on opencloud.example.com, rating: C, last scanned: 2026-01-14
 Missing hardening: cspWithoutUnsafeInline (run with --debug for what each means and how to fix it)
 Baseline: No new findings since 2026-01-14T09:00:00+00:00 (1 known issue(s) unchanged)
 Suppressed by --warn-on-new: this run would otherwise be WARNING (WARNING: 1 hardening measure(s) missing, but no known vulnerabilities.)
+```
+
+Every comparison also lists added and resolved CVEs, hardening and additional
+check changes, rating/EOL/support-horizon changes, and installed or target
+version shifts. `text` is the default for logs. For a GitHub Actions step
+summary or pull-request comment, select Markdown:
+
+```shell
+check-opencloud-security -H opencloud.example.com \
+  --baseline /var/lib/check_opencloud/baseline.json \
+  --diff-format markdown >> "$GITHUB_STEP_SUMMARY"
+```
+
+Use `--diff-format slack` (or `json`) for Slack Block Kit JSON. When a webhook
+is configured, every baseline comparison is included as `baseline_diff`; Slack
+format additionally puts the blocks and color banner at the top level for
+incoming webhooks:
+
+```shell
+check-opencloud-security -H opencloud.example.com \
+  --baseline /var/lib/check_opencloud/baseline.json \
+  --diff-format slack --webhook-url 'https://hooks.slack.com/services/<token>' \
+  --webhook-on always
 ```
 
 What counts as a regression, and therefore still alerts:
