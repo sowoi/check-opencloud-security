@@ -46,7 +46,7 @@ def posts(monkeypatch):
 
 def run(result, **kwargs):
     """Run the check and return its exit code."""
-    context = ScanContext(host="cloud.example.com", **kwargs)
+    context = ScanContext(host="cloud.example.com", allow_private_webhooks=True, **kwargs)
     with pytest.raises(SystemExit) as excinfo:
         plugin.check_vulnerabilities(
             context, ScanResult(response=result, uuid="local-x"), duration_seconds=1.0
@@ -59,6 +59,11 @@ def test_no_webhook_url_means_no_request(posts):
     run(CRITICAL_RESULT)
 
     assert posts == []
+
+
+def test_private_webhook_protection_is_enabled_by_default():
+    """Webhook destinations must be protected unless an operator opts out."""
+    assert ScanContext(host="cloud.example.com").allow_private_webhooks is False
 
 
 def test_critical_result_fires_the_webhook(posts):
@@ -172,6 +177,7 @@ def test_webhook_fires_for_an_unreachable_instance(posts, monkeypatch):
         host="down.example.com",
         webhook_url="https://x/",
         webhook_on="unknown",
+        allow_private_webhooks=True,
         scanner_settings=None,
     )
 
@@ -196,3 +202,63 @@ def test_webhook_uses_the_configured_proxy(posts):
         "http": "http://proxy:3128",
         "https": "http://proxy:3128",
     }
+
+
+def test_private_webhook_addresses_are_blocked(monkeypatch, caplog):
+    """A webhook must not be usable to reach internal services by default."""
+    posted = []
+    monkeypatch.setattr(plugin.socket, "gethostbyname", lambda hostname: "127.0.0.1")
+    monkeypatch.setattr(
+        plugin.requests,
+        "post",
+        lambda *args, **kwargs: posted.append((args, kwargs)),
+    )
+
+    sent = plugin._send_webhook(
+        ScanContext(host="cloud.example.com", webhook_url="https://hooks.example.com/x"),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is False
+    assert posted == []
+    assert "restricted private/local IP address" in caplog.text
+
+
+def test_private_webhooks_require_an_explicit_opt_out(monkeypatch):
+    """An intentional internal receiver remains available with an opt-out."""
+    posted = []
+    monkeypatch.setattr(plugin.socket, "gethostbyname", lambda hostname: "127.0.0.1")
+
+    class _Response:
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        plugin.requests,
+        "post",
+        lambda url, **kwargs: posted.append((url, kwargs)) or _Response(),
+    )
+
+    sent = plugin._send_webhook(
+        ScanContext(
+            host="cloud.example.com",
+            webhook_url="https://hooks.example.com/x",
+            allow_private_webhooks=True,
+        ),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is True
+    assert posted[0][0] == "https://hooks.example.com/x"
+
+
+@pytest.mark.parametrize("url", ["not a URL", "https://unresolvable.example.com/x"])
+def test_invalid_or_unresolvable_webhook_urls_are_blocked(monkeypatch, url):
+    """A malformed or unresolvable destination must fail closed."""
+    monkeypatch.setattr(
+        plugin.socket,
+        "gethostbyname",
+        lambda hostname: (_ for _ in ()).throw(plugin.socket.gaierror()),
+    )
+
+    assert plugin._is_safe_webhook_url(url) is False

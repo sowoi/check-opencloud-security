@@ -136,6 +136,9 @@ webhook:
   # url: https://hooks.example.com/opencloud
   on: critical                   # critical | warning | unknown | always
   timeout: 10
+  # Allow an internal receiver. Private, loopback, and link-local addresses
+  # are blocked by default to prevent server-side request forgery.
+  # allow_private_webhooks: false
   # headers:
   #   - "X-Auth-Token: secret://webhook_token"
 

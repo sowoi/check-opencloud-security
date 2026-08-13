@@ -505,6 +505,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--webhook-on`      | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`) | `critical` | `COS_WEBHOOK_ON` |
 | `--webhook-header`  | Extra header for the webhook request, repeatable       | *None*       | `COS_WEBHOOK_HEADERS` |
 | `--webhook-timeout` | HTTP timeout in seconds for the webhook call           | `10`         | `COS_WEBHOOK_TIMEOUT` |
+| `--allow-private-webhooks` | Permit webhooks to private, loopback, or link-local addresses | *False* | `COS_ALLOW_PRIVATE_WEBHOOKS` |
 | `--retries`         | Retry attempts for transient network errors            | `2`          | `COS_RETRIES`         |
 | `--backoff-factor`  | Exponential backoff factor (seconds) between retries   | `0.5`        | `COS_BACKOFF_FACTOR`  |
 | `--config`          | Path to the configuration file (`.json` as JSON, else YAML) | auto-discovered | `COS_CONFIG_FILE`  |
@@ -1290,6 +1291,10 @@ check-opencloud-security --host opencloud.example.com \
   environment variable: `COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"`.
 - `--webhook-timeout` / `COS_WEBHOOK_TIMEOUT` (default `10`) limits the
   webhook call; it is independent of the scan `--timeout`.
+- Webhook destinations that resolve to private, loopback, or link-local
+  addresses are blocked to prevent server-side request forgery. Set
+  `--allow-private-webhooks` or `COS_ALLOW_PRIVATE_WEBHOOKS=true` only for an
+  intentional internal receiver.
 
 Delivery reuses `--retries` / `--backoff-factor`. **A failing webhook never
 changes the check result** - the plugin appends `Webhook delivery failed` to

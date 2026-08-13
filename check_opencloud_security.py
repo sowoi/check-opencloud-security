@@ -16,6 +16,7 @@ import contextlib
 import io
 import ipaddress
 import logging
+import socket
 import sys
 import time
 from collections import Counter
@@ -24,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import IntEnum
 from typing import Any, NoReturn, TypeVar
+from urllib.parse import urlsplit
 
 import requests
 
@@ -146,6 +148,7 @@ class ScanContext:
     webhook_url: str | None = None
     webhook_on: str = DEFAULT_WEBHOOK_ON
     webhook_timeout: int = DEFAULT_WEBHOOK_TIMEOUT_SECONDS
+    allow_private_webhooks: bool = False
     # Stored as a tuple of pairs so ScanContext stays hashable/frozen.
     webhook_headers: tuple[tuple[str, str], ...] = ()
     scanner_settings: ScannerSettings | None = None
@@ -194,6 +197,17 @@ def _env(name: str) -> str | None:
 def _env_bool(name: str) -> bool:
     """Interpret a configuration value as a boolean flag."""
     return _CONFIG.get_bool(name)
+
+
+def _allow_private_webhooks_default() -> bool:
+    """Read the webhook opt-out from its public environment or nested config key."""
+    name = "ALLOW_PRIVATE_WEBHOOKS"
+    if any(
+        f"{ENV_PREFIX}{suffix}" in _CONFIG.environ
+        for suffix in (name, f"{name}_FILE")
+    ):
+        return _env_bool(name)
+    return _env_bool(f"WEBHOOK_{name}")
 
 
 def _waiver_patterns(values: list[str] | None) -> tuple[str, ...] | None:
@@ -633,6 +647,12 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     url = context.webhook_url
     if not url:
         return True
+    if not context.allow_private_webhooks and not _is_safe_webhook_url(url):
+        LOGGER.warning(
+            "Webhook URL points to a restricted private/local IP address and was blocked: %s",
+            url,
+        )
+        return False
 
     headers = {"Content-Type": "application/json"}
     headers.update(dict(context.webhook_headers))
@@ -663,6 +683,18 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
     LOGGER.debug("Webhook notification for %s delivered", context.host)
     return True
+
+
+def _is_safe_webhook_url(url: str) -> bool:
+    """Return whether url resolves to an address that is safe for a webhook."""
+    try:
+        hostname = urlsplit(url).hostname
+        if not hostname:
+            return False
+        address = ipaddress.ip_address(socket.gethostbyname(hostname))
+    except (ValueError, socket.gaierror):
+        return False
+    return not (address.is_private or address.is_loopback or address.is_link_local)
 
 
 def _notify_and_fail(
@@ -1340,6 +1372,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--allow-private-webhooks",
+        action="store_true",
+        default=_allow_private_webhooks_default(),
+        help=(
+            "Allow webhooks to private, loopback, and link-local addresses. "
+            f"Default: False (env: {ENV_PREFIX}ALLOW_PRIVATE_WEBHOOKS)."
+        ),
+    )
+    parser.add_argument(
         "--backoff-factor",
         type=float,
         default=_env_float("BACKOFF_FACTOR", DEFAULT_BACKOFF_FACTOR),
@@ -1495,6 +1536,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         webhook_url=args.webhook_url,
         webhook_on=args.webhook_on,
         webhook_timeout=args.webhook_timeout,
+        allow_private_webhooks=args.allow_private_webhooks,
         webhook_headers=_parse_webhook_headers(args.webhook_header),
         scanner_settings=scanner_settings,
         release_settings=release_settings,
