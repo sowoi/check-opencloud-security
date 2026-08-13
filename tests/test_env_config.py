@@ -67,6 +67,7 @@ def test_boolean_flags_are_read_from_the_environment(monkeypatch, reload_plugin)
     monkeypatch.setenv("COS_INSECURE", "yes")
     monkeypatch.setenv("COS_UPDATE_WARNING", "1")
     monkeypatch.setenv("COS_NO_DEBUG_PORTS", "on")
+    monkeypatch.setenv("COS_ALLOW_PRIVATE_WEBHOOKS", "true")
 
     module = reload_plugin()
     args = module.build_arg_parser().parse_args([])
@@ -75,6 +76,7 @@ def test_boolean_flags_are_read_from_the_environment(monkeypatch, reload_plugin)
     assert args.insecure is True
     assert args.update_warning is True
     assert args.no_debug_ports is True
+    assert args.allow_private_webhooks is True
 
 
 @pytest.mark.parametrize("value", ["false", "no", "0", "off", ""])
@@ -161,6 +163,8 @@ def test_config_file_supplies_defaults(monkeypatch, reload_plugin, tmp_path):
         "host: cloud.example.com\n"
         "warning: 4\n"
         "check_hardening: true\n"
+        "webhook:\n"
+        "  allow_private_webhooks: true\n"
         "scanner:\n"
         "  timeout: 25\n"
         "releases:\n"
@@ -178,6 +182,7 @@ def test_config_file_supplies_defaults(monkeypatch, reload_plugin, tmp_path):
     context = module._build_context("cloud.example.com", args)
     assert context.scanner_settings.timeout == 25
     assert context.release_settings.mode == "bundled"
+    assert context.allow_private_webhooks is True
 
 
 def test_environment_beats_the_config_file(monkeypatch, reload_plugin, tmp_path):

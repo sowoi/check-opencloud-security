@@ -12,6 +12,12 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Security
+
+- Block webhook notifications to private, loopback, and link-local addresses
+  by default to prevent server-side request forgery. Internal receivers require
+  the explicit `--allow-private-webhooks` / `COS_ALLOW_PRIVATE_WEBHOOKS` opt-out.
+
 ## [1.2.2] - 2026-08-13
 
 ### Documentation

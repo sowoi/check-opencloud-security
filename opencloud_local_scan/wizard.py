@@ -334,6 +334,19 @@ def optional_groups() -> list[Group]:
                     example="X-Auth-Token: s3cr3t; X-Env: prod",
                     secret=True,
                 ),
+                Question(
+                    key="webhook.allow_private_webhooks",
+                    prompt="Allow private webhook addresses",
+                    explain=(
+                        "Permit delivery to private, loopback, or link-local "
+                        "addresses. Leave this off unless the receiver is an "
+                        "intentional internal service."
+                    ),
+                    example="no",
+                    default="no",
+                    validate=_choice(tuple(YES | NO)),
+                    cast=lambda value: value.strip().lower() in YES,
+                ),
             ],
         ),
         Group(
