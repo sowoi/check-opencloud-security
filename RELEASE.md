@@ -1,6 +1,6 @@
-## check-opencloud-security 1.2.1
+## check-opencloud-security 1.2.2
 
 ### Documentation
 
-- Documented shell-completion installation with uv and added an acknowledgment
-  of the OpenCloud project to the README.
+- Clarified that the built-in scanner is not exhaustive and that its rating
+  does not guarantee an OpenCloud instance is completely secure.

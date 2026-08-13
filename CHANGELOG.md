@@ -12,6 +12,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-13
+
+### Documentation
+
+- Clarified that the built-in scanner is not exhaustive and that its rating
+  does not guarantee an OpenCloud instance is completely secure.
+
 ## [1.2.1] - 2026-08-13
 
 ### Documentation
