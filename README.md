@@ -56,7 +56,7 @@
 <!-- TOC -->
 
 # check-opencloud-security
-Check the security level of your OpenCloud instance from your own monitoring
+Check the security level of your [OpenCloud](https://opencloud.eu/), instance from your own monitoring
 system.
 
 This plugin ships its own **built-in scanner** and runs **every check
