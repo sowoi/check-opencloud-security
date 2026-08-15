@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-15
+
 ### Added
 
 - **A reverse proxy check, and one for the identity provider.**

@@ -91,7 +91,6 @@
 
 ### Changed
 
-- The web stack now runs Redis 8.10; Redis 7 is end of life.
 - **`basicAuthDisabled` no longer costs two grades.** It is a `medium`
   finding, capping the rating at 4 rather than 3, and a `low` one when an
   external identity provider handles the interactive login. CalDAV, CardDAV
@@ -126,6 +125,17 @@
 - Removed stale root-level `Dockerfile` and `docker-compose.yml` copies so CI
   and contributors use the canonical container definitions in `docker/`.
 
+### Security
+
+- Response bodies are read up to `max_response_bytes` (8 MiB) and no further,
+  so a target answering with an endless body cannot hold a worker forever.
+- Advisory links are rendered only when they are `http://` or `https://`,
+  `peter-evans/create-pull-request` is pinned to a commit rather than a
+  mutable tag, the plugin logs a webhook URL as scheme and host only because
+  the rest of it is usually the credential, and the scan service compares its
+  auth token as bytes so that a non-ASCII header is a 401 rather than a dead
+  handler thread.
+
 ### Documentation
 
 - The landing page explains how to drive the API from a script - the two curl
@@ -146,3 +156,6 @@
   status codes, how to reach Swagger, the four fields a request may send and
   why nothing else is accepted, every setting worth knowing on day one, and
   the template contract for running a frontend of your own.
+- The issue templates ask where a problem happened - plugin, scanner library,
+  web backend or page - and the pull request template has a checklist for a
+  change to the web application or the frontend.
