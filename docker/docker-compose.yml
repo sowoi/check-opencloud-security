@@ -1,0 +1,125 @@
+# The whole web application in one command: frontend, backend and Redis.
+#
+#   cd docker
+#   docker compose up --build -d
+#   open http://127.0.0.1:8080
+#
+# `web_app` serves the pages and the API out of `frontend/`; `arq_worker` runs
+# the scanner itself. Both are built from `Dockerfile.web` and run the same
+# image - they differ only in the command, which is what keeps the code the
+# page describes and the code the scan runs from drifting apart.
+#
+# `docker-compose.monitoring.yml` next to this file is the plugin's own stack -
+# the optional scan service for monitoring hosts - and is unrelated:
+#
+#   docker compose -f docker-compose.monitoring.yml up -d scanner
+#
+# Paths are relative to this directory; the build context is the repository
+# root one level up, because the image needs `webapp/` and `frontend/`.
+#
+# Two rules this file exists to enforce:
+#
+# - concurrency is set here and nowhere else. Nothing a visitor sends can
+#   change COS_WEB_MAX_WORKERS or COS_WEB_SCAN_CONCURRENCY, and when both
+#   workers are busy the eleventh visitor queues rather than being refused;
+# - Redis is a cache, not a database. It writes nothing to disk, it is capped,
+#   and it evicts rather than growing - every key has a TTL anyway.
+
+services:
+  web_app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    image: check-opencloud-security-web:latest
+    container_name: opencloud-scan-web
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      # How long a result stays readable. Also the lifetime of every key.
+      COS_WEB_RESULT_TTL: "3600"
+      # Rate limits: per client address, and per target instance.
+      COS_WEB_IP_RATE_LIMIT: "10"
+      COS_WEB_IP_RATE_WINDOW: "60"
+      COS_WEB_TARGET_COOLDOWN: "300"
+      # Only set this when a reverse proxy in front *overwrites*
+      # X-Forwarded-For. Trusting a header a client can send makes the client
+      # rate limit decorative.
+      COS_WEB_TRUST_FORWARDED_FOR: "false"
+      # The update check reads OpenCloud's release feed. Off by default so a
+      # public deployment does not query it once per visitor; set 'auto' and a
+      # token to turn it on.
+      COS_WEB_RELEASES_MODE: "off"
+      # Swagger UI and the OpenAPI schema at /docs, /redoc and /openapi.json.
+      # Off in public: Swagger UI is the only page here that loads a script
+      # from another origin, and enabling it relaxes the policy on those
+      # paths. Handy while developing against the API.
+      COS_WEB_ENABLE_DOCS: "true"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  arq_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    image: check-opencloud-security-web:latest
+    container_name: opencloud-scan-worker
+    restart: unless-stopped
+    command: ["python", "-m", "webapp.tasks"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_RESULT_TTL: "3600"
+      # Scans running at once, and probes in flight within one scan. These two
+      # numbers are the whole of this service's load on the outside world, and
+      # they are only ever set here.
+      COS_WEB_MAX_WORKERS: "5"
+      COS_WEB_SCAN_CONCURRENCY: "4"
+      COS_WEB_SCAN_TIMEOUT: "15"
+      COS_WEB_JOB_TIMEOUT: "180"
+      # Refuse private, loopback and link-local targets. Turn this on only for
+      # a deployment that is meant to scan its own network.
+      COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
+      # Connecting to extra ports on a host a stranger submitted is a port
+      # scan. Off unless the targets are your own.
+      COS_WEB_CHECK_DEBUG_PORTS: "false"
+      COS_WEB_RELEASES_MODE: "off"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  redis:
+    # Redis 7 is end of life; 8.x is the supported line.
+    image: redis:8.10-alpine
+    container_name: opencloud-scan-redis
+    restart: unless-stopped
+    # No persistence: nothing here is worth surviving a restart, and a dump
+    # file would be a copy of everybody's scans sitting on a disk.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true

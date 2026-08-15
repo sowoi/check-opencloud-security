@@ -45,6 +45,13 @@ DOCS_LINK_PASSWORD = "https://docs.opencloud.eu/docs/admin/configuration/link-pa
 # Security headers are an HTTP-level concern rather than an OpenCloud setting.
 DOCS_MDN_HEADERS = "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers"
 
+# Setting an instance up in front of an identity provider and behind a reverse
+# proxy is deployment guidance rather than a per-setting question.
+DOCS_IDP = "https://docs.opencloud.eu/docs/admin/getting-started/container/external-idm"
+DOCS_REVERSE_PROXY = (
+    "https://docs.opencloud.eu/docs/admin/getting-started/container/basic-setup"
+)
+
 
 @dataclass(frozen=True)
 class Hardening:
@@ -92,12 +99,18 @@ HARDENINGS: dict[str, Hardening] = {
         meaning=(
             "The instance answers with a 'WWW-Authenticate: Basic' challenge, so "
             "usernames and passwords can be replayed on every request without "
-            "going through the identity provider. This bypasses single sign-on "
-            "and any second factor enforced there."
+            "going through the identity provider, bypassing single sign-on and "
+            "any second factor enforced there. It is often deliberate: CalDAV, "
+            "CardDAV and WebDAV clients cannot speak OpenID Connect and have "
+            "nothing else to authenticate with, which is why this counts as a "
+            "medium finding rather than a serious one - and as a low one when "
+            "an external identity provider handles the interactive login."
         ),
         remediation=(
-            "Set PROXY_ENABLE_BASIC_AUTH=false (the default). OpenCloud documents "
-            "this option as being for development only, never for production."
+            "Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs "
+            "it. If calendar, contact or WebDAV clients do, keep it on and give "
+            "them app tokens rather than account passwords, so that what can be "
+            "replayed is revocable and never the single sign-on credential."
         ),
         reference=DOCS_PROXY,
         setting="PROXY_ENABLE_BASIC_AUTH",
@@ -234,6 +247,45 @@ HARDENINGS: dict[str, Hardening] = {
             "stop serving plain HTTP entirely."
         ),
         reference=DOCS_PROXY,
+    ),
+    "identityProviderDetected": Hardening(
+        id="identityProviderDetected",
+        title="No identity provider could be found",
+        meaning=(
+            "The instance publishes no OpenID Connect discovery document at "
+            "/.well-known/openid-configuration and does not redirect that "
+            "request anywhere, so the scan cannot tell who issues its tokens. "
+            "That is usually a proxy not forwarding the well-known path, and "
+            "occasionally an instance whose sign-in is not configured at all. "
+            "Nothing is submitted to find this out - only the document and the "
+            "redirect are read."
+        ),
+        remediation=(
+            "Check how sign-in is set up: OpenCloud ships its own identity "
+            "provider and can be pointed at an external one such as Keycloak, "
+            "Authentik or Authelia. If an external provider is already in use, "
+            "make sure the reverse proxy forwards /.well-known/ to it."
+        ),
+        reference=DOCS_IDP,
+    ),
+    "reverseProxyDetected": Hardening(
+        id="reverseProxyDetected",
+        title="No reverse proxy could be detected in front of the instance",
+        meaning=(
+            "Nothing in the response suggests a reverse proxy - no proxy-style "
+            "Server or Via header. An instance exposed directly has no place to "
+            "terminate TLS for other services, rate-limit an abusive client, or "
+            "add a header OpenCloud does not send itself. The detection is "
+            "deliberately best-effort: Traefik and HAProxy announce nothing by "
+            "default, so a well-run deployment can land here, which is why this "
+            "never changes the rating."
+        ),
+        remediation=(
+            "If there is a proxy, nothing needs doing. If there is not, putting "
+            "Nginx, Traefik, Caddy or HAProxy in front is the usual way to run "
+            "OpenCloud on a public address."
+        ),
+        reference=DOCS_REVERSE_PROXY,
     ),
 }
 

@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.3.0"
+version = "1.4.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -17,6 +17,20 @@ dependencies = [
 # Shell completion. Optional on purpose: a monitoring host running this from
 # cron has no use for it, and the plugin works without it.
 completion = ["argcomplete>=3.6.2"]
+# The public web application (see docs/webapp.md). Deliberately an extra and
+# never a dependency: the plugin on a monitoring host must stay small, and the
+# wheel on PyPI ships neither `webapp/` nor `frontend/`. The web app is
+# distributed as the GitHub release tarball built by
+# `scripts/build_web_bundle.py`.
+web = [
+    "fastapi>=0.121.0",
+    "uvicorn>=0.42.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.22",
+    # Upper bound comes from arq, which pins redis[hiredis]<6.
+    "redis>=5.0.1,<6",
+    "arq>=0.27.0",
+]
 
 [project.scripts]
 check-opencloud-security = "check_opencloud_security:main"
@@ -30,6 +44,13 @@ only-include = [
     "check_opencloud_security.py",
     "opencloud_local_scan",
 ]
+# Belt and braces: `only-include` already limits the wheel, and this makes the
+# intent explicit so a later addition to that list cannot drag the web app
+# onto PyPI. tests/test_packaging.py enforces it.
+exclude = [
+    "frontend",
+    "webapp",
+]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -39,6 +60,12 @@ include = [
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
+]
+exclude = [
+    "frontend",
+    "webapp",
+    "tests/test_webapp_*.py",
+    "tests/webapp_support.py",
 ]
 
 [build-system]
@@ -52,6 +79,14 @@ test = [
     "nox>=2026.8.10",
     "pytest>=9.1.1",
     "pytest-mock>=3.15.1",
+    # The web application tests drive the ASGI app through httpx; they skip
+    # themselves when these are missing, so the plugin suite still runs alone.
+    "fastapi>=0.121.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.22",
+    "httpx>=0.28.1",
+    "build>=1.3.0",
+    "hatchling>=1.28.0",
 ]
 
 [tool.pytest.ini_options]

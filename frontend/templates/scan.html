@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Scan results{% endblock %}
+
+{% block body_attrs %}data-scan-uuid="{{ scan.uuid }}" data-scan-state="{{ scan.state }}" data-expires-in="{{ scan.expiresIn }}"{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="scan-head">
+    <div>
+      <h1>Scan result</h1>
+      <p class="flush">
+        <span class="scan-target">{{ scan.target }}</span>
+        {% if scan.releaseTrack %}
+        <span class="scan-track" title="The release track this scan was rated against">
+          {{ scan.releaseTrack }} track
+        </span>
+        {% endif %}
+      </p>
+    </div>
+    <a class="btn btn-quiet" href="/">Scan another instance</a>
+  </div>
+</section>
+
+{# --------------------------------------------------------------- progress #}
+<section class="card" id="progress-card" aria-live="polite"
+         {% if scan.state in ("completed", "failed") %}hidden{% endif %}>
+  <h2 id="progress-heading">
+    <span class="pulse" aria-hidden="true"></span>
+    <span id="progress-title">
+      {% if scan.state == "queued" %}Waiting for a scanner worker{% else %}Scanning the instance{% endif %}
+    </span>
+  </h2>
+  <p class="lede" id="progress-detail">
+    {% if scan.state == "queued" %}
+      Every worker is busy right now. Your scan keeps its place in line and
+      starts as soon as one is free.
+    {% else %}
+      Reading what the instance publishes: version, capabilities, certificate,
+      headers and the endpoints it exposes without a login.
+    {% endif %}
+  </p>
+
+  <div class="progress">
+    <div class="progress-track" role="img" aria-labelledby="progress-heading">
+      <div class="step" id="step-queued" data-state="active">Queued</div>
+      <div class="step" id="step-running">Running</div>
+      <div class="step" id="step-done">Result</div>
+    </div>
+    <p class="queue-note" id="queue-note" hidden></p>
+    <noscript>
+      <p class="hint flush">
+        This page updates itself with JavaScript. Without it, reload the page
+        in a few seconds to see the result.
+      </p>
+    </noscript>
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ failed #}
+{% if scan.state == "failed" %}
+<section class="card">
+  <p class="alert" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/>
+    </svg>
+    <span>{{ scan.error or "The scan could not be completed." }}</span>
+  </p>
+  <p class="flush">
+    Nothing was graded, because nothing usable came back. Check that the
+    address is right, that the instance is reachable from the public internet,
+    and that it is an OpenCloud instance.
+  </p>
+</section>
+{% endif %}
+
+{# ----------------------------------------------------------------- results #}
+{% if summary %}
+{% if scan.outputFormat == "json" %}
+<section class="card">
+  <h2>Result document</h2>
+  <p class="lede">
+    The same document the command line check and the Nagios plugin evaluate.
+  </p>
+  <pre class="json"><code>{{ scan.result | tojson(indent=2) }}</code></pre>
+</section>
+{% else %}
+
+<section class="card">
+  <h2 class="visually-hidden">Overall rating</h2>
+  <div class="score">
+    <div class="score-dial" data-tone="{{ summary.tone }}" data-rating="{{ summary.rating }}"
+         role="img" aria-label="Rating {{ summary.label }}, {{ summary.rating }} out of 5">
+      <span class="grade">{{ summary.label }}</span>
+    </div>
+    <div class="score-facts">
+      <dl>
+        <dt>Instance</dt><dd>{{ summary.domain }}</dd>
+        <dt>Product</dt><dd>{{ summary.product }} {{ summary.version }}</dd>
+        <dt>Release track</dt>
+        <dd>
+          {{ summary.releaseType or "unknown" }}
+          {% if summary.eol %}<span class="tag tag-critical">End of life</span>{% endif %}
+        </dd>
+        <dt>Sign-in</dt>
+        <dd>
+          {% if summary.identityProvider.detected %}
+            {% if summary.identityProvider.external %}
+            {{ summary.identityProvider.vendor or "External provider" }}
+            <span class="tag tag-info">upstream</span>
+            {% else %}
+            Built-in identity provider
+            {% endif %}
+          {% else %}
+          Not detected -
+          <a href="https://docs.opencloud.eu/docs/admin/getting-started/container/external-idm"
+             rel="noopener noreferrer">how OpenCloud sign-in is set up</a>
+          {% endif %}
+        </dd>
+        {% if summary.reverseProxy.detected %}
+        <dt>Reverse proxy</dt>
+        <dd>{{ summary.reverseProxy.vendor or "Detected" }}</dd>
+        {% endif %}
+        {% if summary.integrations.office and summary.integrations.office.detected %}
+        <dt>Office</dt>
+        <dd>{{ summary.integrations.office.apps | join(", ") }}</dd>
+        {% endif %}
+        {% if summary.integrations.calendar and summary.integrations.calendar.detected %}
+        <dt>Calendar</dt><dd>Something answers the CalDAV path</dd>
+        {% endif %}
+        {% if summary.updates.available_version %}
+        <dt>Newest release</dt><dd>{{ summary.updates.available_version }}</dd>
+        {% endif %}
+        <dt>Score</dt><dd>{{ summary.rating }} out of 5</dd>
+      </dl>
+
+      <div class="counters">
+        <div class="counter">
+          <strong>{{ summary.counts.critical }}</strong><span>Critical</span>
+        </div>
+        <div class="counter">
+          <strong>{{ summary.counts.warning }}</strong><span>Warning</span>
+        </div>
+        <div class="counter">
+          <strong>{{ summary.counts.info }}</strong><span>Info</span>
+        </div>
+        <div class="counter">
+          <strong>{{ summary.counts.vulnerabilities }}</strong><span>Advisories</span>
+        </div>
+        <div class="counter">
+          <strong>{{ summary.passedCount }}</strong><span>Passed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if summary.explanation.reason %}
+  <p class="hint section-gap">Why this grade: {{ summary.explanation.reason }}</p>
+  {% endif %}
+</section>
+
+{% if summary.eol %}
+<section class="card">
+  <p class="alert flush" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/>
+    </svg>
+    <span>
+      This release no longer receives security fixes. Nothing else on this page
+      can lift the grade until it is upgraded.
+    </span>
+  </p>
+</section>
+{% endif %}
+
+{% if summary.vulnerabilities %}
+<section class="card">
+  <h2>Known advisories for this version</h2>
+  <p class="lede">Published advisories whose affected range includes {{ summary.version }}.</p>
+  <ul class="findings">
+    {% for advisory in summary.vulnerabilities %}
+    <li class="finding" data-tag="critical">
+      <div class="finding-head">
+        <code>{{ advisory.id or advisory.cve or "advisory" }}</code>
+        <span class="tag tag-critical">{{ advisory.severity or "unrated" }}</span>
+      </div>
+      <p>{{ advisory.summary or advisory.description or "No summary published." }}</p>
+      {% if advisory.url is safe_link %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">Read the advisory</a></p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Checks that failed</h2>
+  <p class="lede">
+    Each one caps the grade at the level its severity allows. Fix the critical
+    ones first: they are the ones holding the score down hardest.
+  </p>
+  {% if summary.issues %}
+  <ul class="findings">
+    {% for issue in summary.issues %}
+    <li class="finding" data-tag="{{ issue.tag }}">
+      <div class="finding-head">
+        <code>{{ issue.id }}</code>
+        <span class="tag tag-{{ issue.tag }}">{{ issue.severity }}</span>
+      </div>
+      {% if issue.detail %}<p>{{ issue.detail }}</p>{% endif %}
+      <p>{{ issue.explanation }}</p>
+      <p class="fix"><strong>Fix:</strong> {{ issue.remediation }}
+        {% if issue.reference %}<a href="{{ issue.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="flush"><span class="tag tag-good">All clear</span> Every check this
+    scanner runs passed on this instance.</p>
+  {% endif %}
+</section>
+
+{% if summary.missingHardenings or summary.missingHeaders %}
+<section class="card">
+  <h2>Hardening worth adding</h2>
+  <p class="lede">
+    Settings that are not switched on. None of these is an active
+    vulnerability; each one removes a way in.
+  </p>
+  <ul class="findings">
+    {% for item in summary.missingHardenings %}
+    <li class="finding" data-tag="warning">
+      <div class="finding-head">
+        <code>{{ item.id }}</code>
+        <span class="tag tag-warning">hardening</span>
+      </div>
+      <p>{{ item.title }}</p>
+      <p class="fix"><strong>Fix:</strong> {{ item.remediation }}
+        {% if item.reference %}<a href="{{ item.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      </p>
+    </li>
+    {% endfor %}
+    {% for item in summary.missingHeaders %}
+    <li class="finding" data-tag="info">
+      <div class="finding-head">
+        <code>{{ item.id }}</code>
+        <span class="tag tag-info">header</span>
+      </div>
+      <p>{{ item.title }}</p>
+      <p class="fix"><strong>Fix:</strong> {{ item.remediation }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if summary.waived or summary.unfixable %}
+<section class="card">
+  <h2>Reported, but not counted</h2>
+  {% if summary.waived %}
+  <h3>You asked to ignore these</h3>
+  <p class="hint">They still failed. They just did not hold the grade down.</p>
+  <ul class="pill-list">
+    {% for item in summary.waived %}<li>{{ item.id }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if summary.unfixable %}
+  <h3 class="section-gap">Nobody can change these</h3>
+  <p class="hint">
+    OpenCloud hardcodes these flags, so they read the same on every instance in
+    existence. They are shown for completeness and excluded from the grade.
+  </p>
+  <ul class="pill-list">
+    {% for name in summary.unfixable %}<li>{{ name }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>What this scan cannot see</h2>
+  <p>
+    Everything above was read without logging in, which is the point and also
+    the limit. Two things are therefore outside the scan and no absence of a
+    warning should be read as an answer about them:
+  </p>
+  <ul class="plain-list">
+    <li>
+      <strong>Audit logging.</strong> OpenCloud's audit service only consumes
+      the internal event bus - it publishes no endpoint and appears in no
+      unauthenticated document - so whether it runs cannot be established from
+      outside at all. It is not checked.
+    </li>
+    <li>
+      <strong>Whether an office or calendar integration is set up
+      <em>correctly</em>.</strong> This page reports only that an app provider
+      is registered, or that something answers the CalDAV path. Sharing rules,
+      WOPI secrets and the second service's own configuration all live behind a
+      login and are not checked.
+    </li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Technical details</h2>
+  <p class="lede">The full result document, exactly as the plugin sees it.</p>
+  <details>
+    <summary>Show the raw JSON</summary>
+    <pre class="json"><code>{{ scan.result | tojson(indent=2) }}</code></pre>
+  </details>
+</section>
+{% endif %}
+{% endif %}
+
+<p class="expiry">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+  </svg>
+  <span id="expiry-note" aria-live="polite">
+    This page expires in about {{ (scan.expiresIn // 60) or 1 }} minutes, after
+    which the link stops working and the result is gone.
+  </span>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/scan.js" defer></script>
+{% endblock %}

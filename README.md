@@ -18,6 +18,10 @@
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
+    * [Who signs users in](#who-signs-users-in)
+    * [What is in front of the instance](#what-is-in-front-of-the-instance)
+    * [Office and calendar integrations](#office-and-calendar-integrations)
+    * [What the scan deliberately does not answer](#what-the-scan-deliberately-does-not-answer)
   * [Reading the version correctly](#reading-the-version-correctly)
   * [TLS and self-signed certificates](#tls-and-self-signed-certificates)
   * [Debug ports](#debug-ports)
@@ -54,6 +58,7 @@
   * [The scanner on its own](#the-scanner-on-its-own)
 * [Contributing](#contributing)
 * [License](#license)
+  * [Trademarks and affiliation](#trademarks-and-affiliation)
 <!-- TOC -->
 
 # check-opencloud-security
@@ -278,11 +283,13 @@ Use this if you would rather not install anything on the host. The image also
 ships the scan service (see
 [Running the scanner as a service](#running-the-scanner-as-a-service)).
 
-Build the image once from a local checkout of this repository:
+Build the image once from a local checkout of this repository. Everything
+Docker-related lives in [`docker/`](docker/), and the build context is the
+repository root:
 ```shell
 git clone https://github.com/sowoi/check-opencloud-security.git
 cd check-opencloud-security
-docker build -t check-opencloud-security .
+docker build -f docker/Dockerfile -t check-opencloud-security .
 ```
 
 Run a check:
@@ -301,7 +308,8 @@ instance: that the package imports and that the release schedule and bundled
 advisory database parse. It needs no network, so it also passes on an
 air-gapped host. It is there for the long-running scan service; a one-shot
 check container exits before Docker gets round to running it. The service in
-`docker-compose.yml` overrides it with the HTTP `/healthz` probe, which is the
+`docker/docker-compose.monitoring.yml` overrides it with the HTTP `/healthz`
+probe, which is the
 more useful check once something is actually listening.
 
 The check container needs no network ports, but it does need to reach the
@@ -662,6 +670,8 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `debugEndpoint:/metrics`, `/config`, `/debug/pprof/` | critical/high | Debug handlers reachable on the public address |
 | `debugPort:<port>` | high | A service debug port answering from the outside |
 | `basicAuthDisabled` | medium | The proxy still offers HTTP basic authentication |
+| `identityProviderDetected` | low | No OpenID Connect discovery document and no redirect from it, so who signs users in cannot be established |
+| `reverseProxyDetected` | low | Nothing suggests a reverse proxy in front of the instance |
 | `versionDisclosure:Server`, `webfingerVersionDisclosure` | low | Exact versions leaked to unauthenticated callers |
 | `maintenanceMode`, `databaseUpgrade` | medium/high | Instance in maintenance mode or waiting for a database upgrade |
 
@@ -675,6 +685,87 @@ app shell with HTTP 200 rather than a 404. A naive "does `/opencloud.yaml`
 return 200?" check would therefore flag every healthy instance. The scanner
 first probes a path that cannot exist, learns what the catch-all response looks
 like, and only reports an exposed path whose response actually differs from it.
+
+### Who signs users in
+
+The scan also reads `/.well-known/openid-configuration` - the OpenID Connect
+discovery document, or the redirect the instance answers it with - to find out
+which identity provider issues its tokens. An issuer on a different host means
+an external provider such as Keycloak, Authentik or Authelia is in front of the
+instance, and the result document records it:
+
+```json
+{"identityProvider": {"detected": true, "external": true,
+                      "issuer": "https://id.example.com", "vendor": "Keycloak"}}
+```
+
+This is context, never a verdict: using the built-in provider fails nothing,
+and no check requires an external one. It only softens `basicAuthDisabled`,
+which is `medium` normally and `low` when the interactive login goes through an
+external provider.
+
+Nothing is submitted to the instance to establish this. The discovery document
+and the `Location` header are read, and no login form is ever filled in - a
+scanner that tries credentials against somebody's instance is a scanner nobody
+should point at their server, and an identity provider is the worst place to
+start.
+
+When no provider can be found at all, `identityProviderDetected` fails at
+severity `low` and `--debug` points at [OpenCloud's own
+documentation][opencloud-idp] - the usual cause is a reverse proxy that does
+not forward `/.well-known/`.
+
+### What is in front of the instance
+
+`reverseProxy` records whether anything answers before OpenCloud does: a
+`Server` header naming Nginx, Caddy, Cloudflare or another proxy, or a header
+only a forwarder adds such as `Via`.
+
+```json
+{"reverseProxy": {"detected": true, "vendor": "Nginx", "evidence": "Server: nginx"}}
+```
+
+`reverseProxyDetected` fails when nothing was found, and does so at severity
+`low` **on purpose**: Traefik and HAProxy announce nothing by default, and
+stripping the `Server` header is itself good practice, so a well-run
+deployment can look bare from outside. The finding is worth showing and is
+never worth a grade.
+
+### Office and calendar integrations
+
+Two integrations are visible without logging in, and both are reported as
+observations rather than verdicts:
+
+- `/app/list` is unprotected by OpenCloud's own proxy policy and names the app
+  providers actually registered with the app registry - Collabora, OnlyOffice
+  and the like. The `app_providers` block in the capabilities document is
+  hardcoded and says nothing, so it is not used.
+- `/.well-known/caldav` answers with a redirect or an authentication challenge
+  only when something is wired to it, which is how a proxied Radicale shows up.
+  A stock instance answers 404.
+
+```json
+{"integrations": {"office": {"detected": true, "apps": ["Collabora"], "groupware": false},
+                  "calendar": {"detected": true, "advertised": true}}}
+```
+
+Neither becomes a check and neither can move the rating.
+
+### What the scan deliberately does not answer
+
+- **Audit logging.** OpenCloud's audit service only consumes the internal
+  event bus. It publishes no endpoint, and no unauthenticated document
+  mentions it, so whether it is enabled cannot be established from outside at
+  all. **It is not checked**, and a clean report says nothing about it.
+- **Whether an integration is configured *correctly*.** The scan reports that
+  an app provider is registered, or that something answers the CalDAV path.
+  WOPI secrets, share permissions and the other service's own configuration
+  live behind a login and are not checked.
+- **Anything requiring credentials.** No login form is ever submitted, no
+  password is ever tried, and no request is made with an `Authorization`
+  header.
+
+[opencloud-idp]: https://docs.opencloud.eu/docs/admin/getting-started/container/external-idm
 
 ## Reading the version correctly
 
@@ -779,6 +870,20 @@ description.
 
 [lifecycle]: https://docs.opencloud.eu/docs/admin/resources/lifecycle/
 
+Where the tracks stand today, straight from the bundled schedule:
+
+<!-- release-schedule:start -->
+<!-- Generated by scripts/update_release_schedule.py. Do not edit by hand: the release workflow rewrites this block. -->
+
+| Track | Current release | Line | Line opened | Supported until |
+|:------|:----------------|:-----|:------------|:----------------|
+| **Rolling** | `7.4.0` | `7.4` | 2026-08-03 | the next rolling release |
+| **Production** | `7.2.3` | `7.2` | 2026-06-25 | the next production release |
+| **LTS** | `4.0.8` | `4.0` | 2025-12-01 | 2027-12-01 |
+
+Read from the [OpenCloud release lifecycle][lifecycle] on 2026-08-12.
+<!-- release-schedule:end -->
+
 The consequence for monitoring is that the *same* version can be perfectly
 current or long dead depending on the track it was published on. `7.2.3` is the
 current production release even though the rolling track is already at `7.4.0`,
@@ -795,7 +900,12 @@ The schedule ships in `opencloud_local_scan/data/release_schedule.json` and is
 scraped from the release dates in the OpenCloud admin documentation, the only
 source that states the release *type*; the GitHub release list cannot tell a
 rolling release from a production one. It is refreshed on every release and
-weekly by a [scheduled workflow](.github/workflows/release-schedule.yml).
+weekly by a [scheduled workflow](.github/workflows/release-schedule.yml), and
+the same run rewrites the table above - so the versions quoted here are the
+ones the plugin actually judges against, not the ones that were current when
+this page was written. Everything else in this section, including the worked
+examples below, is written by hand and may name older releases to make a
+point.
 
 A line that is out of support is rated `F` and reported as `CRITICAL`:
 
@@ -899,8 +1009,9 @@ curl -H "Authorization: Bearer <token>" \
   'http://127.0.0.1:8080/api/scan?url=opencloud.example.com'
 ```
 
-A ready-made [`docker-compose.yml`](docker-compose.yml) starts the scanner plus
-a check container, including a health check and Docker secrets:
+A ready-made [`docker/docker-compose.monitoring.yml`](docker/docker-compose.monitoring.yml)
+starts the scanner plus a check container, including a health check and Docker
+secrets:
 
 ```shell
 # 1. create the secret files from the templates
@@ -912,10 +1023,14 @@ openssl rand -hex 32 > secrets/scanner_token          # protects the service
 printf '%s' '<github-token>' > secrets/releases_token
 chmod 600 secrets/scanner_token secrets/releases_token
 
-# 3. adjust COS_HOST in docker-compose.yml, then:
-docker compose up -d scanner
-docker compose run --rm check
+# 3. adjust COS_HOST in docker/docker-compose.monitoring.yml, then:
+cd docker
+docker compose -f docker-compose.monitoring.yml up -d scanner
+docker compose -f docker-compose.monitoring.yml run --rm check
 ```
+
+The plain `docker compose up` in that directory is the public web application
+instead - see [the web application](docs/webapp.md).
 
 Everything in `secrets/` except the `*.example` templates is git-ignored - see
 [`secrets/README.md`](secrets/README.md).
@@ -1159,7 +1274,7 @@ next to the finding.
 
 | Hardening | What a failure means | Setting to change |
 |:----------|:---------------------|:------------------|
-| `basicAuthDisabled` | The instance offers HTTP Basic auth, so credentials can be replayed on every request and single sign-on (with any second factor) is bypassed. | [`PROXY_ENABLE_BASIC_AUTH=false`][proxy-env] - the default; OpenCloud documents it as development-only. |
+| `basicAuthDisabled` | The instance offers HTTP Basic auth, so credentials can be replayed on every request and single sign-on (with any second factor) is bypassed. Often deliberate: CalDAV, CardDAV and WebDAV clients cannot speak OpenID Connect, which is why this is rated `medium`, and `low` when an external identity provider handles the interactive login. | [`PROXY_ENABLE_BASIC_AUTH=false`][proxy-env] if nothing needs it; otherwise keep it and hand those clients app tokens rather than account passwords. |
 | `cspWithoutUnsafeInline` | The `Content-Security-Policy` contains `'unsafe-inline'`, so injected markup may execute. **This is OpenCloud's shipped default** - see the note below. | [`PROXY_CSP_CONFIG_FILE_LOCATION`][proxy-env] pointing at your own `csp.yaml` (or `PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION` to replace the default outright). |
 | `publicLinkPasswordEnforced` | Public links may be created without a password, so the URL alone grants access. OpenCloud enforces a password on read-only links but not on writable ones. | [`OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD=true`][sharing-env] and `OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD=true`. |
 | `passwordPolicyEnforced` | Public link passwords may be shorter than 8 characters. (This policy covers link passwords, not account passwords - those belong to your identity provider.) | [`OC_PASSWORD_POLICY_MIN_CHARACTERS`][link-password] (default `8`), plus the `MIN_LOWERCASE`/`MIN_UPPERCASE`/`MIN_DIGITS`/`MIN_SPECIAL_CHARACTERS` companions. |
@@ -1289,17 +1404,20 @@ check-opencloud-security --host opencloud.example.com --check-hardening --debug
 ```text
 --- Why this rating ---
 Starting point: 5/5 - the installed release is current and no advisory matches this version
-Failed check basicAuthDisabled [high] caps the rating at 3/5 - WWW-Authenticate: Basic realm="..."
-Final rating: 3/5 (C). WARNING at or below C, CRITICAL at or below E.
+Failed check basicAuthDisabled [medium] caps the rating at 4/5 - WWW-Authenticate: Basic realm="..."
+Final rating: 4/5 (B). WARNING at or below C, CRITICAL at or below E.
 
 --- Missing hardening measures ---
 basicAuthDisabled: HTTP Basic authentication is enabled
     The instance answers with a 'WWW-Authenticate: Basic' challenge, so usernames
     and passwords can be replayed on every request without going through the
-    identity provider. This bypasses single sign-on and any second factor.
+    identity provider ... It is often deliberate: CalDAV, CardDAV and WebDAV
+    clients cannot speak OpenID Connect and have nothing else to authenticate
+    with, which is why this counts as a medium finding rather than a serious one.
     Setting: PROXY_ENABLE_BASIC_AUTH
-    Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default). OpenCloud documents
-    this option as being for development only, never for production.
+    Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it. If
+    calendar, contact or WebDAV clients do, keep it on and give them app tokens
+    rather than account passwords.
     Docs: https://docs.opencloud.eu/docs/dev/server/services/proxy/environment-variables
 --- end of explanation ---
 ```
@@ -1664,16 +1782,16 @@ HTTP Basic authentication:
 
 ```Shell
 $ check-opencloud-security -H opencloud.example.com --check-hardening
-WARNING: Rating C is at or below the warning threshold C, but no known vulnerabilities.
-OpenCloud 7.2.3 on opencloud.example.com, rating: C, last scanned: 2026-08-12 15:58:04.138671
+WARNING: 3 hardening measure(s) missing, but no known vulnerabilities.
+OpenCloud 7.2.3 on opencloud.example.com, rating: B, last scanned: 2026-08-12 15:58:04.138671
 Release lifecycle: 7.2 (production), current release
 Missing hardening: basicAuthDisabled, cspWithoutUnsafeInline, publicLinkPasswordEnforced (run with --debug for what each means and how to fix it)
 Additional checks failed (1): basicAuthDisabled
-Update check (feed, installed 7.2.3): up to date | rating=3;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.835s;;;0; hardenings_missing=3;;;0; extra_checks_failed=1;;;0; update_available=0;;;0;1
+Update check (feed, installed 7.2.3): up to date | rating=4;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.835s;;;0; hardenings_missing=3;;;0; extra_checks_failed=1;;;0; update_available=0;;;0;1
 ```
 
-The rating dropped to `C` because `basicAuthDisabled` is also an additional
-check, and a failed `high` check caps the rating at `3`. A hardening measure
+The rating dropped to `B` because `basicAuthDisabled` is also an additional
+check, and a failed `medium` check caps the rating at `4`. A hardening measure
 that is *only* a hardening measure raises the state to WARNING without
 lowering the grade. Add `--debug` to have the check spell that out, along with
 what each identifier means - see
@@ -1690,6 +1808,7 @@ this file stays the reference for the options themselves.
 | [Scheduling without Icinga2 / Nagios](docs/scheduling.md) | systemd timer and cron, using the files in [`contrib/`](contrib/) |
 | [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
+| [The public scan service](docs/webapp.md) | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits |
 | [Checking a fleet of instances](docs/many-instances.md) | One configuration file per instance, and keeping waivers honest |
 | [Prometheus and Grafana](docs/prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
 | [Webhook recipes](docs/webhook-recipes.md) | Adapters for Slack, Discord, ntfy and Alertmanager |
@@ -1904,6 +2023,17 @@ Licensed under the terms of GNU General Public License v3.0. See LICENSE file.
 
 This project is built for [OpenCloud](https://opencloud.eu/), whose work makes
 secure, self-hosted collaboration possible. Thank you to the OpenCloud team.
+
+## Trademarks and affiliation
+
+This is an independent community project. It is **not** affiliated with,
+endorsed by, sponsored by or supported by OpenCloud GmbH, and nothing it
+reports is an official statement about OpenCloud software.
+
+"OpenCloud", the OpenCloud logo and all related names and marks are the
+property of their respective owners. They appear here only to identify the
+software this tool checks, which is nominative use and implies no
+relationship. All rights in OpenCloud remain with OpenCloud GmbH.
 
 ![Linting](https://github.com/sowoi/check-opencloud-security/actions/workflows/run-ruff-check.yml/badge.svg)
 ![Unittests](https://github.com/sowoi/check-opencloud-security/actions/workflows/run-tests.yml/badge.svg)

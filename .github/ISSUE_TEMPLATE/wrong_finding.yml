@@ -9,7 +9,8 @@ body:
         This is the most valuable kind of report for a scanner, and the one
         that most often needs evidence to act on. Every check runs inside the
         plugin, so a wrong verdict is a bug in this repository - there is no
-        remote service to blame.
+        remote service to blame. That is true of the web application too: it
+        runs the same scanner and only presents the answer.
 
         **Redact everything.** Use `opencloud.example.com`, and remove tokens
         and internal hostnames from any output you paste.
@@ -25,6 +26,7 @@ body:
         - Wrong version or end-of-life verdict
         - Wrong upgrade recommendation
         - Unhelpful or misleading wording
+        - The web dashboard shows something the result document does not say
     validations:
       required: true
 

@@ -19,12 +19,12 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10.0.0
 
       - name: Read version
         id: version
@@ -46,6 +46,8 @@ jobs:
       # life and knows the newest release for its offline update check.
       # An unreachable documentation site must not block a release, hence
       # --allow-failure: the previously committed file stays in place.
+      # The same run rewrites the generated release table in README.md, so the
+      # documentation cannot quote a version that has already been superseded.
       - name: Refresh the OpenCloud release schedule
         if: steps.check_tag.outputs.exists != 'true'
         run: python scripts/update_release_schedule.py --allow-failure
@@ -62,7 +64,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md RELEASE.md opencloud_local_scan/data/release_schedule.json
+          git add CHANGELOG.md RELEASE.md README.md \
+            opencloud_local_scan/data/release_schedule.json
           if git diff --cached --quiet; then
             echo "Release notes are already up to date."
           else
@@ -92,13 +95,15 @@ jobs:
       # signing key for this project to leak.
       - name: Attest build provenance
         if: steps.check_tag.outputs.exists != 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/*"
 
+      # actions/attest-sbom is deprecated and only wraps actions/attest,
+      # which takes the same inputs.
       - name: Attest SBOM
         if: steps.check_tag.outputs.exists != 'true'
-        uses: actions/attest-sbom@v2
+        uses: actions/attest@v4
         with:
           subject-path: "dist/*.whl"
           sbom-path: "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
@@ -106,6 +111,24 @@ jobs:
       - name: Publish to PyPI
         if: steps.check_tag.outputs.exists != 'true'
         run: uv publish
+
+      # The web application is not on PyPI: the wheel and the sdist carry the
+      # plugin and the scanner only. Whoever wants to run the public scan
+      # service downloads this instead - the FastAPI wrapper, the frontend and
+      # the container files, in one archive with a checksum next to it.
+      #
+      # It is built into its own directory rather than dist/, because
+      # `uv publish` uploads everything it finds there and this must never
+      # reach PyPI.
+      - name: Build the web application bundle
+        if: steps.check_tag.outputs.exists != 'true'
+        run: python scripts/build_web_bundle.py --output-dir web-bundle
+
+      - name: Attest the web application bundle
+        if: steps.check_tag.outputs.exists != 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: "web-bundle/*.tar.gz"
 
       - name: Create Git tag and GitHub release
         if: steps.check_tag.outputs.exists != 'true'
@@ -118,7 +141,7 @@ jobs:
           # --notes-file provides the body, --generate-notes appends GitHub's
           # own "What's Changed" section below it.
           gh release create "v${{ steps.version.outputs.version }}" \
-            dist/* sbom/* \
+            dist/* sbom/* web-bundle/* \
             --title "v${{ steps.version.outputs.version }}" \
             --notes-file RELEASE.md \
             --generate-notes

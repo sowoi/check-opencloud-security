@@ -1,5 +1,7 @@
 name: Bug report
-description: The plugin crashes, hangs, or does something other than what it documents.
+description: >-
+  The plugin or the web application crashes, hangs, or does something other
+  than what it documents.
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -32,6 +34,23 @@ body:
             `opencloud.example.com` instead.
           required: true
 
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where it happened
+      description: >-
+        The web application is the FastAPI service in `webapp/` with the
+        frontend in `frontend/`. It is not on PyPI - it ships as
+        `check_opencloud_security_web.tar.gz`.
+      options:
+        - The command line plugin
+        - The scanner library or its CLI
+        - The web application - backend or API
+        - The web application - page, layout or accessibility
+        - The Ansible role, the container images or packaging
+    validations:
+      required: true
+
   - type: textarea
     id: what-happened
     attributes:
@@ -50,9 +69,12 @@ body:
       description: >-
         Redact tokens and real hostnames. Add `--debug`, which prints what was
         requested and what came back - that is usually what the fix depends on.
+        For the web application, give the request instead, and the browser and
+        version if the problem is on the page.
       render: shell
       placeholder: |
         check-opencloud-security --host opencloud.example.com:9200 --insecure --debug
+        curl -sS -X POST http://127.0.0.1:8080/api/scans -d '{"target_url": "https://opencloud.example.com"}'
     validations:
       required: true
 
@@ -68,8 +90,10 @@ body:
   - type: input
     id: version
     attributes:
-      label: Plugin version
-      description: The output of `check-opencloud-security --version`.
+      label: Version
+      description: >-
+        The output of `check-opencloud-security --version`. For the web
+        application it is in the footer of every page, and in `/healthz`.
       placeholder: "1.1.0"
     validations:
       required: true
@@ -85,6 +109,7 @@ body:
         - Docker image
         - git checkout
         - Ansible role
+        - Web application tarball or docker/docker-compose.yml
         - Other
     validations:
       required: true
@@ -118,6 +143,19 @@ body:
         certificate, a non-default port, an air-gapped network, a proxy server -
         these are where most of the bugs are.
       placeholder: nginx in front, TLS terminated there, the plugin talks plain HTTP to port 9200.
+
+  - type: textarea
+    id: web
+    attributes:
+      label: For the web application
+      description: >-
+        Only if you are running it. Which `COS_WEB_*` settings you changed from
+        the defaults, whether Redis is the bundled container or your own, and
+        what the browser console said if the page misbehaved. Do not paste a
+        scan uuid from an instance that is not yours.
+      placeholder: |
+        docker compose from docker/, defaults except COS_WEB_MAX_WORKERS=2.
+        The page stayed on "queued" and the console showed no error.
 
   - type: textarea
     id: config

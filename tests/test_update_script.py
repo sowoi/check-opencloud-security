@@ -228,10 +228,23 @@ def test_fetch_refuses_a_non_http_url():
         script.fetch("file:///etc/passwd")
 
 
+README_STUB = f"""# Example
+
+{script.README_START}
+{script.README_END}
+
+Text below the block that must survive every run.
+"""
+
+
 def _offline(monkeypatch, tmp_path, page=PAGE, error=None):
     """Point the script at a temporary file and a canned page."""
     target = tmp_path / "release_schedule.json"
     monkeypatch.setattr(script, "TARGET", target)
+    # The real README must never be rewritten by a test run.
+    readme = tmp_path / "README.md"
+    readme.write_text(README_STUB, encoding="utf-8")
+    monkeypatch.setattr(script, "README", readme)
 
     def fake_fetch(url, timeout=30):
         if error:
@@ -312,3 +325,101 @@ def test_the_checked_in_schedule_matches_the_script():
     for entry in document["lines"]:
         assert set(entry) == {"line", "tracks", "released", "latest"}
         assert entry["tracks"]
+
+
+def test_the_readme_learns_the_new_versions(monkeypatch, tmp_path, capsys):
+    """
+    The README quotes the current release of each track, and a stale one
+    teaches the wrong number to whoever reads it first.
+
+    The refresh that updates the schedule therefore updates the README in the
+    same run, so the two can never drift apart between releases.
+    """
+    _offline(monkeypatch, tmp_path)
+
+    assert script.main([]) == 0
+    body = script.README.read_text(encoding="utf-8")
+
+    assert "| **Rolling** | `7.4.0` | `7.4` |" in body
+    assert "| **Production** | `7.2.3` | `7.2` |" in body
+    assert "Updated README.md" in capsys.readouterr().out
+    # Only the marked block is generated; the prose around it is written by hand.
+    assert "Text below the block that must survive every run." in body
+
+
+def test_an_lts_line_gets_the_date_its_support_actually_ends(monkeypatch, tmp_path):
+    """
+    LTS is the one track whose end is a date rather than "when the next one
+    ships", so printing a successor there would be wrong twice over.
+    """
+    _offline(monkeypatch, tmp_path)
+    script.main([])
+
+    body = script.README.read_text(encoding="utf-8")
+    lts = next(line for line in body.splitlines() if "**LTS**" in line)
+
+    assert "2027-12-01" in lts
+    assert "the next lts release" not in body
+
+
+def test_a_second_run_leaves_the_readme_alone(monkeypatch, tmp_path):
+    """A refresh that rewrites an unchanged README would churn every release."""
+    _offline(monkeypatch, tmp_path)
+    script.main([])
+    before = script.README.read_text(encoding="utf-8")
+
+    assert script.main([]) == 0
+    assert script.README.read_text(encoding="utf-8") == before
+
+
+def test_a_stale_readme_is_updated_even_when_the_schedule_did_not_move(
+    monkeypatch, tmp_path
+):
+    """
+    The block can rot on its own - somebody edits it, or it is added after the
+    last refresh. Keying the README update off a change to the JSON would let
+    that sit there until OpenCloud happens to publish something.
+    """
+    _offline(monkeypatch, tmp_path)
+    script.main([])
+    script.README.write_text(
+        f"# Example\n\n{script.README_START}\n7.0.0 is current\n{script.README_END}\n",
+        encoding="utf-8",
+    )
+
+    assert script.main(["--check"]) == 1
+    assert script.main([]) == 0
+    assert "`7.4.0`" in script.README.read_text(encoding="utf-8")
+
+
+def test_no_readme_leaves_the_documentation_untouched(monkeypatch, tmp_path):
+    """The schedule can be refreshed on its own when only the data matters."""
+    _offline(monkeypatch, tmp_path)
+    before = script.README.read_text(encoding="utf-8")
+
+    assert script.main(["--no-readme"]) == 0
+    assert script.README.read_text(encoding="utf-8") == before
+
+
+def test_a_readme_without_the_markers_is_an_error(monkeypatch, tmp_path):
+    """
+    Silently doing nothing would mean the documentation stops being updated
+    the moment somebody deletes the block, and nobody would notice for months.
+    """
+    _offline(monkeypatch, tmp_path)
+    script.README.write_text("# Example\n\nNo markers here.\n", encoding="utf-8")
+
+    with pytest.raises(script.ExtractionError, match="block to update"):
+        script.update_readme(json.loads(json.dumps(script.build_document(
+            script.extract(PAGE), "https://example.invalid"
+        ))))
+
+
+def test_the_checked_in_readme_matches_the_checked_in_schedule():
+    """
+    The block in the real README is generated, so it must be exactly what the
+    script would write from the schedule that ships beside it.
+    """
+    document = json.loads(script.TARGET.read_text(encoding="utf-8"))
+
+    assert script.readme_is_current(document)

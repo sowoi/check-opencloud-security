@@ -139,7 +139,12 @@ class _Handler(BaseHTTPRequestHandler):
         authorization = self.headers.get("Authorization") or ""
         if authorization.lower().startswith("bearer "):
             provided = provided or authorization[7:].strip()
-        return hmac.compare_digest(provided, self.auth_token)
+        # Encoded, because a header can carry bytes that are not ASCII and
+        # comparing those as str raises instead of answering 401.
+        return hmac.compare_digest(
+            provided.encode("utf-8", "surrogateescape"),
+            self.auth_token.encode("utf-8", "surrogateescape"),
+        )
 
     def _read_host(self) -> str | None:
         length = int(self.headers.get("Content-Length") or 0)

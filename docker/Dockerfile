@@ -3,6 +3,10 @@
 # Builds a self-contained image for check-opencloud-security.
 # End users do not need Python, pip, or uv installed on the host -
 # only Docker. See README.md for usage examples.
+#
+# The build context is the repository root, not this directory:
+#
+#   docker build -f docker/Dockerfile -t check-opencloud-security .
 
 FROM python:3.13-slim AS builder
 
@@ -50,7 +54,7 @@ EXPOSE 8080
 #
 # Containers running `check-opencloud-scanner serve` want the HTTP liveness
 # probe instead - see the healthcheck on the 'scanner' service in
-# docker-compose.yml, which overrides this one.
+# docker/docker-compose.monitoring.yml, which overrides this one.
 HEALTHCHECK --interval=5m --timeout=15s --start-period=10s --retries=2 \
     CMD ["python", "-c", "import opencloud_local_scan as s; s.load_release_schedule(); s.load_database()"]
 
