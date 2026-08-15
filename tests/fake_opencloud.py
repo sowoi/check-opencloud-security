@@ -119,6 +119,28 @@ class InstanceBehaviour:
     directory_listing: bool = False
     # Leak the backend through a Server or X-Powered-By header.
     disclose_server: str | None = None
+    # What the Server header says. A stock OpenCloud sets none; a reverse proxy
+    # in front of it usually does.
+    server_header: str = "OpenCloud"
+    # Extra headers added to every response, the way a proxy or a CDN does.
+    extra_headers: dict[str, str] = field(default_factory=dict)
+    # Issuer published at /.well-known/openid-configuration. None serves the
+    # instance's own origin, the way the built-in identity provider does; a
+    # URL impersonates an external provider in front of it.
+    openid_issuer: str | None = None
+    # Answer the discovery request with a redirect to the issuer instead of a
+    # document, which is what a proxied external provider usually does.
+    openid_redirect: bool = False
+    # No discovery document at all.
+    openid_configuration: bool = True
+    # App providers registered with the app registry, as /app/list reports
+    # them. Empty means the endpoint answers with an empty list, which is what
+    # an instance without an office integration does.
+    app_providers: tuple[str, ...] = ()
+    # Something answers /.well-known/caldav, the way a proxied Radicale does.
+    caldav: bool = False
+    # Every request the instance saw, as (method, path, sorted header names).
+    seen: list[tuple[str, str, tuple[str, ...]]] = field(default_factory=list)
 
 
 PROTECTED_PATHS = (
@@ -140,7 +162,7 @@ def _make_handler(behaviour: InstanceBehaviour):
         def version_string(self):
             # A stock OpenCloud does not advertise its web server, and the
             # BaseHTTPRequestHandler default would leak a Python version.
-            return "OpenCloud"
+            return behaviour.server_header
 
         def _respond(self, code, body=b"", extra=None):
             self.send_response(code)
@@ -148,6 +170,8 @@ def _make_handler(behaviour: InstanceBehaviour):
                 self.send_header(name, value)
             if behaviour.disclose_server:
                 self.send_header("X-Powered-By", behaviour.disclose_server)
+            for name, value in behaviour.extra_headers.items():
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
@@ -162,6 +186,54 @@ def _make_handler(behaviour: InstanceBehaviour):
 
         def do_GET(self):
             path = self.path.split("?", 1)[0]
+            behaviour.seen.append(
+                (self.command, path, tuple(sorted(self.headers.keys())))
+            )
+
+            if path == "/app/list":
+                self._json(
+                    {
+                        "mime-types": [
+                            {
+                                "mime_type": "application/vnd.oasis.opendocument.text",
+                                "app_providers": [
+                                    {"name": name} for name in behaviour.app_providers
+                                ],
+                            }
+                        ]
+                        if behaviour.app_providers
+                        else []
+                    }
+                )
+                return
+
+            if path in ("/.well-known/caldav", "/.well-known/carddav"):
+                if behaviour.caldav:
+                    self._respond(302, b"", {"Location": "/caldav/"})
+                else:
+                    self._respond(404, b"not found")
+                return
+
+            if path == "/.well-known/openid-configuration":
+                if not behaviour.openid_configuration:
+                    self._respond(404, b"not found")
+                    return
+                issuer = behaviour.openid_issuer or f"http://{self.headers.get('Host')}"
+                if behaviour.openid_redirect:
+                    self._respond(
+                        302,
+                        b"",
+                        {"Location": f"{issuer}/.well-known/openid-configuration"},
+                    )
+                    return
+                self._json(
+                    {
+                        "issuer": issuer,
+                        "authorization_endpoint": f"{issuer}/authorize",
+                        "token_endpoint": f"{issuer}/token",
+                    }
+                )
+                return
 
             if path in ("/status.php", "/status"):
                 if behaviour.status_body is not None:
@@ -244,6 +316,12 @@ def _make_handler(behaviour: InstanceBehaviour):
 
         do_HEAD = do_GET
         do_PROPFIND = do_GET
+
+        def do_POST(self):
+            behaviour.seen.append(
+                (self.command, self.path.split("?", 1)[0], tuple(sorted(self.headers.keys())))
+            )
+            self._respond(405, b"method not allowed")
 
     return _Handler
 

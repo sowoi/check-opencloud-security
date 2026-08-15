@@ -16,6 +16,7 @@ Fixes #
 - [ ] Bug fix
 - [ ] New or changed check
 - [ ] New or changed option
+- [ ] Web application or frontend
 - [ ] Documentation
 - [ ] Packaging, CI or deployment
 - [ ] Refactoring, no behaviour change
@@ -31,7 +32,8 @@ Fixes #
 
 ## Checks
 
-- [ ] `uv run pytest` passes.
+- [ ] `uv run pytest` passes, including `tests/test_webapp_*.py` if you
+      touched `webapp/` or `frontend/`.
 - [ ] `uvx ruff check .` passes. (`ruff format` is deliberately not run - do
       not reformat the tree.)
 - [ ] `uv run mypy --config-file mypy.ini` passes.
@@ -67,11 +69,40 @@ the negative case as well as the positive one.
 - [ ] The severity matches what an attacker actually gains, and therefore how
       far it caps the rating.
 
+## For a change to the web application or the frontend
+
+<!-- Delete this whole section if it does not apply. -->
+
+- [ ] The web application still only accepts `target_url`,
+      `ignore_hardenings`, `release_track` and `output_format`. Nothing new
+      lets a request choose concurrency, timeouts or any other server-side
+      setting.
+- [ ] New settings are `COS_WEB_*` environment variables, with a row in
+      [`docs/webapp.md`](../docs/webapp.md) and an entry in
+      `docker/docker-compose.yml`.
+- [ ] `webapp/` and `frontend/` are still excluded from the wheel and the
+      sdist, and anything a deployment needs is in
+      `scripts/build_web_bundle.py`.
+- [ ] No third-party asset: no CDN, no font service, no analytics, nothing the
+      browser fetches from another origin.
+- [ ] No inline `style=`, `<style>`, `onclick` or `<script>` - the CSP has no
+      `unsafe-inline`. One-off styles are classes or `[data-...]` rules in
+      `app.css`.
+- [ ] The markup is semantic and keyboard reachable: real labels, a visible
+      focus ring, and `prefers-reduced-motion` honoured by anything that moves.
+      The page still says something useful if JavaScript does not run.
+- [ ] Nothing new is logged beyond a lifecycle marker and a scan uuid - no
+      target URLs, no client addresses, no results.
+- [ ] Every page still carries the version in the footer and the trademark
+      notice from `base.html`.
+- [ ] Screenshots of the before and after, if the change is visual.
+
 ## For a new or changed option
 
 <!-- Delete this whole section if it does not apply. -->
 
-- [ ] A row in the CLI option table in `README.md`.
+- [ ] A row in the CLI option table in `README.md`, or in the settings table
+      in `docs/webapp.md` for a web setting.
 - [ ] An entry in `config/check-opencloud-security.example.yml`.
 - [ ] A line in `CHANGELOG.md`.
 - [ ] The README table of contents still matches its headings.

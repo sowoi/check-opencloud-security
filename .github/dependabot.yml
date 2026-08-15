@@ -9,3 +9,17 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "monthly"
+
+  # Pinned actions go stale quietly, and the way that surfaces is a runner
+  # deprecation warning on every job. Let Dependabot raise it instead.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  # The web application's images: the Python base and the uv stage of
+  # docker/Dockerfile.web, and the Redis image in docker/docker-compose.yml.
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "monthly"

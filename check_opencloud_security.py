@@ -682,15 +682,21 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
         return True
     if not context.allow_private_webhooks and not _is_safe_webhook_url(url):
         LOGGER.warning(
-            "Webhook URL points to a restricted private/local IP address and was blocked: %s",
-            url,
+            "Webhook URL points to a restricted private/local IP address "
+            "and was blocked: %s",
+            _redact_url(url),
         )
         return False
 
     headers = {"Content-Type": "application/json"}
     headers.update(dict(context.webhook_headers))
 
-    LOGGER.debug("Posting %s webhook for %s to %s", payload["status"], context.host, url)
+    LOGGER.debug(
+        "Posting %s webhook for %s to %s",
+        payload["status"],
+        context.host,
+        _redact_url(url),
+    )
 
     def _post() -> None:
         response = requests.post(
@@ -716,6 +722,22 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
     LOGGER.debug("Webhook notification for %s delivered", context.host)
     return True
+
+
+def _redact_url(url: str) -> str:
+    """Scheme and host only.
+
+    A webhook URL is routinely the credential itself - the token sits in the
+    path or the query of a chat provider's endpoint - so the whole of it must
+    never reach a log file that is read by more people than the secret is.
+    """
+    parts = urlsplit(url)
+    if not parts.hostname:
+        return "<redacted>"
+    host = parts.hostname
+    if parts.port:
+        host = f"{host}:{parts.port}"
+    return f"{parts.scheme}://{host}/<redacted>"
 
 
 def _is_safe_webhook_url(url: str) -> bool:

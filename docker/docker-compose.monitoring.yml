@@ -1,0 +1,86 @@
+# Optional scan service plus a plugin run against it.
+#
+# The plugin always scans in process with its built-in scanner, so there is no
+# remote backend it *has* to reach.
+# The service below is still useful when several monitoring consumers should
+# share one cached result, or when the scan should run from a host that is
+# closer to the instance than the monitoring server.
+#
+#   cp ../secrets/scanner_token.example ../secrets/scanner_token
+#   cp ../secrets/releases_token.example ../secrets/releases_token
+#   # ... then put the real values in (see secrets/README.md)
+#
+#   cd docker
+#   docker compose -f docker-compose.monitoring.yml up -d scanner
+#   docker compose -f docker-compose.monitoring.yml run --rm check
+#
+# `docker-compose.yml` next to this file is the public web application and is
+# unrelated to this stack.
+#
+# Every setting can also come from config/check-opencloud-security.yml, from
+# COS_ environment variables or from a secret (see the 'secrets' section).
+
+services:
+  scanner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: check-opencloud-security:latest
+    container_name: opencloud-scanner
+    entrypoint: ["check-opencloud-scanner"]
+    command: ["serve"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Bind address and port of the scan service.
+      COS_SERVICE_LISTEN: "0.0.0.0"
+      COS_SERVICE_PORT: "8080"
+      COS_SERVICE_CACHE_TTL: "900"
+      # Optional shared secret; clients send it as 'Authorization: Bearer ...'.
+      COS_SERVICE_TOKEN: "secret://scanner_token"
+      # OpenCloud terminates TLS with a self-signed certificate by default.
+      # Drop this line once the instance presents a trusted certificate - the
+      # scanner then reports 'tlsTrusted' as a finding instead of ignoring it.
+      COS_SCANNER_VERIFY_TLS: "false"
+      # The update check reads the OpenCloud release feed on GitHub. An
+      # unauthenticated feed is rate limited per IP; a token raises the limit.
+      COS_RELEASES_MODE: "auto"
+      COS_RELEASES_TOKEN: "secret://releases_token"
+      # Where to find secrets (Docker mounts them at /run/secrets).
+      COS_SECRETS_DIR: /run/secrets
+    volumes:
+      - ../config:/etc/check-opencloud-security:ro
+    secrets:
+      - scanner_token
+      - releases_token
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  check:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: check-opencloud-security:latest
+    environment:
+      COS_HOST: "cloud.example.com"
+      COS_SCANNER_VERIFY_TLS: "false"
+      COS_CHECK_HARDENING: "true"
+      COS_RELEASES_TOKEN: "secret://releases_token"
+      COS_SECRETS_DIR: /run/secrets
+    volumes:
+      - ../config:/etc/check-opencloud-security:ro
+    secrets:
+      - releases_token
+
+# The files below are git-ignored; templates live next to them as
+# secrets/*.example. See secrets/README.md.
+secrets:
+  scanner_token:
+    file: ../secrets/scanner_token
+  releases_token:
+    file: ../secrets/releases_token

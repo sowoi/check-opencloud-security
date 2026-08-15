@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Nothing here{% endblock %}
+
+{% block content %}
+<section class="card empty">
+  <img src="/static/img/expired.svg" alt="" width="320" height="220">
+  <h1>Nothing here</h1>
+  <p class="lede">
+    Either the address does not exist, or it was a scan and that scan is gone:
+    results are held for {{ result_ttl_minutes }} minutes and then dropped, so
+    a link from earlier today will not open. An identifier that never existed
+    looks exactly the same from here - this service cannot tell you which, and
+    deliberately does not try.
+  </p>
+  <p>
+    <a class="btn btn-primary" href="/">Run a new scan</a>
+  </p>
+</section>
+{% endblock %}

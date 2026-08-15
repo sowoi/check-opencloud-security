@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}OpenCloud security scan{% endblock %}</title>
+  <meta name="description" content="{% block description %}Check an OpenCloud instance for known vulnerabilities, missing hardening and weak security headers. Nothing is stored.{% endblock %}">
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body {% block body_attrs %}{% endblock %}>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="/">
+        <img src="/static/img/logo.svg" alt="" width="34" height="34">
+        <span>
+          check-opencloud-security
+          <small>Security scan for OpenCloud instances</small>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="/">New scan</a>
+        <a href="https://github.com/sowoi/check-opencloud-security" rel="noopener noreferrer">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="shell">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <p>
+        Scans run from this server against the address you enter.
+        Results live in memory for {{ result_ttl_minutes }} minutes and are then gone.
+      </p>
+      <p>
+        Built on the <code>check-opencloud-security</code> scanner.
+        No trackers, no accounts, no analytics.
+        <a href="{{ project_url }}" rel="noopener noreferrer">Run it yourself</a>.
+      </p>
+      <p class="build">
+        <a class="version-badge" href="{{ project_url }}/releases"
+           rel="noopener noreferrer"
+           title="The scanner version that produced these results">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 4 7v10l8 4 8-4V7l-8-4z"/><path d="M12 12 4 7"/>
+            <path d="m12 12 8-5"/><path d="M12 12v9"/>
+          </svg>
+          <span>Backend v{{ version }}</span>
+        </a>
+      </p>
+      <p class="legal">
+        This is an independent community project. It is not affiliated with
+        OpenCloud GmbH and is neither recommended nor supported by the
+        company. &ldquo;OpenCloud&rdquo;, the OpenCloud logo and all
+        associated trademarks are the property of their respective owners and
+        are used here solely to indicate which software this tool checks.
+      </p>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

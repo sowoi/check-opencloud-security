@@ -14,6 +14,7 @@ places this check tends to end up.
 | [Scheduling](scheduling.md) | systemd timer and cron, for hosts with no Icinga2 or Nagios |
 | [Kubernetes](kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on a field of the result document |
+| [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits |
 
 ## Feeding the result somewhere
 
@@ -35,6 +36,13 @@ places this check tends to end up.
 - [`opencloud_local_scan/README.md`](../opencloud_local_scan/README.md) - the
   scanner library: what it reads from an instance, how the rating is worked
   out, and how end of life is decided.
+- [`webapp/README.md`](../webapp/README.md) - the web application for whoever
+  changes it or writes a client: the API, Swagger, the restrictions and what
+  can be configured.
+- [`frontend/README.md`](../frontend/README.md) - the pages: the rules, the
+  design tokens, the template contract and how to run a frontend of your own.
+- [`docker/README.md`](../docker/README.md) - what each container file builds,
+  and how to run either stack.
 - [`ansible/README.md`](../ansible/README.md) - the full variable reference for
   the roles.
 - [`config/check-opencloud-security.example.yml`](../config/check-opencloud-security.example.yml) -
@@ -47,3 +55,14 @@ places this check tends to end up.
 
 Every example uses `opencloud.example.com` as the instance. Substitute your
 own, and scan only instances you are responsible for.
+
+## Trademarks and affiliation
+
+This is an independent community project. It is **not** affiliated with,
+endorsed by, sponsored by or supported by OpenCloud GmbH, and nothing it
+reports is an official statement about OpenCloud software.
+
+"OpenCloud", the OpenCloud logo and all related names and marks are the
+property of their respective owners. They appear here only to identify the
+software this tool checks, which is nominative use and implies no
+relationship. All rights in OpenCloud remain with OpenCloud GmbH.

@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a new check, option or integration.
+description: Suggest a new check, option, integration or improvement to the web application.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -20,6 +20,8 @@ body:
         - An integration (Icinga, Uptime Kuma, Prometheus, ...)
         - Output, exit codes or performance data
         - Packaging or deployment
+        - The web application - backend, API or queueing
+        - The web application - design, wording or accessibility
         - Documentation
         - Something else
     validations:

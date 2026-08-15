@@ -1,6 +1,6 @@
 # Secrets
 
-`docker-compose.yml` mounts the files in this directory as Docker secrets at
+`docker/docker-compose.monitoring.yml` mounts the files in this directory as Docker secrets at
 `/run/secrets/<name>` inside the containers. The `.example` files are templates:
 copy them, put the real value in, and never commit the result - everything in
 this directory except `*.example` and this README is git-ignored.

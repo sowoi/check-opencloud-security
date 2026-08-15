@@ -7,7 +7,9 @@ name: OpenCloud release schedule
 # anything in this repository changing, so the schedule is refreshed weekly in
 # addition to the refresh that happens during a release. The same run also
 # records the newest release of each track, which the built-in scanner uses as
-# the offline fallback for its update check.
+# the offline fallback for its update check, and rewrites the generated
+# release table in README.md so the documentation never quotes a version that
+# has already been superseded.
 
 on:
   schedule:
@@ -24,21 +26,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Refresh the release schedule
+      - name: Refresh the release schedule and the README table
         run: python scripts/update_release_schedule.py
 
       - name: Open pull request on change
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          add-paths: opencloud_local_scan/data/release_schedule.json
+          add-paths: |
+            opencloud_local_scan/data/release_schedule.json
+            README.md
           branch: chore/release-schedule
           commit-message: "chore: refresh the OpenCloud release schedule"
           title: "chore: refresh the OpenCloud release schedule"
           body: |
             Automated refresh of `opencloud_local_scan/data/release_schedule.json`
-            from the [OpenCloud release lifecycle](https://docs.opencloud.eu/docs/admin/resources/lifecycle/).
+            and the generated release table in `README.md`, from the
+            [OpenCloud release lifecycle](https://docs.opencloud.eu/docs/admin/resources/lifecycle/).
 
             A rolling or production release line is supported until the next
             line on the same track is released; an LTS line is supported for

@@ -92,10 +92,10 @@ Every scan records how it arrived at its rating in `ratingExplanation`:
 
 ```json
 {
-  "rating": 3,
+  "rating": 4,
   "base": {"rating": 5, "reason": "the installed release is current and no advisory matches this version"},
   "caps": [
-    {"check": "basicAuthDisabled", "severity": "high", "cap": 3,
+    {"check": "basicAuthDisabled", "severity": "medium", "cap": 4,
      "detail": "PROXY_ENABLE_BASIC_AUTH is on", "applied": true}
   ]
 }
@@ -274,12 +274,48 @@ Some of these are worth knowing about before you enable `--check-hardening`:
   the web frontend currently depends on inline scripts and styles.
 - **`basicAuthDisabled` is genuinely remotely observable.** With
   `PROXY_ENABLE_BASIC_AUTH=true` the proxy adds `Basic realm="<host>"` to its
-  `WWW-Authenticate` challenge alongside `Bearer`.
+  `WWW-Authenticate` challenge alongside `Bearer`. It is rated `medium`, and
+  `low` when `identityProvider.external` is true: CalDAV, CardDAV and WebDAV
+  clients cannot speak OpenID Connect, so an instance that wants them has to
+  leave basic authentication on, and rating that as a serious failure told
+  operators something they were right to disbelieve.
 - **`publicLinkExpirationEnforced` and `userEnumerationRestricted` are not
   settings.** OpenCloud writes both capabilities as hardcoded constants, so the
   first fails on every instance and the second passes on every instance. They
   are marked `actionable=False` in the catalogue below, which keeps them out of
   alerts and counts while leaving them in the result document.
+
+### Observations that are not findings
+
+`scan()` also reports two integrations that are visible without logging in.
+They live under `integrations`, produce no entry in `extraChecks`, and cannot
+move the rating:
+
+| Key | Evidence |
+|:----|:---------|
+| `integrations.office.detected` | `/app/list` - unprotected by OpenCloud's proxy policy - names at least one registered app provider |
+| `integrations.office.apps` | The provider names it returned, e.g. `Collabora` |
+| `integrations.office.groupware` | The `groupware.enabled` capability |
+| `integrations.calendar.detected` | `/.well-known/caldav` answers with a redirect or a challenge rather than 404 |
+| `integrations.calendar.advertised` | The `core.support_radicale` capability, which defaults to `true` and is therefore only corroborating |
+
+The `files.app_providers` capability is a hardcoded constant and is ignored.
+
+### What the scanner cannot measure
+
+Two questions come up often enough to be worth stating as non-goals:
+
+- **Audit logging cannot be checked.** OpenCloud's audit service consumes the
+  internal event bus and exposes no HTTP surface; no capability, header or
+  unauthenticated document reveals whether it is running. There is no signal to
+  read, so no check exists and none can be added without credentials.
+- **"Configured correctly" is out of scope for the integrations above.** That a
+  provider is registered says nothing about WOPI secrets, share permissions or
+  the second service's own configuration, all of which sit behind a login.
+
+Everything the scanner does is a read. It never submits a form, never sends an
+`Authorization` header and never tries a credential, so no result here can be
+taken as evidence that authentication works - only that it is offered.
 
 ### Explaining the flags
 
@@ -374,6 +410,9 @@ while a genuinely broken certificate elsewhere still stands out.
 - **No backend choice.** There is no remote scanner to select, so there is no
   `--scan-backend`, `--scan-url` or `--scan-token`, and nothing to force a
   rescan of, because nothing is ever cached.
+- **No audit-log check.** The audit service has no HTTP surface and no
+  capability of its own, so there is nothing to observe. See [What the scanner
+  cannot measure](#what-the-scanner-cannot-measure).
 - **No hardening matrix.** Hardenings are observed, not derived from the
   version (see above).
 - **No credentials on the instance.** Every check works with what an
@@ -450,3 +489,14 @@ part of a snapshot: they change on their own and would make every run look
 new. Writing is atomic and owner-only, and a corrupt or future-format file is
 read as "no baseline yet" rather than raising - degrading to the normal check
 is never worse than refusing to run.
+
+## Trademarks and affiliation
+
+This is an independent community project. It is **not** affiliated with,
+endorsed by, sponsored by or supported by OpenCloud GmbH, and nothing it
+reports is an official statement about OpenCloud software.
+
+"OpenCloud", the OpenCloud logo and all related names and marks are the
+property of their respective owners. They appear here only to identify the
+software this tool checks, which is nominative use and implies no
+relationship. All rights in OpenCloud remain with OpenCloud GmbH.

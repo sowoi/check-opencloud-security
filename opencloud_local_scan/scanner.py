@@ -45,6 +45,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from functools import partial
 from typing import Any, TypeVar
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -131,6 +132,61 @@ DEFAULT_DEBUG_PORTS: tuple[tuple[int, str], ...] = (
 )
 
 CAPABILITIES_PATH = "/ocs/v1.php/cloud/capabilities"
+OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration"
+APP_LIST_PATH = "/app/list"
+CALDAV_PATH = "/.well-known/caldav"
+
+# What a path answers when something is actually wired to it: a redirect to
+# the service, or the service asking who is calling. A 200 proves nothing on
+# an instance whose frontend answers every unknown path with its own shell.
+SERVICE_PRESENT_STATUS = frozenset({401, 207})
+
+# Reverse proxies that say who they are, in the header they say it in. Traefik
+# and HAProxy are absent on purpose: neither announces itself by default, so
+# not finding one proves nothing - which is why the finding below never costs
+# the rating anything.
+PROXY_SERVER_FINGERPRINTS: tuple[tuple[str, str], ...] = (
+    ("openresty", "OpenResty"),
+    ("nginx", "Nginx"),
+    ("apache", "Apache"),
+    ("caddy", "Caddy"),
+    ("traefik", "Traefik"),
+    ("envoy", "Envoy"),
+    ("haproxy", "HAProxy"),
+    ("cloudflare", "Cloudflare"),
+    ("litespeed", "LiteSpeed"),
+    ("varnish", "Varnish"),
+    ("ats", "Apache Traffic Server"),
+)
+
+# Headers no origin sets for itself: something forwarded or cached the response.
+PROXY_HEADERS: tuple[tuple[str, str], ...] = (
+    ("Via", ""),
+    ("X-Varnish", "Varnish"),
+    ("CF-Ray", "Cloudflare"),
+    ("X-Cache", ""),
+    ("X-Cache-Status", ""),
+    ("X-Served-By", ""),
+    ("X-Proxy-Cache", ""),
+)
+
+# Fingerprints of the identity providers an OpenCloud is usually put behind.
+# Matched against the issuer URL only, because that is all this scan looks at.
+IDP_FINGERPRINTS: tuple[tuple[str, str], ...] = (
+    ("/realms/", "Keycloak"),
+    ("/application/o/", "Authentik"),
+    ("/api/oidc", "Authelia"),
+    ("/oauth/v2", "Zitadel"),
+    ("keycloak", "Keycloak"),
+    ("authentik", "Authentik"),
+    ("authelia", "Authelia"),
+    ("zitadel", "Zitadel"),
+    ("kanidm", "Kanidm"),
+    ("login.microsoftonline.com", "Microsoft Entra ID"),
+    ("accounts.google.com", "Google"),
+    ("okta.com", "Okta"),
+    ("auth0.com", "Auth0"),
+)
 STATUS_PATH = "/status.php"
 WEBFINGER_PATH = "/.well-known/webfinger"
 
@@ -138,6 +194,16 @@ WEBFINGER_PATH = "/.well-known/webfinger"
 CATCH_ALL_PATH = "/check-opencloud-security-probe-404"
 
 SEVERITY_RATING_CAP: dict[str, int] = {"critical": 2, "high": 3, "medium": 4, "low": 5}
+
+# Basic authentication is a finding, not a catastrophe. Every client that
+# cannot speak OpenID Connect - CalDAV and CardDAV calendars, WebDAV mounts,
+# backup jobs - authenticates with it, so an instance that offers it has often
+# made a deliberate trade rather than a mistake. When an external identity
+# provider is doing the actual sign-in it is softer still, because the
+# passwords being replayed are then app tokens rather than the account the
+# provider protects with a second factor.
+BASIC_AUTH_SEVERITY = "medium"
+BASIC_AUTH_SEVERITY_WITH_IDP = "low"
 
 MIN_RATING = 0
 MAX_RATING = 5
@@ -150,6 +216,11 @@ DEFAULT_DEBUG_PORT_TIMEOUT_SECONDS = 3
 # plugin must not surprise an instance with a burst of parallel requests.
 DEFAULT_CONCURRENCY = 1
 MAX_CONCURRENCY = 32
+
+# What requests itself defaults to, kept for the hand-walked chain below.
+MAX_REDIRECTS = 30
+
+DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 USER_AGENT = "check-opencloud-security local scanner"
 
@@ -206,6 +277,24 @@ class ScannerSettings:
     vulnerability_feed: str | None = None
     include_bundled_db: bool = True
     user_agent: str = USER_AGENT
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    """How much of a response body is read before the rest is dropped.
+
+    Every document this scan looks at is a few kilobytes; a target that
+    answers with an endless body would otherwise hold a worker for as long
+    as it keeps sending. ``0`` restores the old behaviour of reading whatever
+    arrives.
+    """
+    redirect_guard: Callable[[str], bool] | None = None
+    """Decides whether one redirect may be followed.
+
+    ``None`` lets :mod:`requests` follow redirects as it always has, which is
+    what an operator scanning their own instance wants. A caller that scans a
+    host somebody else named - the web service does - passes a check here,
+    because the address that was validated is only the *first* one: without
+    this, a target answering ``302 Location: http://127.0.0.1:...`` turns the
+    scanner into a way to read the scanning host's own network.
+    """
 
     @property
     def proxies(self) -> dict[str, str] | None:
@@ -309,19 +398,86 @@ class _Probe:
     ) -> requests.Response | None:
         """Perform one request, returning None when it fails."""
         url = f"{base_url or self.base_url}{path}"
+        guard = self.settings.redirect_guard
+        follow = allow_redirects and guard is None
         try:
-            return self._session.request(
-                method,
-                url,
-                timeout=self.settings.timeout,
-                verify=self.settings.verify_tls,
-                proxies=self.settings.proxies,
-                allow_redirects=allow_redirects,
-                headers={"User-Agent": self.settings.user_agent},
+            response = self._capped(
+                self._session.request(
+                    method,
+                    url,
+                    timeout=self.settings.timeout,
+                    verify=self.settings.verify_tls,
+                    proxies=self.settings.proxies,
+                    allow_redirects=follow,
+                    headers={"User-Agent": self.settings.user_agent},
+                    stream=self.settings.max_response_bytes > 0,
+                )
             )
         except REQUEST_ERRORS as exc:
             LOGGER.debug("Request to %s failed: %s", url, exc)
             return None
+        if follow or not allow_redirects or guard is None:
+            return response
+        return self._follow(response, method=method, guard=guard)
+
+    def _capped(self, response: requests.Response) -> requests.Response:
+        """Read at most ``max_response_bytes`` of the body, then let go."""
+        limit = self.settings.max_response_bytes
+        if limit <= 0:
+            return response
+        body = bytearray()
+        for chunk in response.iter_content(65536):
+            body.extend(chunk)
+            if len(body) >= limit:
+                LOGGER.debug("Truncating oversized response from %s", response.url)
+                del body[limit:]
+                break
+        # requests offers no public way to hand a body back to a response.
+        response._content = bytes(body)
+        response._content_consumed = True  # type: ignore[attr-defined]
+        response.close()
+        return response
+
+    def _follow(
+        self,
+        response: requests.Response,
+        *,
+        method: str,
+        guard: Callable[[str], bool],
+    ) -> requests.Response | None:
+        """
+        Walk the redirect chain by hand, asking ``guard`` about every hop.
+
+        The unfollowed redirect is returned rather than an error: a scan of an
+        instance that redirects somewhere it may not be followed still has a
+        response to report, and the caller reads a 3xx exactly as it would
+        have without a guard.
+        """
+        for _ in range(MAX_REDIRECTS):
+            if not response.is_redirect:
+                return response
+            location = response.headers.get("Location") or ""
+            target = urljoin(response.url, location)
+            if not guard(target):
+                LOGGER.debug("Refusing to follow redirect to %s", target)
+                return response
+            try:
+                response = self._capped(
+                    self._session.request(
+                        method,
+                        target,
+                        timeout=self.settings.timeout,
+                        verify=self.settings.verify_tls,
+                        proxies=self.settings.proxies,
+                        allow_redirects=False,
+                        headers={"User-Agent": self.settings.user_agent},
+                        stream=self.settings.max_response_bytes > 0,
+                    )
+                )
+            except REQUEST_ERRORS as exc:
+                LOGGER.debug("Request to %s failed: %s", target, exc)
+                return None
+        return response
 
 
 def _host_and_port(host: str, settings: ScannerSettings) -> tuple[str, int]:
@@ -477,6 +633,207 @@ def _authentication_challenge(probe: _Probe) -> str | None:
     if response is None:
         return None
     return response.headers.get("WWW-Authenticate")
+
+
+def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
+    """
+    Work out who actually signs users in, by asking where login points.
+
+    Nothing is submitted anywhere: this reads the OpenID Connect discovery
+    document the instance publishes and, when that is a redirect, the address
+    in the Location header. No login form is filled in and no credential is
+    ever sent - a scan must not attempt to authenticate against somebody's
+    instance, and an identity provider is exactly the place where trying
+    would be worst.
+
+    An issuer on a different host than the instance means an external provider
+    such as Keycloak, Authentik or Authelia is in front of it. That is context
+    for the rest of the scan rather than a verdict: it is not required, and an
+    instance using the built-in provider is not thereby failing anything.
+    """
+    provider: dict[str, Any] = {
+        "detected": False,
+        "external": False,
+        "issuer": "",
+        "vendor": "",
+    }
+    response = probe.get(OPENID_CONFIGURATION_PATH, allow_redirects=False)
+    if response is None:
+        return provider
+
+    issuer = ""
+    if response.is_redirect:
+        issuer = urljoin(probe.base_url, response.headers.get("Location") or "")
+    elif response.status_code == 200:
+        try:
+            document = response.json()
+        except ValueError:
+            document = None
+        if isinstance(document, Mapping):
+            issuer = str(document.get("issuer") or "")
+
+    if not issuer.lower().startswith(("http://", "https://")):
+        return provider
+
+    parts = urlsplit(issuer)
+    if not parts.hostname:
+        return provider
+
+    provider["detected"] = True
+    provider["issuer"] = f"{parts.scheme}://{parts.netloc}"
+    provider["external"] = parts.hostname.lower().rstrip(".") != hostname.lower().rstrip(
+        "."
+    )
+    provider["vendor"] = _identity_provider_vendor(issuer)
+    return provider
+
+
+def _integrations(probe: _Probe, capabilities: Mapping[str, Any] | None) -> dict[str, Any]:
+    """
+    Report the two integrations that can be seen from outside.
+
+    Both answers are observations, never verdicts: the scan can say that an
+    app provider is registered and that something answers the CalDAV
+    well-known path, and it deliberately stops there. Whether Collabora or
+    Radicale is *configured correctly* is a question about credentials, share
+    permissions and a second service's own settings, none of which an
+    unauthenticated caller can see - and guessing at it would be worse than
+    saying nothing.
+
+    ``/app/list`` is unprotected by OpenCloud's own proxy policy, and the
+    CalDAV path is only read, never authenticated against.
+    """
+    apps_response, caldav_response = _run_all(
+        probe.settings,
+        [
+            partial(probe.get, APP_LIST_PATH),
+            partial(probe.get, CALDAV_PATH, allow_redirects=False),
+        ],
+    )
+
+    apps: list[str] = []
+    if apps_response is not None and apps_response.status_code == 200:
+        try:
+            document = apps_response.json()
+        except ValueError:
+            document = None
+        for entry in _dig(document, "mime-types") or []:
+            if not isinstance(entry, Mapping):
+                continue
+            for provider in entry.get("app_providers") or []:
+                name = str((provider or {}).get("name") or "").strip()
+                if name and name not in apps:
+                    apps.append(name)
+
+    calendar_present = caldav_response is not None and (
+        caldav_response.is_redirect
+        or caldav_response.status_code in SERVICE_PRESENT_STATUS
+    )
+
+    return {
+        "office": {
+            "detected": bool(apps),
+            "apps": sorted(apps),
+            "groupware": bool(_dig(capabilities, "capabilities", "groupware", "enabled")),
+        },
+        "calendar": {
+            "detected": calendar_present,
+            "advertised": bool(
+                _dig(capabilities, "capabilities", "core", "support_radicale")
+            ),
+        },
+    }
+
+
+def _reverse_proxy(root_response: requests.Response | None) -> dict[str, Any]:
+    """
+    Look for a reverse proxy in front of the instance.
+
+    OpenCloud's own proxy service sets no ``Server`` header, so one naming
+    Nginx, Caddy or Cloudflare - or a header only a forwarder adds, such as
+    ``Via`` - means something else answered first.
+
+    A negative is weak evidence and is treated as such everywhere it is used:
+    Traefik and HAProxy announce nothing by default, and an operator may well
+    have stripped the header on purpose, which is itself good practice.
+    """
+    proxy: dict[str, Any] = {"detected": False, "vendor": "", "evidence": ""}
+    if root_response is None:
+        return proxy
+
+    headers = root_response.headers
+    server = str(headers.get("Server") or "")
+    lowered = server.lower()
+    for fingerprint, vendor in PROXY_SERVER_FINGERPRINTS:
+        if fingerprint in lowered:
+            proxy.update(detected=True, vendor=vendor, evidence=f"Server: {server}")
+            return proxy
+
+    for name, vendor in PROXY_HEADERS:
+        value = headers.get(name)
+        if value:
+            proxy.update(
+                detected=True,
+                vendor=vendor,
+                evidence=f"{name}: {value}",
+            )
+            return proxy
+    return proxy
+
+
+def _reverse_proxy_finding(proxy: Mapping[str, Any]) -> Finding:
+    """Record whether anything sits in front of the instance."""
+    if proxy.get("detected"):
+        vendor = str(proxy.get("vendor") or "a reverse proxy")
+        return Finding(
+            "reverseProxyDetected",
+            "low",
+            True,
+            f"{vendor} in front of the instance ({proxy.get('evidence')})",
+        )
+    return Finding(
+        "reverseProxyDetected",
+        "low",
+        False,
+        "No proxy-style Server or Via header; a proxy that announces nothing "
+        "cannot be seen from outside",
+    )
+
+
+def _identity_provider_finding(provider: Mapping[str, Any]) -> Finding:
+    """Say whether the scan could find out who signs users in."""
+    if provider.get("detected"):
+        vendor = str(provider.get("vendor") or "")
+        if not provider.get("external"):
+            # Deliberately not the issuer URL: for the built-in provider that
+            # is the instance's own address, which says nothing and makes the
+            # finding differ between two scans of the same deployment.
+            return Finding(
+                "identityProviderDetected", "low", True, "Issued by the instance itself"
+            )
+        issuer = str(urlsplit(str(provider.get("issuer") or "")).hostname or "")
+        return Finding(
+            "identityProviderDetected",
+            "low",
+            True,
+            f"Issued by {vendor or 'an external provider'} at {issuer}",
+        )
+    return Finding(
+        "identityProviderDetected",
+        "low",
+        False,
+        "No OpenID Connect discovery document at "
+        f"{OPENID_CONFIGURATION_PATH} and no redirect from it",
+    )
+
+
+def _identity_provider_vendor(issuer: str) -> str:
+    """Name the provider when its issuer URL gives it away, else nothing."""
+    candidate = issuer.lower()
+    for fingerprint, vendor in IDP_FINGERPRINTS:
+        if fingerprint in candidate:
+            return vendor
+    return ""
 
 
 def _tls_handshake(
@@ -673,20 +1030,42 @@ def _authentication_findings(probe: _Probe) -> list[Finding]:
     return findings
 
 
-def _basic_auth_finding(challenge: str | None) -> Finding:
-    """HTTP basic authentication must not be offered by a production instance."""
+def _basic_auth_finding(
+    challenge: str | None, identity_provider: Mapping[str, Any] | None = None
+) -> Finding:
+    """
+    Report HTTP basic authentication, and weigh it for what it costs.
+
+    Offering it is worth knowing about: a password works on every request
+    without the identity provider seeing it. It is not, though, the mistake
+    it used to be rated as - clients that cannot speak OpenID Connect, which
+    is most calendar, contact and WebDAV clients, have nothing else to use,
+    so a deployment that wants CalDAV at all has to leave it on.
+
+    When an external provider is doing the sign-in, the severity drops again:
+    the interactive login still goes through that provider and whatever it
+    enforces, and basic auth is the side door for the clients that cannot.
+    """
+    external = bool((identity_provider or {}).get("external"))
+    severity = BASIC_AUTH_SEVERITY_WITH_IDP if external else BASIC_AUTH_SEVERITY
     if challenge is None:
         return Finding(
-            "basicAuthDisabled", "high", True, "No WWW-Authenticate challenge observed"
+            "basicAuthDisabled",
+            severity,
+            True,
+            "No WWW-Authenticate challenge observed",
         )
     offered = "basic" in challenge.lower()
-    return Finding(
-        "basicAuthDisabled",
-        "high",
-        not offered,
-        f"WWW-Authenticate: {challenge}"
-        + (" (PROXY_ENABLE_BASIC_AUTH is on)" if offered else ""),
-    )
+    detail = f"WWW-Authenticate: {challenge}"
+    if offered:
+        detail += " (PROXY_ENABLE_BASIC_AUTH is on)"
+        if external:
+            vendor = str((identity_provider or {}).get("vendor") or "")
+            detail += (
+                f"; interactive login goes through {vendor or 'an external provider'}, "
+                "so this affects clients that cannot use it"
+            )
+    return Finding("basicAuthDisabled", severity, not offered, detail)
 
 
 def _directory_listing_finding(
@@ -1173,6 +1552,8 @@ def _collect_extra_findings(
     version: str | None,
     root_response: requests.Response | None,
     challenge: str | None,
+    identity_provider: Mapping[str, Any] | None = None,
+    reverse_proxy: Mapping[str, Any] | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -1185,7 +1566,13 @@ def _collect_extra_findings(
             )
         )
     findings.extend(_authentication_findings(probe))
-    findings.append(_basic_auth_finding(challenge))
+    findings.append(_basic_auth_finding(challenge, identity_provider))
+    findings.append(_identity_provider_finding(identity_provider or {}))
+    findings.append(
+        _reverse_proxy_finding(
+            reverse_proxy if reverse_proxy is not None else _reverse_proxy(root_response)
+        )
+    )
     findings.extend(_exposed_path_findings(probe))
     findings.append(_directory_listing_finding(probe, root_response))
     findings.extend(_debug_endpoint_findings(probe))
@@ -1286,8 +1673,11 @@ def scan(
         partial(probe.get, "/", allow_redirects=True),
         partial(_fetch_capabilities, probe),
         partial(_authentication_challenge, probe),
+        partial(_identity_provider, probe, hostname),
     ]
-    root_response, capabilities, challenge = _run_all(settings, opening)
+    root_response, capabilities, challenge, identity_provider = _run_all(
+        settings, opening
+    )
 
     version = select_version(status) or select_version(_dig(capabilities, "version") or {})
     product = str(status.get("productname") or status.get("product") or "OpenCloud")
@@ -1296,6 +1686,12 @@ def scan(
     headers = _check_headers(root_response)
     https = _check_https(probe, hostname)
     hardenings = derive_hardenings(root_response, capabilities, challenge)
+    reverse_proxy = _reverse_proxy(root_response)
+    integrations = (
+        _integrations(probe, capabilities)
+        if settings.extra_checks
+        else {"office": {}, "calendar": {}}
+    )
 
     schedule = settings.release_schedule
     if schedule is None:
@@ -1338,6 +1734,8 @@ def scan(
             version,
             root_response,
             challenge,
+            identity_provider,
+            reverse_proxy,
             verification_required=verification_required,
         )
         if settings.extra_checks
@@ -1391,6 +1789,9 @@ def scan(
         "vulnerabilities": vulnerabilities,
         "hardenings": hardenings,
         "setup": {"https": https, "headers": headers},
+        "identityProvider": identity_provider,
+        "reverseProxy": reverse_proxy,
+        "integrations": integrations,
         "scanner": "check-opencloud-security built-in scanner",
         "updates": update_info.as_dict(),
         "extraChecks": [finding.as_dict() for finding in findings],

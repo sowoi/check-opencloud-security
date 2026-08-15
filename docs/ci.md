@@ -150,7 +150,8 @@ runs as an unprivileged user and carries a `HEALTHCHECK` - see
 and pin the tag:
 
 ```shell
-docker build -t registry.example.com/check-opencloud-security:1.1.0 .
+docker build -f docker/Dockerfile \
+  -t registry.example.com/check-opencloud-security:1.1.0 .
 docker push registry.example.com/check-opencloud-security:1.1.0
 
 docker run --rm \
