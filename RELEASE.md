@@ -121,6 +121,11 @@
   Installing the plugin on a monitoring host must not bring in FastAPI, Redis
   or ARQ; the web application ships as a release asset instead.
 
+### Fixed
+
+- Removed stale root-level `Dockerfile` and `docker-compose.yml` copies so CI
+  and contributors use the canonical container definitions in `docker/`.
+
 ### Documentation
 
 - The landing page explains how to drive the API from a script - the two curl
@@ -141,4 +146,3 @@
   status codes, how to reach Swagger, the four fields a request may send and
   why nothing else is accepted, every setting worth knowing on day one, and
   the template contract for running a frontend of your own.
-

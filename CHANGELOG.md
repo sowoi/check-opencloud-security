@@ -132,6 +132,11 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   Installing the plugin on a monitoring host must not bring in FastAPI, Redis
   or ARQ; the web application ships as a release asset instead.
 
+### Fixed
+
+- Removed stale root-level `Dockerfile` and `docker-compose.yml` copies so CI
+  and contributors use the canonical container definitions in `docker/`.
+
 ### Security
 
 - Response bodies are read up to `max_response_bytes` (8 MiB) and no further,
