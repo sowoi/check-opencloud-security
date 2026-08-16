@@ -15,7 +15,7 @@
 # deliberately separate: a monitoring host has no use for a web server, and
 # the artefact published to PyPI carries neither `webapp/` nor `frontend/`.
 
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /uvx /bin/
 
@@ -28,7 +28,7 @@ COPY opencloud_local_scan ./opencloud_local_scan
 RUN uv build --wheel --out-dir /dist
 
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="check-opencloud-security-web" \
       org.opencontainers.image.description="Public security scan service for OpenCloud instances" \

@@ -8,7 +8,7 @@
 #
 #   docker build -f docker/Dockerfile -t check-opencloud-security .
 
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 # uv is this project's dependency manager and build front end; the same
 # command is used in CI (see .github/workflows/publish-pypi.yml).
@@ -24,7 +24,7 @@ COPY opencloud_local_scan ./opencloud_local_scan
 RUN uv build --wheel --out-dir /dist
 
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="check-opencloud-security" \
       org.opencontainers.image.description="Nagios/Icinga plugin and built-in scanner for OpenCloud instances" \
