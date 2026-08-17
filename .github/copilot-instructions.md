@@ -85,6 +85,17 @@ the question in `wizard.py`, the CLI option table in `README.md`,
 `--upgrade-self`) must be intercepted in `_run_early_commands()`, before the
 parser that insists on a host is ever built.
 
+## Architectural decision records
+
+[`adr/README.md`](../adr/README.md) defines the format and lifecycle for
+architectural decision records. Read accepted ADRs relevant to an area before
+changing it. Add one for a durable change to a layer boundary, public
+interface, security or deployment model, data lifecycle, or long-lived
+dependency - not for routine implementation details or temporary tasks.
+
+Use the next zero-padded, never-reused number. Accepted ADRs are historical
+records: supersede a decision with a new ADR rather than rewriting it.
+
 ## Conventions that are not obvious from one file
 
 **Result document keys are camelCase, the plugin's own output is snake_case.**

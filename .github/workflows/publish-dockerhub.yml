@@ -21,11 +21,15 @@ name: Publish the web image to Docker Hub
 # never meant to have.
 #
 #   DOCKERHUB_USERNAME  the account the push authenticates as
-#   DOCKERHUB_TOKEN     an access token for it, not the account password
+#   DOCKERHUB_TOKEN     an access token for it, not the account password;
+#                       it needs Docker Hub read, write and delete scopes
+#                       because this workflow also updates the repository
+#                       description
 #
 # The repository is `opencloud-scanner`. It lives under DOCKERHUB_USERNAME by
 # default; set the DOCKERHUB_NAMESPACE variable when the image belongs to an
-# organisation the user is only a member of.
+# organisation. The publishing account needs Admin access to that repository
+# to update its description.
 
 on:
   push:
