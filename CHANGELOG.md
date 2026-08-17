@@ -12,6 +12,19 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-08-17
+
+### Added
+
+- Live screenshots of the hosted scanner and a completed scan of the OpenCloud
+  demonstration instance in `img/`, shown in the main and Docker Hub READMEs.
+
+### Fixed
+
+- `ProductName: Infinite Scale` now identifies ownCloud's renamed product and
+  stops the scanner before it rates a non-OpenCloud instance against OpenCloud
+  lifecycle data, advisories and hardening defaults.
+
 ## [1.5.4] - 2026-08-17
 
 ### Added
