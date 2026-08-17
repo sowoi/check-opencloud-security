@@ -40,10 +40,6 @@ on:
 
 permissions:
   contents: read
-  # Lets `gh attestation verify` tie the image back to this workflow and this
-  # commit, the same way the PyPI artifacts are attested.
-  id-token: write
-  attestations: write
 
 concurrency:
   group: dockerhub-${{ github.ref }}
@@ -92,15 +88,15 @@ jobs:
 
       - name: Set up QEMU
         if: steps.creds.outputs.configured == 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Buildx
         if: steps.creds.outputs.configured == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: steps.creds.outputs.configured == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -142,7 +138,7 @@ jobs:
       - name: Build and push
         if: steps.creds.outputs.configured == 'true'
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.web
@@ -160,14 +156,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.licenses=GPL-3.0-only
-
-      - name: Attest build provenance
-        if: steps.creds.outputs.configured == 'true'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-name: index.docker.io/${{ steps.creds.outputs.image }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
 
       # Refresh the Docker Hub page after every image publication, including
       # every versioned release image.

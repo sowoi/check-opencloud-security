@@ -21,6 +21,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   instructions for GitHub, Docker Compose and `docker pull` stay with the
   image.
 
+### Changed
+
+- The Docker Hub publishing workflow now uses the Node 24 Docker actions.
+  Buildx publishes the existing max-level provenance and SBOM directly to
+  Docker Hub, avoiding a second GitHub attestation request that could fail
+  after the image was already published during a GitHub service outage.
+
 ## [1.5.1] - 2026-08-17
 
 ### Added
