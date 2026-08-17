@@ -1,13 +1,15 @@
 # Container files
 
 Everything Docker for this project lives here: the plugin image, the web
-application image, and the two compose stacks they belong to.
+application image, and the three Compose stacks they belong to.
 
 | File | What it is |
 |:-----|:-----------|
 | [`Dockerfile`](Dockerfile) | The plugin and the scan service - the PyPI wheel and nothing else |
 | [`Dockerfile.web`](Dockerfile.web) | The web application: the wheel plus the `web` extra, `webapp/` and `frontend/` |
-| [`docker-compose.yml`](docker-compose.yml) | The web stack: `web_app`, `arq_worker`, `redis`. Ready to run |
+| [`docker-compose.yml`](docker-compose.yml) | The locally built web stack: `web_app`, `arq_worker`, `redis` |
+| [`docker-compose.dockerhub.yml`](docker-compose.dockerhub.yml) | The published-image web stack: `okxo/opencloud-scanner`, worker and Redis |
+| [`dockerhub-readme.md`](dockerhub-readme.md) | The short description submitted to Docker Hub with every image publication |
 | [`docker-compose.monitoring.yml`](docker-compose.monitoring.yml) | The plugin's own scan service, for monitoring hosts |
 
 **The build context is the repository root, not this directory.** Both images
@@ -27,7 +29,7 @@ paths inside those files point one level up (`../config`, `../secrets`).
 ## The web application
 
 The whole service - the pages, the scanner behind them and the Redis between
-them - in one command:
+them - from a local image build:
 
 ```bash
 cd docker
@@ -37,11 +39,21 @@ docker compose logs -f web_app
 docker compose down
 ```
 
+To run the published image instead, while keeping the local-build Compose file
+unchanged:
+
+```bash
+cd docker
+docker compose -f docker-compose.dockerhub.yml up -d
+# http://127.0.0.1:8080
+```
+
 `web_app` serves the pages and the API from `frontend/`; `arq_worker` runs the
 scans; `redis` holds the state until its TTL runs out. Both application
 services run the **same image** and differ only in the command - the code that
 describes a result and the code that produces it can never drift apart between
-deployments.
+deployments. The Docker Hub stack pulls
+`okxo/opencloud-scanner:latest` before each start.
 
 Two rules the compose file exists to enforce:
 

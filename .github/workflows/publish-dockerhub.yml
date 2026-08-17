@@ -168,3 +168,15 @@ jobs:
           subject-name: index.docker.io/${{ steps.creds.outputs.image }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+      # Refresh the Docker Hub page after every image publication, including
+      # every versioned release image.
+      - name: Publish Docker Hub description
+        if: steps.creds.outputs.configured == 'true'
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ steps.creds.outputs.image }}
+          short-description: Public security scan service for OpenCloud instances
+          readme-filepath: ./docker/dockerhub-readme.md
