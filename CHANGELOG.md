@@ -12,6 +12,12 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-08-17
+
+### Changed
+
+- Bump version 1.5.3
+
 ## [1.5.2] - 2026-08-17
 
 ### Added
