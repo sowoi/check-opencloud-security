@@ -12,6 +12,19 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-17
+
+### Added
+
+- `docker/docker-compose.dockerhub.yml`, a self-contained frontend scanner
+  deployment that pulls `okxo/opencloud-scanner:latest` for the web service and
+  ARQ worker while retaining the queued worker, hardened runtime and ephemeral
+  Redis configuration. The existing local-build Compose files remain unchanged.
+- `docker/dockerhub-readme.md`, the Docker Hub description for the web image.
+  The publish workflow submits it after every image push, so release
+  instructions for GitHub, Docker Compose and `docker pull` stay with the
+  image.
+
 ## [1.5.0] - 2026-08-17
 
 ### Added

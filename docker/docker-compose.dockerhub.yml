@@ -1,0 +1,87 @@
+# The published web application in one command: frontend, worker and Redis.
+#
+#   cd docker
+#   docker compose -f docker-compose.dockerhub.yml up -d
+#   open http://127.0.0.1:8080
+#
+# This stack pulls `okxo/opencloud-scanner:latest` for both application
+# services. The existing docker-compose.yml remains the local-build stack.
+
+services:
+  web_app:
+    image: okxo/opencloud-scanner:latest
+    pull_policy: always
+    container_name: opencloud-scan-hub-web
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      # How long a result stays readable. Also the lifetime of every key.
+      COS_WEB_RESULT_TTL: "3600"
+      # Rate limits: per client address, and per target instance.
+      COS_WEB_IP_RATE_LIMIT: "10"
+      COS_WEB_IP_RATE_WINDOW: "60"
+      COS_WEB_TARGET_COOLDOWN: "300"
+      # Set this only when a reverse proxy overwrites X-Forwarded-For.
+      COS_WEB_TRUST_FORWARDED_FOR: "false"
+      # Do not query the release feed once per visitor by default.
+      COS_WEB_RELEASES_MODE: "off"
+      COS_WEB_ENABLE_DOCS: "true"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  arq_worker:
+    image: okxo/opencloud-scanner:latest
+    pull_policy: always
+    container_name: opencloud-scan-hub-worker
+    restart: unless-stopped
+    command: ["python", "-m", "webapp.tasks"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_RESULT_TTL: "3600"
+      # These values are the service's complete scanning load on other hosts.
+      COS_WEB_MAX_WORKERS: "5"
+      COS_WEB_SCAN_CONCURRENCY: "4"
+      COS_WEB_SCAN_TIMEOUT: "15"
+      COS_WEB_JOB_TIMEOUT: "180"
+      COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
+      COS_WEB_CHECK_DEBUG_PORTS: "false"
+      COS_WEB_RELEASES_MODE: "off"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  redis:
+    image: redis:8.10-alpine
+    container_name: opencloud-scan-hub-redis
+    restart: unless-stopped
+    # Results are ephemeral and must not be written to a disk.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true

@@ -57,17 +57,18 @@ it belongs in the scanner or the plugin instead.
 With Docker, which brings its own Redis:
 
 ```bash
-cd docker && docker compose up --build
+cd docker && docker compose -f docker-compose.dockerhub.yml up
 # http://127.0.0.1:8080
 ```
 
-The released image is on Docker Hub as `opencloud-scanner`
+The released image is on Docker Hub as `okxo/opencloud-scanner`
 (`latest`, `MAJOR.MINOR.PATCH`, `MAJOR.MINOR` and `edge`, for `linux/amd64`
 and `linux/arm64`), built from
 [`docker/Dockerfile.web`](../docker/Dockerfile.web) by
 [`.github/workflows/publish-dockerhub.yml`](../.github/workflows/publish-dockerhub.yml).
-See [`docs/webapp.md`](../docs/webapp.md#starting-it) for the account it lives
-under and what to pass it.
+The new Compose file pulls it for both frontend and worker services without
+altering the existing local-build Compose file. See
+[`docs/webapp.md`](../docs/webapp.md#starting-it) for deployment details.
 
 From a checkout:
 

@@ -43,11 +43,11 @@ With Docker, which brings its own Redis:
 
 ```bash
 cd docker
-docker compose up --build
+docker compose -f docker-compose.dockerhub.yml up -d
 # http://127.0.0.1:8080
 ```
 
-The published image is on Docker Hub as **`opencloud-scanner`**, so a
+The published image is on Docker Hub as **`okxo/opencloud-scanner`**, so a
 deployment does not have to build one. `latest` and `MAJOR.MINOR.PATCH` follow
 the released version, `MAJOR.MINOR` follows the line, and `edge` is the current
 `main`. It carries `linux/amd64` and `linux/arm64`, and the same image runs
@@ -56,14 +56,14 @@ both the web service and the worker - they differ only in the command:
 ```bash
 docker run --rm -p 8080:8080 \
     -e COS_WEB_REDIS_URL=redis://redis:6379/0 \
-    OWNER/opencloud-scanner:latest
+    okxo/opencloud-scanner:latest
 ```
 
-Replace `OWNER` with the Docker Hub account it was published under; this
-repository names none, because the account is a deployment detail and lives in
-the workflow's secrets. Point `COS_WEB_REDIS_URL` at a Redis the worker shares,
-or use [`docker/docker-compose.yml`](../docker/docker-compose.yml), which wires
-all three together.
+Point `COS_WEB_REDIS_URL` at a Redis the worker shares, or use
+[`docker/docker-compose.dockerhub.yml`](../docker/docker-compose.dockerhub.yml),
+which pulls the image and wires all three together. The existing
+[`docker/docker-compose.yml`](../docker/docker-compose.yml) still builds the
+same stack from a checkout.
 
 From a checkout, with three terminals or three `&`:
 
@@ -328,9 +328,10 @@ frontend/
 
 docker/
 ├── Dockerfile.web      the image both web_app and arq_worker run
-├── docker-compose.yml  this stack: frontend, backend and Redis
-├── Dockerfile          the plugin image, unrelated to the web application
-└── docker-compose.monitoring.yml   the plugin's own stack, also unrelated
+├── docker-compose.yml            locally built frontend, worker and Redis
+├── docker-compose.dockerhub.yml  published-image frontend, worker and Redis
+├── Dockerfile                    the plugin image, unrelated to the web application
+└── docker-compose.monitoring.yml the plugin's own stack, also unrelated
 ```
 
 [`webapp/README.md`](../webapp/README.md) covers the same ground from the
