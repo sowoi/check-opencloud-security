@@ -277,12 +277,34 @@ def test_the_release_track_is_read_from_the_configuration():
     assert settings.release_track == "lts"
 
 
+def test_the_auto_release_track_survives_the_configuration():
+    """'auto' is a value an operator can write, not a typo to be dropped."""
+    config = load_configuration(None, environ={"COS_SCANNER_RELEASE_TRACK": "auto"})
+    settings = scanner_settings_from_config(config)
+
+    assert settings.release_track == "auto"
+
+
 def test_an_unknown_release_track_is_ignored():
-    """A typo should fall back to inference rather than break the check."""
+    """A typo should fall back to auto-detection rather than break the check."""
     config = load_configuration(None, environ={"COS_SCANNER_RELEASE_TRACK": "stable"})
     settings = scanner_settings_from_config(config)
 
-    assert settings.release_track is None
+    assert settings.release_track == "auto"
+
+
+def test_no_declared_track_means_auto():
+    """The default says out loud what it does: ask the schedule."""
+    settings = scanner_settings_from_config(load_configuration(None, environ={}))
+
+    assert settings.release_track == "auto"
+
+
+def test_a_declared_track_survives_the_configuration():
+    """The default must not swallow a track the operator did declare."""
+    config = load_configuration(None, environ={"COS_SCANNER_RELEASE_TRACK": "lts"})
+
+    assert scanner_settings_from_config(config).release_track == "lts"
 
 
 # --- the declared release track ---
@@ -313,23 +335,69 @@ def test_the_same_version_is_current_on_the_production_track():
     assert status.upgrade_to is None
 
 
-def test_a_newer_release_can_be_less_supported_than_an_older_one():
-    """A rolling build is not a production release, however new it is."""
+def test_a_release_ahead_of_the_declared_track_is_not_end_of_life():
+    """Running newer code than your track ships is a choice, not an incident.
+
+    A production instance that has moved on to the current rolling release is
+    running everything the production track has and more, so rating it F -
+    "receives no security fixes" - would be alarming and wrong.
+    """
     schedule = load_release_schedule()
 
-    rolling = schedule.status_for("7.4.0", today=TODAY, track="production")
-    older = schedule.status_for("7.2.3", today=TODAY, track="production")
+    ahead = schedule.status_for("7.4.0", today=TODAY, track="production")
 
-    assert rolling.state == "endOfLife"
-    assert older.state == "supported"
+    assert ahead.state == "supported"
+    assert ahead.release_type == "rolling"
+    assert ahead.eol is False
+
+
+def test_a_release_behind_the_declared_track_is_still_end_of_life():
+    """The other direction is the one that matters: missing fixes is an F."""
+    schedule = load_release_schedule()
+
+    behind = schedule.status_for("2.0.5", today=TODAY, track="production")
+
+    assert behind.state == "endOfLife"
+    assert behind.upgrade_to == "7.2.3"
 
 
 def test_a_version_that_never_shipped_on_the_declared_track_says_so():
     """The reason has to explain a verdict the version number contradicts."""
-    status = load_release_schedule().status_for("7.4.0", today=TODAY, track="production")
+    behind = load_release_schedule().status_for("2.3.0", today=TODAY, track="production")
+    ahead = load_release_schedule().status_for("7.4.0", today=TODAY, track="production")
 
-    assert "not published on the production track" in status.reason
-    assert "it is a rolling release" in status.reason
+    assert "not published on the production track" in behind.reason
+    assert "it is a rolling release" in behind.reason
+    assert "the current production release is 7.2.3" in behind.reason
+    assert "ahead of the production track" in ahead.reason
+    assert "newer than the current production release 7.2.3" in ahead.reason
+
+
+def test_the_auto_track_infers_instead_of_declaring():
+    """'auto' has to answer exactly as leaving the track unset does.
+
+    It exists so a configuration can say "work it out" out loud, not to
+    introduce a fourth verdict.
+    """
+    schedule = load_release_schedule()
+
+    inferred = schedule.status_for("7.2.3", today=TODAY)
+    automatic = schedule.status_for("7.2.3", today=TODAY, track="auto")
+
+    assert automatic.state == inferred.state == "supported"
+    assert automatic.release_type == inferred.release_type == "production"
+    assert automatic.declared_track == "auto"
+    assert inferred.declared_track is None
+
+
+def test_the_auto_track_never_reports_a_rolling_release_as_end_of_life():
+    """The case that started this: production declared, rolling installed."""
+    schedule = load_release_schedule()
+
+    automatic = schedule.status_for("7.4.0", today=TODAY, track="auto")
+
+    assert automatic.state == "supported"
+    assert automatic.release_type == "rolling"
 
 
 def test_such_a_version_is_never_told_to_downgrade():
@@ -361,6 +429,48 @@ def test_the_declared_track_is_visible_in_the_output(capsys):
     output, _ = run(result, capsys)
 
     assert "track declared" in output
+
+
+def test_a_rolling_release_on_the_production_track_is_not_rated_f():
+    """The whole point: 7.4.x installed, production declared, no critical.
+
+    Before this, declaring the production track while running the newer
+    rolling release rated the instance F ("out of support") and alerted
+    CRITICAL, on a machine running the newest OpenCloud there is.
+    """
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "7.4.0"
+
+    result = run_scan(behaviour, release_track="production")
+
+    assert result["EOL"] is False
+    assert result["rating"] > 0
+    assert "ahead of the production track" in result["lifecycle"]["reason"]
+
+
+def test_an_older_release_than_the_production_track_is_still_rated_f():
+    """The negative case: behind the declared track is exactly what F is for."""
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "2.3.0"
+
+    result = run_scan(behaviour, release_track="production")
+
+    assert result["EOL"] is True
+    assert result["rating"] == 0
+
+
+def test_the_auto_release_track_reaches_the_scan(capsys):
+    """'auto' has to be usable end to end, not just parsed."""
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "7.4.0"
+
+    result = run_scan(behaviour, release_track="auto")
+    output, _ = run(result, capsys)
+
+    assert result["EOL"] is False
+    assert result["lifecycle"]["declaredTrack"] == "auto"
+    assert result["lifecycle"]["releaseType"] == "rolling"
+    assert "track detected" in output
 
 
 def test_the_declared_track_steers_the_update_recommendation():

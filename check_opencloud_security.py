@@ -64,7 +64,7 @@ from opencloud_local_scan.hardening import is_actionable
 from opencloud_local_scan.prometheus import render as render_prometheus_metrics
 from opencloud_local_scan.releases import MODES as UPDATE_SOURCES
 from opencloud_local_scan.selfupdate import self_update_note
-from opencloud_local_scan.versions import RELEASE_TRACKS
+from opencloud_local_scan.versions import RELEASE_TRACK_CHOICES, TRACK_AUTO
 
 LOGGER = logging.getLogger("check_opencloud")
 
@@ -877,19 +877,34 @@ def _format_lifecycle(response_scan: dict[str, Any]) -> str | None:
 
     line = lifecycle.get("line") or "?"
     declared = lifecycle.get("declaredTrack")
-    origin = " track declared" if declared else ""
+    if declared == TRACK_AUTO:
+        origin = ", track detected"
+    elif declared and declared != track:
+        # The instance runs a release of a different track than the one it
+        # follows; naming both is the only way that reads honestly.
+        origin = f", {declared} track declared"
+    elif declared:
+        origin = " track declared"
+    else:
+        origin = ""
     parts = [f"Release lifecycle: {line} ({track}{origin})"]
 
     end_of_life = lifecycle.get("endOfLife")
     remaining = lifecycle.get("daysRemaining")
-    if lifecycle.get("state") == "endOfLife":
+    state = lifecycle.get("state")
+    reason = str(lifecycle.get("reason") or "")
+    if state == "endOfLife":
         # A version that was never published on the declared track has no end
         # of support date of its own; the reason carries the explanation.
         parts.append(
-            f"out of support since {end_of_life}"
-            if end_of_life
-            else str(lifecycle.get("reason") or "not supported")
+            f"out of support since {end_of_life}" if end_of_life else (reason or "not supported")
         )
+    elif state == "unknown":
+        parts.append(reason or "support state unknown")
+    elif reason.startswith("ahead of the "):
+        # Running newer code than the declared track ships is a choice, not a
+        # problem, but it must not be reported as "current" on that track.
+        parts.append(reason)
     elif end_of_life and isinstance(remaining, int):
         parts.append(f"supported until {end_of_life} ({remaining} days left)")
     else:
@@ -1200,12 +1215,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--release-track",
-        choices=sorted(RELEASE_TRACKS),
+        choices=sorted(RELEASE_TRACK_CHOICES),
         default=None,
         help=(
             "The OpenCloud release track this instance follows. Determines how "
             "long its release is supported and which release it is told to "
-            "upgrade to. Default: inferred from the release schedule "
+            "upgrade to. 'auto' asks the release schedule which track the "
+            f"installed release belongs to. Default: {TRACK_AUTO} "
             f"(env: {ENV_PREFIX}SCANNER_RELEASE_TRACK)."
         ),
     )

@@ -3,16 +3,16 @@
   <title>A scan in progress</title>
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5b74ec" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#17b3a3" stop-opacity=".14"/>
+      <stop offset="0" stop-color="#7089f4" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#12b5a6" stop-opacity=".14"/>
     </linearGradient>
     <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5b74ec"/>
-      <stop offset="1" stop-color="#2c3fa8"/>
+      <stop offset="0" stop-color="#7089f4"/>
+      <stop offset="1" stop-color="#2b3fbb"/>
     </linearGradient>
     <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#17b3a3" stop-opacity="0"/>
-      <stop offset="1" stop-color="#17b3a3" stop-opacity=".55"/>
+      <stop offset="0" stop-color="#12b5a6" stop-opacity="0"/>
+      <stop offset="1" stop-color="#12b5a6" stop-opacity=".55"/>
     </linearGradient>
   </defs>
 
@@ -21,19 +21,19 @@
   <!-- the instance -->
   <g>
     <rect x="42" y="74" width="150" height="104" rx="14" fill="#ffffff" opacity=".95"/>
-    <rect x="42" y="74" width="150" height="26" rx="14" fill="#2c3fa8" opacity=".16"/>
-    <circle cx="60" cy="87" r="4" fill="#dc2626" opacity=".7"/>
-    <circle cx="74" cy="87" r="4" fill="#d97706" opacity=".7"/>
-    <circle cx="88" cy="87" r="4" fill="#16a34a" opacity=".7"/>
-    <rect x="60" y="116" width="94" height="9" rx="4.5" fill="#3f5bd9" opacity=".35"/>
-    <rect x="60" y="134" width="114" height="9" rx="4.5" fill="#3f5bd9" opacity=".22"/>
-    <rect x="60" y="152" width="70" height="9" rx="4.5" fill="#3f5bd9" opacity=".22"/>
+    <rect x="42" y="74" width="150" height="26" rx="14" fill="#2b3fbb" opacity=".16"/>
+    <circle cx="60" cy="87" r="4" fill="#e63946" opacity=".7"/>
+    <circle cx="74" cy="87" r="4" fill="#f0a020" opacity=".7"/>
+    <circle cx="88" cy="87" r="4" fill="#16b26a" opacity=".7"/>
+    <rect x="60" y="116" width="94" height="9" rx="4.5" fill="#4360e8" opacity=".35"/>
+    <rect x="60" y="134" width="114" height="9" rx="4.5" fill="#4360e8" opacity=".22"/>
+    <rect x="60" y="152" width="70" height="9" rx="4.5" fill="#4360e8" opacity=".22"/>
   </g>
 
   <!-- the probe beam -->
   <g>
     <path d="M196 126h84" stroke="url(#beam)" stroke-width="10" stroke-linecap="round" fill="none"/>
-    <circle cx="288" cy="126" r="7" fill="#17b3a3"/>
+    <circle cx="288" cy="126" r="7" fill="#12b5a6"/>
   </g>
 
   <!-- the verdict -->
@@ -45,8 +45,8 @@
 
   <!-- findings ticking away underneath -->
   <g opacity=".75">
-    <rect x="42" y="196" width="86" height="12" rx="6" fill="#16a34a" opacity=".35"/>
-    <rect x="138" y="196" width="60" height="12" rx="6" fill="#d97706" opacity=".35"/>
-    <rect x="208" y="196" width="42" height="12" rx="6" fill="#dc2626" opacity=".3"/>
+    <rect x="42" y="196" width="86" height="12" rx="6" fill="#16b26a" opacity=".35"/>
+    <rect x="138" y="196" width="60" height="12" rx="6" fill="#f0a020" opacity=".35"/>
+    <rect x="208" y="196" width="42" height="12" rx="6" fill="#e63946" opacity=".3"/>
   </g>
 </svg>

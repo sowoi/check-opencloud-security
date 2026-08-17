@@ -262,8 +262,8 @@ def test_the_release_track_the_visitor_chose_reaches_the_scanner(monkeypatch):
 
     Dropping it would rate a production instance against the rolling calendar
     and call a perfectly supported release end of life, so both halves are
-    pinned: the choice arrives, and the default is production rather than the
-    scanner's "infer it".
+    pinned: the choice arrives, and an unspecified one becomes 'auto' rather
+    than silently becoming a track nobody asked for.
     """
     from webapp import runner
 
@@ -299,5 +299,5 @@ def test_the_release_track_the_visitor_chose_reaches_the_scanner(monkeypatch):
     )
     asyncio.run(run_scan(context, unspecified))
 
-    assert seen == ["lts", "production"]
+    assert seen == ["lts", "auto"]
     assert asyncio.run(store.get(chosen)).as_dict()["releaseTrack"] == "lts"

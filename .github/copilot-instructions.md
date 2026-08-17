@@ -22,6 +22,7 @@ cd ansible && ansible-lint                          # must be run from ansible/
 uv run nox                                          # the suite on 3.10 - 3.14
 uv run pytest tests/test_webapp_api.py              # the web application
 python scripts/build_web_bundle.py                  # the release tarball
+python scripts/check_documentation_links.py         # the documented OpenCloud links
 cd docker && docker compose up --build              # web + worker + redis
 ```
 

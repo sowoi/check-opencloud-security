@@ -8,6 +8,8 @@ FastAPI.
 
 - **Operators** want [`docs/webapp.md`](../docs/webapp.md): deployment, the
   reverse proxy, every setting and the threat model behind it.
+- **Anyone who just wants a scan** wants
+  [scan.okxo.de](https://scan.okxo.de), where this service is already running.
 - **This file** is for whoever is changing the service or writing a client
   against it.
 
@@ -58,6 +60,14 @@ With Docker, which brings its own Redis:
 cd docker && docker compose up --build
 # http://127.0.0.1:8080
 ```
+
+The released image is on Docker Hub as `opencloud-scanner`
+(`latest`, `MAJOR.MINOR.PATCH`, `MAJOR.MINOR` and `edge`, for `linux/amd64`
+and `linux/arm64`), built from
+[`docker/Dockerfile.web`](../docker/Dockerfile.web) by
+[`.github/workflows/publish-dockerhub.yml`](../.github/workflows/publish-dockerhub.yml).
+See [`docs/webapp.md`](../docs/webapp.md#starting-it) for the account it lives
+under and what to pass it.
 
 From a checkout:
 
@@ -198,15 +208,17 @@ A request chooses **what** to scan, never **how hard**:
 |:---------|:--------|
 | `target_url` | Required. Hostname or URL of the instance |
 | `ignore_hardenings` | Optional. Identifiers to waive, checked against an allow-list; unknown ones are dropped |
-| `release_track` | Optional. `rolling`, `production` or `lts`; defaults to `production`, and an unknown value falls back to it |
+| `release_track` | Optional. `rolling`, `production`, `lts` or `auto`; defaults to `auto`, and an unknown value falls back to it |
 | `output_format` | Optional. `dashboard` or `json` |
 
 `release_track` is the web equivalent of the plugin's `--release-track`. It
 decides how long the instance's release is supported and which release it is
 told to upgrade to - so it changes how a version is *rated*, never how hard it
-is *probed*. The default is `production` because that is what most instances
-run, and because assuming `rolling` would report an end of life that has not
-happened.
+is *probed*. The default is `auto`: the release schedule works the track out
+from the release the instance reports, which is the honest answer when the
+visitor does not know, and the only one that is not wrong for somebody -
+assuming `production` calls a current rolling instance out of date, assuming
+`rolling` reports an end of life that has not happened.
 
 Anything else is a **422** naming the field. `concurrency`, `threads`,
 `workers`, `timeout` and `verify_tls` are not near-misses to be forgiven -

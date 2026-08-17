@@ -34,6 +34,13 @@ Two endpoints are unauthenticated in OpenCloud, and both are needed:
 Everything else is inferred from response headers, status codes and TCP
 connects.
 
+`/status.php` is not proof of OpenCloud, though: ownCloud and Nextcloud serve
+the same endpoint, which OpenCloud inherited from them. A status document
+whose product name carries either of those names is refused with `ScanError`
+rather than scanned - their releases, advisories and defaults are not
+OpenCloud's, and a verdict here would be a confident answer about the wrong
+software.
+
 ### The version trap
 
 `/status.php` reports three version fields:
@@ -433,8 +440,9 @@ print(result["rating"], result["version"], result["extraChecks"])
 ```
 
 `scan()` raises `ScanError` when the instance cannot be identified as an
-OpenCloud - an unreachable `/status.php`, a non-JSON response, or a JSON
-document without any recognisable version field.
+OpenCloud - an unreachable `/status.php`, a non-JSON response, a JSON document
+without any recognisable version field, or one naming ownCloud or Nextcloud as
+the product.
 
 Every setting in `ScannerSettings` and `ReleaseSettings` can also come from a
 configuration file (YAML, or JSON when the name ends in `.json`), an

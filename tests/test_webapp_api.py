@@ -645,23 +645,25 @@ def test_the_api_docs_carry_no_inline_script():
     assert test_client.get("/static/js/docs.js").status_code == 200
 
 
-def test_the_release_track_is_chosen_on_the_form_and_defaults_to_production():
+def test_the_release_track_is_chosen_on_the_form_and_defaults_to_auto():
     """
-    Most instances are on production, and guessing rolling would cry wolf.
+    No fixed guess is right for a stranger's server, so the schedule decides.
 
-    A stranger's server gets the safe assumption unless they say otherwise,
-    and what they say has to survive the round trip to the result page.
+    Assuming production called a current rolling instance out of date, and
+    assuming rolling reports an end of life a production instance has not
+    reached. What the visitor does say has to survive the round trip to the
+    result page.
     """
     test_client = client()
     body = test_client.get("/").text
     assert 'name="release_track"' in body
-    for track in ("rolling", "production", "lts"):
+    for track in ("rolling", "production", "lts", "auto"):
         assert f'value="{track}"' in body
 
     default = test_client.post("/api/scans", json={"target_url": "opencloud.example.com"})
     assert default.status_code == 202
     state = test_client.get(f"/api/scans/{default.json()['uuid']}").json()
-    assert state["releaseTrack"] == "production"
+    assert state["releaseTrack"] == "auto"
 
     chosen = test_client.post(
         "/api/scans",
@@ -671,9 +673,28 @@ def test_the_release_track_is_chosen_on_the_form_and_defaults_to_production():
     assert picked["releaseTrack"] == "lts"
 
 
+def test_the_form_offers_to_detect_the_release_track():
+    """A visitor rarely knows which track a stranger's server follows.
+
+    Picking the wrong one used to rate a perfectly current release F, so
+    'auto' has to be offered on the form and survive to the scan record.
+    """
+    test_client = client()
+
+    assert 'value="auto"' in test_client.get("/").text
+
+    chosen = test_client.post(
+        "/api/scans",
+        json={"target_url": "opencloud.example.com", "release_track": "auto"},
+    )
+    assert chosen.status_code == 202
+    state = test_client.get(f"/api/scans/{chosen.json()['uuid']}").json()
+    assert state["releaseTrack"] == "auto"
+
+
 def test_an_unknown_release_track_falls_back_instead_of_failing_the_scan():
     """
-    A stale bookmark or a typo should still scan, on the cautious track.
+    A stale bookmark or a typo should still scan, on the detected track.
 
     Accepting the value verbatim would let a request name a track the
     lifecycle model does not know, and the scan would rate against nothing.
@@ -686,7 +707,7 @@ def test_an_unknown_release_track_falls_back_instead_of_failing_the_scan():
         )
         assert response.status_code == 202
         state = test_client.get(f"/api/scans/{response.json()['uuid']}").json()
-        assert state["releaseTrack"] in {"production", "lts"}
+        assert state["releaseTrack"] in {"auto", "lts"}
         assert state["releaseTrack"] != "nightly"
 
     trimmed = test_client.post(

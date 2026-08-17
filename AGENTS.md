@@ -31,6 +31,7 @@ for a remote scan service.
 | `opencloud_local_scan/data/release_schedule.json` | Bundled release schedule |
 | `scripts/update_release_schedule.py` | Regenerates that file from the published documentation |
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
+| `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
 | `webapp/` | The public scan service: FastAPI, the ARQ worker, SSRF and rate limits |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
@@ -129,6 +130,11 @@ line can belong to several tracks.
   LTS expires on the clock.
 - A **newer version can be less supported than an older one**. This is not a
   bug to fix.
+- **Ahead of your track is not end of life.** A release newer than the current
+  release of the declared track is reported as ahead of it and stays out of the
+  `F` verdict; only a release *behind* it is unsupported. `auto` is a fourth
+  accepted value of `--release-track` and means "infer it", exactly as leaving
+  it unset does.
 - An upgrade recommendation must only ever point *forwards*, and must never
   move a production or LTS instance onto the rolling track.
 

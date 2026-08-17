@@ -3,19 +3,19 @@
   <title>Nothing here any more</title>
   <defs>
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5b74ec" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#5b74ec" stop-opacity=".06"/>
+      <stop offset="0" stop-color="#7089f4" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#7089f4" stop-opacity=".06"/>
     </linearGradient>
   </defs>
-  <ellipse cx="160" cy="186" rx="104" ry="14" fill="#5b74ec" opacity=".12"/>
+  <ellipse cx="160" cy="186" rx="104" ry="14" fill="#7089f4" opacity=".12"/>
   <path fill="url(#fade)" d="M62 62h72l16 20h108a10 10 0 0 1 10 10v76a10 10 0 0 1-10 10H62a10 10 0 0 1-10-10V72a10 10 0 0 1 10-10z"/>
-  <path fill="none" stroke="#5b74ec" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"
+  <path fill="none" stroke="#7089f4" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"
         d="M62 62h72l16 20h108a10 10 0 0 1 10 10v76a10 10 0 0 1-10 10H62a10 10 0 0 1-10-10V72a10 10 0 0 1 10-10z"/>
-  <g stroke="#5b74ec" stroke-opacity=".55" stroke-width="6" stroke-linecap="round">
+  <g stroke="#7089f4" stroke-opacity=".55" stroke-width="6" stroke-linecap="round">
     <path d="M128 118l64 44"/>
     <path d="M192 118l-64 44"/>
   </g>
-  <g fill="#17b3a3" opacity=".7">
+  <g fill="#12b5a6" opacity=".7">
     <circle cx="248" cy="52" r="5"/>
     <circle cx="272" cy="76" r="3.5"/>
     <circle cx="226" cy="32" r="3"/>

@@ -285,7 +285,23 @@ def test_a_release_newer_than_the_schedule_is_not_end_of_life():
     result = scan_version("99.0.0")
 
     assert result["EOL"] is False
-    assert result["releaseType"] is None
+    assert result["lifecycle"]["state"] == "supported"
+    # Newer than every line on record can only be a rolling release, and the
+    # default track asks the schedule rather than guessing - so it says so
+    # instead of leaving the type blank.
+    assert result["releaseType"] == "rolling"
+    assert result["lifecycle"]["declaredTrack"] == "auto"
+
+
+def test_a_release_newer_than_the_schedule_keeps_a_declared_track():
+    """An operator who names a track is not overruled by the rolling guess."""
+    settings = ScannerSettings(scheme="http", timeout=3, release_track="lts")
+
+    result = scan_version("99.0.0", settings)
+
+    assert result["EOL"] is False
+    assert result["releaseType"] == "lts"
+    assert result["lifecycle"]["declaredTrack"] == "lts"
 
 
 def test_extra_checks_can_be_switched_off():
@@ -321,6 +337,30 @@ def test_non_opencloud_target_raises_scan_error():
 
     with pytest.raises(ScanError):
         run_scan(behaviour)
+
+
+def test_an_owncloud_or_nextcloud_server_is_not_scanned_as_opencloud():
+    """They serve the same status.php, and rating them here would be a lie.
+
+    Their releases, advisories and defaults are not OpenCloud's, so a verdict
+    from this scanner would be a confident answer about the wrong software.
+    """
+    for product in ("ownCloud", "Nextcloud Hub"):
+        behaviour = InstanceBehaviour()
+        behaviour.status_payload["productname"] = product
+        behaviour.status_payload["product"] = product
+
+        with pytest.raises(ScanError) as raised:
+            run_scan(behaviour)
+
+        assert product in str(raised.value)
+
+
+def test_opencloud_itself_is_never_mistaken_for_one_of_them():
+    """The negative case: 'opencloud' contains neither word, and must pass."""
+    result = run_scan(InstanceBehaviour())
+
+    assert result["product"] == "OpenCloud"
 
 
 def test_unreachable_host_raises_scan_error():

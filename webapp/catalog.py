@@ -23,7 +23,7 @@ from typing import Any
 from check_opencloud_security import RATE_MAP
 from opencloud_local_scan import HARDENINGS, describe_hardening, failed_extra_checks
 from opencloud_local_scan.hardening import is_actionable
-from opencloud_local_scan.versions import RELEASE_TRACKS
+from opencloud_local_scan.versions import RELEASE_TRACK_CHOICES, TRACK_AUTO
 
 # Header names the scanner reports under setup.headers. They are waivable in
 # the same namespace as the hardening flags.
@@ -105,18 +105,23 @@ def allowed_waivers() -> frozenset[str]:
     return frozenset(option.id for option in waiver_options())
 
 
-# What most instances run, and the safe assumption for a stranger's server:
-# calling a production release end of life because it is not the newest
-# rolling one would be wrong in the alarming direction.
-DEFAULT_RELEASE_TRACK = "production"
+# Working the track out from the release the instance reports is right more
+# often than any fixed guess, and it is the answer the schedule gives when
+# nobody declares a track. A stranger's server is the case that matters here:
+# assuming 'production' called a perfectly current rolling instance out of
+# date, and assuming 'rolling' calls a supported production release end of
+# life. Asking the schedule does neither.
+DEFAULT_RELEASE_TRACK = TRACK_AUTO
 
 TRACK_LABELS: dict[str, str] = {
+    TRACK_AUTO: "Detect automatically",
     "rolling": "Rolling",
     "production": "Production",
     "lts": "LTS",
 }
 
 TRACK_DESCRIPTIONS: dict[str, str] = {
+    TRACK_AUTO: "Work the track out from the release the instance reports.",
     "rolling": "A new release roughly every three weeks.",
     "production": "Supported for about six months. The usual choice.",
     "lts": "Supported for two years.",
@@ -134,7 +139,11 @@ class TrackOption:
 
 
 def release_track_options() -> tuple[TrackOption, ...]:
-    """The tracks a visitor may pick, in the order they are shown."""
+    """The tracks a visitor may pick, with the default one offered first."""
+    ordered = (
+        DEFAULT_RELEASE_TRACK,
+        *(track for track in RELEASE_TRACK_CHOICES if track != DEFAULT_RELEASE_TRACK),
+    )
     return tuple(
         TrackOption(
             id=track,
@@ -142,7 +151,7 @@ def release_track_options() -> tuple[TrackOption, ...]:
             description=TRACK_DESCRIPTIONS.get(track, ""),
             default=track == DEFAULT_RELEASE_TRACK,
         )
-        for track in RELEASE_TRACKS
+        for track in ordered
     )
 
 
@@ -152,13 +161,14 @@ def sanitize_release_track(value: object) -> str:
 
     Unlike a waiver this cannot be left unset: the track decides how long the
     instance's release is supported and which release it is told to upgrade
-    to, and guessing 'rolling' for a production server would report an end of
-    life that has not happened.
+    to. The default detects it from the reported release rather than guessing
+    a fixed one, because guessing 'rolling' for a production server would
+    report an end of life that has not happened.
     """
     if not isinstance(value, str):
         return DEFAULT_RELEASE_TRACK
     candidate = value.strip().lower()
-    return candidate if candidate in RELEASE_TRACKS else DEFAULT_RELEASE_TRACK
+    return candidate if candidate in RELEASE_TRACK_CHOICES else DEFAULT_RELEASE_TRACK
 
 
 def sanitize_waivers(values: object) -> tuple[str, ...]:
