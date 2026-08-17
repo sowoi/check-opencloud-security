@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-17
+
 ### Added
 
 - **A hosted instance to try, at <https://scan.okxo.de>.** The web application
