@@ -51,6 +51,7 @@ import requests
 
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
 from .versions import (
+    TRACK_AUTO,
     ReleaseSchedule,
     compare_versions,
     is_legacy_version,
@@ -190,6 +191,13 @@ IDP_FINGERPRINTS: tuple[tuple[str, str], ...] = (
 STATUS_PATH = "/status.php"
 WEBFINGER_PATH = "/.well-known/webfinger"
 
+# ownCloud and Nextcloud serve the same status.php - OpenCloud inherited the
+# endpoint from them - so the document alone does not say what is running.
+# Their releases, advisories and hardening defaults are not OpenCloud's, and
+# rating one of them against the OpenCloud release schedule would produce a
+# confident answer about the wrong software. Scanning stops instead.
+FOREIGN_PRODUCTS: tuple[str, ...] = ("owncloud", "nextcloud")
+
 # Requested to find out how the server answers for something that cannot exist.
 CATCH_ALL_PATH = "/check-opencloud-security-probe-404"
 
@@ -257,13 +265,15 @@ class ScannerSettings:
     use_release_schedule: bool = True
     release_schedule: ReleaseSchedule | None = None
     """Overrides the bundled schedule; ``None`` loads the bundled one."""
-    release_track: str | None = None
-    """The track this instance follows: rolling, production or lts.
+    release_track: str | None = TRACK_AUTO
+    """The track this instance follows: rolling, production, lts or auto.
 
-    ``None`` lets the schedule decide, which picks whichever track supports
-    the installed line longest. Setting it says "this is the track we signed
-    up for" and is judged accordingly - a rolling instance sitting on an old
-    production line is then behind, not current.
+    ``'auto'`` is the default and lets the schedule decide, which picks
+    whichever track supports the installed line longest. ``None`` is treated
+    identically, so a caller that has no opinion may pass either. Naming a
+    real track says "this is the track we signed up for" and is judged
+    accordingly - a rolling instance sitting on an old production line is then
+    behind, not current.
     """
     ignore_hardenings: tuple[str, ...] = ()
     """Hardening measures and additional checks to disregard.
@@ -537,7 +547,28 @@ def _fetch_status(probe: _Probe) -> dict[str, Any]:
         key in payload for key in ("version", "productversion", "productname")
     ):
         raise ScanError(f"No OpenCloud instance found at {probe.base_url}")
+    foreign = _foreign_product(payload)
+    if foreign:
+        raise ScanError(
+            f"{probe.base_url} is not an OpenCloud instance: "
+            f"{STATUS_PATH} reports {foreign}"
+        )
     return payload
+
+
+def _foreign_product(payload: Mapping[str, Any]) -> str | None:
+    """Name the product when status.php belongs to ownCloud or Nextcloud.
+
+    Matching is on the product name only. 'opencloud' does not contain either
+    word, so no OpenCloud instance can be rejected by accident, while
+    'ownCloud GmbH' and 'Nextcloud Hub' both are.
+    """
+    for key in ("productname", "product"):
+        reported = str(payload.get(key) or "").strip()
+        collapsed = re.sub(r"[^a-z]", "", reported.lower())
+        if any(other in collapsed for other in FOREIGN_PRODUCTS):
+            return reported
+    return None
 
 
 def _fetch_capabilities(probe: _Probe) -> dict[str, Any] | None:

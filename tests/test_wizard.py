@@ -151,16 +151,48 @@ def test_an_existing_file_is_shown_and_confirmed_before_it_is_replaced(tmp_path)
     assert json.loads(target.read_text()) == {"host": "opencloud.example.com"}
 
 
+def test_the_release_track_is_a_group_of_its_own_that_explains_auto_detection(tmp_path):
+    """
+    The track changes every lifecycle verdict, so it must be asked, not buried.
+
+    It used to sit inside the update-check group, where an operator who
+    declined that group was never asked at all. Its own group means the
+    question is put, and the explanation says that leaving it alone lets the
+    schedule detect the track.
+    """
+    groups = {group.name: group for group in wizard.optional_groups()}
+    assert "Release track" in groups
+    track_group = groups["Release track"]
+    assert [question.key for question in track_group.questions] == [
+        "scanner.release_track"
+    ]
+
+    question = track_group.questions[0]
+    assert question.default == "auto"
+    assert "auto" in question.explain.lower()
+    # The point of the note: it says what auto actually does, not just that it
+    # exists.
+    assert "works the track out" in question.explain
+
+    skipped = ["n" for group in wizard.optional_groups() if group.name != "Release track"]
+    prompter, _ = scripted(["opencloud.example.com", "y", *skipped[:3], "y", "lts", *skipped[3:]])
+    data = wizard.collect(prompter)
+
+    assert data["scanner"]["release_track"] == "lts"
+
+
 def test_a_list_answer_becomes_a_list_the_scanner_understands(tmp_path):
     """Waivers are entered as one line but must reach the scanner as separate ids."""
+    # Say no to every optional group except the one the waiver question lives
+    # in, derived rather than counted out: adding a group must not silently
+    # shift this script onto the wrong prompt.
+    groups = wizard.optional_groups()
+    skipped = ["n" for group in groups if group.name != "Scan behaviour"]
     prompter, _ = scripted(
         [
             "opencloud.example.com",
             "y",
-            "n",
-            "n",
-            "n",
-            "n",
+            *skipped,
             "y",
             "",
             "",

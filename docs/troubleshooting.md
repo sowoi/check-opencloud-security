@@ -11,6 +11,13 @@ remember that OpenCloud's own proxy listens on **9200**, not 443:
 something other than OpenCloud is on that address, or a reverse proxy in front
 of it does not forward `/status.php`. Run with `--debug` to see the response.
 
+**`UNKNOWN: ... is not an OpenCloud instance: /status.php reports ownCloud`**
+ownCloud and Nextcloud serve the same `/status.php` - OpenCloud inherited the
+endpoint from them - so the address answered, just not for OpenCloud. Their
+releases, advisories and hardening defaults are different, and rating them
+against the OpenCloud release schedule would produce a confident answer about
+the wrong software, so the scan stops instead of guessing.
+
 **Certificate errors on a fresh instance**
 `opencloud init` creates a self-signed certificate. Pass `--insecure` (the
 untrusted chain is still reported, it just stops counting against the rating),

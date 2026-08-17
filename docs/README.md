@@ -5,6 +5,11 @@ and what the scanner actually checks. These pages are the longer material that
 was crowding it out - the deployment guides, and worked examples for the
 places this check tends to end up.
 
+> **Just want a scan?** [scan.okxo.de](https://scan.okxo.de) runs the web
+> application from this repository - paste an address and read the result, no
+> installation. [The public scan service](webapp.md) explains how to run your
+> own, without a rate limit.
+
 ## Deploying it
 
 | Page | What it covers |
@@ -14,7 +19,7 @@ places this check tends to end up.
 | [Scheduling](scheduling.md) | systemd timer and cron, for hosts with no Icinga2 or Nagios |
 | [Kubernetes](kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on a field of the result document |
-| [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits |
+| [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits. Running at [scan.okxo.de](https://scan.okxo.de) |
 
 ## Feeding the result somewhere
 

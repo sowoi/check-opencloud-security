@@ -1,5 +1,6 @@
 <!-- TOC -->
 * [check-opencloud-security](#check-opencloud-security)
+* [Try it online](#try-it-online)
 * [Quick start](#quick-start)
 * [Features](#features)
 * [Prerequisites](#prerequisites)
@@ -80,6 +81,32 @@ Nothing about your instance is ever sent to a third party. The only optional
 outbound request is the [update check](#update-check), which asks GitHub for
 the newest OpenCloud release - and even that can be pinned, bundled or turned
 off entirely for an air-gapped setup.
+
+# Try it online
+
+### 👉 [**scan.okxo.de**](https://scan.okxo.de) - scan an instance in your browser, nothing to install
+
+A hosted instance of [the web application](docs/webapp.md) in this repository.
+Paste the address of a publicly reachable OpenCloud, watch the scan run and
+read the same findings the plugin reports, graded **A+** to **F**. No account,
+no API key, no sign-up.
+
+It is the fastest way to see what this project does before deciding whether to
+install anything, and it is genuinely useful on its own for a one-off look at
+a server.
+
+Two things worth knowing, because the paragraph above just said nothing is
+ever sent to a third party - and using a hosted service is exactly that:
+
+- **The scan runs from that server, not from yours.** It sees what any
+  anonymous visitor on the internet sees, which is the point, but it cannot
+  reach an instance behind a VPN or on a private network. For those, and for
+  anything you would rather not hand to someone else's machine, run the plugin
+  or [host the service yourself](docs/webapp.md) - it is the same code, with
+  no rate limit.
+- **A result lives for an hour, then Redis drops it.** The link is the only
+  way to reach it, nothing is written to disk, and the target address is never
+  logged.
 
 # Quick start
 Install the plugin and run a check - one command each:
@@ -504,7 +531,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--prometheus-listen-addr` | Bind address for the native Prometheus exporter | `0.0.0.0` | `COS_PROMETHEUS_LISTEN_ADDR` |
 | `--scrape-interval` | Seconds to cache exporter scan results (`0` scans on every scrape) | `60` | `COS_SCRAPE_INTERVAL` |
 | `--ignore-hardening`| Hardening measure or check to accept, repeatable, comma-separated and wildcard capable | *None* | `COS_SCANNER_IGNORE_HARDENINGS` |
-| `--release-track`   | Release track this instance follows: `rolling`, `production` or `lts` | inferred | `COS_SCANNER_RELEASE_TRACK` |
+| `--release-track`   | Release track this instance follows: `rolling`, `production`, `lts` or `auto` | `auto` | `COS_SCANNER_RELEASE_TRACK` |
 | `--update-source`   | Where the newest release comes from: `auto`, `feed`, `pinned`, `bundled`, `off` | `auto` | `COS_UPDATE_SOURCE` |
 | `--release-feed`    | URL of the release feed                                | GitHub releases API of `opencloud-eu/opencloud` | `COS_RELEASES_FEED_URL` |
 | `--release-token`   | Token for the release feed (raises GitHub's rate limit)| *None*       | `COS_RELEASES_TOKEN`  |
@@ -645,7 +672,9 @@ below describes what the built-in scanner does and how to tune it.
 Read from the instance itself:
 
 - product, `productversion` and edition from `/status.php`, plus
-  `maintenance` and `needsDbUpgrade`
+  `maintenance` and `needsDbUpgrade`; a server whose product name says
+  ownCloud or Nextcloud is refused rather than rated, because it serves the
+  same endpoint but is not the same software
 - capabilities from `/ocs/v1.php/cloud/capabilities` (both endpoints are
   unauthenticated in OpenCloud)
 - the security headers `Strict-Transport-Security`, `Content-Security-Policy`,
@@ -1110,20 +1139,31 @@ judged on that track alone:
 check-opencloud-security --host opencloud.example.com --release-track rolling
 ```
 
+`--release-track auto` is the default: the release schedule is asked which
+track the installed release belongs to. It is the same answer as leaving the
+flag out, said out loud, and it is what keeps one configuration usable across
+instances on different tracks:
+
+```bash
+check-opencloud-security --host opencloud.example.com --release-track auto
+```
+
 | Installed | Declared | Verdict |
 |:----------|:---------|:--------|
-| `7.2.3` | *nothing* | Supported - current production release |
+| `7.2.3` | *nothing* or `auto` | Supported - current production release |
 | `7.2.3` | `production` | Supported - current production release |
 | `7.2.3` | `rolling` | **End of life** - superseded by `7.4.0`, upgrade to `7.4.0` |
-| `7.4.0` | `production` | **End of life** - `7.4.0` is a rolling release and was never published on the production track |
+| `7.4.0` | `production` | Supported - ahead of the production track, whose current release is `7.2.3` |
+| `2.3.0` | `production` | **End of life** - behind the production track, upgrade to `7.2.3` |
 | `4.0.8` | `lts` | Supported until the two-year window closes |
 
 Two consequences are worth knowing about in advance:
 
-- **A newer version can be less supported than an older one.** `7.4.0` is
-  newer than `7.2.3`, but on the production track it does not exist, while
-  `7.2.3` is current. This is not a bug in the check; it is what the tracks
-  mean.
+- **Being ahead of your track is not a finding.** A production instance that
+  has moved on to the current rolling release has everything the production
+  track ships and more, so it is reported as ahead of its track rather than
+  rated `F`. Only a release *behind* the current release of your track is out
+  of support.
 - **The check never recommends a downgrade.** If your declared track has no
   release you could move *up* to, the update recommendation stays empty and
   the reason explains the situation instead. Moving from `7.4.0` back to
@@ -1861,6 +1901,10 @@ check-opencloud-security --host opencloud.example.com --release-track rolling
 # An LTS instance, where two years of backports are the whole point
 check-opencloud-security --host opencloud.example.com --release-track lts
 
+# You do not want to say: the release schedule works the track out from the
+# version the instance reports
+check-opencloud-security --host opencloud.example.com --release-track auto
+
 # Warn as soon as an update is available on your track, rather than only
 # when support has actually run out
 check-opencloud-security --host opencloud.example.com \
@@ -1868,8 +1912,9 @@ check-opencloud-security --host opencloud.example.com \
 ```
 
 Remember that a *newer* version is not automatically a *better* supported one:
-declaring `production` on an instance running a rolling release will report
-end of life, because that release was never published on the production track.
+declaring `production` on an instance running a rolling release reports it as
+*ahead* of its track, not as current on it - and never as end of life, which
+is reserved for a release behind the current one of your track.
 
 ## Accepting findings you are not going to fix
 

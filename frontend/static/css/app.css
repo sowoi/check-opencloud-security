@@ -13,26 +13,45 @@
 :root {
     color-scheme: light dark;
 
-    --ink: #10151f;
-    --ink-soft: #4a5568;
-    --ink-faint: #6b7688;
-    --paper: #f6f8fc;
+    /*
+     * Three tones per status, and the split is what keeps the page bright
+     * without becoming unreadable: `--x` is the graphic tone, used for the
+     * dial, borders and rules where nothing has to be read at 13px; `--x-soft`
+     * is the tint behind it; `--x-ink` is the one that carries text on that
+     * tint. Every `--x-ink` on its `--x-soft` clears WCAG AA (4.5:1), which
+     * the single-tone palette did not - amber and green sat near 2.9:1.
+     */
+
+    --ink: #131a27;
+    --ink-soft: #4b5a72;
+    --ink-faint: #63718a;
+    --paper: #f5f8ff;
     --card: #ffffff;
-    --line: #e3e8f0;
+    --line: #e4e9f6;
 
-    --brand: #3f5bd9;
-    --brand-deep: #2c3fa8;
-    --brand-soft: #eaeeff;
-    --accent: #17b3a3;
+    --brand: #4360e8;
+    --brand-deep: #2b3fbb;
+    --brand-soft: #e9edff;
+    --accent: #0d9e91;
+    --accent-ink: #0a7c72;
+    --on-brand: #ffffff;
 
-    --good: #16a34a;
-    --good-soft: #e7f7ed;
-    --fair: #d97706;
-    --fair-soft: #fdf2e0;
-    --bad: #dc2626;
-    --bad-soft: #fdeceb;
-    --info: #2563eb;
-    --info-soft: #e8effd;
+    --good: #0f9a58;
+    --good-soft: #e3f9ee;
+    --good-ink: #0a6c40;
+    --fair: #cf7c07;
+    --fair-soft: #fef3e0;
+    --fair-ink: #8a5209;
+    --bad: #e63946;
+    --bad-soft: #fdecee;
+    --bad-ink: #b3202f;
+    --info: #3b82f6;
+    --info-soft: #e7f0ff;
+    --info-ink: #1d4ed8;
+
+    --brand-glow: rgba(67, 96, 232, .3);
+    --brand-glow-strong: rgba(67, 96, 232, .36);
+    --accent-wash: rgba(13, 158, 145, .14);
 
     --radius-sm: 8px;
     --radius: 14px;
@@ -53,26 +72,41 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ink: #eef2f9;
-        --ink-soft: #b3bccd;
-        --ink-faint: #8b96ab;
-        --paper: #0d111a;
-        --card: #151b28;
-        --line: #26304180;
+        --ink: #f0f4fc;
+        --ink-soft: #bcc6d8;
+        --ink-faint: #95a1b6;
+        --paper: #0e1320;
+        --card: #171e2d;
+        --line: #2a344880;
 
-        --brand: #8ea2ff;
-        --brand-deep: #6f86f5;
-        --brand-soft: #1b2340;
-        --accent: #3ad1c0;
+        --brand: #9db2ff;
+        --brand-deep: #8299ff;
+        --brand-soft: #1e2748;
+        --accent: #4ddfcd;
+        --accent-ink: #6ee9d8;
+        /*
+         * The button keeps a dark label in dark mode: its gradient is the
+         * light brand tone here, so white on it would be the one unreadable
+         * thing on the page.
+         */
+        --on-brand: #0e1320;
 
-        --good: #4ade80;
-        --good-soft: #10281b;
-        --fair: #fbbf24;
-        --fair-soft: #2a2110;
-        --bad: #f87171;
-        --bad-soft: #2c1416;
+        --good: #5fe39b;
+        --good-soft: #0f2c1f;
+        --good-ink: #6ee7a8;
+        --fair: #fcc45a;
+        --fair-soft: #2d2312;
+        --fair-ink: #fdd076;
+        --bad: #ff9296;
+        --bad-soft: #301619;
+        --bad-ink: #ffa6a9;
         --info: #7ea6ff;
-        --info-soft: #141d33;
+        --info-soft: #161f38;
+        --info-ink: #93b4ff;
+
+        --brand-glow: rgba(0, 0, 0, .45);
+        --brand-glow-strong: rgba(0, 0, 0, .55);
+        --accent-wash: rgba(77, 223, 205, .1);
 
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
         --shadow: 0 10px 30px rgba(0, 0, 0, .45);
@@ -103,7 +137,7 @@ body {
     background: var(--paper);
     background-image:
         radial-gradient(60rem 30rem at 12% -8%, var(--brand-soft), transparent 65%),
-        radial-gradient(50rem 26rem at 92% 4%, rgba(23, 179, 163, .16), transparent 60%);
+        radial-gradient(50rem 26rem at 92% 4%, var(--accent-wash), transparent 60%);
     background-repeat: no-repeat;
     min-height: 100vh;
     display: flex;
@@ -154,7 +188,6 @@ code, kbd, samp { font-family: var(--mono); font-size: .92em; }
     font-weight: 700; letter-spacing: -.02em; text-decoration: none; color: var(--ink);
 }
 .brand img { width: 34px; height: 34px; }
-.brand span small { display: block; font-weight: 500; font-size: .74rem; color: var(--ink-faint); letter-spacing: 0; }
 
 .site-nav { display: flex; gap: 1.25rem; align-items: center; font-size: .93rem; }
 .site-nav a { color: var(--ink-soft); text-decoration: none; }
@@ -187,7 +220,7 @@ main { flex: 1 0 auto; padding-bottom: 4rem; }
 }
 .version-badge svg { width: 14px; height: 14px; }
 .version-badge:hover,
-.version-badge:focus-visible { border-color: var(--accent); color: var(--accent); }
+.version-badge:focus-visible { border-color: var(--accent); color: var(--accent-ink); }
 .version-badge:hover { transform: translateY(-1px); }
 @media (prefers-reduced-motion: reduce) {
     .version-badge { transition: none; }
@@ -287,11 +320,11 @@ input[type="url"]:focus, select:focus {
 }
 .btn svg { width: 18px; height: 18px; }
 .btn-primary {
-    color: #fff;
+    color: var(--on-brand);
     background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
-    box-shadow: 0 8px 20px rgba(63, 91, 217, .32);
+    box-shadow: 0 8px 20px var(--brand-glow);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(63, 91, 217, .38); color: #fff; }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 26px var(--brand-glow-strong); color: var(--on-brand); }
 .btn-primary:active { transform: translateY(0); }
 .btn-quiet {
     background: transparent; color: var(--ink-soft);
@@ -355,17 +388,17 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     border-radius: 999px; padding: .12rem .6rem;
     font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
 }
-.tag-critical { background: var(--bad-soft); color: var(--bad); }
-.tag-warning { background: var(--fair-soft); color: var(--fair); }
-.tag-info { background: var(--info-soft); color: var(--info); }
-.tag-good { background: var(--good-soft); color: var(--good); }
+.tag-critical { background: var(--bad-soft); color: var(--bad-ink); }
+.tag-warning { background: var(--fair-soft); color: var(--fair-ink); }
+.tag-info { background: var(--info-soft); color: var(--info-ink); }
+.tag-good { background: var(--good-soft); color: var(--good-ink); }
 
 .alert {
     display: flex; gap: .7rem; align-items: flex-start;
     border-radius: var(--radius);
     padding: .9rem 1.05rem; margin-bottom: 1.2rem;
-    background: var(--bad-soft); color: var(--bad);
-    border: 1px solid currentColor;
+    background: var(--bad-soft); color: var(--bad-ink);
+    border: 1px solid var(--bad);
     font-size: .94rem;
 }
 .alert svg { width: 20px; height: 20px; flex: none; margin-top: .1rem; }
@@ -386,7 +419,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     counter-increment: step; content: counter(step);
     flex: none; width: 30px; height: 30px; border-radius: 50%;
     display: grid; place-items: center;
-    background: var(--brand); color: #fff; font-weight: 700; font-size: .9rem;
+    background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: .9rem;
 }
 
 /* -------------------------------------------------------------- scan page */
@@ -408,8 +441,8 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     transition: color .3s ease, border-color .3s ease;
 }
 .progress-track .step[data-state="active"] { color: var(--brand-deep); border-color: var(--brand); }
-.progress-track .step[data-state="done"] { color: var(--good); border-color: var(--good); }
-.progress-track .step[data-state="failed"] { color: var(--bad); border-color: var(--bad); }
+.progress-track .step[data-state="done"] { color: var(--good-ink); border-color: var(--good); }
+.progress-track .step[data-state="failed"] { color: var(--bad-ink); border-color: var(--bad); }
 
 .pulse {
     display: inline-block; width: .6rem; height: .6rem; border-radius: 50%;
@@ -422,7 +455,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 }
 
 .queue-note {
-    background: var(--info-soft); color: var(--info);
+    background: var(--info-soft); color: var(--info-ink);
     border-radius: var(--radius); padding: .85rem 1.05rem;
     font-weight: 600;
 }
@@ -433,6 +466,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 }
 .score-dial {
     --dial: var(--good);
+    --dial-ink: var(--good-ink);
     position: relative; flex: none;
     width: 148px; height: 148px; border-radius: 50%;
     display: grid; place-items: center;
@@ -445,11 +479,11 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 }
 .score-dial .grade {
     position: relative; z-index: 1;
-    font-size: 2.7rem; font-weight: 800; letter-spacing: -.04em; color: var(--dial);
+    font-size: 2.7rem; font-weight: 800; letter-spacing: -.04em; color: var(--dial-ink);
 }
-.score-dial[data-tone="good"] { --dial: var(--good); }
-.score-dial[data-tone="fair"] { --dial: var(--fair); }
-.score-dial[data-tone="bad"] { --dial: var(--bad); }
+.score-dial[data-tone="good"] { --dial: var(--good); --dial-ink: var(--good-ink); }
+.score-dial[data-tone="fair"] { --dial: var(--fair); --dial-ink: var(--fair-ink); }
+.score-dial[data-tone="bad"] { --dial: var(--bad); --dial-ink: var(--bad-ink); }
 @keyframes dial { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 .score-facts { flex: 1 1 18rem; }

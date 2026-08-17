@@ -1,0 +1,170 @@
+name: Publish the web image to Docker Hub
+
+# The public scan service as a container image. The plugin goes to PyPI, the
+# web application does not - it ships as a GitHub release tarball and as this
+# image, so somebody who wants to run their own instance of the service does
+# not have to build one.
+#
+# The trigger is a push to main rather than a tag or a release: the release
+# workflow creates both with the built-in GITHUB_TOKEN, and events raised by
+# that token do not start further workflows. A tag trigger here would simply
+# never fire.
+#
+# Every push to main refreshes `edge`. The version tags and `latest` are only
+# moved when the version in pyproject.toml names an image that does not exist
+# yet, so a documentation commit cannot quietly republish `latest` from a tree
+# that is not the released one.
+#
+# Everything account-specific comes from repository secrets. Nothing here
+# names an account, and the job skips itself - green, not red - when the
+# secrets are not configured, so a fork does not fail on a credential it was
+# never meant to have.
+#
+#   DOCKERHUB_USERNAME  the account the push authenticates as
+#   DOCKERHUB_TOKEN     an access token for it, not the account password
+#
+# The repository is `opencloud-scanner`. It lives under DOCKERHUB_USERNAME by
+# default; set the DOCKERHUB_NAMESPACE variable when the image belongs to an
+# organisation the user is only a member of.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_tags:
+        description: "Also push the version tags and latest"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  # Lets `gh attestation verify` tie the image back to this workflow and this
+  # commit, the same way the PyPI artifacts are attested.
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: dockerhub-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and push opencloud-scanner
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    env:
+      IMAGE_NAME: opencloud-scanner
+    steps:
+      # `secrets` is not available in a job-level `if`, so the check is the
+      # first step and every later one depends on its answer.
+      - name: Check for the Docker Hub credentials
+        id: creds
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is not configured - skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          namespace="${DOCKERHUB_NAMESPACE:-$DOCKERHUB_USERNAME}"
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "image=${namespace}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        if: steps.creds.outputs.configured == 'true'
+        uses: astral-sh/setup-uv@v10.0.0
+
+      # pyproject.toml is the only place the version is written, here as
+      # everywhere else.
+      - name: Read version
+        if: steps.creds.outputs.configured == 'true'
+        id: version
+        run: echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # A version tag that already exists means this commit is not the one
+      # that bumped the version, so `latest` stays where it is.
+      - name: Decide which tags to push
+        if: steps.creds.outputs.configured == 'true'
+        id: tags
+        env:
+          IMAGE: ${{ steps.creds.outputs.image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          FORCED: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tags }}
+        run: |
+          set -eu
+          minor="${VERSION%.*}"
+          tags="${IMAGE}:edge"
+          tags="${tags},${IMAGE}:sha-${GITHUB_SHA::12}"
+
+          if [ "$FORCED" = "true" ]; then
+            release=true
+          elif docker buildx imagetools inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+            echo "${IMAGE}:${VERSION} already exists - refreshing edge only."
+            release=false
+          else
+            release=true
+          fi
+
+          if [ "$release" = "true" ]; then
+            tags="${tags},${IMAGE}:${VERSION},${IMAGE}:${minor},${IMAGE}:latest"
+          fi
+
+          echo "list<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$tags" | tr ',' '\n' >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # The build context is the repository root: the image needs the wheel
+      # sources, `webapp/` and `frontend/`, none of which live in docker/.
+      - name: Build and push
+        if: steps.creds.outputs.configured == 'true'
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.title=opencloud-scanner
+            org.opencontainers.image.description=Public security scan service for OpenCloud instances
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.licenses=GPL-3.0-only
+
+      - name: Attest build provenance
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: index.docker.io/${{ steps.creds.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

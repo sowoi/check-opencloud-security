@@ -47,7 +47,7 @@ from .config import (
 )
 from .releases import MODES as UPDATE_MODES
 from .scanner import DEFAULT_CONCURRENCY, MAX_CONCURRENCY
-from .versions import RELEASE_TRACKS
+from .versions import RELEASE_TRACK_CHOICES
 
 # Where the wizard offers to save, in the order it offers them.
 SAVE_LOCATIONS: tuple[str, ...] = (
@@ -350,6 +350,34 @@ def optional_groups() -> list[Group]:
             ],
         ),
         Group(
+            name="Release track",
+            summary="which OpenCloud track this instance follows",
+            questions=[
+                Question(
+                    key="scanner.release_track",
+                    prompt="Release track",
+                    explain=(
+                        "OpenCloud ships three tracks side by side: 'rolling' (a "
+                        "release every ~3 weeks), 'production' (~6 months) and "
+                        "'lts' (2 years of backports). The track decides how long "
+                        "the installed release is supported and which release "
+                        "this instance is told to upgrade to. Leave it at 'auto' "
+                        "unless you know: the release schedule then works the "
+                        "track out from the version the instance reports, and one "
+                        "configuration can cover instances on different tracks. "
+                        "Name a track only when you deliberately follow it - the "
+                        "release is then judged on that track alone, so a rolling "
+                        "instance still on an old production line is reported as "
+                        "behind. A release newer than the current one of your "
+                        "track is reported as ahead of it, never as end of life."
+                    ),
+                    example="auto",
+                    default="auto",
+                    validate=_choice(tuple(sorted(RELEASE_TRACK_CHOICES))),
+                ),
+            ],
+        ),
+        Group(
             name="Update check",
             summary="how the newest OpenCloud release is looked up",
             questions=[
@@ -377,19 +405,6 @@ def optional_groups() -> list[Group]:
                     ),
                     example="env://GITHUB_TOKEN",
                     secret=True,
-                ),
-                Question(
-                    key="scanner.release_track",
-                    prompt="Release track",
-                    explain=(
-                        "Which track this instance follows: 'rolling' (a release "
-                        "every ~3 weeks), 'production' (~6 months) or 'lts' (2 "
-                        "years of backports). It decides how long the installed "
-                        "release is supported and which release the instance is "
-                        "told to upgrade to. Leave empty to infer it."
-                    ),
-                    example="production",
-                    validate=_choice(tuple(sorted(RELEASE_TRACKS))),
                 ),
                 Question(
                     key="update_warning",

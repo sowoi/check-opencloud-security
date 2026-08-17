@@ -139,6 +139,34 @@ lines disappearing rather than as an error. The script refuses to write an
 implausibly short schedule or one without a rolling and a production table,
 which catches the worst of it.
 
+## The documented OpenCloud links
+
+Almost everything this project explains about OpenCloud is anchored in a link
+it does not own: the lifecycle page the schedule is scraped from, the
+configuration references a finding points an operator at, the advisories.
+Those links rot when OpenCloud reorganises its documentation, without a single
+commit landing here, and a finding that explains itself with a dead link is a
+finding nobody can act on.
+
+`scripts/check_documentation_links.py` collects every OpenCloud link the
+repository documents and requests it. A workflow runs it after every merge into
+`main` and once a week; `tests/test_documentation_links.py` covers which links
+are collected, offline.
+
+```shell
+python scripts/check_documentation_links.py           # check, fail on rot
+python scripts/check_documentation_links.py --list    # what would be checked
+python scripts/check_documentation_links.py --strict  # redirects count too
+```
+
+A broken link fails the run. A redirect, and an answer that says "not to you"
+rather than "not here" (`401`, `403`, `429` - the anonymous GitHub API is rate
+limited), are only reported: `opencloud.eu` redirects to a language version,
+and a job that fails every week is a job everybody learns to ignore. The
+report is still worth reading, since a moved documentation page looks exactly
+like that on its way to a 404. Fixtures under `tests/` are not documentation
+and are skipped.
+
 ## Linting
 We use Ruff for linting and code formatting checks.
 

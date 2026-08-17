@@ -28,7 +28,12 @@ from .scanner import (
     USER_AGENT,
     ScannerSettings,
 )
-from .versions import RELEASE_TRACKS, ReleaseSchedule, load_release_schedule
+from .versions import (
+    RELEASE_TRACK_CHOICES,
+    TRACK_AUTO,
+    ReleaseSchedule,
+    load_release_schedule,
+)
 
 
 def _int_tuple(config: Configuration, name: str) -> tuple[int, ...]:
@@ -56,9 +61,15 @@ def _release_schedule(config: Configuration) -> ReleaseSchedule | None:
 
 
 def _release_track(config: Configuration) -> str | None:
-    """Read the release track the instance follows, if one is declared."""
+    """
+    Read the release track the instance follows.
+
+    Nothing declared means ``auto``: the schedule works the track out from the
+    installed release, which is the same judgement an undeclared track always
+    received - now recorded in the result rather than left blank.
+    """
     track = (config.get("SCANNER_RELEASE_TRACK") or "").strip().lower()
-    return track if track in RELEASE_TRACKS else None
+    return track if track in RELEASE_TRACK_CHOICES else TRACK_AUTO
 
 
 def _waivers(config: Configuration) -> tuple[str, ...]:

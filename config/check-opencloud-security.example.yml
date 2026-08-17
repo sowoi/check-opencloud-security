@@ -89,12 +89,14 @@ scanner:
   # Use your own schedule instead of the bundled one, e.g. when your vendor
   # has committed to a different support window.
   # release_schedule: /etc/check-opencloud-security/release_schedule.json
-  # The track this instance follows: rolling, production or lts. Without it the
-  # track is inferred, which reads a version as generously as is true - 7.2.3
-  # counts as a production release. Declare it and the version is judged on
-  # that track alone, so on 'rolling' the same 7.2.3 is out of support as soon
-  # as the next rolling release ships.
-  # release_track: production
+  # The track this instance follows: rolling, production, lts or auto. Without
+  # it - and with 'auto' - the track is inferred, which reads a version as
+  # generously as is true: 7.2.3 counts as a production release. Declare a real
+  # track and the version is judged on that one alone, so on 'rolling' the same
+  # 7.2.3 is out of support as soon as the next rolling release ships. A
+  # release newer than the current one of your track is reported as ahead of
+  # it, never as end of life.
+  # release_track: auto
   # Hardening measures and additional checks to accept. A waived finding no
   # longer lowers the rating and no longer alerts, but is still recorded in the
   # result document and explained by --debug. Wildcards are allowed, and only

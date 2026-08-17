@@ -4,6 +4,11 @@ A web application that runs the built-in scanner for anyone who visits it,
 grades the instance from **A+** to **F**, and forgets the whole thing an hour
 later. It is the same scanner the plugin uses; the web layer only serves.
 
+**A running instance is at [scan.okxo.de](https://scan.okxo.de)** - try it
+there before deploying one, or use it for a one-off scan. Everything below
+describes how to run your own, which has no rate limit and can reach instances
+a public service cannot.
+
 It is **not** on PyPI. `pip install check-opencloud-security` gets the plugin
 and the scanner library, deliberately without FastAPI, Redis or a single
 template. The web application ships as a GitHub release asset,
@@ -42,6 +47,24 @@ docker compose up --build
 # http://127.0.0.1:8080
 ```
 
+The published image is on Docker Hub as **`opencloud-scanner`**, so a
+deployment does not have to build one. `latest` and `MAJOR.MINOR.PATCH` follow
+the released version, `MAJOR.MINOR` follows the line, and `edge` is the current
+`main`. It carries `linux/amd64` and `linux/arm64`, and the same image runs
+both the web service and the worker - they differ only in the command:
+
+```bash
+docker run --rm -p 8080:8080 \
+    -e COS_WEB_REDIS_URL=redis://redis:6379/0 \
+    OWNER/opencloud-scanner:latest
+```
+
+Replace `OWNER` with the Docker Hub account it was published under; this
+repository names none, because the account is a deployment detail and lives in
+the workflow's secrets. Point `COS_WEB_REDIS_URL` at a Redis the worker shares,
+or use [`docker/docker-compose.yml`](../docker/docker-compose.yml), which wires
+all three together.
+
 From a checkout, with three terminals or three `&`:
 
 ```bash
@@ -67,15 +90,17 @@ Four things, and the list is closed:
 |:------|:--------|
 | `target_url` | The instance to scan. Required |
 | `ignore_hardenings` | Checks to waive, from a fixed allow-list. Optional, repeatable |
-| `release_track` | `rolling`, `production` or `lts`. Optional, defaults to `production` |
+| `release_track` | `rolling`, `production`, `lts` or `auto`. Optional, defaults to `auto` |
 | `output_format` | `dashboard` or `json`. Optional, affects presentation only |
 
 `release_track` is the same idea as the plugin's `--release-track`: it decides
 how long the instance's release is supported and which release it is told to
-upgrade to. It defaults to `production` rather than to the scanner's "infer
-it", because that is what most instances run and because guessing `rolling`
-for a production server would report an end of life that has not happened.
-An unknown value falls back to the default instead of failing the scan.
+upgrade to. It defaults to `auto`, which asks the release schedule which track
+the installed release belongs to - the right answer for a stranger's server,
+where any fixed guess is wrong for somebody: assuming `production` calls a
+current rolling instance out of date, and assuming `rolling` reports an end of
+life a production instance has not reached. An unknown value falls back to the
+default instead of failing the scan.
 
 Anything else is refused with **422**, by name, rather than ignored - a caller
 who sends `concurrency=50` should be told it did nothing, not left believing

@@ -52,6 +52,14 @@ TRACK_PRODUCTION = "production"
 TRACK_LTS = "lts"
 RELEASE_TRACKS: tuple[str, ...] = (TRACK_ROLLING, TRACK_PRODUCTION, TRACK_LTS)
 
+# Not a track of its own: "work out which track this release belongs to from
+# the schedule". An operator who does not know - or who runs several
+# instances on different tracks from one configuration - says this instead of
+# guessing, and a wrong guess is what turns a perfectly current release into
+# an F.
+TRACK_AUTO = "auto"
+RELEASE_TRACK_CHOICES: tuple[str, ...] = (*RELEASE_TRACKS, TRACK_AUTO)
+
 # Ordering used to pick the track that supports a line the longest.
 TRACK_RANK = {TRACK_ROLLING: 0, TRACK_PRODUCTION: 1, TRACK_LTS: 2}
 
@@ -290,6 +298,23 @@ class ReleaseSchedule:
             or [entry.latest for entry in self.lines.values()]
         )
 
+    def current_release(self, track: str) -> str | None:
+        """The newest release published on ``track``, as far as is known.
+
+        ``latest_release`` only records the tracks the documentation names as
+        current, so a track can be missing from it while the lines it was
+        published on are perfectly well known - LTS is exactly that case.
+        Falling back to the lines keeps "the current release of this track"
+        answerable, which is what decides whether an instance is ahead of the
+        track it declared or behind it. Unlike :meth:`upgrade_target` this
+        never answers with a release from a different track: the question is
+        what this track ships, not where to go next.
+        """
+        recorded = self.latest_for(track)
+        if recorded:
+            return recorded
+        return newest([entry.latest for entry in self.lines.values() if track in entry.tracks])
+
     def upgrade_target(self, track: str) -> str | None:
         """The release an instance on ``track`` should move to.
 
@@ -332,6 +357,78 @@ class ReleaseSchedule:
         successor = self.successor(entry, track)
         return successor.released if successor is not None else None
 
+    def _off_track_status(
+        self,
+        entry: ReleaseLine,
+        version: str | None,
+        declared: str,
+        requested: str | None,
+    ) -> LifecycleStatus:
+        """Judge a line that was never published on the declared track.
+
+        There is no support window to be inside of, so the verdict comes from
+        the direction the version points in. *Behind* the current release of
+        the declared track means the instance is missing fixes it was promised
+        and is end of life. *Ahead* of it - a rolling build seen from the
+        production track - means the operator is running newer code than their
+        track ships, which is a choice, not an incident: it is reported, it is
+        never rated F, and no arrow points backwards.
+        """
+        # Name the newest release *actually on* that track. upgrade_target()
+        # falls back to a better supported track when a track has none on
+        # record, which is right for the arrow but would put the wrong label
+        # on the version here.
+        on_track = self.current_release(declared)
+        released = entry.released.isoformat()
+
+        if not on_track:
+            # Nothing on record to compare against, so nothing can be said -
+            # and "unknown" is the only answer that is not a guess.
+            return LifecycleStatus(
+                version=version,
+                line=entry.name,
+                release_type=entry.release_type,
+                state=STATE_UNKNOWN,
+                released=released,
+                declared_track=requested,
+                reason=f"no {declared} release is on record to compare against",
+            )
+
+        if compare_versions(version, on_track) > 0:
+            latest_on_line = entry.latest if compare_versions(entry.latest, version) > 0 else None
+            return LifecycleStatus(
+                version=version,
+                line=entry.name,
+                release_type=entry.release_type,
+                state=STATE_SUPPORTED,
+                released=released,
+                latest_on_line=latest_on_line,
+                upgrade_to=latest_on_line,
+                declared_track=requested,
+                reason=(
+                    f"ahead of the {declared} track: this is a "
+                    f"{entry.release_type} release, newer than the current "
+                    f"{declared} release {on_track}"
+                ),
+            )
+
+        target = self.upgrade_target(declared)
+        return LifecycleStatus(
+            version=version,
+            line=entry.name,
+            release_type=declared,
+            state=STATE_END_OF_LIFE,
+            released=released,
+            latest_on_line=None,
+            upgrade_to=target if compare_versions(target, version) > 0 else None,
+            declared_track=requested,
+            reason=(
+                f"not published on the {declared} track "
+                f"(it is a {entry.release_type} release); the current "
+                f"{declared} release is {on_track}"
+            ),
+        )
+
     def status_for(
         self,
         version: str | None,
@@ -341,17 +438,25 @@ class ReleaseSchedule:
         """Place a version in the lifecycle.
 
         ``track`` is the operator declaring which track the instance follows.
-        Without it the schedule picks whichever track supports the installed
-        line longest, which is the right answer when nobody has said. With it,
-        the line is judged on that track alone: an instance that follows the
-        rolling track but sits on an old production line is behind, even
-        though the same version is perfectly current for someone on
-        production.
+        Without it - and with the explicit ``'auto'`` - the schedule picks
+        whichever track supports the installed line longest, which is the
+        right answer when nobody has said. With a real track, the line is
+        judged on that track alone: an instance that follows the rolling track
+        but sits on an old production line is behind, even though the same
+        version is perfectly current for someone on production.
+
+        A version *newer* than the current release of the declared track is
+        never end of life. It is ahead of its track, which is a choice an
+        operator can make deliberately, and calling it unsupported would raise
+        a critical alert about a machine running the newest code there is.
         """
         now = today or datetime.now(tz=timezone.utc).date()
-        declared = track.strip().lower() if track else None
-        if declared not in RELEASE_TRACKS:
-            declared = None
+        requested = track.strip().lower() if track else None
+        if requested not in RELEASE_TRACK_CHOICES:
+            requested = None
+        # 'auto' is recorded as what the operator asked for, but the judgement
+        # below is the one made when nobody declared anything.
+        declared = requested if requested in RELEASE_TRACKS else None
         normalised = normalise_version(version)
         line = release_line(normalised)
 
@@ -359,7 +464,7 @@ class ReleaseSchedule:
             return LifecycleStatus(
                 version=normalised,
                 line=format_line(line),
-                declared_track=declared,
+                declared_track=requested,
                 reason="no release schedule available"
                 if not self.lines
                 else "the reported version could not be parsed",
@@ -374,9 +479,11 @@ class ReleaseSchedule:
                 return LifecycleStatus(
                     version=normalised,
                     line=format_line(line),
-                    release_type=declared,
+                    # Newer than everything on record can only be a rolling
+                    # release, which is the honest answer for 'auto'.
+                    release_type=declared or (TRACK_ROLLING if requested else None),
                     state=STATE_SUPPORTED,
-                    declared_track=declared,
+                    declared_track=requested,
                     reason="newer than every release in the bundled schedule",
                 )
             return LifecycleStatus(
@@ -384,7 +491,7 @@ class ReleaseSchedule:
                 line=format_line(line),
                 release_type=declared,
                 state=STATE_END_OF_LIFE,
-                declared_track=declared,
+                declared_track=requested,
                 upgrade_to=self.upgrade_target(declared) if declared else self.latest_for(),
                 reason="not part of the published release schedule",
             )
@@ -394,40 +501,7 @@ class ReleaseSchedule:
         # Ties go to the better supported track, so that a line published on
         # both rolling and production is described as a production release.
         if declared is not None and declared not in entry.tracks:
-            # The operator follows a track this line was never published on,
-            # so there is no support window to be inside of. Saying "current"
-            # here because some *other* track still carries the line would
-            # answer a question nobody asked.
-            # For the message, name the newest release *actually on* that
-            # track. upgrade_target() falls back to a better supported track
-            # when a track has none on record, which is right for the arrow
-            # but would put the wrong label on the version here.
-            on_track = self.latest_for(declared)
-            current = (
-                f"; the current {declared} release is {on_track}"
-                if on_track
-                else f"; no {declared} release is on record"
-            )
-            target = self.upgrade_target(declared)
-            return LifecycleStatus(
-                version=normalised,
-                line=entry.name,
-                release_type=declared,
-                state=STATE_END_OF_LIFE,
-                released=entry.released.isoformat(),
-                latest_on_line=None,
-                # Only ever point forwards. The current release of the
-                # declared track can be *older* than what is installed - a
-                # rolling build seen from the production track - and an
-                # "upgrade" arrow pointing down would be a lie. The reason
-                # names it instead.
-                upgrade_to=target if compare_versions(target, normalised) > 0 else None,
-                declared_track=declared,
-                reason=(
-                    f"not published on the {declared} track "
-                    f"(it is a {entry.release_type} release){current}"
-                ),
-            )
+            return self._off_track_status(entry, normalised, declared, requested)
 
         if declared is not None:
             best_track, best_eol = declared, self._track_end_of_life(entry, declared)
@@ -453,7 +527,7 @@ class ReleaseSchedule:
                 released=released,
                 latest_on_line=latest_on_line,
                 upgrade_to=latest_on_line,
-                declared_track=declared,
+                declared_track=requested,
                 reason=f"current {best_track} release",
             )
 
@@ -469,7 +543,7 @@ class ReleaseSchedule:
                 days_remaining=days_remaining,
                 latest_on_line=latest_on_line,
                 upgrade_to=latest_on_line,
-                declared_track=declared,
+                declared_track=requested,
                 reason=f"{best_track} release, supported until {best_eol.isoformat()}",
             )
 
@@ -486,7 +560,7 @@ class ReleaseSchedule:
             days_remaining=days_remaining,
             latest_on_line=latest_on_line,
             upgrade_to=target if compare_versions(target, normalised) > 0 else latest_on_line,
-            declared_track=declared,
+            declared_track=requested,
             reason=f"{best_track} release, unsupported since {best_eol.isoformat()}",
         )
 
