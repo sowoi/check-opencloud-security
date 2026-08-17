@@ -32,6 +32,7 @@ for a remote scan service.
 | `scripts/update_release_schedule.py` | Regenerates that file from the published documentation |
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
+| `adr/` | Durable architectural decision records |
 | `webapp/` | The public scan service: FastAPI, the ARQ worker, SSRF and rate limits |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
@@ -90,6 +91,19 @@ git checkout CHANGELOG.md RELEASE.md
 
 `--require-unreleased` makes the script fail rather than fall back to
 generating notes from commit subjects.
+
+## Architectural decision records
+
+[`adr/README.md`](adr/README.md) defines the format and lifecycle for
+architectural decision records. Read the accepted ADRs relevant to an area
+before changing it. Add an ADR for a durable change to a layer boundary, public
+interface, security or deployment model, data lifecycle, or long-lived
+dependency. Do not create one for routine implementation details or temporary
+tasks.
+
+Use the next zero-padded, never-reused number. Accepted ADRs are historical
+records: do not rewrite their decision. When one changes, add a new ADR and
+mark the older record as superseded.
 
 ## Working on the rating
 
