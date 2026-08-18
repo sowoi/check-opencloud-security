@@ -3,8 +3,10 @@
 The plugin has a native Prometheus exporter. Run it with
 `--prometheus-listen-port 9102` to serve `/metrics`; it caches a scan for
 `--scrape-interval` seconds (60 by default), so normal scrapes do not trigger
-another scan. For a batch job, `--format=prometheus` prints one text exposition
-payload and exits. Both modes require no extra dependency.
+another scan. It binds to `127.0.0.1` by default; set
+`--prometheus-listen-addr 0.0.0.0` only when a firewall or network policy
+restricts remote scrapers. For a batch job, `--format=prometheus` prints one
+text exposition payload and exits. Both modes require no extra dependency.
 
 The textfile collector and Pushgateway patterns below remain useful when a
 scheduled scan is a better fit than a long-running exporter.

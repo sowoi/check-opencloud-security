@@ -10,6 +10,8 @@
 - `ProductName: Infinite Scale` now identifies ownCloud's renamed product and
   stops the scanner before it rates a non-OpenCloud instance against OpenCloud
   lifecycle data, advisories and hardening defaults.
+- The Prometheus exporter now binds to `127.0.0.1` by default rather than all
+  network interfaces. Remote scrapes require an explicit listen address.
 
 ## check-opencloud-security 1.5.4
 

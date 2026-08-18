@@ -532,7 +532,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--concurrency`     | Maximum parallel host workers; one is used per host up to this ceiling | `5` | `COS_CONCURRENCY` |
 | `--format`          | One-shot output format: `nagios` or `prometheus` | `nagios` | `COS_FORMAT` |
 | `--prometheus-listen-port` | Serve native `/metrics` on this port until stopped | disabled | `COS_PROMETHEUS_LISTEN_PORT` |
-| `--prometheus-listen-addr` | Bind address for the native Prometheus exporter | `0.0.0.0` | `COS_PROMETHEUS_LISTEN_ADDR` |
+| `--prometheus-listen-addr` | Bind address for the native Prometheus exporter | `127.0.0.1` | `COS_PROMETHEUS_LISTEN_ADDR` |
 | `--scrape-interval` | Seconds to cache exporter scan results (`0` scans on every scrape) | `60` | `COS_SCRAPE_INTERVAL` |
 | `--ignore-hardening`| Hardening measure or check to accept, repeatable, comma-separated and wildcard capable | *None* | `COS_SCANNER_IGNORE_HARDENINGS` |
 | `--release-track`   | Release track this instance follows: `rolling`, `production`, `lts` or `auto` | `auto` | `COS_SCANNER_RELEASE_TRACK` |
@@ -608,19 +608,24 @@ scrape should trigger a scan:
 
 ```shell
 check-opencloud-security --host opencloud.example.com \
-  --prometheus-listen-port 9102 --prometheus-listen-addr 0.0.0.0
+  --prometheus-listen-port 9102
 ```
+
+The exporter binds only to `127.0.0.1` by default. Set
+`--prometheus-listen-addr 0.0.0.0` only when a firewall or network policy
+limits who can scrape it.
 
 The Docker image needs no extra package or sidecar:
 
 ```shell
 docker run --rm -p 9102:9102 check-opencloud-security \
-  --host opencloud.example.com --prometheus-listen-port 9102
+  --host opencloud.example.com --prometheus-listen-port 9102 \
+  --prometheus-listen-addr 0.0.0.0
 ```
 
-In Kubernetes, run the same command in a Deployment, expose port `9102`, and
-point a ServiceMonitor or scrape configuration at `/metrics`. The exporter
-publishes `opencloud_security_rating_score`,
+In Kubernetes, set `--prometheus-listen-addr 0.0.0.0` in the Deployment,
+expose port `9102`, and point a ServiceMonitor or scrape configuration at
+`/metrics`. The exporter publishes `opencloud_security_rating_score`,
 `opencloud_security_vulnerabilities_total`,
 `opencloud_security_hardenings_missing_total`,
 `opencloud_security_failed_extra_checks_total`,

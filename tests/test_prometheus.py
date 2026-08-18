@@ -21,6 +21,13 @@ RESULT = {
 }
 
 
+def test_prometheus_exporter_binds_to_loopback_by_default():
+    """Metrics must not become reachable over the network without an explicit opt-in."""
+    args = plugin.build_arg_parser().parse_args(["-H", "opencloud.example.com"])
+
+    assert args.prometheus_listen_addr == "127.0.0.1"
+
+
 def test_scan_result_is_rendered_as_prometheus_gauges():
     """Every documented metric must have a typed, scrapeable sample."""
     metrics = render("opencloud.example.com", RESULT, duration_seconds=1.25, success=True)

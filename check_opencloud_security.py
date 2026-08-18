@@ -1379,11 +1379,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--prometheus-listen-addr",
-        default=_env("PROMETHEUS_LISTEN_ADDR") or "0.0.0.0",
+        default=_env("PROMETHEUS_LISTEN_ADDR") or "127.0.0.1",
         metavar="ADDRESS",
         help=(
             "Address for the Prometheus exporter server. "
-            f"Default: 0.0.0.0 (env: {ENV_PREFIX}PROMETHEUS_LISTEN_ADDR)."
+            f"Default: 127.0.0.1 (env: {ENV_PREFIX}PROMETHEUS_LISTEN_ADDR)."
         ),
     )
     parser.add_argument(
