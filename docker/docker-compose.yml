@@ -95,6 +95,20 @@ services:
       # scan. Off unless the targets are your own.
       COS_WEB_CHECK_DEBUG_PORTS: "false"
       COS_WEB_RELEASES_MODE: "off"
+    # The image health check probes the web server. The worker has no HTTP
+    # listener, so verify its PID and the Redis connection it needs instead.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os; from redis import Redis; os.kill(1, 0); Redis.from_url(os.environ['COS_WEB_REDIS_URL']).ping()",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     read_only: true
     tmpfs:
       - /tmp:size=16m

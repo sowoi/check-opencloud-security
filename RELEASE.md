@@ -1,3 +1,10 @@
+## check-opencloud-security 1.6.1
+
+### Fixed
+
+- The ARQ worker Compose health check now verifies its process and Redis
+  connection instead of probing the web server endpoint it does not run.
+
 ## check-opencloud-security 1.6.0
 
 ### Added

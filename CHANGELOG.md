@@ -12,6 +12,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-08-18
+
+### Fixed
+
+- The ARQ worker Compose health check now verifies its process and Redis
+  connection instead of probing the web server endpoint it does not run.
+
 ## [1.6.0] - 2026-08-18
 
 ### Added
