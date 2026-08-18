@@ -14,8 +14,11 @@ Authors: Massoud Ahmed
 import argparse
 import contextlib
 import contextvars
+import hashlib
+import hmac
 import io
 import ipaddress
+import json
 import logging
 import socket
 import sys
@@ -167,6 +170,7 @@ class ScanContext:
     webhook_url: str | None = None
     webhook_on: str = DEFAULT_WEBHOOK_ON
     webhook_timeout: int = DEFAULT_WEBHOOK_TIMEOUT_SECONDS
+    webhook_secret: str | None = None
     allow_private_webhooks: bool = False
     # Stored as a tuple of pairs so ScanContext stays hashable/frozen.
     webhook_headers: tuple[tuple[str, str], ...] = ()
@@ -680,16 +684,29 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     url = context.webhook_url
     if not url:
         return True
-    if not context.allow_private_webhooks and not _is_safe_webhook_url(url):
-        LOGGER.warning(
-            "Webhook URL points to a restricted private/local IP address "
-            "and was blocked: %s",
-            _redact_url(url),
-        )
-        return False
+    
+    validated_ip: str | None = None
+    if not context.allow_private_webhooks:
+        is_safe, validated_ip = _resolve_and_validate_webhook_url(url)
+        if not is_safe:
+            LOGGER.warning(
+                "Webhook URL points to a restricted private/local IP address "
+                "and was blocked: %s",
+                _redact_url(url),
+            )
+            return False
 
     headers = {"Content-Type": "application/json"}
     headers.update(dict(context.webhook_headers))
+
+    if context.webhook_secret:
+        payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        signature = hmac.new(
+            context.webhook_secret.encode("utf-8"),
+            payload_json.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        headers["X-COS-Signature"] = f"sha256={signature}"
 
     LOGGER.debug(
         "Posting %s webhook for %s to %s",
@@ -699,6 +716,14 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     )
 
     def _post() -> None:
+        if not context.allow_private_webhooks and _webhook_address_has_changed(
+            url, validated_ip
+        ):
+            raise ValueError(
+                "Webhook URL DNS resolution changed between validation and delivery "
+                "(possible DNS rebinding attack); webhook blocked"
+            )
+
         response = requests.post(
             url,
             json=payload,
@@ -740,16 +765,54 @@ def _redact_url(url: str) -> str:
     return f"{parts.scheme}://{host}/<redacted>"
 
 
-def _is_safe_webhook_url(url: str) -> bool:
-    """Return whether url resolves to an address that is safe for a webhook."""
+def _resolve_webhook_address(url: str) -> str | None:
+    """Resolve webhook URL to an IP address, or None if unresolvable/invalid."""
     try:
         hostname = urlsplit(url).hostname
         if not hostname:
-            return False
-        address = ipaddress.ip_address(socket.gethostbyname(hostname))
+            return None
+        return socket.gethostbyname(hostname)
     except (ValueError, socket.gaierror):
-        return False
-    return not (address.is_private or address.is_loopback or address.is_link_local)
+        return None
+
+
+def _resolve_and_validate_webhook_url(url: str) -> tuple[bool, str | None]:
+    """
+    Validate that a webhook URL is safe and return the resolved IP.
+    
+    Returns (is_safe, resolved_ip) where:
+    - is_safe: True if the address is not private/loopback/link-local
+    - resolved_ip: The resolved IP address string, or None if unresolvable
+    """
+    resolved_ip = _resolve_webhook_address(url)
+    if not resolved_ip:
+        return False, None
+    
+    try:
+        address = ipaddress.ip_address(resolved_ip)
+        is_safe = not (address.is_private or address.is_loopback or address.is_link_local)
+        return is_safe, resolved_ip
+    except ValueError:
+        return False, None
+
+
+def _is_safe_webhook_url(url: str) -> bool:
+    """Return whether url resolves to an address that is safe for a webhook."""
+    is_safe, _ = _resolve_and_validate_webhook_url(url)
+    return is_safe
+
+
+def _webhook_address_has_changed(url: str, original_ip: str | None) -> bool:
+    """
+    Check if a webhook URL's DNS resolution has changed since validation.
+
+    Returns True if DNS has changed (rebinding attack detected or resolution failed).
+    Returns False if the address is the same.
+    This mitigates DNS rebinding attacks by detecting when a hostname resolves to
+    a different IP address between validation and actual webhook delivery.
+    """
+    current_ip = _resolve_webhook_address(url)
+    return current_ip != original_ip
 
 
 def _notify_and_fail(
@@ -1491,6 +1554,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--webhook-secret",
+        default=_env("WEBHOOK_SECRET"),
+        help=(
+            "Shared secret for signing webhook payloads with HMAC-SHA256. "
+            "If set, the X-COS-Signature header is added to every webhook POST. "
+            "The receiver must verify the signature using the same secret "
+            f"(env: {ENV_PREFIX}WEBHOOK_SECRET)."
+        ),
+    )
+    parser.add_argument(
         "--allow-private-webhooks",
         action="store_true",
         default=_allow_private_webhooks_default(),
@@ -1661,6 +1734,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         webhook_url=args.webhook_url,
         webhook_on=args.webhook_on,
         webhook_timeout=args.webhook_timeout,
+        webhook_secret=args.webhook_secret,
         allow_private_webhooks=args.allow_private_webhooks,
         webhook_headers=_parse_webhook_headers(args.webhook_header),
         scanner_settings=scanner_settings,

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .catalog import DEFAULT_RELEASE_TRACK
+from .encryption import EncryptionConfig, decrypt_value, encrypt_value
 from .redis_backend import RedisBackend
 
 QUEUE_KEY = "cos:web:queue"
@@ -112,6 +113,7 @@ class ScanStore:
 
     backend: RedisBackend
     ttl: int
+    encryption_config: EncryptionConfig | None = None
 
     async def create(
         self,
@@ -148,7 +150,10 @@ class ScanStore:
     async def mark_completed(self, uuid: str, result: dict[str, Any]) -> None:
         """Store the result document and stop the clock."""
         await self.backend.lrem(QUEUE_KEY, 1, uuid)
-        await self.backend.set(result_key(uuid), _dump(result), ex=self.ttl)
+        result_str = _dump(result)
+        if self.encryption_config:
+            result_str = encrypt_value(result_str, self.encryption_config)
+        await self.backend.set(result_key(uuid), result_str, ex=self.ttl)
         await self._patch_metadata(uuid, {"finishedAt": _now()})
         await self.backend.set(
             status_key(uuid), _dump({"state": STATE_COMPLETED}), ex=self.ttl
@@ -182,7 +187,15 @@ class ScanStore:
 
         result = None
         if state == STATE_COMPLETED:
-            result = _load(await self.backend.get(result_key(uuid)))
+            result_str = await self.backend.get(result_key(uuid))
+            if result_str is not None:
+                if self.encryption_config:
+                    decrypted = decrypt_value(result_str, self.encryption_config)
+                    if decrypted is None:
+                        return None
+                    result = _load(decrypted)
+                else:
+                    result = _load(result_str)
 
         position: int | None = None
         length = await self.backend.llen(QUEUE_KEY)
