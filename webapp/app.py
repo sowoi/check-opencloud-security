@@ -50,10 +50,16 @@ from .catalog import (
 )
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
-from .redis_backend import create_backend
+from .redis_backend import RedisUnavailable, create_backend
 from .settings import WebSettings
 from .ssrf import TargetRejected, validate_target
-from .store import STATE_COMPLETED, STATE_FAILED, ScanStore
+from .store import (
+    QUEUE_KEY,
+    STATE_COMPLETED,
+    STATE_FAILED,
+    WORKER_HEARTBEAT_KEY,
+    ScanStore,
+)
 
 LOGGER = logging.getLogger("check_opencloud.web")
 
@@ -499,7 +505,22 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> Response:
-        return JSONResponse({"status": "ok", "version": __version__})
+        try:
+            health = await app.state.backend.health(QUEUE_KEY, WORKER_HEARTBEAT_KEY)
+        except RedisUnavailable:
+            health = None
+        if health is None or not health.worker_alive:
+            return JSONResponse(
+                {"status": "unavailable", "version": __version__}, status_code=503
+            )
+        return JSONResponse(
+            {
+                "status": "ok",
+                "version": __version__,
+                "queueDepth": health.queue_depth,
+                "worker": "ok",
+            }
+        )
 
     @app.exception_handler(404)
     async def _handle_404(request: Request, exc: Exception) -> Response:

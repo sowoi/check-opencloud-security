@@ -304,8 +304,12 @@ when the uuid is unknown or expired.
 
 ### `GET /scan/{uuid}`, `GET /`, `GET /healthz`
 
-The result page, the landing page, and a liveness probe that says nothing
-about any scan.
+The result page, the landing page, and a Redis-backed health probe that says
+nothing about any scan. `GET /healthz` returns 200 only after the configured
+backend answers `PING`, its queue depth can be read, and a worker's short-lived
+heartbeat is present. Its success body carries only the aggregate `queueDepth`
+and `worker: "ok"`; it returns a detail-free 503 while any dependency is
+unavailable.
 
 ## Layout
 

@@ -96,7 +96,7 @@ Seven routes, and that is the whole surface.
 | `GET` | `/api/scans` | Redirects to `/`. It lists nothing - there is no listing |
 | `GET` | `/scan/{uuid}` | The progress and result page |
 | `GET` | `/api/scans/{uuid}` | The state, and the result once there is one |
-| `GET` | `/healthz` | `{"status": "ok", "version": "..."}` |
+| `GET` | `/healthz` | Pings Redis, reads queue depth, and requires a live worker heartbeat; returns the aggregate depth or a 503 when unavailable |
 
 ### Starting a scan
 

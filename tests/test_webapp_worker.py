@@ -25,8 +25,8 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
 )
 from webapp.catalog import summarise
 from webapp.redis_backend import memory_backend
-from webapp.store import ScanStore
-from webapp.tasks import run_scan
+from webapp.store import WORKER_HEARTBEAT_KEY, ScanStore
+from webapp.tasks import HEARTBEAT_TTL_SECONDS, publish_worker_heartbeat, run_scan
 
 
 def _worker_context(**overrides):
@@ -46,6 +46,17 @@ def _queue(store: ScanStore, target: str, waivers: tuple[str, ...] = ()) -> str:
         )
     )
     return identifier
+
+
+def test_a_worker_heartbeat_expires_when_the_worker_stops():
+    """Health must not report a worker alive after its process has disappeared."""
+    store = memory_backend(MEMORY_URL)
+
+    asyncio.run(publish_worker_heartbeat(store))
+
+    assert asyncio.run(store.ttl(WORKER_HEARTBEAT_KEY)) == HEARTBEAT_TTL_SECONDS
+    store.advance(HEARTBEAT_TTL_SECONDS + 1)
+    assert asyncio.run(store.ttl(WORKER_HEARTBEAT_KEY)) == -2
 
 
 def test_a_queued_scan_becomes_a_result_document_under_its_own_uuid():
