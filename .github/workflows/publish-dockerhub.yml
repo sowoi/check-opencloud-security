@@ -172,3 +172,4 @@ jobs:
           repository: ${{ steps.creds.outputs.image }}
           short-description: Public security scan service for OpenCloud instances
           readme-filepath: ./docker/dockerhub-readme.md
+          enable-url-completion: true

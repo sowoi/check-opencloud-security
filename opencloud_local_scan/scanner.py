@@ -191,12 +191,13 @@ IDP_FINGERPRINTS: tuple[tuple[str, str], ...] = (
 STATUS_PATH = "/status.php"
 WEBFINGER_PATH = "/.well-known/webfinger"
 
-# ownCloud and Nextcloud serve the same status.php - OpenCloud inherited the
-# endpoint from them - so the document alone does not say what is running.
-# Their releases, advisories and hardening defaults are not OpenCloud's, and
-# rating one of them against the OpenCloud release schedule would produce a
-# confident answer about the wrong software. Scanning stops instead.
-FOREIGN_PRODUCTS: tuple[str, ...] = ("owncloud", "nextcloud")
+# ownCloud, Infinite Scale and Nextcloud serve the same status.php - OpenCloud
+# inherited the endpoint from them - so the document alone does not say what is
+# running. Their releases, advisories and hardening defaults are not
+# OpenCloud's, and rating one of them against the OpenCloud release schedule
+# would produce a confident answer about the wrong software. Scanning stops
+# instead.
+FOREIGN_PRODUCTS: tuple[str, ...] = ("owncloud", "infinitescale", "nextcloud")
 
 # Requested to find out how the server answers for something that cannot exist.
 CATCH_ALL_PATH = "/check-opencloud-security-probe-404"
@@ -557,13 +558,13 @@ def _fetch_status(probe: _Probe) -> dict[str, Any]:
 
 
 def _foreign_product(payload: Mapping[str, Any]) -> str | None:
-    """Name the product when status.php belongs to ownCloud or Nextcloud.
+    """Name the product when status.php belongs to another product.
 
     Matching is on the product name only. 'opencloud' does not contain either
-    word, so no OpenCloud instance can be rejected by accident, while
-    'ownCloud GmbH' and 'Nextcloud Hub' both are.
+    product identifier, so no OpenCloud instance can be rejected by accident,
+    while 'ownCloud GmbH', 'Infinite Scale' and 'Nextcloud Hub' all are.
     """
-    for key in ("productname", "product"):
+    for key in ("productname", "ProductName", "product"):
         reported = str(payload.get(key) or "").strip()
         collapsed = re.sub(r"[^a-z]", "", reported.lower())
         if any(other in collapsed for other in FOREIGN_PRODUCTS):

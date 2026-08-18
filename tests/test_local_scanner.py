@@ -339,16 +339,21 @@ def test_non_opencloud_target_raises_scan_error():
         run_scan(behaviour)
 
 
-def test_an_owncloud_or_nextcloud_server_is_not_scanned_as_opencloud():
-    """They serve the same status.php, and rating them here would be a lie.
+def test_an_owncloud_product_is_not_scanned_as_opencloud():
+    """A legacy product's release data and hardenings must not get an OpenCloud verdict.
 
-    Their releases, advisories and defaults are not OpenCloud's, so a verdict
-    from this scanner would be a confident answer about the wrong software.
+    ownCloud, its Infinite Scale name and Nextcloud serve the same status
+    endpoint, but their release data and defaults are different products.
     """
-    for product in ("ownCloud", "Nextcloud Hub"):
+    for product, field in (
+        ("ownCloud", "productname"),
+        ("Infinite Scale", "ProductName"),
+        ("Nextcloud Hub", "product"),
+    ):
         behaviour = InstanceBehaviour()
-        behaviour.status_payload["productname"] = product
-        behaviour.status_payload["product"] = product
+        behaviour.status_payload.pop("productname")
+        behaviour.status_payload.pop("product")
+        behaviour.status_payload[field] = product
 
         with pytest.raises(ScanError) as raised:
             run_scan(behaviour)

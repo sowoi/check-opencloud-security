@@ -104,7 +104,6 @@ services:
       - ALL
 
   redis:
-    # Redis 7 is end of life; 8.x is the supported line.
     image: redis:8.10-alpine
     container_name: opencloud-scan-redis
     restart: unless-stopped

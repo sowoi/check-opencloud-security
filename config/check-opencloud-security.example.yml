@@ -33,7 +33,7 @@ backoff_factor: 0.5
 # this ceiling. A single-host scan creates no host worker pool.
 # concurrency: 5
 # prometheus_listen_port: 9102  # serves /metrics; omit to keep one-shot mode
-# prometheus_listen_addr: 0.0.0.0
+# prometheus_listen_addr: 127.0.0.1
 # scrape_interval: 60           # cache duration; 0 refreshes every scrape
 
 warning: 3                       # rating <= 3 (C) -> WARNING
