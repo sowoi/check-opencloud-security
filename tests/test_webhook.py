@@ -262,3 +262,118 @@ def test_invalid_or_unresolvable_webhook_urls_are_blocked(monkeypatch, url):
     )
 
     assert plugin._is_safe_webhook_url(url) is False
+
+
+def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
+    """DNS rebinding attacks must be detected and blocked.
+
+    An attacker submits a webhook URL pointing to a public address, which passes
+    validation. Between validation and delivery, they change the DNS record to
+    point to a private address. The webhook must detect this and block delivery.
+    """
+    resolve_count = 0
+    posted = []
+
+    def _gethostbyname_rebinding(hostname: str) -> str:
+        nonlocal resolve_count
+        resolve_count += 1
+        if resolve_count == 1:
+            return "8.8.8.8"
+        else:
+            return "127.0.0.1"
+
+    class _Response:
+        def raise_for_status(self):
+            pass
+
+    def _post(url, **kwargs):
+        posted.append((url, kwargs))
+        return _Response()
+
+    monkeypatch.setattr(plugin.socket, "gethostbyname", _gethostbyname_rebinding)
+    monkeypatch.setattr(plugin.requests, "post", _post)
+
+    sent = plugin._send_webhook(
+        ScanContext(
+            host="cloud.example.com",
+            webhook_url="https://hooks.example.com/x",
+        ),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is False
+    assert posted == []
+    assert "DNS resolution changed" in caplog.text
+    assert "DNS rebinding attack" in caplog.text
+
+
+def test_webhook_signature_is_added_when_secret_is_set(posts):
+    """The X-COS-Signature header contains the HMAC-SHA256 of the payload."""
+    import hashlib
+    import hmac
+    
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_secret="my-secret",
+    )
+
+    assert len(posts) == 1
+    url, kwargs = posts[0]
+    assert "X-COS-Signature" in kwargs["headers"]
+    
+    payload_json = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True)
+    expected_sig = hmac.new(
+        b"my-secret",
+        payload_json.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    assert kwargs["headers"]["X-COS-Signature"] == f"sha256={expected_sig}"
+
+
+def test_webhook_signature_is_not_added_when_secret_is_not_set(posts):
+    """No X-COS-Signature header is added when webhook_secret is None."""
+    run(CRITICAL_RESULT, webhook_url="https://hooks.example.com/x")
+
+    assert len(posts) == 1
+    url, kwargs = posts[0]
+    assert "X-COS-Signature" not in kwargs["headers"]
+
+
+def test_webhook_signature_changes_with_different_secret(posts):
+    """Different secrets produce different signatures."""
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_secret="secret-1",
+    )
+    sig1 = posts[0][1]["headers"].get("X-COS-Signature")
+    
+    posts.clear()
+    
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_secret="secret-2",
+    )
+    sig2 = posts[0][1]["headers"].get("X-COS-Signature")
+    
+    assert sig1 != sig2
+
+
+def test_webhook_signature_format_is_sha256_hex(posts):
+    """The X-COS-Signature header follows the sha256=<hex> format."""
+    import re
+    
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_secret="my-secret",
+    )
+
+    assert len(posts) == 1
+    url, kwargs = posts[0]
+    sig_header = kwargs["headers"]["X-COS-Signature"]
+    
+    pattern = r"^sha256=[0-9a-f]{64}$"
+    assert re.match(pattern, sig_header), f"Invalid signature format: {sig_header}"

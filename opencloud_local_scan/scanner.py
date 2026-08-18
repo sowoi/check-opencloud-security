@@ -877,11 +877,11 @@ def _tls_handshake(
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
     try:
-        with (
-            socket.create_connection((hostname, port), timeout=timeout) as raw,
-            context.wrap_socket(raw, server_hostname=hostname) as tls,
-        ):
-            return tls.getpeercert(), tls.version() or "unknown", None
+        raw = socket.create_connection((hostname, port), timeout=timeout)
+        with raw:
+            tls = context.wrap_socket(raw, server_hostname=hostname)
+            with tls:
+                return tls.getpeercert(), tls.version() or "unknown", None
     except (OSError, ssl.SSLError) as exc:
         return None, "", exc
 

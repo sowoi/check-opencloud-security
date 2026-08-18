@@ -7,9 +7,9 @@ temporarily. Try the hosted service at <https://scan.okxo.de>.
 Source, deployment files and issue tracking:
 <https://github.com/sowoi/check-opencloud-security>
 
-![The hosted scanner's landing page](../img/opencloud-scan-landing.png)
+![The hosted scanner's landing page](https://raw.githubusercontent.com/sowoi/check-opencloud-security/81d4684a18ba0d5c68081759644b85774d8e62b4/img/opencloud-scan-landing.png)
 
-![A completed scan of the OpenCloud demonstration instance](../img/opencloud-demo-scan-result.png)
+![A completed scan of the OpenCloud demonstration instance](https://raw.githubusercontent.com/sowoi/check-opencloud-security/81d4684a18ba0d5c68081759644b85774d8e62b4/img/opencloud-demo-scan-result.png)
 
 ## Pull the image
 

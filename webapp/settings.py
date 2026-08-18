@@ -58,6 +58,22 @@ def _env_list(name: str) -> tuple[str, ...]:
     return tuple(part for part in parts if part)
 
 
+def _read_encryption_keys() -> dict[int, str]:
+    """Read encryption keys from COS_WEB_ENCRYPTION_KEY_<VERSION> env vars."""
+    keys: dict[int, str] = {}
+    for env_var, value in os.environ.items():
+        if env_var.startswith("COS_WEB_ENCRYPTION_KEY_"):
+            try:
+                version_str = env_var[len("COS_WEB_ENCRYPTION_KEY_"):]
+                version = int(version_str)
+                key = value.strip()
+                if key:
+                    keys[version] = key
+            except (ValueError, IndexError):
+                continue
+    return keys
+
+
 @dataclass(frozen=True)
 class WebSettings:
     """Everything the web application and its worker need to run."""
@@ -112,6 +128,20 @@ class WebSettings:
     and a page describing them, and Swagger UI is the one part of this service
     that loads a script from somebody else's server."""
 
+    webhook_secret: str | None = None
+    """Shared secret for signing webhook payloads. If set, webhook POSTs include
+    an X-COS-Signature header. The receiver must verify the signature."""
+
+    encrypt_results: bool = False
+    """Encrypt sensitive scan results in Redis using AES-256-GCM. When enabled,
+    only the result data is encrypted; metadata like UUIDs and timestamps remain
+    in clear text for listing and TTL operations."""
+
+    encryption_keys: dict[int, str] = field(default_factory=dict)
+    """Encryption key mapping: version -> key (hex). Keys are read from
+    COS_WEB_ENCRYPTION_KEY_<VERSION> env vars. New encryptions use the highest
+    version; old versions still decrypt existing data."""
+
     @property
     def queue_name(self) -> str:
         """The ARQ queue the API and the worker agree on."""
@@ -142,4 +172,7 @@ class WebSettings:
             releases_mode=(_env("RELEASES_MODE") or "off").lower(),
             releases_token=_env("RELEASES_TOKEN"),
             enable_docs=_env_bool("ENABLE_DOCS", False),
+            webhook_secret=_env("WEBHOOK_SECRET"),
+            encrypt_results=_env_bool("ENCRYPT_RESULTS", False),
+            encryption_keys=_read_encryption_keys(),
         )

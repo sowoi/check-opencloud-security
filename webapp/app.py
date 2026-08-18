@@ -45,6 +45,8 @@ from .catalog import (
     sanitize_waivers,
     summarise,
     waiver_options,
+    csv_report,
+    sarif_report,
 )
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
@@ -55,7 +57,7 @@ from .store import STATE_COMPLETED, STATE_FAILED, ScanStore
 
 LOGGER = logging.getLogger("check_opencloud.web")
 
-OUTPUT_FORMATS = ("dashboard", "json")
+OUTPUT_FORMATS = ("dashboard", "json", "csv", "sarif")
 
 # Only these arrive from a form or a JSON body. Anything else is a request
 # trying to reach a knob it is not allowed to touch, and saying so plainly is
@@ -248,7 +250,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     app.state.settings = settings
     app.state.backend = create_backend(settings.redis_url)
-    app.state.store = ScanStore(backend=app.state.backend, ttl=settings.result_ttl)
+    app.state.store = ScanStore(
+        backend=app.state.backend,
+        ttl=settings.result_ttl,
+        encryption_config=settings if settings.encrypt_results else None,
+    )
     app.state.limiter = RateLimiter(
         backend=app.state.backend,
         client_limit=settings.ip_rate_limit,
@@ -473,6 +479,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         record = await app.state.store.get(identifier)
         if record is None:
             return JSONResponse({"detail": "Not found."}, status_code=404)
+        
+        output_format = record.metadata.get("outputFormat", "json")
+        
+        if record.state == STATE_COMPLETED and record.result is not None:
+            if output_format == "csv":
+                csv_content = csv_report(record.result)
+                return Response(csv_content, media_type="text/csv")
+            elif output_format == "sarif":
+                sarif_data = sarif_report(record.result)
+                return JSONResponse(sarif_data, media_type="application/sarif+json")
+        
         payload = record.as_dict()
         if record.state == STATE_COMPLETED and record.result is not None:
             payload["summary"] = summarise(record.result)
