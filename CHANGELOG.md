@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-18
+
 ### Added
 
 - Webhook signature verification using HMAC-SHA256. When configured with

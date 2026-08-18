@@ -1,4 +1,4 @@
-## check-opencloud-security 1.5.5
+## check-opencloud-security 1.6.0
 
 ### Added
 
@@ -19,8 +19,6 @@
     security dashboards and tools
   - Formats are selected via `output_format` query parameter in POST requests
   - Existing dashboard and JSON formats remain unchanged
-- Live screenshots of the hosted scanner and a completed scan of the OpenCloud
-  demonstration instance in `img/`, shown in the main and Docker Hub READMEs.
 
 ### Fixed
 
@@ -28,11 +26,6 @@
   allowed DNS rebinding attacks to bypass SSRF protection and target private
   addresses. Webhook DNS resolution is now re-validated immediately before
   delivery and blocked if the address has changed since submission.
-- `ProductName: Infinite Scale` now identifies ownCloud's renamed product and
-  stops the scanner before it rates a non-OpenCloud instance against OpenCloud
-  lifecycle data, advisories and hardening defaults.
-- The Prometheus exporter now binds to `127.0.0.1` by default rather than all
-  network interfaces. Remote scrapes require an explicit listen address.
 
 ### Documentation
 
