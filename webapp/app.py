@@ -40,13 +40,13 @@ from opencloud_local_scan import __version__
 
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
+    csv_report,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
+    sarif_report,
     summarise,
     waiver_options,
-    csv_report,
-    sarif_report,
 )
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter

@@ -11,18 +11,24 @@ listing and TTL operations.
 from __future__ import annotations
 
 import base64
-import json
 import os
+from collections.abc import Mapping
 from typing import Protocol
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 class EncryptionConfig(Protocol):
     """Settings for encryption."""
 
-    encrypt_results: bool
-    encryption_keys: dict[int, str]
+    @property
+    def encrypt_results(self) -> bool:
+        """Whether result encryption is enabled."""
+
+    @property
+    def encryption_keys(self) -> Mapping[int, str]:
+        """Encryption key mapping by version."""
 
 
 def _get_current_key_version(config: EncryptionConfig) -> int | None:
@@ -109,7 +115,7 @@ def decrypt_value(encrypted_value: str, config: EncryptionConfig) -> str | None:
         cipher = AESGCM(key)
         plaintext = cipher.decrypt(nonce, ciphertext, None)
         return plaintext.decode("utf-8")
-    except (ValueError, TypeError, Exception):
+    except (InvalidTag, UnicodeDecodeError, ValueError, TypeError):
         return None
 
 
@@ -145,4 +151,3 @@ def decrypt_result_dict(result: dict, config: EncryptionConfig) -> dict | None:
             return None
         result["result"] = decrypted
     return result
-

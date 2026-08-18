@@ -319,7 +319,7 @@ def test_webhook_signature_is_added_when_secret_is_set(posts):
     )
 
     assert len(posts) == 1
-    url, kwargs = posts[0]
+    _, kwargs = posts[0]
     assert "X-COS-Signature" in kwargs["headers"]
     
     payload_json = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True)
@@ -336,7 +336,7 @@ def test_webhook_signature_is_not_added_when_secret_is_not_set(posts):
     run(CRITICAL_RESULT, webhook_url="https://hooks.example.com/x")
 
     assert len(posts) == 1
-    url, kwargs = posts[0]
+    _, kwargs = posts[0]
     assert "X-COS-Signature" not in kwargs["headers"]
 
 
@@ -372,7 +372,7 @@ def test_webhook_signature_format_is_sha256_hex(posts):
     )
 
     assert len(posts) == 1
-    url, kwargs = posts[0]
+    _, kwargs = posts[0]
     sig_header = kwargs["headers"]["X-COS-Signature"]
     
     pattern = r"^sha256=[0-9a-f]{64}$"
