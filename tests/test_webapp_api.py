@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from opencloud_local_scan import ScannerSettings
+from opencloud_local_scan import ScannerSettings, __version__
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
@@ -22,9 +22,16 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     settings,
 )
 from webapp.app import is_safe_link
+from webapp.redis_backend import RedisUnavailable
 from webapp.runner import scanner_settings_for
 from webapp.ssrf import redirect_guard, validate_target
-from webapp.store import QUEUE_KEY, is_scan_uuid, result_key, status_key
+from webapp.store import (
+    QUEUE_KEY,
+    WORKER_HEARTBEAT_KEY,
+    is_scan_uuid,
+    result_key,
+    status_key,
+)
 
 
 def _create(test_client, target: str = "https://opencloud.example.com", **body):
@@ -472,12 +479,38 @@ def test_the_health_endpoint_says_nothing_about_any_scan():
     """A probe endpoint is a probe endpoint, not a status board."""
     test_client = client()
     identifier = _create(test_client).json()["uuid"]
+    asyncio.run(backend().set(WORKER_HEARTBEAT_KEY, "1", ex=30))
 
     payload = test_client.get("/healthz").json()
 
     assert payload["status"] == "ok"
+    assert payload["worker"] == "ok"
+    assert payload["queueDepth"] == 1
     assert identifier not in str(payload)
-    assert "queue" not in payload
+    assert "target" not in payload
+
+
+def test_the_health_endpoint_rejects_an_unavailable_redis_backend(monkeypatch):
+    """A live web process cannot accept scans when its shared state store is down."""
+    test_client = client()
+
+    async def unavailable(*_keys):
+        raise RedisUnavailable()
+
+    monkeypatch.setattr(test_client.app.state.backend, "health", unavailable)
+
+    response = test_client.get("/healthz")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable", "version": __version__}
+
+
+def test_the_health_endpoint_rejects_a_missing_worker_heartbeat():
+    """A web process without a worker must not be reported as ready for scans."""
+    response = client().get("/healthz")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable", "version": __version__}
 
 
 def test_a_rate_limited_visitor_is_pointed_at_running_the_check_themselves():

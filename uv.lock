@@ -367,7 +367,7 @@ wheels = [
 
 [[package]]
 name = "check-opencloud-security"
-version = "1.6.0"
+version = "1.6.1"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -414,9 +414,9 @@ requires-dist = [
     { name = "arq", marker = "extra == 'web'", specifier = ">=0.28.0" },
     { name = "certifi", specifier = ">=2026.7.22" },
     { name = "cryptography", marker = "extra == 'web'", specifier = ">=50.0.0" },
-    { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.121.0" },
+    { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.141.0" },
     { name = "jinja2", marker = "extra == 'web'", specifier = ">=3.1.6" },
-    { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.22" },
+    { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "redis", marker = "extra == 'web'", specifier = ">=5.3.1,<6" },
     { name = "requests", specifier = ">=2.34.2" },

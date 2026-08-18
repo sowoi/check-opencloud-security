@@ -32,6 +32,7 @@ from .encryption import EncryptionConfig, decrypt_value, encrypt_value
 from .redis_backend import RedisBackend
 
 QUEUE_KEY = "cos:web:queue"
+WORKER_HEARTBEAT_KEY = "cos:web:worker:heartbeat"
 
 STATE_QUEUED = "queued"
 STATE_RUNNING = "running"

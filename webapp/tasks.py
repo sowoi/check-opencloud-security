@@ -19,19 +19,33 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 from typing import Any, ClassVar
 
 from opencloud_local_scan import ScanError
 
 from .catalog import sanitize_release_track
 from .queue import redis_settings
-from .redis_backend import create_backend
+from .redis_backend import RedisBackend, create_backend
 from .runner import execute_scan
 from .settings import WebSettings
 from .ssrf import TargetRejected, validate_target
-from .store import ScanStore
+from .store import WORKER_HEARTBEAT_KEY, ScanStore
 
 LOGGER = logging.getLogger("check_opencloud.web.worker")
+HEARTBEAT_INTERVAL_SECONDS = 10
+HEARTBEAT_TTL_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3
+
+
+async def publish_worker_heartbeat(backend: RedisBackend) -> None:
+    """Publish a short-lived signal that this worker can reach Redis."""
+    await backend.set(WORKER_HEARTBEAT_KEY, "1", ex=HEARTBEAT_TTL_SECONDS)
+
+
+async def _heartbeat(backend: RedisBackend) -> None:
+    while True:
+        await publish_worker_heartbeat(backend)
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
 async def run_scan(ctx: dict[str, Any], uuid: str) -> str:
@@ -93,12 +107,20 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["web_settings"] = settings
     ctx["backend"] = create_backend(settings.redis_url)
     ctx["store"] = ScanStore(backend=ctx["backend"], ttl=settings.result_ttl)
+    await publish_worker_heartbeat(ctx["backend"])
+    ctx["heartbeat_task"] = asyncio.create_task(_heartbeat(ctx["backend"]))
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
     """Close the store connection."""
+    heartbeat_task = ctx.get("heartbeat_task")
+    if heartbeat_task is not None:
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
     backend = ctx.get("backend")
     if backend is not None:
+        await backend.delete(WORKER_HEARTBEAT_KEY)
         await backend.close()
 
 

@@ -15,14 +15,31 @@ one on PyPI already.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 MEMORY_SCHEME = "memory://"
 
 
+class RedisUnavailable(RuntimeError):
+    """Raised when the configured Redis backend cannot answer a health probe."""
+
+
+@dataclass(frozen=True)
+class BackendHealth:
+    """The Redis-backed signals the public health probe needs."""
+
+    queue_depth: int
+    worker_alive: bool
+
+
 @runtime_checkable
 class RedisBackend(Protocol):
     """The commands the web application needs from Redis."""
+
+    async def ping(self) -> bool: ...
+
+    async def health(self, queue_key: str, worker_key: str) -> BackendHealth: ...
 
     async def get(self, key: str) -> str | None: ...
 
@@ -98,6 +115,15 @@ class MemoryRedis:
         return True
 
     # -- commands ----------------------------------------------------------
+    async def ping(self) -> bool:
+        return True
+
+    async def health(self, queue_key: str, worker_key: str) -> BackendHealth:
+        return BackendHealth(
+            queue_depth=await self.llen(queue_key),
+            worker_alive=await self.ttl(worker_key) > 0,
+        )
+
     async def get(self, key: str) -> str | None:
         return self._values.get(key) if self._live(key) else None
 
@@ -201,6 +227,26 @@ class _RealRedis:
 
     def __init__(self, client: object) -> None:
         self._client = client
+
+    async def ping(self) -> bool:
+        from redis.exceptions import RedisError
+
+        try:
+            return bool(await self._client.ping())  # type: ignore[attr-defined]
+        except RedisError as exc:
+            raise RedisUnavailable() from exc
+
+    async def health(self, queue_key: str, worker_key: str) -> BackendHealth:
+        from redis.exceptions import RedisError
+
+        try:
+            if not await self._client.ping():  # type: ignore[attr-defined]
+                raise RedisUnavailable()
+            queue_depth = int(await self._client.llen(queue_key))  # type: ignore[attr-defined]
+            worker_alive = int(await self._client.ttl(worker_key)) > 0  # type: ignore[attr-defined]
+        except RedisError as exc:
+            raise RedisUnavailable() from exc
+        return BackendHealth(queue_depth=queue_depth, worker_alive=worker_alive)
 
     async def get(self, key: str) -> str | None:
         value = await self._client.get(key)  # type: ignore[attr-defined]
