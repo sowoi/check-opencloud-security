@@ -2059,8 +2059,10 @@ check-opencloud-scanner scan opencloud.example.com | jq '.ignored, .extraChecks'
 ```
 
 # Contributing
-Bug reports, feature requests and pull requests are welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the test suite,
+Bug reports, feature requests and pull requests are welcome.
+[ARCHITECTURE.md](ARCHITECTURE.md) is the map: the three layers, where a new
+check, setting or endpoint belongs, and which decisions already have an
+[architectural record](adr/README.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the test suite,
 the linting rules and how releases are cut, and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for what to expect from everyone
 involved.

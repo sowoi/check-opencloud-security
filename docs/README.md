@@ -38,6 +38,11 @@ places this check tends to end up.
 
 ## Elsewhere in the repository
 
+- [`ARCHITECTURE.md`](../ARCHITECTURE.md) - how the repository fits together:
+  the three layers, how settings reach the scanner, what ships where, and
+  where a new check, setting or endpoint belongs.
+- [`adr/README.md`](../adr/README.md) - the architectural decision records,
+  and the format a new one follows.
 - [`opencloud_local_scan/README.md`](../opencloud_local_scan/README.md) - the
   scanner library: what it reads from an instance, how the rating is worked
   out, and how end of life is decided.

@@ -463,7 +463,11 @@ def test_nothing_is_loaded_from_a_third_party():
     """
     test_client = client()
     identifier = _create(test_client).json()["uuid"]
-    pages = [test_client.get("/").text, test_client.get(f"/scan/{identifier}").text]
+    pages = [
+        test_client.get(path).text
+        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
+    ]
+    pages.append(test_client.get(f"/scan/{identifier}").text)
 
     for body in pages:
         resources = re.findall(r'<(?:script|link|img)[^>]*?(?:src|href)="([^"]+)"', body)
@@ -565,10 +569,11 @@ def test_every_page_carries_the_trademark_notice():
     test_client = client()
     identifier = _create(test_client).json()["uuid"]
     pages = [
-        test_client.get("/").text,
-        test_client.get(f"/scan/{identifier}").text,
-        test_client.get("/scan/00000000-0000-4000-8000-000000000000").text,
+        test_client.get(path).text
+        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
     ]
+    pages.append(test_client.get(f"/scan/{identifier}").text)
+    pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)
 
     for body in pages:
         assert "not affiliated with" in body
@@ -588,10 +593,11 @@ def test_the_footer_names_the_backend_version_on_every_page():
     test_client = client()
     identifier = _create(test_client).json()["uuid"]
     pages = [
-        test_client.get("/").text,
-        test_client.get(f"/scan/{identifier}").text,
-        test_client.get("/scan/00000000-0000-4000-8000-000000000000").text,
+        test_client.get(path).text
+        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
     ]
+    pages.append(test_client.get(f"/scan/{identifier}").text)
+    pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)
 
     for body in pages:
         assert f"Backend v{__version__}" in body
@@ -840,23 +846,26 @@ def test_only_http_urls_become_advisory_links():
         assert is_safe_link(bad) is False
 
 
-def test_the_landing_page_credits_opencloud_and_links_to_it():
+def test_the_about_page_credits_opencloud_and_links_to_it():
     """
     The tool is named after somebody else's software, so it says whose.
 
     A scanner that trades on a project's name without pointing at it - or
     without saying it is not run by them - is the kind of thing that gets a
-    project's trademark lawyers involved, and it is simply bad manners.
+    project's trademark lawyers involved, and it is simply bad manners. The
+    credit moved off the landing page, so it has to be reachable from it.
     """
-    page = client().get("/")
-    body = page.text
+    test_client = client()
+    body = test_client.get("/about").text
 
     assert "https://opencloud.eu/" in body
     assert "https://docs.opencloud.eu/" in body
     assert "not affiliated with" in body and "OpenCloud GmbH" in body
+    # Moved, not dropped: the landing page still points at it.
+    assert 'href="/about"' in test_client.get("/").text
 
 
-def test_the_landing_page_states_the_limits_and_links_the_schema_when_it_is_on():
+def test_the_api_page_states_the_limits_and_links_the_schema_when_it_is_on():
     """
     A caller should learn the rules from the page, not from a 429.
 
@@ -865,12 +874,12 @@ def test_the_landing_page_states_the_limits_and_links_the_schema_when_it_is_on()
     to the 404 page.
     """
     quiet = client(ip_rate_limit=10, ip_rate_window=60, target_cooldown=300)
-    body = quiet.get("/").text
+    body = quiet.get("/api").text
     assert "10 submissions" in body
     assert "5 minute(s)" in body
     assert 'href="/docs"' not in body
     assert "COS_WEB_ENABLE_DOCS" in body
 
-    loud = client(enable_docs=True).get("/").text
+    loud = client(enable_docs=True).get("/api").text
     assert 'href="/docs"' in loud
     assert 'href="/openapi.json"' in loud

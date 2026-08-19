@@ -25,7 +25,12 @@ scanner.
 frontend/
 ├── templates/
 │   ├── base.html    the shell: header, footer, version badge, legal notice
-│   ├── index.html   the landing page, the form and the privacy pitch
+│   ├── index.html   the landing page: the hero, the form and nothing else
+│   ├── how-it-works.html  what gets tested, and the four steps
+│   ├── api.html     the JSON API, the fair use limits, the schema links
+│   ├── privacy.html what is kept, for how long, and what the log omits
+│   ├── about.html   OpenCloud, and this project's independence from it
+│   ├── _page-nav.html  the "Read on" cross-links every content page ends with
 │   ├── scan.html    live progress, then the result dashboard
 │   └── 404.html     an unknown address or an expired scan
 └── static/
@@ -116,7 +121,11 @@ to its meaning - a green **F** would be a very expensive joke.
 `scan.html` receives `scan`: the record as `GET /api/scans/{uuid}` returns it
 (`state`, `target`, `releaseTrack`, `expiresIn`, `queue`, and `result` once
 there is one) plus `summary`, the same result regrouped for the dashboard.
-`404.html` receives nothing but the base variables.
+`404.html` and the content pages - `how-it-works.html`, `api.html`,
+`privacy.html`, `about.html` - receive nothing but the base variables, plus
+`limits` and `docs_enabled` for the API page. Each of them ends by including
+`_page-nav.html`, which drops the link to the page it is rendered on by
+comparing `request.url.path`.
 
 The form sends exactly four fields - `target_url`, `ignore_hardenings`,
 `release_track`, `output_format` - and it posts to `/`. Adding an input that

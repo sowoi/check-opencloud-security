@@ -99,3 +99,13 @@ class RateLimiter:
         """Give the slot back when the request is rejected for another reason."""
         if self.target_cooldown > 0:
             await self.backend.delete(target_key(host))
+
+    async def forget_target(self, host: str) -> int:
+        """
+        Erase the cooldown derived from a host, and say whether one existed.
+
+        The key holds a fingerprint and a counter, never the hostname, but it
+        is still state derived from a target - so an erasure request removes it
+        too, and the receipt counts it.
+        """
+        return await self.backend.delete(target_key(host))

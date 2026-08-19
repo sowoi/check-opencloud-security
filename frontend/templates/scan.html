@@ -312,6 +312,36 @@
   </details>
 </section>
 {% endif %}
+
+<section class="card">
+  <h2>Take this result with you</h2>
+  <p class="lede">
+    The same scan, rendered four ways. Each one is generated when you ask for
+    it and disappears with the scan itself.
+  </p>
+  <ul class="export-list">
+    <li>
+      <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/pdf"
+         download>PDF report</a>
+      <span class="hint">For a ticket, a review or a printout.</span>
+    </li>
+    <li>
+      <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/csv"
+         download>CSV</a>
+      <span class="hint">One row per finding, for a spreadsheet.</span>
+    </li>
+    <li>
+      <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/sarif"
+         download>SARIF</a>
+      <span class="hint">For a code-scanning dashboard.</span>
+    </li>
+    <li>
+      <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/json"
+         download>JSON</a>
+      <span class="hint">The raw document the plugin evaluates.</span>
+    </li>
+  </ul>
+</section>
 {% endif %}
 
 <p class="expiry">

@@ -31,6 +31,33 @@ class EncryptionConfig(Protocol):
         """Encryption key mapping by version."""
 
 
+def ensure_encryption_ready(config: EncryptionConfig) -> None:
+    """
+    Refuse to start when encryption is asked for but cannot happen.
+
+    ``encrypt_value`` returns its input unchanged when no key is configured,
+    which is the right behaviour for a deployment that never turned encryption
+    on and a silent disaster for one that did: results would be written to
+    Redis in the clear by a service whose operator believes otherwise. There
+    is no safe way to guess, so a misconfigured process refuses to run instead
+    of quietly storing plaintext.
+    """
+    if not config.encrypt_results:
+        return
+    if not config.encryption_keys:
+        raise ValueError(
+            "COS_WEB_ENCRYPT_RESULTS is on but no COS_WEB_ENCRYPTION_KEY_<version> "
+            "is set. Results would be stored unencrypted."
+        )
+    for version in sorted(config.encryption_keys):
+        key = _hex_to_bytes(config.encryption_keys[version], f"encryption key version {version}")
+        if len(key) != 32:
+            raise ValueError(
+                f"Encryption key version {version} must be 256 bits (32 bytes), "
+                f"got {len(key)} bytes."
+            )
+
+
 def _get_current_key_version(config: EncryptionConfig) -> int | None:
     """Return the highest encryption key version, or None if no keys are set."""
     if not config.encryption_keys:
@@ -43,7 +70,10 @@ def _hex_to_bytes(hex_string: str, name: str) -> bytes:
     try:
         return bytes.fromhex(hex_string)
     except ValueError as e:
-        raise ValueError(f"Invalid {name} format (expected 64-char hex): {hex_string!r}") from e
+        # The value is key material. A traceback out of the encrypt path is
+        # logged by the worker, and a malformed key is exactly the moment an
+        # operator copies that log into an issue report.
+        raise ValueError(f"Invalid {name} format: expected 64 hex characters") from e
 
 
 def encrypt_value(value: str, config: EncryptionConfig) -> str:
@@ -61,7 +91,7 @@ def encrypt_value(value: str, config: EncryptionConfig) -> str:
         return value
 
     key_hex = config.encryption_keys[version]
-    key = _hex_to_bytes(key_hex, "encryption key")
+    key = _hex_to_bytes(key_hex, f"encryption key version {version}")
 
     if len(key) != 32:
         raise ValueError(f"Encryption key must be 256 bits (32 bytes), got {len(key)} bytes")
@@ -99,7 +129,7 @@ def decrypt_value(encrypted_value: str, config: EncryptionConfig) -> str | None:
             return None
 
         key_hex = config.encryption_keys[version]
-        key = _hex_to_bytes(key_hex, "encryption key")
+        key = _hex_to_bytes(key_hex, f"encryption key version {version}")
 
         if len(key) != 32:
             return None

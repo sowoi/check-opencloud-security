@@ -91,7 +91,7 @@ Four things, and the list is closed:
 | `target_url` | The instance to scan. Required |
 | `ignore_hardenings` | Checks to waive, from a fixed allow-list. Optional, repeatable |
 | `release_track` | `rolling`, `production`, `lts` or `auto`. Optional, defaults to `auto` |
-| `output_format` | `dashboard` or `json`. Optional, affects presentation only |
+| `output_format` | `dashboard`, `json`, `csv`, `sarif` or `pdf`. Optional, affects presentation only |
 
 `release_track` is the same idea as the plugin's `--release-track`: it decides
 how long the instance's release is supported and which release it is told to
@@ -132,11 +132,19 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_IP_RATE_LIMIT` | `10` | Scans per client address per window. `0` disables |
 | `COS_WEB_IP_RATE_WINDOW` | `60` | The window, in seconds |
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again. `0` disables |
+| `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Where templates and static assets live |
 | `COS_WEB_ENABLE_DOCS` | `false` | Serve `/openapi.json`, `/docs` and `/redoc`. Swagger UI loads its bundle from jsDelivr, so leave it off in public |
+| `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
+| `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
+| `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |
+| `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge` and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there |
+| `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion. Unset still erases, but the receipt cannot be verified afterwards |
+| `COS_WEB_ENCRYPT_RESULTS` | `false` | Encrypt the stored result document with AES-256-GCM. Requires a key; a process asked to encrypt without one refuses to start |
+| `COS_WEB_ENCRYPTION_KEY_<n>` | *(none)* | A 32-byte key as 64 hex characters. The highest `<n>` encrypts, lower ones still decrypt, which is how a key is rotated |
 
 `COS_WEB_RELEASES_MODE` is `off` by default on purpose: a public deployment
 that queries the release feed once per visitor gets rate limited, and then
@@ -233,6 +241,15 @@ Both answer **429** with a `Retry-After`. The client address is never stored:
 the key holds a truncated HMAC under a pepper generated at startup, which is
 enough to count and useless afterwards.
 
+**What a rejection tells a stranger.** The target cooldown is shared, so its
+429 says an instance was scanned recently - by anyone. That is inherent to a
+per-target cooldown rather than a leak in the implementation, and it is
+bounded by what it costs: every probe, including one inside a batch, spends a
+scan from the prober's own client window, and a target that answers "not
+recently" has just been claimed by them. A deployment that does not want the
+question answerable at all sets `COS_WEB_TARGET_COOLDOWN=0` and relies on the
+client limit alone. Nothing anywhere says *who* scanned it.
+
 ## What gets logged
 
 Lifecycle markers and a uuid:
@@ -246,6 +263,47 @@ scan_completed 0f4a1f22-7ce0-4f74-8a01-4d1d5b60e2aa
 No target URL, no client address, no result. A log that records what everybody
 scanned *is* a database of what everybody scanned, however short its
 retention.
+
+### The optional audit trail
+
+An operator running this for other people eventually has to answer questions
+the lines above cannot: was one network submitting scans all night, did the
+limits hold, is somebody probing the endpoint with fields it does not accept.
+`COS_WEB_AUDIT_LOG=true` turns on a second, separate log for exactly that -
+the `check_opencloud.web.audit` logger, one JSON object per line, so it can be
+routed and retained on its own:
+
+```json
+{"client": "9f2c1b7d4e6a0c58", "event": "scan_requested", "outputFormat": "dashboard", "releaseTrack": "production", "target": "1a4b9e0f7c23d865", "timestamp": "2026-08-19T10:14:02+00:00", "uuid": "0f4a1f22-7ce0-4f74-8a01-4d1d5b60e2aa", "waivers": 0}
+{"client": "9f2c1b7d4e6a0c58", "event": "rate_limited", "retryAfter": 42, "scope": "rate_limit_client", "timestamp": "2026-08-19T10:14:44+00:00"}
+{"client": "3c80d5f21ab94e77", "event": "submission_rejected", "fields": ["workers"], "reason": "unsupported_fields", "status": 422, "timestamp": "2026-08-19T10:15:09+00:00"}
+```
+
+Three events: `scan_requested` for an accepted submission, `rate_limited` for
+a client limit or target cooldown that actually triggered, and
+`submission_rejected` for one that never became a scan - `unsupported_fields`,
+`target_rejected`.
+
+The point of the design is what it still does not write down:
+
+- **A client address is always a fingerprint**, a truncated HMAC under the
+  audit salt, and no setting changes that. Two requests from the same network
+  share a fingerprint, which is what an audit needs; nothing maps one back.
+- **The target is a fingerprint too**, unless `COS_WEB_AUDIT_LOG_TARGETS=true`
+  says the deployment is scanning its own estate and wants the hostname.
+- **The salt is random per process** unless `COS_WEB_AUDIT_SALT` is set.
+  Correlating across a restart is a deliberate choice, and rotating the salt
+  undoes it. **Treat a salt you set as a secret**, with the same care as
+  `COS_WEB_PURGE_TOKEN`: a fingerprint is only a pseudonym while the salt is
+  unknown, and anybody who learns it can re-derive the client addresses in a
+  log by hashing the address space. A random per-process salt has no such
+  property, which is why it is the default.
+- **A submitted field name is recorded, not obeyed**: shortened, stripped of
+  control characters and JSON-escaped, so a newline in a request body cannot
+  forge a second record.
+
+Leaving it off changes nothing: the ordinary lifecycle log is exactly as
+above.
 
 ## Putting it behind a reverse proxy
 
@@ -302,10 +360,139 @@ Once complete, the same endpoint carries `result` - the scanner's document,
 unchanged - and `summary`, the same data regrouped for the dashboard. **404**
 when the uuid is unknown or expired.
 
+### `POST /api/scans/batch`
+
+For a caller with an estate to check rather than one instance:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8080/api/scans/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"targets": ["https://one.example.com", "https://two.example.com"]}'
+```
+
+```json
+{
+  "accepted": [
+    {"uuid": "0f4a1f22-...", "target": "https://one.example.com",
+     "state": "queued", "url": "/scan/0f4a1f22-..."}
+  ],
+  "rejected": [
+    {"target": "https://two.example.com", "status": 429,
+     "detail": "That instance was scanned very recently...", "retryAfter": 284}
+  ],
+  "counts": {"submitted": 2, "accepted": 1, "rejected": 1}
+}
+```
+
+**A batch is a convenience, never a discount.** Every target is put through
+exactly the pipeline a single submission goes through, in the order it was
+written: it counts against the client rate limit, it claims its own target
+cooldown, and it is validated by the same SSRF guard. Ten targets spend ten
+scans from the window, which is why the answer is two lists rather than one
+status - some can start while others wait.
+
+The same four fields are accepted, with `targets` in place of `target_url`,
+and anything else is a **422** naming it. `COS_WEB_MAX_BATCH_TARGETS` caps the
+list; a longer one is refused as a whole, before anything is queued, so no
+target pays a cooldown for a batch that never ran.
+
+**202** when at least one target started. When nothing started, the status is
+the reason the first target was refused - **429** with `Retry-After` and the
+self-hosting hint if it was a limit, **400** or **422** otherwise.
+
+### `GET /api/scans/{uuid}/export/{format}`
+
+A finished scan as a file: `json`, `csv`, `sarif` or `pdf`.
+
+```bash
+curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
+```
+
+All four are renderings of the same finished result, produced on request and
+gone when the scan expires. The PDF is written by this service rather than by
+a reporting library, for the same reason the frontend loads nothing from a
+CDN. The finished `GET /api/scans/{uuid}` response advertises the four URLs
+under `exports`, and the result page offers them as download buttons.
+
+**200** with a `Content-Disposition` naming the uuid, **409** while the scan
+has not finished - it exists, so 404 would send a caller into a retry loop
+against the wrong endpoint - and **404** for an unknown uuid or an unknown
+format.
+
+### `DELETE /api/purge`
+
+Erasure on request - the operator's side of a GDPR Article 17 message - plus a
+receipt to put in the file afterwards.
+
+```bash
+curl -sS -X DELETE \
+  -H "Authorization: Bearer $COS_WEB_PURGE_TOKEN" \
+  "http://127.0.0.1:8080/api/purge?target=opencloud.example.com"
+```
+
+```json
+{
+  "receiptId": "8f14e45f-...",
+  "issuedAt": "2025-01-30T11:04:07+00:00",
+  "target": "opencloud.example.com",
+  "targetFingerprint": "6c1f...",
+  "deleted": {"scans": 2, "keys": 5, "queueEntries": 1, "rateLimitKeys": 1},
+  "remaining": 0,
+  "complete": true,
+  "statement": "All scan records held for this target were deleted ...",
+  "notes": ["..."],
+  "signature": {"algorithm": "HMAC-SHA256", "value": "b91c..."}
+}
+```
+
+It deletes every `scan:{uuid}:*` namespace whose own metadata names that
+hostname, the target's entries in the queue, and the cooldown key derived from
+it. `target` accepts a bare hostname or a full URL, in any case, with or
+without a port.
+
+`targetFingerprint` is present only when `COS_WEB_PURGE_SIGNING_KEY` is set,
+and is `null` otherwise: an unkeyed hash of a hostname is not a pseudonym,
+because the space of hostnames is small enough to enumerate.
+
+**The receipt is the compliance artefact**, because by the time it is written
+the data it describes is gone. `deleted` counts what was removed, and
+`remaining` is a **second walk over the store after the deletion** - the only
+honest evidence available, and `complete` is simply `remaining == 0`. `notes`
+names what the service cannot reach: a result somebody already downloaded, and
+the audit trail if one is being kept. Verify a receipt months later with
+
+```python
+from webapp.purge import verify
+verify(receipt, key)      # the value of COS_WEB_PURGE_SIGNING_KEY
+```
+
+**It is authorised, and off until it is configured.** This is the one call that
+walks the keyspace and the one that destroys results belonging to whoever is
+reading them, so an unauthenticated version would be a denial-of-service tool
+with a friendly name. A data subject writes to the operator; the operator - the
+controller - runs the purge and passes the receipt back. **200** with the
+receipt, **401** for a wrong secret, **422** for a target that is not a
+hostname, and **404** whenever `COS_WEB_PURGE_TOKEN` is unset.
+
+An instance with nothing stored answers 200 with zero counts, which is a proof
+in its own right: no data was held.
+
+### `GET /openapi.json`, `GET /arazzo.json`, `GET /docs`, `GET /redoc`
+
+Opt-in, behind `COS_WEB_ENABLE_DOCS`. The schema says what each endpoint
+accepts; the [Arazzo](https://spec.openapis.org/arazzo/latest.html) document
+beside it says how they are used together - submit and poll until `done`, walk
+a batch's accepted uuids, wait out a 409 before downloading a file, and erase
+an instance against a receipt. It is
+generated from the same application, and a test fails if a workflow describes
+an endpoint that no longer exists.
+
 ### `GET /scan/{uuid}`, `GET /`, `GET /healthz`
 
 The result page, the landing page, and a Redis-backed health probe that says
-nothing about any scan. `GET /healthz` returns 200 only after the configured
+nothing about any scan. The explanations the landing page used to carry sit on
+their own pages - `GET /how-it-works`, `GET /api`, `GET /privacy` and
+`GET /about` - which are HTML only and stay out of the OpenAPI schema. `GET /healthz` returns 200 only after the configured
 backend answers `PING`, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate `queueDepth`
 and `worker: "ok"`; it returns a detail-free 503 while any dependency is
@@ -319,16 +506,20 @@ webapp/                 the service
 ├── settings.py         every COS_WEB_* variable
 ├── ssrf.py             the target guard
 ├── ratelimit.py        the two limits
+├── audit.py            the optional audit trail, pseudonymised
 ├── store.py            the per-scan Redis namespace
 ├── queue.py            handing a scan to the worker pool
 ├── tasks.py            the ARQ worker
 ├── runner.py           the seam where a request becomes ScannerSettings
 ├── redis_backend.py    Redis, and the in-process stand-in for tests
+├── reports.py          the CSV, SARIF and PDF exports
+├── arazzo.py           the API described as executable workflows
+├── purge.py            erasure on request, and the signed receipt for it
 └── catalog.py          the waiver allow-list and the dashboard grouping
 
 frontend/
 ├── static/{css,js,img} vanilla CSS, two small scripts, hand-drawn SVG
-└── templates/          base, index, scan, 404
+└── templates/          base, index, scan, 404, and the content pages
 
 docker/
 ├── Dockerfile.web      the image both web_app and arq_worker run

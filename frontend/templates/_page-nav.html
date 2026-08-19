@@ -1,0 +1,31 @@
+{#
+  Cross-links between the pages the landing page used to carry in full.
+  `current` is derived from the request path so no page links to itself.
+#}
+{% set pages = [
+  {"href": "/how-it-works", "title": "How the scan works", "blurb": "What gets tested, and the four steps between the button and the grade."},
+  {"href": "/api", "title": "Scanning from a script", "blurb": "The JSON API, the fair use limits and the OpenAPI schema."},
+  {"href": "/privacy", "title": "What this server keeps", "blurb": "In memory, for " ~ result_ttl_minutes ~ " minutes, and what the log leaves out."},
+  {"href": "/about", "title": "About OpenCloud", "blurb": "The platform this checks, and why this project is independent of it."}
+] %}
+<nav class="page-nav section-gap-lg" aria-label="More about this service">
+  <h2 class="page-nav-title">Read on</h2>
+  <ul class="page-nav-list">
+    {% for entry in pages if entry.href != request.url.path %}
+    <li>
+      <a class="card page-nav-card" href="{{ entry.href }}">
+        <strong>{{ entry.title }}</strong>
+        <span>{{ entry.blurb }}</span>
+      </a>
+    </li>
+    {% endfor %}
+    {% if request.url.path != "/" %}
+    <li>
+      <a class="card page-nav-card page-nav-cta" href="/">
+        <strong>Scan an instance</strong>
+        <span>Back to the form. Takes a few seconds, no sign-up.</span>
+      </a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>

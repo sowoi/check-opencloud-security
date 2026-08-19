@@ -22,6 +22,8 @@ service that punishes people for being interested.
 
 from __future__ import annotations
 
+import hmac
+import json
 import logging
 import os
 import uuid as uuid_module
@@ -38,19 +40,37 @@ from fastapi.templating import Jinja2Templates
 
 from opencloud_local_scan import __version__
 
+from .arazzo import arazzo_document
+from .audit import (
+    REASON_BATCH_TOO_LARGE,
+    REASON_PURGE_UNAUTHORISED,
+    REASON_RATE_LIMIT_CLIENT,
+    REASON_RATE_LIMIT_TARGET,
+    REASON_TARGET_REJECTED,
+    REASON_UNSUPPORTED_FIELDS,
+    AuditLog,
+)
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
-    csv_report,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
-    sarif_report,
     summarise,
     waiver_options,
 )
+from .encryption import ensure_encryption_ready
+from .purge import PurgeRejected, build_receipt, normalise_target
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
 from .redis_backend import RedisUnavailable, create_backend
+from .reports import (
+    EXPORT_FORMATS,
+    MEDIA_TYPES,
+    csv_report,
+    export_filename,
+    pdf_report,
+    sarif_report,
+)
 from .settings import WebSettings
 from .ssrf import TargetRejected, validate_target
 from .store import (
@@ -63,13 +83,19 @@ from .store import (
 
 LOGGER = logging.getLogger("check_opencloud.web")
 
-OUTPUT_FORMATS = ("dashboard", "json", "csv", "sarif")
+OUTPUT_FORMATS = ("dashboard", "json", "csv", "sarif", "pdf")
 
 # Only these arrive from a form or a JSON body. Anything else is a request
 # trying to reach a knob it is not allowed to touch, and saying so plainly is
 # better than quietly scanning with settings the visitor thinks they chose.
 ALLOWED_FIELDS = frozenset(
     {"target_url", "ignore_hardenings", "output_format", "release_track"}
+)
+
+# The batch endpoint swaps one target for many and changes nothing else: the
+# same four facts about a scan, never a fifth about how hard to run it.
+BATCH_ALLOWED_FIELDS = frozenset(
+    {"targets", "ignore_hardenings", "output_format", "release_track"}
 )
 
 PROJECT_URL = "https://github.com/sowoi/check-opencloud-security"
@@ -238,6 +264,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     if settings.enable_docs:
         LOGGER.warning("api_docs_enabled")
 
+        @app.get("/arazzo.json", include_in_schema=False)
+        async def arazzo() -> Response:
+            """The workflow description, next to the schema it builds on."""
+            return JSONResponse(arazzo_document())
+
         @app.get("/docs", include_in_schema=False)
         async def swagger_ui() -> Response:
             return HTMLResponse(SWAGGER_PAGE)
@@ -256,6 +287,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     app.state.settings = settings
     app.state.backend = create_backend(settings.redis_url)
+    # Before anything can be written: a deployment that asked for encryption
+    # and cannot do it must fail here rather than store results in the clear.
+    ensure_encryption_ready(settings)
     app.state.store = ScanStore(
         backend=app.state.backend,
         ttl=settings.result_ttl,
@@ -268,6 +302,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         target_cooldown=settings.target_cooldown,
     )
     app.state.queue = None
+    app.state.audit = AuditLog.from_settings(settings)
+    if settings.audit_log:
+        LOGGER.info("audit_log_enabled targets=%s", settings.audit_log_targets)
 
     async def queue() -> ScanQueue:
         if app.state.queue is None:
@@ -313,7 +350,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         extra_fields: set[str],
     ) -> str:
         """Validate, rate-limit, register and enqueue. Returns the new uuid."""
+        limiter: RateLimiter = app.state.limiter
+        store: ScanStore = app.state.store
+        audit: AuditLog = app.state.audit
+        address = client_address(request, settings)
+
         if extra_fields:
+            audit.submission_rejected(
+                client=address,
+                reason=REASON_UNSUPPORTED_FIELDS,
+                status=422,
+                fields=tuple(extra_fields),
+            )
             raise _Rejected(
                 "This service does not accept "
                 f"{', '.join(sorted(extra_fields))}. The scan runs with "
@@ -321,11 +369,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status=422,
             )
 
-        limiter: RateLimiter = app.state.limiter
-        store: ScanStore = app.state.store
-
-        client = await limiter.check_client(client_address(request, settings))
+        client = await limiter.check_client(address)
         if not client.allowed:
+            audit.rate_limited(
+                client=address,
+                scope=REASON_RATE_LIMIT_CLIENT,
+                retry_after=client.retry_after,
+            )
             raise _Rejected(
                 "That is a lot of scans from your network in a short time. "
                 "Give it a minute and try again.",
@@ -341,6 +391,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 allowed_hosts=settings.extra_hosts_allowed,
             )
         except TargetRejected as exc:
+            audit.submission_rejected(
+                client=address,
+                reason=REASON_TARGET_REJECTED,
+                status=400,
+            )
             raise _Rejected(str(exc), status=400) from exc
 
         waivers = sanitize_waivers(ignore_hardenings)
@@ -349,6 +404,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         cooldown = await limiter.check_target(target.hostname)
         if not cooldown.allowed:
+            audit.rate_limited(
+                client=address,
+                scope=REASON_RATE_LIMIT_TARGET,
+                retry_after=cooldown.retry_after,
+                target=target.hostname,
+            )
             raise _Rejected(
                 "That instance was scanned very recently. "
                 "Please give it a few minutes.",
@@ -367,6 +428,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         )
         await (await queue()).enqueue(identifier)
         LOGGER.info("scan_created %s", identifier)
+        audit.scan_requested(
+            identifier=identifier,
+            client=address,
+            target=target.hostname,
+            output_format=chosen_format,
+            release_track=chosen_track,
+            waivers=len(waivers),
+        )
         return identifier
 
     @app.get("/", response_class=HTMLResponse)
@@ -383,6 +452,24 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "target_url": "",
             },
         )
+
+    # The landing page carries the form; the prose that used to sit under it
+    # lives on these pages, so the first screen stays about scanning.
+    @app.get("/how-it-works", response_class=HTMLResponse, include_in_schema=False)
+    async def how_it_works(request: Request) -> Response:
+        return page(request, "how-it-works.html", {})
+
+    @app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+    async def privacy(request: Request) -> Response:
+        return page(request, "privacy.html", {})
+
+    @app.get("/api", response_class=HTMLResponse, include_in_schema=False)
+    async def api_page(request: Request) -> Response:
+        return page(request, "api.html", {})
+
+    @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
+    async def about(request: Request) -> Response:
+        return page(request, "about.html", {})
 
     # The browser form posts to "/" and the API to "/api/scans". They are the
     # same handler: a submission that fails validation is re-rendered at the
@@ -466,6 +553,181 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def scans_entry_point() -> Response:
         return RedirectResponse("/", status_code=303)
 
+    # A batch is a convenience for a caller with an estate to check, never a
+    # discount on the limits: every target in it is counted exactly as if it
+    # had been submitted on its own, in the order it was written. The response
+    # therefore has two lists rather than one status - some targets can start
+    # while others wait for a cooldown they share with nobody.
+    @app.post("/api/scans/batch")
+    async def create_batch(request: Request) -> Response:
+        try:
+            parsed = await request.json()
+        except ValueError:
+            parsed = None
+        body = parsed if isinstance(parsed, dict) else {}
+
+        extra = set(body) - BATCH_ALLOWED_FIELDS
+        if extra:
+            return JSONResponse(
+                {
+                    "detail": "This service does not accept "
+                    f"{', '.join(sorted(extra))}. The scan runs with "
+                    "server-side settings only."
+                },
+                status_code=422,
+            )
+
+        raw_targets = body.get("targets")
+        if not isinstance(raw_targets, list) or not raw_targets:
+            return JSONResponse(
+                {"detail": "Send a non-empty list of targets in 'targets'."},
+                status_code=422,
+            )
+        if len(raw_targets) > settings.max_batch_targets:
+            audit: AuditLog = app.state.audit
+            audit.submission_rejected(
+                client=client_address(request, settings),
+                reason=REASON_BATCH_TOO_LARGE,
+                status=422,
+            )
+            return JSONResponse(
+                {
+                    "detail": f"A batch may hold at most "
+                    f"{settings.max_batch_targets} targets. Send the rest in "
+                    "a second batch, or run the scanner yourself: "
+                    f"{PROJECT_URL}.",
+                    "maxTargets": settings.max_batch_targets,
+                    "selfHostUrl": PROJECT_URL,
+                },
+                status_code=422,
+            )
+
+        accepted: list[dict[str, Any]] = []
+        rejected: list[dict[str, Any]] = []
+        retry_after = 0
+        for raw in raw_targets:
+            target_url = str(raw or "")
+            try:
+                identifier = await accept_submission(
+                    request,
+                    target_url,
+                    body.get("ignore_hardenings"),
+                    str(body.get("output_format") or "dashboard"),
+                    body.get("release_track"),
+                    set(),
+                )
+            except _Rejected as exc:
+                entry: dict[str, Any] = {
+                    "target": target_url,
+                    "status": exc.status,
+                    "detail": exc.message,
+                }
+                if exc.retry_after:
+                    entry["retryAfter"] = exc.retry_after
+                    retry_after = max(retry_after, exc.retry_after)
+                if exc.self_host:
+                    entry["selfHostUrl"] = PROJECT_URL
+                rejected.append(entry)
+                continue
+            accepted.append(
+                {
+                    "uuid": identifier,
+                    "target": target_url,
+                    "state": "queued",
+                    "url": f"/scan/{identifier}",
+                }
+            )
+
+        payload = {
+            "accepted": accepted,
+            "rejected": rejected,
+            "counts": {
+                "submitted": len(raw_targets),
+                "accepted": len(accepted),
+                "rejected": len(rejected),
+            },
+        }
+        # Something started means the batch worked, whatever else did not. A
+        # batch where nothing started answers with the reason its first target
+        # was refused, so a caller sees a status that matches what happened.
+        if accepted:
+            status = 202
+        else:
+            status = rejected[0]["status"] if rejected else 422
+            if status == 429:
+                payload["hint"] = SELF_HOST_HINT.format(url=PROJECT_URL)
+                payload["selfHostUrl"] = PROJECT_URL
+        response = JSONResponse(payload, status_code=status)
+        if retry_after:
+            response.headers["Retry-After"] = str(retry_after)
+        return response
+
+    # Erasure on request. Authenticated, because the operation is destructive
+    # in a way nothing else here is: it deletes results belonging to whoever
+    # is reading them, and it is the only call that walks the keyspace. In
+    # practice the data subject writes to the operator, and the operator - the
+    # controller - runs this and hands back the receipt.
+    @app.delete("/api/purge")
+    async def purge_target_data(request: Request) -> Response:
+        audit: AuditLog = app.state.audit
+        address = client_address(request, settings)
+
+        # No token configured means the feature is not deployed, and an
+        # undeployed endpoint answers exactly like a nonexistent one.
+        if not settings.purge_token:
+            return not_found(request)
+
+        presented = _presented_token(request)
+        # Encoded on both sides: a header can carry bytes that are not ASCII,
+        # and comparing those as str raises instead of answering 401.
+        if not hmac.compare_digest(
+            presented.encode("utf-8", "surrogateescape"),
+            settings.purge_token.encode("utf-8", "surrogateescape"),
+        ):
+            audit.submission_rejected(
+                client=address, reason=REASON_PURGE_UNAUTHORISED, status=401
+            )
+            LOGGER.info("purge_denied")
+            return JSONResponse(
+                {
+                    "detail": "An erasure request has to be authorised. "
+                    "Write to the operator of this service."
+                },
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        try:
+            hostname = normalise_target(request.query_params.get("target"))
+        except PurgeRejected as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+
+        store: ScanStore = app.state.store
+        limiter: RateLimiter = app.state.limiter
+        report = await store.purge_target(hostname)
+        cooldown_keys = await limiter.forget_target(hostname)
+        receipt = build_receipt(
+            target=hostname,
+            report=report,
+            cooldown_keys=cooldown_keys,
+            signing_key=settings.purge_signing_key,
+            notes=_purge_notes(settings),
+        )
+        LOGGER.info(
+            "purge_completed receipt=%s scans=%d remaining=%d",
+            receipt.receipt_id,
+            report.scans,
+            report.remaining,
+        )
+        audit.data_purged(
+            client=address,
+            target=hostname,
+            scans=report.scans,
+            remaining=report.remaining,
+            receipt=receipt.receipt_id,
+        )
+        return JSONResponse(receipt.as_dict(), status_code=200)
+
     @app.get("/scan/{identifier}", response_class=HTMLResponse)
     async def scan_page(request: Request, identifier: str) -> Response:
         record = await app.state.store.get(identifier)
@@ -480,25 +742,63 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             },
         )
 
+    @app.get("/api/scans/{identifier}/export/{fmt}")
+    async def scan_export(request: Request, identifier: str, fmt: str) -> Response:
+        """
+        One finished scan as a file.
+
+        The uuid is still the whole of the authorisation, so an unknown one
+        answers 404 exactly as everywhere else. A scan that exists but has not
+        finished answers 409: there is nothing to render yet, and pretending it
+        is missing would send a caller into a retry loop against the wrong
+        endpoint.
+        """
+        if fmt not in EXPORT_FORMATS:
+            return JSONResponse({"detail": "Not found."}, status_code=404)
+        record = await app.state.store.get(identifier)
+        if record is None:
+            return JSONResponse({"detail": "Not found."}, status_code=404)
+        if record.state != STATE_COMPLETED or record.result is None:
+            return JSONResponse(
+                {"detail": "This scan has no result yet.", "state": record.state},
+                status_code=409,
+            )
+        body = _render_export(record.result, fmt, identifier)
+        return Response(
+            body,
+            media_type=MEDIA_TYPES[fmt],
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{export_filename(identifier, fmt)}"'
+                )
+            },
+        )
+
     @app.get("/api/scans/{identifier}")
     async def scan_state(request: Request, identifier: str) -> Response:
         record = await app.state.store.get(identifier)
         if record is None:
             return JSONResponse({"detail": "Not found."}, status_code=404)
-        
+
         output_format = record.metadata.get("outputFormat", "json")
-        
-        if record.state == STATE_COMPLETED and record.result is not None:
-            if output_format == "csv":
-                csv_content = csv_report(record.result)
-                return Response(csv_content, media_type="text/csv")
-            elif output_format == "sarif":
-                sarif_data = sarif_report(record.result)
-                return JSONResponse(sarif_data, media_type="application/sarif+json")
-        
+
+        if (
+            record.state == STATE_COMPLETED
+            and record.result is not None
+            and output_format in {"csv", "sarif", "pdf"}
+        ):
+            return Response(
+                _render_export(record.result, output_format, identifier),
+                media_type=MEDIA_TYPES[output_format],
+            )
+
         payload = record.as_dict()
         if record.state == STATE_COMPLETED and record.result is not None:
             payload["summary"] = summarise(record.result)
+            payload["exports"] = {
+                name: f"/api/scans/{identifier}/export/{name}"
+                for name in EXPORT_FORMATS
+            }
         if record.state in {STATE_COMPLETED, STATE_FAILED}:
             payload["done"] = True
         return JSONResponse(payload)
@@ -527,6 +827,61 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return not_found(request)
 
     return app
+
+
+def _render_export(result: dict[str, Any], fmt: str, identifier: str) -> bytes | str:
+    """One finished result rendered as the file a caller asked for."""
+    if fmt == "csv":
+        return csv_report(result)
+    if fmt == "sarif":
+        return json.dumps(sarif_report(result), indent=2)
+    if fmt == "pdf":
+        return pdf_report(result, identifier=identifier)
+    return json.dumps(result, indent=2)
+
+
+def _presented_token(request: Request) -> str:
+    """
+    The secret an erasure request presented, or an empty string.
+
+    Both ``Authorization: Bearer <token>`` and a bare header value are
+    accepted; the comparison afterwards is constant time either way.
+    """
+    header = request.headers.get("authorization", "").strip()
+    if not header:
+        return ""
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() == "bearer":
+        return value.strip()
+    return header
+
+
+def _purge_notes(settings: WebSettings) -> tuple[str, ...]:
+    """
+    What the receipt has to admit about the data it does not control.
+
+    A proof of deletion that quietly omits a log the operator still holds is
+    worse than no proof at all, so the receipt names what remains.
+    """
+    notes = [
+        (
+            "Scan results already downloaded or exported by whoever ran the "
+            "scan are outside the control of this service."
+        ),
+        "Lifecycle log entries carry scan identifiers and no target.",
+    ]
+    if settings.audit_log:
+        notes.append(
+            "An audit record of this erasure was written, carrying the "
+            "receipt identifier and "
+            + (
+                "the hostname in the clear, because this deployment records "
+                "targets; retention of that log is the operator's."
+                if settings.audit_log_targets
+                else "a fingerprint of the target rather than its name."
+            )
+        )
+    return tuple(notes)
 
 
 async def _form_fields(request: Request) -> set[str]:

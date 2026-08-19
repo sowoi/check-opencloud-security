@@ -23,6 +23,7 @@ DEFAULT_JOB_TIMEOUT_SECONDS = 180
 DEFAULT_IP_RATE_LIMIT = 10
 DEFAULT_IP_RATE_WINDOW_SECONDS = 60
 DEFAULT_TARGET_COOLDOWN_SECONDS = 300
+DEFAULT_MAX_BATCH_TARGETS = 10
 
 
 def _env(name: str) -> str | None:
@@ -137,6 +138,38 @@ class WebSettings:
     only the result data is encrypted; metadata like UUIDs and timestamps remain
     in clear text for listing and TTL operations."""
 
+    max_batch_targets: int = DEFAULT_MAX_BATCH_TARGETS
+    """How many targets one ``POST /api/scans/batch`` may carry. A batch is a
+    convenience, not a discount: every target in it is still counted against
+    the client limit and still claims its own target cooldown."""
+
+    audit_log: bool = False
+    """Write an audit record for every scan request, rejection and triggered
+    limit. Off by default: the ordinary log deliberately carries lifecycle
+    markers and uuids only, and an operator has to choose to keep more."""
+
+    audit_log_targets: bool = False
+    """Record the target hostname in the clear instead of as a fingerprint.
+    Reasonable for a deployment scanning its own estate, not for a public one:
+    a log of targets is a log of who scanned what."""
+
+    audit_salt: str | None = None
+    """Salt for the audit fingerprints. Unset means a random one per process,
+    so nothing correlates across a restart; setting one makes correlation
+    possible and rotating it ends it. A salt that is set is a secret: the
+    fingerprints in the log are only pseudonyms for as long as it is unknown,
+    since the address space is small enough to hash exhaustively."""
+
+    purge_token: str | None = None
+    """Bearer token for ``DELETE /api/purge``. Unset means the endpoint does
+    not exist at all: erasure walks the keyspace and deletes other people's
+    results, so it belongs to the operator answering the request, not to
+    whoever can type a hostname."""
+
+    purge_signing_key: str | None = None
+    """Signs the proof of deletion. Unset returns an unsigned receipt, which
+    still states what was removed but cannot be checked by whoever holds it."""
+
     encryption_keys: dict[int, str] = field(default_factory=dict)
     """Encryption key mapping: version -> key (hex). Keys are read from
     COS_WEB_ENCRYPTION_KEY_<VERSION> env vars. New encryptions use the highest
@@ -174,5 +207,13 @@ class WebSettings:
             enable_docs=_env_bool("ENABLE_DOCS", False),
             webhook_secret=_env("WEBHOOK_SECRET"),
             encrypt_results=_env_bool("ENCRYPT_RESULTS", False),
+            max_batch_targets=_env_int(
+                "MAX_BATCH_TARGETS", DEFAULT_MAX_BATCH_TARGETS, minimum=1
+            ),
+            audit_log=_env_bool("AUDIT_LOG", False),
+            audit_log_targets=_env_bool("AUDIT_LOG_TARGETS", False),
+            audit_salt=_env("AUDIT_SALT"),
+            purge_token=_env("PURGE_TOKEN"),
+            purge_signing_key=_env("PURGE_SIGNING_KEY"),
             encryption_keys=_read_encryption_keys(),
         )

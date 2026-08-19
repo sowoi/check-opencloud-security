@@ -1,21 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" role="img"
      aria-label="An empty folder where a scan result used to be">
   <title>Nothing here any more</title>
+  <!-- Two schemes in one drawing; see logo.svg for why the styles live here. -->
+  <style>
+    svg { --line: #c94e1b; --spark: #2f9e7a; }
+    @media (prefers-color-scheme: dark) {
+      svg { --line: #a9bcff; --spark: #f5d78e; }
+    }
+    .stop { stop-color: var(--line); }
+    .shape { fill: var(--line); }
+    .edge { stroke: var(--line); }
+    .spark { fill: var(--spark); }
+  </style>
   <defs>
     <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7089f4" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#7089f4" stop-opacity=".06"/>
+      <stop offset="0" class="stop" stop-opacity=".22"/>
+      <stop offset="1" class="stop" stop-opacity=".06"/>
     </linearGradient>
   </defs>
-  <ellipse cx="160" cy="186" rx="104" ry="14" fill="#7089f4" opacity=".12"/>
+  <ellipse cx="160" cy="186" rx="104" ry="14" class="shape" opacity=".12"/>
   <path fill="url(#fade)" d="M62 62h72l16 20h108a10 10 0 0 1 10 10v76a10 10 0 0 1-10 10H62a10 10 0 0 1-10-10V72a10 10 0 0 1 10-10z"/>
-  <path fill="none" stroke="#7089f4" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"
+  <path fill="none" class="edge" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"
         d="M62 62h72l16 20h108a10 10 0 0 1 10 10v76a10 10 0 0 1-10 10H62a10 10 0 0 1-10-10V72a10 10 0 0 1 10-10z"/>
-  <g stroke="#7089f4" stroke-opacity=".55" stroke-width="6" stroke-linecap="round">
+  <g class="edge" stroke-opacity=".55" stroke-width="6" stroke-linecap="round">
     <path d="M128 118l64 44"/>
     <path d="M192 118l-64 44"/>
   </g>
-  <g fill="#12b5a6" opacity=".7">
+  <g class="spark" opacity=".75">
     <circle cx="248" cy="52" r="5"/>
     <circle cx="272" cy="76" r="3.5"/>
     <circle cx="226" cy="32" r="3"/>

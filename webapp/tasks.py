@@ -25,6 +25,7 @@ from typing import Any, ClassVar
 from opencloud_local_scan import ScanError
 
 from .catalog import sanitize_release_track
+from .encryption import ensure_encryption_ready
 from .queue import redis_settings
 from .redis_backend import RedisBackend, create_backend
 from .runner import execute_scan
@@ -106,7 +107,16 @@ async def startup(ctx: dict[str, Any]) -> None:
     settings = WebSettings.from_env()
     ctx["web_settings"] = settings
     ctx["backend"] = create_backend(settings.redis_url)
-    ctx["store"] = ScanStore(backend=ctx["backend"], ttl=settings.result_ttl)
+    # The worker is the process that writes the result document, so this is
+    # the store that decides whether results are encrypted at rest. Leaving
+    # the configuration out here meant COS_WEB_ENCRYPT_RESULTS encrypted
+    # nothing at all while looking like it did.
+    ensure_encryption_ready(settings)
+    ctx["store"] = ScanStore(
+        backend=ctx["backend"],
+        ttl=settings.result_ttl,
+        encryption_config=settings if settings.encrypt_results else None,
+    )
     await publish_worker_heartbeat(ctx["backend"])
     ctx["heartbeat_task"] = asyncio.create_task(_heartbeat(ctx["backend"]))
 
