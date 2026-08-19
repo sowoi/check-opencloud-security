@@ -1,52 +1,129 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" role="img"
      aria-label="An OpenCloud instance being checked against a shield of security findings">
   <title>A scan in progress</title>
+  <!--
+    Drawn by hand, and drawn twice: the tokens below give the same scene a
+    sunrise and a night. Loaded with <img>, so these styles are scoped to this
+    document and nothing else can be reached from here.
+  -->
+  <style>
+    svg {
+      --wash-a: #ffd9a3; --wash-b: #ffe9d2;
+      --shield-top: #f6a04a; --shield-bottom: #c94e1b;
+      --tick: #ffffff;
+      --panel: #fffcf8; --panel-line: #c94e1b; --chrome: #c94e1b;
+      --beam: #2f9e7a; --probe: #2f9e7a;
+      --good: #2f9560; --fair: #c1830a; --bad: #d33f3f;
+      --sun-opacity: 1; --moon-opacity: 0;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --wash-a: #1a2445; --wash-b: #121a38;
+        --shield-top: #cdd8ff; --shield-bottom: #8b9ce0;
+        --tick: #101838;
+        --panel: #111a30; --panel-line: #a9bcff; --chrome: #a9bcff;
+        --beam: #f5d78e; --probe: #f5d78e;
+        --good: #6fe0a5; --fair: #f7cf7a; --bad: #ff9ba0;
+        --sun-opacity: 0; --moon-opacity: 1;
+      }
+    }
+    .wash-a { stop-color: var(--wash-a); }
+    .wash-b { stop-color: var(--wash-b); }
+    .shield-top { stop-color: var(--shield-top); }
+    .shield-bottom { stop-color: var(--shield-bottom); }
+    .beam-stop { stop-color: var(--beam); }
+    .tick { fill: var(--tick); }
+    .panel { fill: var(--panel); }
+    .panel-line { fill: var(--panel-line); }
+    .chrome { fill: var(--chrome); }
+    .probe { fill: var(--probe); }
+    .good { fill: var(--good); }
+    .fair { fill: var(--fair); }
+    .bad { fill: var(--bad); }
+    .sun { opacity: var(--sun-opacity); }
+    .moon { opacity: var(--moon-opacity); }
+  </style>
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7089f4" stop-opacity=".18"/>
-      <stop offset="1" stop-color="#12b5a6" stop-opacity=".14"/>
+      <stop offset="0" class="wash-a" stop-opacity=".55"/>
+      <stop offset="1" class="wash-b" stop-opacity=".38"/>
     </linearGradient>
     <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7089f4"/>
-      <stop offset="1" stop-color="#2b3fbb"/>
+      <stop offset="0" class="shield-top"/>
+      <stop offset="1" class="shield-bottom"/>
     </linearGradient>
     <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#12b5a6" stop-opacity="0"/>
-      <stop offset="1" stop-color="#12b5a6" stop-opacity=".55"/>
+      <stop offset="0" class="beam-stop" stop-opacity="0"/>
+      <stop offset="1" class="beam-stop" stop-opacity=".55"/>
     </linearGradient>
+    <clipPath id="frame">
+      <rect x="0" y="0" width="480" height="260" rx="28"/>
+    </clipPath>
+    <radialGradient id="sunGlow">
+      <stop offset="0" stop-color="#ffc97a" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ffc97a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="moonGlow">
+      <stop offset="0" stop-color="#e2e9ff" stop-opacity=".26"/>
+      <stop offset="1" stop-color="#e2e9ff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- The crescent is one disc with a second bitten out of it. -->
+    <mask id="crescent">
+      <rect x="0" y="0" width="480" height="260" fill="#000000"/>
+      <circle cx="438" cy="32" r="17" fill="#ffffff"/>
+      <circle cx="427" cy="24" r="15" fill="#000000"/>
+    </mask>
   </defs>
 
   <rect x="0" y="0" width="480" height="260" rx="28" fill="url(#sky)"/>
 
+  <!-- morning, or night: only one of the two is ever visible -->
+  <g clip-path="url(#frame)">
+    <g class="sun">
+      <circle cx="438" cy="32" r="56" fill="url(#sunGlow)"/>
+      <circle cx="438" cy="32" r="22" fill="#ffb454" opacity=".6"/>
+    </g>
+    <g class="moon">
+      <circle cx="438" cy="32" r="54" fill="url(#moonGlow)"/>
+      <circle cx="438" cy="32" r="17" fill="#e8eeff" opacity=".9" mask="url(#crescent)"/>
+      <g fill="#e8eeff" opacity=".65">
+        <circle cx="352" cy="24" r="2"/>
+        <circle cx="380" cy="62" r="1.6"/>
+        <circle cx="452" cy="88" r="1.8"/>
+        <circle cx="316" cy="46" r="1.4"/>
+      </g>
+    </g>
+  </g>
+
   <!-- the instance -->
   <g>
-    <rect x="42" y="74" width="150" height="104" rx="14" fill="#ffffff" opacity=".95"/>
-    <rect x="42" y="74" width="150" height="26" rx="14" fill="#2b3fbb" opacity=".16"/>
-    <circle cx="60" cy="87" r="4" fill="#e63946" opacity=".7"/>
-    <circle cx="74" cy="87" r="4" fill="#f0a020" opacity=".7"/>
-    <circle cx="88" cy="87" r="4" fill="#16b26a" opacity=".7"/>
-    <rect x="60" y="116" width="94" height="9" rx="4.5" fill="#4360e8" opacity=".35"/>
-    <rect x="60" y="134" width="114" height="9" rx="4.5" fill="#4360e8" opacity=".22"/>
-    <rect x="60" y="152" width="70" height="9" rx="4.5" fill="#4360e8" opacity=".22"/>
+    <rect x="42" y="74" width="150" height="104" rx="14" class="panel" opacity=".97"/>
+    <rect x="42" y="74" width="150" height="26" rx="14" class="chrome" opacity=".14"/>
+    <circle cx="60" cy="87" r="4" class="bad" opacity=".75"/>
+    <circle cx="74" cy="87" r="4" class="fair" opacity=".75"/>
+    <circle cx="88" cy="87" r="4" class="good" opacity=".75"/>
+    <rect x="60" y="116" width="94" height="9" rx="4.5" class="panel-line" opacity=".35"/>
+    <rect x="60" y="134" width="114" height="9" rx="4.5" class="panel-line" opacity=".22"/>
+    <rect x="60" y="152" width="70" height="9" rx="4.5" class="panel-line" opacity=".22"/>
   </g>
 
   <!-- the probe beam -->
   <g>
     <path d="M196 126h84" stroke="url(#beam)" stroke-width="10" stroke-linecap="round" fill="none"/>
-    <circle cx="288" cy="126" r="7" fill="#12b5a6"/>
+    <circle cx="288" cy="126" r="7" class="probe"/>
   </g>
 
   <!-- the verdict -->
   <g transform="translate(300 46)">
     <path fill="url(#shield)" d="M66 0 12 20v56c0 41 25 71 54 82 29-11 54-41 54-82V20L66 0z"/>
-    <path fill="#ffffff" opacity=".94"
+    <path class="tick" opacity=".94"
           d="M96 51a7 7 0 0 0-10 .6L60 80.4 47.6 68.1A7 7 0 1 0 37.7 78l17.6 17.4a7 7 0 0 0 10-.3l31.3-33.7A7 7 0 0 0 96 51z"/>
   </g>
 
   <!-- findings ticking away underneath -->
   <g opacity=".75">
-    <rect x="42" y="196" width="86" height="12" rx="6" fill="#16b26a" opacity=".35"/>
-    <rect x="138" y="196" width="60" height="12" rx="6" fill="#f0a020" opacity=".35"/>
-    <rect x="208" y="196" width="42" height="12" rx="6" fill="#e63946" opacity=".3"/>
+    <rect x="42" y="196" width="86" height="12" rx="6" class="good" opacity=".4"/>
+    <rect x="138" y="196" width="60" height="12" rx="6" class="fair" opacity=".4"/>
+    <rect x="208" y="196" width="42" height="12" rx="6" class="bad" opacity=".35"/>
   </g>
 </svg>

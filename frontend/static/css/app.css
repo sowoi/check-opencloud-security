@@ -7,6 +7,13 @@
  *
  * Type comes from the reader's own system stack: it is already on the
  * machine, it renders in their preferred language, and it costs no request.
+ *
+ * The two schemes are one day, at its two quiet ends. Light is a sunrise
+ * over a breakfast table: warm paper, a low sun, one orange to follow.
+ * Dark is the night before it: a deep sky, a moon, and starlight where the
+ * light scheme puts green. Everything is a token here and in the
+ * `prefers-color-scheme: dark` block below, so a rule further down never
+ * names a colour and the whole page turns over by swapping this list.
  */
 
 /* ------------------------------------------------------------------ tokens */
@@ -22,44 +29,64 @@
      * the single-tone palette did not - amber and green sat near 2.9:1.
      */
 
-    --ink: #131a27;
-    --ink-soft: #4b5a72;
-    --ink-faint: #63718a;
-    --paper: #f5f8ff;
-    --card: #ffffff;
-    --line: #e4e9f6;
+    /*
+     * Light is early morning: a sun still low, warm paper the colour of milk
+     * in coffee, and one clean orange the page can be led by. Dark is the
+     * other end of the same day - a night sky, cool ink, and starlight gold
+     * where the light mode had a leaf green.
+     */
 
-    --brand: #4360e8;
-    --brand-deep: #2b3fbb;
-    --brand-soft: #e9edff;
-    --accent: #0d9e91;
-    --accent-ink: #0a7c72;
+    --ink: #2b1f18;
+    --ink-soft: #6a5346;
+    --ink-faint: #7d6657;
+    --paper: #fff6ec;
+    --card: #fffcf8;
+    --line: #f2e0cf;
+
+    --brand: #c94e1b;
+    --brand-deep: #a53d0e;
+    --brand-soft: #ffe4d1;
+    --accent: #2f9e7a;
+    --accent-ink: #1c7358;
     --on-brand: #ffffff;
 
-    --good: #0f9a58;
-    --good-soft: #e3f9ee;
-    --good-ink: #0a6c40;
-    --fair: #cf7c07;
-    --fair-soft: #fef3e0;
-    --fair-ink: #8a5209;
-    --bad: #e63946;
-    --bad-soft: #fdecee;
-    --bad-ink: #b3202f;
-    --info: #3b82f6;
-    --info-soft: #e7f0ff;
-    --info-ink: #1d4ed8;
+    --good: #2f9560;
+    --good-soft: #e4f6ea;
+    --good-ink: #1a6a41;
+    --fair: #c1830a;
+    --fair-soft: #fdf0d8;
+    --fair-ink: #8a5b06;
+    --bad: #d33f3f;
+    --bad-soft: #fdeae7;
+    --bad-ink: #a82a2a;
+    --info: #3b7fd0;
+    --info-soft: #e7f0fd;
+    --info-ink: #1c5aa8;
 
-    --brand-glow: rgba(67, 96, 232, .3);
-    --brand-glow-strong: rgba(67, 96, 232, .36);
-    --accent-wash: rgba(13, 158, 145, .14);
+    --brand-glow: rgba(201, 78, 27, .26);
+    --brand-glow-strong: rgba(201, 78, 27, .34);
+
+    /*
+     * The sky behind everything, and the layer of stars in front of it. Both
+     * are properties rather than rules so the two schemes swap the whole
+     * backdrop by redefining a token, and neither needs a second selector.
+     * Light: a sun just under the horizon and the warmth it throws sideways.
+     * Dark: no stars at all until the dark block turns them on.
+     */
+    --sky:
+        radial-gradient(80rem 34rem at 50% -16%, #ffd9a3, transparent 70%),
+        radial-gradient(46rem 28rem at 6% 2%, #ffe7cf, transparent 64%),
+        radial-gradient(44rem 26rem at 96% 6%, #fdecd8, transparent 62%);
+    --stars: none;
+    --star-opacity: 0;
 
     --radius-sm: 8px;
     --radius: 14px;
     --radius-lg: 22px;
 
-    --shadow-sm: 0 1px 2px rgba(16, 21, 31, .06), 0 1px 3px rgba(16, 21, 31, .04);
-    --shadow: 0 10px 30px rgba(16, 21, 31, .07), 0 2px 8px rgba(16, 21, 31, .04);
-    --shadow-lg: 0 24px 60px rgba(16, 21, 31, .12);
+    --shadow-sm: 0 1px 2px rgba(74, 45, 25, .07), 0 1px 3px rgba(74, 45, 25, .05);
+    --shadow: 0 10px 30px rgba(74, 45, 25, .08), 0 2px 8px rgba(74, 45, 25, .05);
+    --shadow-lg: 0 24px 60px rgba(74, 45, 25, .14);
 
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
         "Noto Sans", Arial, sans-serif;
@@ -72,41 +99,62 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ink: #f0f4fc;
-        --ink-soft: #bcc6d8;
-        --ink-faint: #95a1b6;
-        --paper: #0e1320;
-        --card: #171e2d;
-        --line: #2a344880;
+        --ink: #e9edfb;
+        --ink-soft: #b7c2dc;
+        --ink-faint: #8e9bba;
+        --paper: #080d1e;
+        --card: #111a30;
+        --line: #26324d80;
 
-        --brand: #9db2ff;
-        --brand-deep: #8299ff;
-        --brand-soft: #1e2748;
-        --accent: #4ddfcd;
-        --accent-ink: #6ee9d8;
+        --brand: #a9bcff;
+        --brand-deep: #c2ceff;
+        --brand-soft: #1b2445;
+        /* Starlight, where the light scheme has a garden green. */
+        --accent: #f5d78e;
+        --accent-ink: #f8e2a8;
         /*
          * The button keeps a dark label in dark mode: its gradient is the
          * light brand tone here, so white on it would be the one unreadable
          * thing on the page.
          */
-        --on-brand: #0e1320;
+        --on-brand: #0b1022;
 
-        --good: #5fe39b;
-        --good-soft: #0f2c1f;
-        --good-ink: #6ee7a8;
-        --fair: #fcc45a;
-        --fair-soft: #2d2312;
-        --fair-ink: #fdd076;
-        --bad: #ff9296;
-        --bad-soft: #301619;
-        --bad-ink: #ffa6a9;
-        --info: #7ea6ff;
-        --info-soft: #161f38;
-        --info-ink: #93b4ff;
+        --good: #6fe0a5;
+        --good-soft: #0e2b21;
+        --good-ink: #7deab0;
+        --fair: #f7cf7a;
+        --fair-soft: #2a2415;
+        --fair-ink: #fbdc94;
+        --bad: #ff9ba0;
+        --bad-soft: #2e171c;
+        --bad-ink: #ffb0b4;
+        --info: #8fb4ff;
+        --info-soft: #151f3a;
+        --info-ink: #a5c3ff;
 
         --brand-glow: rgba(0, 0, 0, .45);
         --brand-glow-strong: rgba(0, 0, 0, .55);
-        --accent-wash: rgba(77, 223, 205, .1);
+
+        /*
+         * Night: a moon high on the right with its halo, and the sky going
+         * blue-black towards the horizon. The star layer is one tile of
+         * hand-placed dots, repeated - small enough to read as a sky and
+         * regular enough to cost nothing.
+         */
+        --sky:
+            radial-gradient(18rem 18rem at 88% 8%, rgba(226, 233, 255, .16), transparent 62%),
+            radial-gradient(70rem 36rem at 84% -8%, #1a2445, transparent 72%),
+            radial-gradient(52rem 30rem at 6% 4%, #121a38, transparent 68%);
+        --stars:
+            radial-gradient(1.6px 1.6px at 12% 18%, #ffffff, transparent 60%),
+            radial-gradient(1.2px 1.2px at 47% 8%, #dfe6ff, transparent 60%),
+            radial-gradient(1px 1px at 73% 26%, #ffffff, transparent 60%),
+            radial-gradient(1.4px 1.4px at 88% 62%, #f6e6bd, transparent 60%),
+            radial-gradient(1px 1px at 28% 71%, #dfe6ff, transparent 60%),
+            radial-gradient(1.5px 1.5px at 61% 88%, #ffffff, transparent 60%),
+            radial-gradient(1px 1px at 4% 52%, #cdd8ff, transparent 60%),
+            radial-gradient(1.2px 1.2px at 36% 41%, #ffffff, transparent 60%);
+        --star-opacity: .55;
 
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
         --shadow: 0 10px 30px rgba(0, 0, 0, .45);
@@ -135,13 +183,36 @@ body {
     line-height: 1.65;
     color: var(--ink);
     background: var(--paper);
-    background-image:
-        radial-gradient(60rem 30rem at 12% -8%, var(--brand-soft), transparent 65%),
-        radial-gradient(50rem 26rem at 92% 4%, var(--accent-wash), transparent 60%);
+    background-image: var(--sky);
     background-repeat: no-repeat;
+    background-attachment: fixed;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+/*
+ * The stars. One fixed tile behind the whole document, drawn only when the
+ * scheme asks for it: in light mode `--stars` is `none` and the element
+ * paints nothing at all. It is decorative, so it is inert to the pointer and
+ * invisible to a screen reader by having no content to read.
+ */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--stars);
+    /*
+     * One size per star, all mutually prime enough that the tiles do not line
+     * up into a visible grid the way a single repeating pattern does.
+     */
+    background-size:
+        420px 340px, 610px 470px, 380px 520px, 700px 390px,
+        520px 610px, 330px 440px, 640px 300px, 480px 560px;
+    background-repeat: repeat;
+    opacity: var(--star-opacity);
 }
 
 h1, h2, h3, h4 { line-height: 1.2; margin: 0 0 .5em; font-weight: 700; letter-spacing: -.02em; }
@@ -422,6 +493,41 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: .9rem;
 }
 
+/* --------------------------------------------------- content sub-pages */
+/* The landing page keeps the form; the explanations live on their own pages,
+   each opening with this block and closing with the cross-links below. */
+.page-head { padding: 1.6rem 0 .4rem; max-width: var(--measure); }
+.page-head h1 { margin-bottom: .5rem; }
+.page-head .lede { color: var(--ink-soft); font-size: 1.1rem; margin: 0; }
+
+.page-nav-title { font-size: 1.05rem; margin-bottom: .9rem; }
+.page-nav-list {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; gap: 1rem;
+}
+@media (min-width: 800px) {
+    .page-nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.page-nav-card {
+    display: grid; gap: .3rem; height: 100%;
+    padding: 1.1rem 1.25rem;
+    text-decoration: none; color: var(--ink);
+    transition: border-color .15s ease, transform .15s ease;
+}
+.page-nav-card:hover { border-color: var(--brand); transform: translateY(-2px); }
+.page-nav-card span { color: var(--ink-soft); font-size: .92rem; }
+.page-nav-cta { border-color: var(--brand); }
+
+.footer-nav { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; }
+.footer-nav a { color: var(--ink-faint); text-decoration: none; }
+.footer-nav a:hover { color: var(--brand-deep); text-decoration: underline; }
+
+.site-nav a[aria-current="page"] { color: var(--brand-deep); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+    .page-nav-card:hover { transform: none; }
+}
+
 /* -------------------------------------------------------------- scan page */
 .scan-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
 .scan-target {
@@ -531,6 +637,15 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .plain-list { margin: .6rem 0 0; padding-left: 1.1rem; color: var(--ink-soft); }
 .plain-list li { margin-bottom: .5rem; line-height: 1.6; }
 .plain-list strong { color: var(--ink); }
+
+.export-list { margin: .6rem 0 0; padding: 0; list-style: none; }
+.export-list li {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .7rem;
+    padding: .45rem 0; border-bottom: 1px solid var(--line);
+}
+.export-list li:last-child { border-bottom: 0; }
+.export-list .btn { min-width: 8.5rem; text-align: center; }
+.export-list .hint { margin: 0; }
 
 pre.code-block {
     background: var(--paper); border: 1px solid var(--line);

@@ -26,6 +26,7 @@ import time
 import uuid as uuid_module
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from .catalog import DEFAULT_RELEASE_TRACK
 from .encryption import EncryptionConfig, decrypt_value, encrypt_value
@@ -106,6 +107,27 @@ class ScanRecord:
         if self.error is not None:
             payload["error"] = self.error
         return payload
+
+
+@dataclass(frozen=True)
+class PurgeReport:
+    """What one erasure request actually removed, and what was left after it."""
+
+    scans: int
+    keys_deleted: int
+    queue_entries: int
+    remaining: int
+    """Matching scans still present when the store was walked a second time.
+    Anything but zero means the erasure was incomplete, and the receipt says
+    so rather than claiming success."""
+
+
+def target_hostname(target: object) -> str:
+    """The hostname a stored target names, lowercased, or an empty string."""
+    if not isinstance(target, str) or not target:
+        return ""
+    parsed = urlsplit(target if "//" in target else f"//{target}")
+    return (parsed.hostname or "").lower()
 
 
 @dataclass
@@ -215,6 +237,50 @@ class ScanStore:
             queue_length=length,
             expires_in=max(0, expires_in) if expires_in >= 0 else self.ttl,
         )
+
+    async def purge_target(self, hostname: str) -> PurgeReport:
+        """
+        Delete every scan held for one hostname, then look again.
+
+        This is the only method that walks the keyspace, and it exists for the
+        one operation that cannot work without it: an erasure request names an
+        instance, and nothing here maps an instance back to its scans. Keeping
+        such a map would mean keeping a record of who scanned what, which is
+        precisely what the rest of this module is arranged to avoid - so the
+        cost is paid here, once, by a rare authenticated call.
+
+        The second walk is not paranoia: it is the only thing that can honestly
+        be put in a receipt, because by then the evidence of what was deleted
+        no longer exists.
+        """
+        wanted = hostname.lower()
+        identifiers = await self._identifiers_for(wanted)
+        keys_deleted = 0
+        queue_entries = 0
+        for identifier in identifiers:
+            keys_deleted += await self.backend.delete(
+                status_key(identifier), result_key(identifier), metadata_key(identifier)
+            )
+            queue_entries += await self.backend.lrem(QUEUE_KEY, 0, identifier)
+        remaining = len(await self._identifiers_for(wanted))
+        return PurgeReport(
+            scans=len(identifiers),
+            keys_deleted=keys_deleted,
+            queue_entries=queue_entries,
+            remaining=remaining,
+        )
+
+    async def _identifiers_for(self, hostname: str) -> list[str]:
+        """Every scan whose own metadata names this hostname."""
+        found: list[str] = []
+        for key in await self.backend.keys_matching("scan:*:metadata"):
+            parts = key.split(":")
+            if len(parts) != 3 or not is_scan_uuid(parts[1]):
+                continue
+            metadata = _load(await self.backend.get(key)) or {}
+            if target_hostname(metadata.get("target")) == hostname:
+                found.append(parts[1])
+        return found
 
     async def _patch_metadata(self, uuid: str, changes: dict[str, Any]) -> None:
         metadata = _load(await self.backend.get(metadata_key(uuid))) or {}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Scanning from a script{% endblock %}
+{% block description %}The JSON API behind the form: how to submit a scan, poll it, and what this server refuses to let a caller decide.{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Scanning from a script</h1>
+  <p class="lede">
+    The form is one of two front doors; the other is JSON, and it is the same
+    handler.
+  </p>
+</section>
+
+<section class="card section-gap" aria-labelledby="api">
+  <h2 id="api">Submit and poll</h2>
+<pre class="code-block"><code>curl -X POST https://scan.okxo.de/api/scans \
+     -H 'Content-Type: application/json' \
+     -d '{"target_url": "opencloud.example.com", "release_track": "production"}'
+curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
+  <p class="flush">
+    A submission answers <code>202</code> with the scan's identifier; polling
+    it returns <code>queued</code>, <code>running</code> or the finished
+    result, and <code>404</code> once it has expired. Only four fields are
+    read - the address, the checks to waive, the release track and the output
+    format. Anything else in the body, concurrency and timeouts above all, is
+    rejected: how hard this server probes is not a caller's decision.
+  </p>
+</section>
+
+<section class="card section-gap" aria-labelledby="api-limits">
+  <h2 id="api-limits">Fair use</h2>
+  <p class="flush">
+    {% if limits.client %}
+    Fair use is enforced rather than requested: {{ limits.client }} submissions
+    per {{ limits.window_minutes }} minute(s) from one address, and
+    {% if limits.cooldown %}one scan per target every
+    {{ limits.cooldown_minutes }} minute(s){% else %}no per-target cooldown{% endif %},
+    both answered with <code>429</code> and a <code>Retry-After</code>.
+    {% else %}
+    This deployment sets no rate limit.
+    {% endif %}
+    If you meet one and would rather not wait, the whole thing runs on your own
+    machine: <a href="{{ project_url }}" rel="noopener noreferrer">the project
+    is on GitHub</a>.
+  </p>
+</section>
+
+<section class="card section-gap" aria-labelledby="api-schema">
+  <h2 id="api-schema">The schema</h2>
+  <p class="flush">
+    {% if docs_enabled %}
+    The full schema is browsable here:
+    <a href="/docs">Swagger UI</a>, <a href="/redoc">ReDoc</a>, and the raw
+    <a href="/openapi.json">OpenAPI document</a>. All three are served from
+    this server - nothing is fetched from anywhere else.
+    {% else %}
+    The interactive schema (Swagger UI at <code>/docs</code>, ReDoc at
+    <code>/redoc</code>) is switched off on this deployment; an operator turns
+    it on with <code>COS_WEB_ENABLE_DOCS=true</code>.
+    {% endif %}
+  </p>
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

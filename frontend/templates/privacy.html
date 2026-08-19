@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}What this server keeps{% endblock %}
+{% block description %}What is stored while a scan runs, for how long, and what the operational log does and does not record.{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>What this server keeps</h1>
+  <p class="lede">
+    Short answer: the scan, for {{ result_ttl_minutes }} minutes, in memory.
+  </p>
+</section>
+
+<section class="card section-gap" aria-labelledby="privacy">
+  <h2 id="privacy">While a scan is alive</h2>
+  <p>
+    The address you submit, the checks you chose to waive and the result live
+    in memory for {{ result_ttl_minutes }} minutes, under a key derived from
+    your scan's random identifier, and are then dropped by the store itself.
+    The operational log records that a scan was created, started and finished,
+    identified by that random identifier alone - not the address, not the
+    result and not your IP address, which is only ever counted as a one-way
+    fingerprint for rate limiting.
+  </p>
+  <p class="flush">
+    Prefer to run it yourself? The same scanner is a command line check and a
+    Python package. Nothing here talks to a third-party service in either case.
+  </p>
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

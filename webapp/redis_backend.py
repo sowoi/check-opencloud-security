@@ -14,6 +14,7 @@ one on PyPI already.
 
 from __future__ import annotations
 
+import fnmatch
 import time
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
@@ -48,6 +49,8 @@ class RedisBackend(Protocol):
     ) -> bool: ...
 
     async def delete(self, *keys: str) -> int: ...
+
+    async def keys_matching(self, pattern: str) -> list[str]: ...
 
     async def incr(self, key: str) -> int: ...
 
@@ -149,11 +152,26 @@ class MemoryRedis:
                 removed += 1
         return removed
 
+    async def keys_matching(self, pattern: str) -> list[str]:
+        """
+        Every live key matching a glob.
+
+        This is the one command that walks the keyspace, and it has exactly one
+        caller: erasing everything held about a target on request. Nothing on
+        the request path uses it, because a service that can list its scans
+        while it serves them is a service that will eventually list them to
+        somebody.
+        """
+        self._sweep()
+        keys = set(self._values) | set(self._lists)
+        return sorted(
+            key for key in keys if fnmatch.fnmatchcase(key, pattern) and self._live(key)
+        )
+
     async def incr(self, key: str) -> int:
         current = int(await self.get(key) or 0) + 1
         self._values[key] = str(current)
         return current
-
     async def expire(self, key: str, seconds: int) -> bool:
         if not self._live(key) or (key not in self._values and key not in self._lists):
             return False
@@ -262,6 +280,12 @@ class _RealRedis:
         if not keys:
             return 0
         return int(await self._client.delete(*keys))  # type: ignore[attr-defined]
+
+    async def keys_matching(self, pattern: str) -> list[str]:
+        found: list[str] = []
+        async for key in self._client.scan_iter(match=pattern, count=500):  # type: ignore[attr-defined]
+            found.append(_text(key))
+        return sorted(set(found))
 
     async def incr(self, key: str) -> int:
         return int(await self._client.incr(key))  # type: ignore[attr-defined]

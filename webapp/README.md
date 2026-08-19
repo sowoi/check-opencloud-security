@@ -16,6 +16,9 @@ FastAPI.
 * [What is where](#what-is-where)
 * [Running it](#running-it)
 * [The HTTP API](#the-http-api)
+* [Scanning several instances at once](#scanning-several-instances-at-once)
+* [Taking a result away](#taking-a-result-away)
+* [Erasing an instance on request](#erasing-an-instance-on-request)
 * [Swagger and the OpenAPI schema](#swagger-and-the-openapi-schema)
 * [What a request may not ask for](#what-a-request-may-not-ask-for)
 * [Configuration](#configuration)
@@ -31,15 +34,21 @@ webapp/
 ├── settings.py       every COS_WEB_* variable, read once at startup
 ├── ssrf.py           the target guard: what may be connected to
 ├── ratelimit.py      the client limit and the per-target cooldown
+├── audit.py          the optional audit trail, pseudonymised
 ├── store.py          one Redis namespace per scan, TTL on every key
 ├── queue.py          handing a scan to the worker pool
 ├── tasks.py          the ARQ worker; `python -m webapp.tasks`
 ├── runner.py         where a request becomes ScannerSettings
 ├── redis_backend.py  Redis, and the in-process stand-in for tests
+├── reports.py        the CSV, SARIF and PDF exports
+├── arazzo.py         the API described as executable workflows
+├── purge.py          erasure on request, and the signed receipt for it
 └── catalog.py        the waiver allow-list and the dashboard grouping
 
 frontend/
-├── templates/        base.html, index.html, scan.html, 404.html
+├── templates/        base.html, index.html, scan.html, 404.html,
+│                     how-it-works.html, api.html, privacy.html, about.html,
+│                     _page-nav.html (the cross-links between them)
 └── static/
     ├── css/app.css   the whole design system, hand-written
     ├── js/app.js     landing page niceties; the form works without it
@@ -86,16 +95,21 @@ nothing is listening on the other end of the queue.
 
 ## The HTTP API
 
-Seven routes, and that is the whole surface.
+A small surface, and this is all of it.
 
 | Method | Path | What it does |
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
+| `GET` | `/how-it-works`, `/api`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |
+| `POST` | `/api/scans/batch` | Several targets at once; **202** with what started and what did not |
 | `GET` | `/api/scans` | Redirects to `/`. It lists nothing - there is no listing |
 | `GET` | `/scan/{uuid}` | The progress and result page |
 | `GET` | `/api/scans/{uuid}` | The state, and the result once there is one |
+| `GET` | `/api/scans/{uuid}/export/{format}` | The finished scan as `json`, `csv`, `sarif` or `pdf` |
+| `DELETE` | `/api/purge` | Erases everything held for one instance and returns a signed receipt; **404** until a token is configured |
+| `GET` | `/arazzo.json` | The API as Arazzo workflows, beside the schema and behind the same switch |
 | `GET` | `/healthz` | Pings Redis, reads queue depth, and requires a live worker heartbeat; returns the aggregate depth or a 503 when unavailable |
 
 ### Starting a scan
@@ -153,6 +167,101 @@ The uuid is a capability token. Unknown, invalid and expired all answer the
 same **404** with the same body, so nobody can learn that a uuid was once
 real, and there is no endpoint that enumerates scans.
 
+## Scanning several instances at once
+
+`POST /api/scans/batch` takes `targets` in place of `target_url` and is
+otherwise the same request:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8080/api/scans/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"targets": ["one.example.com", "two.example.com"],
+       "release_track": "production"}'
+```
+
+```json
+{
+  "accepted": [{"uuid": "0f4a1f22-...", "target": "https://one.example.com",
+                "state": "queued", "url": "/scan/0f4a1f22-..."}],
+  "rejected": [{"target": "https://two.example.com", "status": 429,
+                "detail": "That instance was scanned very recently...",
+                "retryAfter": 284}],
+  "counts": {"submitted": 2, "accepted": 1, "rejected": 1}
+}
+```
+
+**A batch buys convenience, not capacity.** Each target runs the whole
+single-submission pipeline in the order it was written: the client rate limit
+counts it, the SSRF guard validates it, and it claims its own target cooldown.
+Ten targets spend ten scans from the window. That is why the answer is two
+lists - a batch where the third instance is in cooldown and the fourth is a
+typo should still scan the other eight.
+
+`COS_WEB_MAX_BATCH_TARGETS` (default 10) caps the list, and a longer one is
+refused as a whole before anything is queued, so nothing pays a cooldown for a
+batch that never ran. **202** when at least one target started; when none did,
+the status is the reason the first was refused, with `Retry-After` and the
+self-hosting pointer if that reason was a limit.
+
+Each uuid is polled exactly as a single scan, and reaches nothing but its own
+scan - batching creates no handle over the group.
+
+## Taking a result away
+
+`GET /api/scans/{uuid}/export/{format}` renders a finished scan as `json`,
+`csv`, `sarif` or `pdf`:
+
+```bash
+curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
+```
+
+| Format | For |
+|:-------|:----|
+| `pdf` | A ticket, a review, a printout. Written by `reports.py` itself - no reporting library, for the same reason the frontend loads nothing from a CDN |
+| `csv` | A spreadsheet: a header block, then one row per finding with a section column |
+| `sarif` | A code-scanning dashboard: SARIF 2.1.0, every result carrying a rule with the catalogue's own explanation |
+| `json` | The scanner's document, unchanged |
+
+All four are renderings of one finished result and are produced on request, so
+none of them outlives the scan. A finished `GET /api/scans/{uuid}` advertises
+the URLs under `exports`, and the result page offers them as download buttons -
+plain links, because the policy forbids an inline handler.
+
+**409** while the scan has not finished: it exists, and answering 404 would
+send a caller into a retry loop against the wrong endpoint. **404** for an
+unknown uuid or an unknown format, with the same body as everywhere else.
+
+## Erasing an instance on request
+
+`DELETE /api/purge?target=opencloud.example.com` removes every scan this
+service holds for one instance, along with the queue entries and the cooldown
+key derived from it:
+
+```bash
+curl -sS -X DELETE \
+  -H "Authorization: Bearer $COS_WEB_PURGE_TOKEN" \
+  "http://127.0.0.1:8080/api/purge?target=opencloud.example.com"
+```
+
+Everything here expires on its own already; this is for the person who wants
+it gone now, and for the operator who has to show that it went. The response is
+a receipt: what was deleted, a `remaining` count from a **second walk over the
+store afterwards**, and an HMAC signature when `COS_WEB_PURGE_SIGNING_KEY` is
+set. `webapp.purge.verify()` checks one later, when the data it describes no
+longer exists to be compared against.
+
+Two design consequences worth knowing:
+
+- **There is no target index, so a purge walks the keyspace** and reads each
+  scan's own metadata. Keeping an index would mean keeping a record of who
+  scanned what, which is the thing this service refuses to have. The walk is
+  the price, paid by a rare authenticated call and by nothing on the request
+  path.
+- **It is authorised and off by default.** The call deletes results belonging
+  to whoever is reading them, so without `COS_WEB_PURGE_TOKEN` the endpoint
+  answers 404 like any other path that does not exist. The realistic workflow
+  is a message to the operator, who runs it and returns the receipt.
+
 ## Swagger and the OpenAPI schema
 
 Both are **off by default** - they describe endpoints already documented in
@@ -180,6 +289,7 @@ COS_WEB_REDIS_URL=memory:// \
 - Swagger UI: <http://127.0.0.1:8080/docs>
 - ReDoc: <http://127.0.0.1:8080/redoc>
 - The schema itself: <http://127.0.0.1:8080/openapi.json>
+- The workflows: <http://127.0.0.1:8080/arazzo.json>
 
 In Docker, set `COS_WEB_ENABLE_DOCS: "true"` on the `web_app` service in
 [`docker/docker-compose.yml`](../docker/docker-compose.yml).
@@ -201,6 +311,28 @@ COS_WEB_ENABLE_DOCS=true COS_WEB_REDIS_URL=memory:// python -c \
   > openapi.json
 ```
 
+### The workflows, in Arazzo
+
+The schema says what each endpoint accepts. It cannot say that a scan is
+asynchronous, that the uuid from the first call is the only way back to the
+second, that a batch answers with two lists, or that a 409 on an export means
+*not yet* rather than *no*. Those are the parts a client gets wrong, so they
+are written down as [Arazzo 1.0.1](https://spec.openapis.org/arazzo/latest.html)
+workflows at `/arazzo.json`: `scanOneInstance`, `scanManyInstances` and
+`exportFinishedScan`.
+
+[`arazzo.py`](arazzo.py) builds the document from this application rather than
+shipping a static copy, so it names this build's version, and
+`tests/test_webapp_arazzo.py` checks every step against the served OpenAPI
+paths - a workflow describing an endpoint that moved fails the suite instead
+of misleading somebody. Write it to a file the same way as the schema:
+
+```bash
+COS_WEB_REDIS_URL=memory:// python -c \
+  "import json;from webapp.arazzo import arazzo_document;print(json.dumps(arazzo_document()))" \
+  > scan-workflows.arazzo.json
+```
+
 ## What a request may not ask for
 
 A request chooses **what** to scan, never **how hard**:
@@ -210,7 +342,7 @@ A request chooses **what** to scan, never **how hard**:
 | `target_url` | Required. Hostname or URL of the instance |
 | `ignore_hardenings` | Optional. Identifiers to waive, checked against an allow-list; unknown ones are dropped |
 | `release_track` | Optional. `rolling`, `production`, `lts` or `auto`; defaults to `auto`, and an unknown value falls back to it |
-| `output_format` | Optional. `dashboard` or `json` |
+| `output_format` | Optional. `dashboard`, `json`, `csv`, `sarif` or `pdf` |
 
 `release_track` is the web equivalent of the plugin's `--release-track`. It
 decides how long the instance's release is supported and which release it is
@@ -238,7 +370,9 @@ The other standing restrictions:
   extra ports on a host a stranger named is not something to do uninvited.
 - **Nothing is stored.** Every key has a TTL, Redis persists nothing, and the
   log carries lifecycle markers and uuids - never a target, a client address
-  or a result.
+  or a result. An operator who needs an audit trail can turn one on with
+  `COS_WEB_AUDIT_LOG`; addresses stay fingerprints there too. See
+  [What gets logged](../docs/webapp.md#what-gets-logged).
 
 ## Configuration
 
@@ -257,9 +391,14 @@ before the first deployment:
 | `COS_WEB_SCAN_CONCURRENCY` | `4` | Probes in flight within one scan |
 | `COS_WEB_IP_RATE_LIMIT` / `_WINDOW` | `10` / `60` | The client limit. `0` disables |
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again |
+| `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one batch may carry; each still spends a scan from every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Only behind a proxy that **overwrites** the header, or the limit is decorative |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
 | `COS_WEB_ENABLE_DOCS` | `false` | Swagger UI, ReDoc and the schema |
+| `COS_WEB_AUDIT_LOG` | `false` | An audit record per request, rejection and triggered limit, with fingerprints rather than addresses |
+| `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge`. Unset means the endpoint is not there at all |
+| `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion, so a receipt can be checked long after the data went |
+| `COS_WEB_ENCRYPT_RESULTS` | `false` | AES-256-GCM on the stored result. The web process and the worker need the same `COS_WEB_ENCRYPTION_KEY_<n>`, and one asked to encrypt without a key refuses to start |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Serve a different `templates/` and `static/` |
 
 Adding a setting means: a field on `WebSettings` with a docstring saying why
@@ -282,6 +421,14 @@ The rules are short, and they are the product:
   progress; the page it polls renders the same result on a reload.
 - **Nothing generic.** The CSS is a small design-token system at the top of
   `app.css`; the SVGs were drawn for this project. No stock art, no framework.
+- **Two schemes, one day.** Light is a sunrise over breakfast - warm paper, a
+  low sun, a single orange to follow. Dark is the night before it: a deep sky,
+  a moon and a faint field of stars. Both live entirely in the tokens at the
+  top of `app.css` and its `prefers-color-scheme: dark` block, so no rule
+  further down names a colour, and every ink-on-tint pair clears WCAG AA in
+  both. The three SVGs carry the same pair internally: they are loaded with
+  `<img>`, so they are documents of their own that the page's stylesheet
+  cannot reach and the page's CSP does not govern.
 
 To run with your own branding, point `COS_WEB_FRONTEND_DIR` at a copy of
 `frontend/`:
@@ -293,8 +440,10 @@ COS_WEB_FRONTEND_DIR=/srv/my-frontend uvicorn webapp.app:app
 
 The template contract is small: `base.html` receives `version`, `project_url`
 and `result_ttl_minutes` on every page; `index.html` also gets `waivers`,
-`tracks`, `release_track`, `error`, `error_self_host` and `target_url`; `scan.html` gets the record and
-its `summary`. Keep the trademark notice and the "run it yourself" pointer -
+`tracks`, `release_track`, `error`, `error_self_host` and `target_url`;
+`scan.html` gets the record and its `summary`. The content pages -
+`/how-it-works`, `/api`, `/privacy` and `/about` - need nothing beyond the
+base variables and `limits`. Keep the trademark notice and the "run it yourself" pointer -
 they are the reason a rate limit reads as a nudge rather than a door.
 
 ## Tests

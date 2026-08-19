@@ -46,6 +46,10 @@ services:
       COS_WEB_IP_RATE_LIMIT: "10"
       COS_WEB_IP_RATE_WINDOW: "60"
       COS_WEB_TARGET_COOLDOWN: "300"
+      # Targets one POST /api/scans/batch may carry. A batch is a convenience,
+      # not a discount: every target still counts against the client limit and
+      # still claims its own cooldown.
+      COS_WEB_MAX_BATCH_TARGETS: "10"
       # Only set this when a reverse proxy in front *overwrites*
       # X-Forwarded-For. Trusting a header a client can send makes the client
       # rate limit decorative.
@@ -59,6 +63,28 @@ services:
       # from another origin, and enabling it relaxes the policy on those
       # paths. Handy while developing against the API.
       COS_WEB_ENABLE_DOCS: "true"
+      # An audit record for every scan request, rejection and triggered limit,
+      # on the check_opencloud.web.audit logger as one JSON object per line.
+      # Off by default: the ordinary log carries lifecycle markers and uuids
+      # only. Addresses are always fingerprints; the target becomes one too
+      # unless COS_WEB_AUDIT_LOG_TARGETS says otherwise, and an unset
+      # COS_WEB_AUDIT_SALT means nothing correlates across a restart.
+      COS_WEB_AUDIT_LOG: "false"
+      COS_WEB_AUDIT_LOG_TARGETS: "false"
+      # Erasure on request: DELETE /api/purge answers 404 until a secret is
+      # set here, because the call deletes results belonging to whoever is
+      # currently reading them. The signing key makes the proof of deletion
+      # verifiable long after the data itself is gone.
+      COS_WEB_PURGE_TOKEN: ""
+      COS_WEB_PURGE_SIGNING_KEY: ""
+      # Encrypt the stored result document with AES-256-GCM. Both this service
+      # and the worker must agree, and both need the same key: the worker
+      # writes the document and the web process reads it back. A key is 64 hex
+      # characters (32 bytes); the highest version encrypts, lower ones still
+      # decrypt, which is how one is rotated. A process asked to encrypt
+      # without a usable key refuses to start rather than store plaintext.
+      COS_WEB_ENCRYPT_RESULTS: "false"
+      # COS_WEB_ENCRYPTION_KEY_1: "<64 hex characters>"
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -95,6 +121,14 @@ services:
       # scan. Off unless the targets are your own.
       COS_WEB_CHECK_DEBUG_PORTS: "false"
       COS_WEB_RELEASES_MODE: "off"
+      # Encrypt the stored result document with AES-256-GCM. Both this service
+      # and the worker must agree, and both need the same key: the worker
+      # writes the document and the web process reads it back. A key is 64 hex
+      # characters (32 bytes); the highest version encrypts, lower ones still
+      # decrypt, which is how one is rotated. A process asked to encrypt
+      # without a usable key refuses to start rather than store plaintext.
+      COS_WEB_ENCRYPT_RESULTS: "false"
+      # COS_WEB_ENCRYPTION_KEY_1: "<64 hex characters>"
     # The image health check probes the web server. The worker has no HTTP
     # listener, so verify its PID and the Redis connection it needs instead.
     healthcheck:

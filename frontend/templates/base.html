@@ -21,7 +21,11 @@
         <span>Security scan for OpenCloud instances</span>
       </a>
       <nav class="site-nav" aria-label="Primary">
-        <a href="/">New scan</a>
+        <a href="/"{% if request.url.path == "/" %} aria-current="page"{% endif %}>New scan</a>
+        <a href="/how-it-works"{% if request.url.path == "/how-it-works" %} aria-current="page"{% endif %}>How it works</a>
+        <a href="/api"{% if request.url.path == "/api" %} aria-current="page"{% endif %}>API</a>
+        <a href="/privacy"{% if request.url.path == "/privacy" %} aria-current="page"{% endif %}>Privacy</a>
+        <a href="/about"{% if request.url.path == "/about" %} aria-current="page"{% endif %}>About</a>
         <a href="https://github.com/sowoi/check-opencloud-security" rel="noopener noreferrer">Source</a>
       </nav>
     </div>
@@ -39,6 +43,12 @@
         Scans run from this server against the address you enter.
         Results live in memory for {{ result_ttl_minutes }} minutes and are then gone.
       </p>
+      <nav class="footer-nav" aria-label="Secondary">
+        <a href="/how-it-works">How it works</a>
+        <a href="/api">API</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/about">About</a>
+      </nav>
       <p>
         Built on the <code>check-opencloud-security</code> scanner.
         No trackers, no accounts, no analytics.
