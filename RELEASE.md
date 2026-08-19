@@ -1,4 +1,4 @@
-## check-opencloud-security 1.6.1
+## check-opencloud-security 1.7.0
 
 ### Security
 
@@ -42,14 +42,16 @@
   without `COS_WEB_PURGE_TOKEN` the endpoint answers 404, since the call
   destroys results belonging to whoever is currently reading them. An erasure
   is recorded in the audit trail when one is kept, and described by the
-  `eraseInstanceData` workflow in `/arazzo.json`.
+  `eraseInstanceData` workflow in `/arazzo.json`. See
+  [ADR 0007](adr/0007-erasure-on-request.md).
 - Batch scanning in the web application. `POST /api/scans/batch` accepts a
   `targets` list and answers with what started and what did not. A batch is a
   convenience, never a discount: every target runs the whole single-submission
   pipeline in order, counting against the client rate limit, passing the SSRF
   guard and claiming its own target cooldown, so ten targets spend ten scans
   from the window. `COS_WEB_MAX_BATCH_TARGETS` (default 10) caps the list and
-  refuses a longer one before anything is queued.
+  refuses a longer one before anything is queued. See
+  [ADR 0005](adr/0005-batch-scan-submission.md).
 - PDF, CSV and SARIF exports for the web application, offered as download
   buttons on the result page and served by
   `GET /api/scans/{uuid}/export/{format}` alongside `json`. All four are
@@ -57,7 +59,8 @@
   the scan expires; a scan that has not finished answers 409 rather than 404.
   The PDF is written by `webapp/reports.py` itself, so the web image gains no
   reporting dependency, and the SARIF report now names the running version and
-  carries a rule with the catalogue's explanation for every result.
+  carries a rule with the catalogue's explanation for every result. See
+  [ADR 0006](adr/0006-dependency-free-exports.md).
 - An [Arazzo 1.0.1](https://spec.openapis.org/arazzo/latest.html) description
   of the HTTP API at `/arazzo.json`, beside the OpenAPI schema and behind the
   same `COS_WEB_ENABLE_DOCS` switch. Three workflows - `scanOneInstance`,
@@ -77,7 +80,7 @@
   `COS_WEB_AUDIT_LOG_TARGETS=true`. `COS_WEB_AUDIT_SALT` pins the fingerprint
   salt so records correlate across a restart, and leaving it unset means they
   do not. Off by default, so the ordinary log still carries lifecycle markers
-  and uuids only.
+  and uuids only. See [ADR 0004](adr/0004-webapp-audit-logging.md).
 
 ### Changed
 
@@ -96,12 +99,3 @@
   driven at the top of `app.css`, every ink-on-tint pair still clears WCAG AA,
   and the three hand-drawn SVGs now carry both schemes internally rather than
   one hardcoded blue.
-
-### Fixed
-
-- The ARQ worker Compose health check now verifies its process and Redis
-  connection instead of probing the web server endpoint it does not run.
-- The web application's `/healthz` probe now checks Redis and returns 503
-  while its required state store is unavailable.
-- The web application's `/healthz` probe now also reports aggregate queue
-  depth and requires a short-lived Redis worker heartbeat.

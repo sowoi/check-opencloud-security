@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-19
+
 ### Security
 
 - Results are now actually encrypted at rest when `COS_WEB_ENCRYPT_RESULTS` is
