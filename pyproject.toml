@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.8.0"
+version = "1.7.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -113,6 +113,7 @@ test = [
     "cryptography>=50.0.0",
     "redis>=5.3.1,<6",
     "arq>=0.28.0",
+    "mcp>=2.0.0",
 ]
 
 [tool.pytest.ini_options]
