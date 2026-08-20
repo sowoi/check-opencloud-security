@@ -21,6 +21,7 @@ meaning.
 | `config.py`, `secrets.py` | YAML / environment / secret-provider configuration |
 | `service.py`, `cli.py` | The HTTP scan service and the `check-opencloud-scanner` command |
 | `factory.py` | Builds settings objects from a `Configuration` |
+| `tls.py` | Transport security: handshake, protocol, certificate, chain, stapling |
 
 ## What it reads from the instance
 
@@ -114,6 +115,50 @@ imposes. A check that failed without deciding the outcome is kept with
 `applied: false`, so a finding is never silently absent from the reasoning.
 The list is sorted by severity, which makes the explanation independent of the
 order the checks happened to run in.
+
+## What would raise the rating
+
+The same result carries a `remediationPlan`, built by `remediation.py` from
+the caps above: an ordered fix list with the rating each step would reach.
+
+```json
+{
+  "currentRating": 3,
+  "achievableRating": 5,
+  "summary": "Two fixes would raise this instance from 3/5 to 5/5.",
+  "steps": [
+    {"order": 1, "id": "exposed:/opencloud.yaml", "kind": "finding",
+     "severity": "high", "title": "A deployment file is publicly readable",
+     "action": "Stop serving the deployment directory ...",
+     "ratingBefore": 3, "ratingAfter": 4, "ratingGain": 1}
+  ],
+  "blocked": [],
+  "waived": []
+}
+```
+
+It is a replay of `_compute_rating` with one finding removed at a time, not a
+second model of the rating, so a predicted grade cannot disagree with the real
+one. Nothing new is stored: the plan is derived from the document it sits in.
+
+Three properties are load-bearing and have tests:
+
+- The **order** is by cap, then severity, then identifier, so it does not
+  depend on the order the checks ran in. A step that gains nothing on its own -
+  the first of several findings sharing one ceiling - stays in the list with
+  `ratingGain: 0` rather than being hidden.
+- An **update is a step too**, inserted at the first position where it starts
+  to gain something. Fixing findings cannot lift a rating above what the
+  installed version allows, so a plan that put the upgrade first would promise
+  a gain it could not deliver.
+- **Findings that cannot be fixed** - `actionable: false`, the flags OpenCloud
+  hardcodes - go to `blocked` and stay in every simulated remainder, which is
+  what bounds `achievableRating` correctly.
+
+An end-of-life release short-circuits the rating to `0` without recording any
+caps, so the plan rebuilds them from `extraChecks` in that one case. Otherwise
+it would promise a perfect score after an upgrade with a critical finding
+still open.
 
 ## The single-page-application problem
 
@@ -411,6 +456,71 @@ than failing on the first one:
 still shows up in the findings; it just stops counting against the rating, so
 a self-signed instance can be monitored without a permanently degraded grade
 while a genuinely broken certificate elsewhere still stands out.
+
+### What is measured
+
+`tls.py` does the inspecting and hands `scanner.py` a list of checks; it knows
+nothing about ratings. Beyond the handshake and trust it reports:
+
+| Finding | What it asks |
+|:--------|:-------------|
+| `tlsProtocol` | Is the negotiated version at least TLS 1.2? |
+| `tlsDeprecatedProtocol` | Does the server *still accept* TLS 1.0 or 1.1, having negotiated something newer with us? |
+| `tlsHostname` | Does the certificate cover the name it was asked for, wildcards and IP addresses included? |
+| `tlsChain` | Does the server send its intermediates, or only a leaf that validates by luck? |
+| `tlsCertificate` | Does it expire within `tls_min_days`, or has it already? |
+| `tlsCertificateLifetime` | Is it valid for longer than the 398 days browsers accept? |
+| `tlsOcspStapling` | Is a revocation response stapled to the handshake? |
+
+The measurements behind them are in a `tls` block in the result document: the
+protocol and cipher, the certificate's subject, issuer, validity window,
+remaining days and names, the chain length, and what the deprecated-protocol
+and stapling probes found.
+
+```json
+{
+  "host": "opencloud.example.com",
+  "port": 443,
+  "reachable": true,
+  "protocol": "TLSv1.3",
+  "cipher": "TLS_AES_256_GCM_SHA384",
+  "cipherBits": 256,
+  "trusted": true,
+  "hostnameMatch": true,
+  "chainComplete": true,
+  "chainLength": 2,
+  "deprecatedProtocolsProbed": ["TLSv1", "TLSv1.1"],
+  "deprecatedProtocolsAccepted": [],
+  "ocspStapled": false,
+  "ocspNote": "the certificate names no OCSP responder",
+  "certificate": {
+    "subject": "opencloud.example.com",
+    "issuer": "Example CA R3",
+    "serialNumber": "03A1...",
+    "notBefore": "2026-06-01T00:00:00+00:00",
+    "notAfter": "2026-08-30T00:00:00+00:00",
+    "daysRemaining": 9,
+    "lifetimeDays": 90,
+    "altNames": ["opencloud.example.com"],
+    "ocspResponders": [],
+    "selfSigned": false
+  }
+}
+```
+
+**`null` means "not determined", never "fine".** A check that could not be
+performed - `get_unverified_chain()` needs Python 3.13, the deprecated-protocol
+probe needs a build that still speaks one, stapling needs the `openssl`
+command and a certificate that names a responder - is left out of the findings
+entirely rather than recorded as passed. See
+[ADR 0013](../adr/0013-transport-security-is-measured-not-assumed.md).
+
+The certificate is decoded from what the server presented whether or not it
+verified, so an instance with the self-signed certificate `opencloud init`
+generates still gets its expiry, names and lifetime checked. Two probes are
+optional at the call: `probe_deprecated` opens one extra handshake per old
+protocol, and `check_stapling` runs one `openssl s_client` with a fixed
+argument list and no shell.
 
 ## What this package does not do
 

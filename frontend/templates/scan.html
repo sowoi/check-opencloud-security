@@ -114,7 +114,7 @@
             {% endif %}
           {% else %}
           Not detected -
-          <a href="https://docs.opencloud.eu/docs/admin/getting-started/container/external-idm"
+          <a href="https://docs.opencloud.eu/docs/admin/configuration/authentication-and-user-management/external-idp"
              rel="noopener noreferrer">how OpenCloud sign-in is set up</a>
           {% endif %}
         </dd>
@@ -158,7 +158,57 @@
   {% if summary.explanation.reason %}
   <p class="hint section-gap">Why this grade: {{ summary.explanation.reason }}</p>
   {% endif %}
+  <p class="hint">
+    A grade says the checks below passed, not that the instance is secure.
+    This scan is not exhaustive: it sees only what the instance shows an
+    anonymous visitor.
+    <a href="#scan-limits">What it cannot see</a>.
+  </p>
 </section>
+
+{% if summary.remediation.steps %}
+<section class="card">
+  <h2 id="remediation">What gets you to {{ summary.remediation.achievableLabel }}</h2>
+  <p class="lede">{{ summary.remediation.summary }}</p>
+  <ol class="findings plan">
+    {% for step in summary.remediation.steps %}
+    <li class="finding plan-step" data-tag="{{ step.tag }}"
+        data-gain="{{ 'yes' if step.ratingGain > 0 else 'no' }}">
+      <div class="finding-head">
+        <span class="plan-order" aria-hidden="true">{{ step.order }}</span>
+        <code>{{ step.id }}</code>
+        <span class="tag tag-{{ step.tag }}">{{ step.severity }}</span>
+        <span class="plan-grade">
+          {%- if step.ratingGain > 0 %}then {{ step.label }}{% else %}still {{ step.label }}{% endif -%}
+        </span>
+      </div>
+      <p>{{ step.title }}</p>
+      {% if step.detail %}<p class="hint">{{ step.detail }}</p>{% endif %}
+      <p class="fix"><strong>Fix:</strong> {{ step.action }}
+        {% if step.reference %}<a href="{{ step.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      </p>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="hint section-gap">
+    The order is the one that pays off soonest, and the grade beside a step is
+    what the rating would be once that step and everything above it is done.
+    Findings of the same severity share one cap, so the grade moves only when
+    the last of them is gone - which is why a step can be necessary and still
+    promise nothing on its own.
+  </p>
+  {% if summary.remediation.blocked %}
+  <h3 class="section-gap">Holding the grade down, and not fixable</h3>
+  <p class="hint">
+    OpenCloud hardcodes these, so no setting reaches them. They are the reason
+    the plan above stops where it does.
+  </p>
+  <ul class="pill-list">
+    {% for step in summary.remediation.blocked %}<li>{{ step.id }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
 
 {% if summary.eol %}
 <section class="card">
@@ -280,11 +330,20 @@
 {% endif %}
 
 <section class="card">
-  <h2>What this scan cannot see</h2>
+  <h2 id="scan-limits">What this scan cannot see</h2>
   <p>
     Everything above was read without logging in, which is the point and also
-    the limit. Two things are therefore outside the scan and no absence of a
-    warning should be read as an answer about them:
+    the limit. <strong>The absence of a finding is not evidence of
+    safety</strong>, and the highest grade this page can give is not a
+    statement that the instance is secure - only that nothing checked here
+    went wrong. Whole categories are outside an unauthenticated scan
+    altogether: the operating system and its packages, the container runtime,
+    the reverse proxy's own configuration, backups and their restores, the
+    storage behind the instance, secrets and key handling, accounts,
+    passwords and multi-factor sign-in, the permissions on existing shares,
+    the software supply chain, and anything that only shows itself to a
+    logged-in user. So are these two, which look like they should be
+    visible and are not:
   </p>
   <ul class="plain-list">
     <li>
@@ -302,6 +361,71 @@
     </li>
   </ul>
 </section>
+
+{% if summary.tls and summary.tls.reachable %}
+<section class="card">
+  <h2>Transport security</h2>
+  <p class="lede">
+    What the TLS layer said before a single byte of HTTP was exchanged. The
+    findings above already judge these; this is the measurement behind them.
+  </p>
+  <dl class="facts">
+    <dt>Protocol</dt>
+    <dd>
+      {{ summary.tls.protocol }}{% if summary.tls.cipher %}, {{ summary.tls.cipher }}{% endif %}
+      {% if summary.tls.cipherBits %}({{ summary.tls.cipherBits }} bit){% endif %}
+    </dd>
+    {% if summary.tls.deprecatedProtocolsProbed %}
+    <dt>Deprecated versions</dt>
+    <dd>
+      {% if summary.tls.deprecatedProtocolsAccepted %}
+      Still accepted: {{ summary.tls.deprecatedProtocolsAccepted | join(", ") }}
+      {% else %}
+      Refused: {{ summary.tls.deprecatedProtocolsProbed | join(", ") }}
+      {% endif %}
+    </dd>
+    {% endif %}
+    <dt>Chain</dt>
+    <dd>
+      {% if summary.tls.trusted %}Trusted
+      {% elif summary.tls.trusted is none %}Not established
+      {% else %}Not trusted{% endif %}
+      {% if summary.tls.chainComplete is false %}- no path to a public root{% endif %}
+    </dd>
+    {% if summary.tls.certificate %}
+    <dt>Issued to</dt>
+    <dd>{{ summary.tls.certificate.subject or "unnamed" }}</dd>
+    <dt>Issued by</dt>
+    <dd>{{ summary.tls.certificate.issuer or "unknown" }}</dd>
+    {% if summary.tls.certificate.altNames %}
+    <dt>Valid for</dt>
+    <dd>{{ summary.tls.certificate.altNames | join(", ") }}</dd>
+    {% endif %}
+    <dt>Validity</dt>
+    <dd>
+      {{ summary.tls.certificate.notBefore }} to {{ summary.tls.certificate.notAfter }}
+      {% if summary.tls.certificate.daysRemaining is not none %}
+        {% if summary.tls.certificate.daysRemaining < 0 %}
+        - expired {{ -summary.tls.certificate.daysRemaining }} day(s) ago
+        {% else %}
+        - {{ summary.tls.certificate.daysRemaining }} day(s) left
+        {% endif %}
+      {% endif %}
+    </dd>
+    {% if summary.tls.certificate.lifetimeDays is not none %}
+    <dt>Issued for</dt>
+    <dd>{{ summary.tls.certificate.lifetimeDays }} day(s)</dd>
+    {% endif %}
+    {% endif %}
+    <dt>OCSP stapling</dt>
+    <dd>
+      {% if summary.tls.ocspStapled %}A revocation answer is stapled
+      {% elif summary.tls.ocspStapled is false %}Not stapled
+      {% else %}{{ summary.tls.ocspNote or "Not determined" }}{% endif %}
+    </dd>
+  </dl>
+</section>
+{% endif %}
 
 <section class="card">
   <h2>Technical details</h2>

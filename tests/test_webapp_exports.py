@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -247,3 +248,72 @@ def test_an_unbounded_string_from_the_instance_is_truncated():
 
     assert "A" * 400 not in report
     assert "A" * 100 in report
+
+
+def test_every_export_carries_the_remediation_plan(finished_scan):
+    """A report that says what is wrong and not what to do first is half a report."""
+    plan = summarise(finished_scan)["remediation"]
+    assert plan["steps"], "the fake instance is meant to fail at least one check"
+    first = plan["steps"][0]
+
+    sarif = sarif_report(finished_scan)
+    carried = sarif["runs"][0]["properties"]["remediation"]
+    assert [step["id"] for step in carried["steps"]] == [
+        step["id"] for step in plan["steps"]
+    ]
+
+    csv_text = csv_report(finished_scan)
+    assert plan["summary"] in csv_text
+    assert f"fix step {first['order']}" in csv_text
+
+    pdf = pdf_report(finished_scan)
+    assert b"What gets you to" in pdf
+
+
+def test_the_exported_plan_keeps_the_order_the_scanner_worked_out(finished_scan):
+    """Reordering the steps would silently change what the grades mean."""
+    plan = summarise(finished_scan)["remediation"]
+    orders = [step["order"] for step in plan["steps"]]
+
+    assert orders == sorted(orders)
+    # The negative half: the predicted ratings never go backwards either, so
+    # no step is presented as undoing the one before it.
+    ratings = [step["ratingAfter"] for step in plan["steps"]]
+    assert ratings == sorted(ratings)
+
+
+def test_the_dashboard_shows_the_plan_with_the_grade_each_step_reaches(
+    finished_scan,
+):
+    """A page listing findings without an order leaves the triage to the reader."""
+    from fastapi.templating import Jinja2Templates
+
+    from webapp.app import frontend_dir, is_safe_link
+
+    templates = Jinja2Templates(directory=str(frontend_dir() / "templates"))
+    templates.env.tests["safe_link"] = is_safe_link
+    summary = summarise(finished_scan)
+    assert summary["remediation"]["steps"], "the fake instance fails a check"
+
+    request = SimpleNamespace(url=SimpleNamespace(path=f"/scan/{IDENTIFIER}"))
+    page = templates.env.get_template("scan.html").render(
+        summary=summary,
+        scan={
+            "outputFormat": "dashboard",
+            "result": finished_scan,
+            "uuid": IDENTIFIER,
+            "expiresIn": 3600,
+            "exports": {},
+        },
+        request=request,
+    )
+
+    first = summary["remediation"]["steps"][0]
+    assert "What gets you to" in page
+    assert first["id"] in page
+    assert first["action"][:40] in page
+    # The negative half: the letters shown are the plugin's own, not a
+    # second scale invented for the page.
+    from check_opencloud_security import RATE_MAP
+
+    assert f"{RATE_MAP[first['ratingAfter']]}" in page

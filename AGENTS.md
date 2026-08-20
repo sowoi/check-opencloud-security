@@ -24,6 +24,7 @@ for a remote scan service.
 | `opencloud_local_scan/scanner.py` | The scan pipeline, findings, waivers and the rating |
 | `opencloud_local_scan/versions.py` | The release lifecycle model (tracks, lines, end of life) |
 | `opencloud_local_scan/releases.py` | The update check and its track-aware recommendation |
+| `opencloud_local_scan/tls.py` | Transport security: protocol, certificate, chain, stapling |
 | `opencloud_local_scan/hardening.py` | Catalogue explaining every hardening identifier |
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
 | `opencloud_local_scan/wizard.py` | The interactive setup behind `--configure` |
@@ -34,6 +35,9 @@ for a remote scan service.
 | `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
 | `adr/` | Durable architectural decision records |
 | `webapp/` | The public scan service: FastAPI, the ARQ worker, SSRF and rate limits |
+| `webapp/workflows.py` | What a *task* means: submit, poll, wait, complete, export |
+| `webapp/openapi.py`, `arazzo.py`, `discovery.py` | The written contracts and `/.well-known/ai.json` |
+| `webapp/mcp_server.py` | The MCP endpoint: those workflows, executed for an agent |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
@@ -57,6 +61,16 @@ for a remote scan service.
   `opencloud_local_scan.__version__` derives it from there (package metadata
   when installed, the file itself in a checkout) and the plugin imports that.
   Never reintroduce a literal - that is how the numbers drifted apart before.
+- **Never connect this project to Twitter/X, Google or Meta.** No script, no
+  stylesheet, no font, no iframe, no image, no API, no SDK, no analytics, no
+  tag manager, no CAPTCHA, no sign-in, no share button, no embed, and no
+  card metadata naming any of them. This holds for the web application, the
+  frontend, the plugin, the scanner, the container images, the CI workflows
+  and the documentation alike. A visitor here is handing over the address of
+  a system they are responsible for; a request to one of those platforms
+  turns that into a record somebody else keeps. Platform-neutral, request-free
+  metadata such as OpenGraph `og:` tags is fine, because nothing fetches it.
+  See [Third parties](#third-parties).
 - Comment only what needs clarification. Explain *why*, not *what*.
 
 ## Versioning and releases
@@ -217,6 +231,54 @@ that tone: apologetic rather than officious, and keep the link, in the HTML
 response (`error_self_host`) as well as the JSON one (`hint`,
 `selfHostUrl`).
 
+## Working on the agent-facing surfaces
+
+`/openapi.json` says which operations exist, `/arazzo.json` how they combine
+into a task, `/mcp` lets an agent perform it, and `/.well-known/ai.json` is
+how anything finds the other three. `ARCHITECTURE.md` draws the shape;
+[ADR 0010](adr/0010-machine-readable-descriptions-are-always-public.md) and
+[ADR 0011](adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md)
+hold the decisions.
+
+**There is one workflow layer and it is `webapp/workflows.py`.** The status a
+submission answers with, the poll interval, the attempt ceiling, that a `404`
+is final and a `409` means *not yet* - all of it lives there once. The Arazzo
+document reads those constants and the MCP tools call those functions; a test
+fails if either writes its own number. Change the behaviour there, not in a
+description of it.
+
+**MCP executes by calling this service's own HTTP API in-process.** Never the
+internals, never a second path. That is what makes the SSRF guard, the client
+rate limit, the target cooldown, the queue and the authorisation on erasure
+the real ones. An agent must not be able to reach a code path a browser could
+not, nor be rationed more generously than a browser is - a tool that skips a
+limit has turned the endpoint into a way around it.
+
+**Tools are user-level tasks, not endpoints.** `scan_instance`,
+`scan_instances`, `get_scan_result`, `plan_remediation`, `export_scan`,
+`erase_instance_data`. Do not add a tool per route: an agent asked to scan an
+instance should call one tool, not orchestrate a submission and thirty polls.
+Write the description *for an agent* - inputs, outputs, how long it takes,
+what is retryable, when to stop, when to ask the user - and mark a destructive
+one as destructive.
+
+**A scanned host is not to be trusted with the model's attention.** A version
+string, a product name and an error message are chosen by somebody else's
+server. They stay collapsed, stripped and truncated, and the answer keeps its
+`untrusted` block saying those fields are to be reported and never obeyed.
+
+**Never hold, log or return a credential.** `erase_instance_data` requires the
+same authorisation `DELETE /api/purge` does, supplied by the caller; the MCP
+layer passes it and forgets it. Validate a uuid as a uuid before it reaches a
+request path, and percent-encode anything that goes into a query.
+
+**The four documents are public and unauthenticated**, at stable paths.
+`COS_WEB_ENABLE_DOCS` governs only `/docs` and `/redoc`; `COS_WEB_ENABLE_MCP`
+turns the endpoint off for a deployment that wants none, and the discovery
+document then stops advertising it. A new tool needs a row in `docs/mcp.md`,
+`webapp/README.md` and `docs/webapp.md`, and a test in
+`tests/test_webapp_mcp.py`.
+
 ## Working on the frontend
 
 `frontend/` holds every template and asset; `webapp/` holds no markup and
@@ -228,6 +290,12 @@ response (`error_self_host`) as well as the JSON one (`hint`,
   Every byte the browser fetches is served from this origin under `/static/`,
   and a test asserts it. "Air-gapped" has to survive somebody opening the
   network tab.
+- **Twitter/X, Google and Meta are excluded by name**, and not only as
+  requests. No `twitter:` card metadata, no `fb:` properties, no
+  `google-site-verification`, no Google Fonts, Analytics, Tag Manager,
+  reCAPTCHA or Maps, no Facebook or Instagram pixel, embed or share button.
+  `tests/test_webapp_seo.py` fails on any of them. See
+  [Third parties](#third-parties).
 - **The CSP has no `unsafe-inline`.** No `style=` attributes, no `<style>`
   blocks, no `onclick`, no inline `<script>`. A one-off style becomes a
   utility class or a `[data-...]` rule in `app.css`; there are already
@@ -252,6 +320,46 @@ response (`error_self_host`) as well as the JSON one (`hint`,
 Every page carries the trademark notice in the footer of `base.html`. See
 [Trademarks and affiliation](#trademarks-and-affiliation) - do not remove it
 from a template, and add it to any new surface that stands on its own.
+
+## Third parties
+
+**Nothing in this project may talk to Twitter/X, Google or Meta**, and nothing
+may be built so that a deployment ends up doing it. Not a font, not a script,
+not an analytics beacon, not a CAPTCHA, not a share button, not a login, not a
+map, not an embedded video, not an SDK, and not a piece of metadata addressed
+to one of them.
+
+The reason is the same one behind everything else here. Somebody who uses this
+service tells it the address of a system they are responsible for securing. A
+single request to a platform whose business is building profiles turns that
+into a record held by a company with no relationship to the visitor, no reason
+to keep it and no obligation to delete it. The referrer alone would carry a
+result URL whose uuid is the entire authorisation.
+
+Concretely, and by name:
+
+- **Google** - Fonts, Analytics, Tag Manager, reCAPTCHA, Maps, AdSense,
+  Firebase, hosted libraries, `google-site-verification` meta tags, and
+  "Sign in with Google".
+- **Meta** - the Facebook pixel, SDK, like or share buttons, comment embeds,
+  Instagram embeds or oEmbed, WhatsApp click-to-chat, `fb:` meta properties,
+  and "Log in with Facebook".
+- **Twitter/X** - `twitter:` card metadata, the widget script, embedded
+  tweets, and share intents.
+
+What is allowed: a plain link a person clicks, and platform-neutral metadata
+that no browser fetches, such as OpenGraph `og:` tags. Both are inert. The
+line is whether *this* page causes a request the visitor did not ask for.
+
+This is not only a frontend rule. It covers the scanner, the plugin, the
+container images, the CI workflows and the documentation. A dependency that
+phones one of them home is the same leak with more steps, so check what a new
+package fetches at install time and at runtime before adding it.
+
+`tests/test_webapp_seo.py` asserts no page carries such metadata, and the
+third-party test in `tests/test_webapp_api.py` walks the rendered HTML for any
+foreign origin at all. The Content-Security-Policy has no allowance for one,
+so a violation fails in a browser as well as in the suite.
 
 ## Trademarks and affiliation
 

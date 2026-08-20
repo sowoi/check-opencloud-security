@@ -38,11 +38,12 @@ LABEL org.opencontainers.image.title="check-opencloud-security-web" \
 COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /bin/
 COPY --from=builder /dist/*.whl /tmp/
 
-# The wheel plus the 'web' extra. The scanner comes from the wheel exactly as
-# it does on PyPI, so the service can never be running a patched copy of the
-# checks.
+# The wheel plus the 'web' and 'mcp' extras. The scanner comes from the wheel
+# exactly as it does on PyPI, so the service can never be running a patched
+# copy of the checks. 'mcp' is what serves /mcp; without it the endpoint is
+# simply not mounted and everything else still works.
 RUN set -eu \
-    && uv pip install --system --no-cache "$(echo /tmp/*.whl)[web]" \
+    && uv pip install --system --no-cache "$(echo /tmp/*.whl)[web,mcp]" \
     && rm -rf /tmp/*.whl /bin/uv \
     && useradd --no-create-home --shell /usr/sbin/nologin --uid 10001 scanner
 

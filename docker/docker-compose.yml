@@ -54,15 +54,38 @@ services:
       # X-Forwarded-For. Trusting a header a client can send makes the client
       # rate limit decorative.
       COS_WEB_TRUST_FORWARDED_FOR: "false"
+      # The address this service is reached at from outside. Behind a proxy it
+      # only ever sees its own, and the canonical links and sitemap.xml would
+      # then publish URLs nobody can reach.
+      # COS_WEB_PUBLIC_BASE_URL: "https://opencloud-scan.example.com"
+      # Let search engines index the five public pages. A result page carries
+      # noindex whatever this says: the uuid is the whole of the
+      # authorisation. Set it to "false" for a deployment nobody should find.
+      COS_WEB_ALLOW_INDEXING: "true"
       # The update check reads OpenCloud's release feed. Off by default so a
       # public deployment does not query it once per visitor; set 'auto' and a
       # token to turn it on.
       COS_WEB_RELEASES_MODE: "off"
-      # Swagger UI and the OpenAPI schema at /docs, /redoc and /openapi.json.
-      # Off in public: Swagger UI is the only page here that loads a script
-      # from another origin, and enabling it relaxes the policy on those
-      # paths. Handy while developing against the API.
+      # The browsable Swagger UI and ReDoc pages at /docs and /redoc. Off in
+      # public: enabling them relaxes the content policy on those two paths.
+      # /openapi.json, /arazzo.json and /.well-known/ai.json are public
+      # whatever this says - a description nobody can fetch describes nothing.
       COS_WEB_ENABLE_DOCS: "true"
+      # The MCP endpoint at /mcp, which lets an AI agent run the same
+      # workflows through the same rate limits. Needs the 'mcp' extra, which
+      # the web image installs.
+      #
+      # To run without it, set it in the environment or in a .env file next to
+      # this one rather than editing here:
+      #
+      #     COS_WEB_ENABLE_MCP=false docker compose up -d
+      #
+      # The host list is the DNS-rebinding check - name the public hostname
+      # when this is reachable from a browser, or leave it empty behind a
+      # proxy that already fixes the Host header.
+      COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
+      COS_WEB_MCP_ALLOWED_HOSTS: ""
+      COS_WEB_MCP_MAX_CONCURRENT_WAITS: "8"
       # An audit record for every scan request, rejection and triggered limit,
       # on the check_opencloud.web.audit logger as one JSON object per line.
       # Off by default: the ordinary log carries lifecycle markers and uuids

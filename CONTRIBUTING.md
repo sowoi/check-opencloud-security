@@ -149,9 +149,13 @@ commit landing here, and a finding that explains itself with a dead link is a
 finding nobody can act on.
 
 `scripts/check_documentation_links.py` collects every OpenCloud link the
-repository documents and requests it. A workflow runs it after every merge into
-`main` and once a week; `tests/test_documentation_links.py` covers which links
-are collected, offline.
+repository documents and requests it. Two sources feed it: the text of every
+file, and `opencloud_local_scan/hardening.py` imported rather than grepped -
+a reference long enough to be split across two string literals is invisible
+to a regular expression, and hardening references are exactly the long,
+deeply nested URLs most likely to move. A workflow runs it after every merge
+into `main` and once a week; `tests/test_documentation_links.py` covers which
+links are collected, offline.
 
 ```shell
 python scripts/check_documentation_links.py           # check, fail on rot
@@ -166,6 +170,17 @@ and a job that fails every week is a job everybody learns to ignore. The
 report is still worth reading, since a moved documentation page looks exactly
 like that on its way to a 404. Fixtures under `tests/` are not documentation
 and are skipped.
+
+**A status code is not enough for `docs.opencloud.eu`.** It is a single-page
+application: an address that no longer exists answers HTTP 200 with the
+application shell and renders "Page not found" once the browser gets to it.
+Every dead documentation link this project has had looked perfectly healthy
+to a status check - the same trap the scanner guards against when it probes an
+instance for exposed paths. So links there are checked against the site's own
+`sitemap.xml` as well, and a `/docs/` address it does not list fails the run.
+A sitemap that cannot be read condemns nothing, and only `/docs/` paths are
+held to it: a sitemap lists pages, so an image missing from one proves
+nothing.
 
 ## Linting
 We use Ruff for linting and code formatting checks.

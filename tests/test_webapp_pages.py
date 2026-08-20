@@ -18,7 +18,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     client,
 )
 
-CONTENT_PAGES = ("/how-it-works", "/api", "/privacy", "/about")
+CONTENT_PAGES = ("/how-it-works", "/api", "/ai", "/privacy", "/about")
 
 
 @pytest.mark.parametrize(
@@ -26,6 +26,7 @@ CONTENT_PAGES = ("/how-it-works", "/api", "/privacy", "/about")
     [
         ("/how-it-works", "How the scan works"),
         ("/api", "Scanning from a script"),
+        ("/ai", "For AI agents"),
         ("/privacy", "What this server keeps"),
         ("/about", "About OpenCloud and this scanner"),
     ],

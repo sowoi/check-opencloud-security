@@ -19,7 +19,7 @@ FastAPI.
 * [Scanning several instances at once](#scanning-several-instances-at-once)
 * [Taking a result away](#taking-a-result-away)
 * [Erasing an instance on request](#erasing-an-instance-on-request)
-* [Swagger and the OpenAPI schema](#swagger-and-the-openapi-schema)
+* [Machine-readable descriptions, and the agents that read them](#machine-readable-descriptions-and-the-agents-that-read-them)
 * [What a request may not ask for](#what-a-request-may-not-ask-for)
 * [Configuration](#configuration)
 * [Customising the frontend](#customising-the-frontend)
@@ -41,8 +41,13 @@ webapp/
 ├── runner.py         where a request becomes ScannerSettings
 ├── redis_backend.py  Redis, and the in-process stand-in for tests
 ├── reports.py        the CSV, SARIF and PDF exports
-├── arazzo.py         the API described as executable workflows
+├── openapi.py        the OpenAPI 3.1 document, written rather than inferred
+├── workflows.py      one place the polling, retry and error semantics live
+├── arazzo.py         those workflows, rendered as Arazzo 1.0.1
+├── mcp_server.py     the MCP endpoint: the same workflows, as agent tools
+├── discovery.py      /.well-known/ai.json, the entry point for an agent
 ├── purge.py          erasure on request, and the signed receipt for it
+├── seo.py            the public page list, robots.txt and sitemap.xml
 └── catalog.py        the waiver allow-list and the dashboard grouping
 
 frontend/
@@ -52,6 +57,7 @@ frontend/
 └── static/
     ├── css/app.css   the whole design system, hand-written
     ├── js/app.js     landing page niceties; the form works without it
+    ├── js/nav.js     the navigation menu on a narrow screen
     ├── js/scan.js    polls /api/scans/{uuid} until the scan settles
     └── img/*.svg     drawn for this project
 ```
@@ -111,6 +117,8 @@ A small surface, and this is all of it.
 | `DELETE` | `/api/purge` | Erases everything held for one instance and returns a signed receipt; **404** until a token is configured |
 | `GET` | `/arazzo.json` | The API as Arazzo workflows, beside the schema and behind the same switch |
 | `GET` | `/healthz` | Pings Redis, reads queue depth, and requires a live worker heartbeat; returns the aggregate depth or a 503 when unavailable |
+| `GET` | `/robots.txt` | Generated. Points at the sitemap and keeps crawlers out of `/scan/` and `/api/` |
+| `GET` | `/sitemap.xml` | Generated from the six public pages, with each `lastmod` taken from its template; **404** when `COS_WEB_ALLOW_INDEXING` is off |
 
 ### Starting a scan
 
@@ -222,6 +230,18 @@ curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
 | `sarif` | A code-scanning dashboard: SARIF 2.1.0, every result carrying a rule with the catalogue's own explanation |
 | `json` | The scanner's document, unchanged |
 
+Each carries the remediation plan the scanner produced: a summary line and one
+entry per fix in the CSV, `runs[0].properties.remediation` in the SARIF, a
+"What gets you to A+" section in the PDF, and `remediationPlan` in the JSON,
+which is the scanner's own document.
+
+They carry the transport-security detail the same way: the negotiated protocol
+and cipher, the certificate's issuer, validity window and remaining days, the
+chain and whether an OCSP response was stapled. It is in the CSV header block,
+`runs[0].properties.tls` in the SARIF, a "Transport security" section in the
+PDF and the `tls` block in the JSON. A value that could not be measured is
+`null` and is rendered as "not determined" rather than as a pass.
+
 All four are renderings of one finished result and are produced on request, so
 none of them outlives the scan. A finished `GET /api/scans/{uuid}` advertises
 the URLs under `exports`, and the result page offers them as download buttons -
@@ -262,12 +282,15 @@ Two design consequences worth knowing:
   answers 404 like any other path that does not exist. The realistic workflow
   is a message to the operator, who runs it and returns the receipt.
 
-## Swagger and the OpenAPI schema
+## Machine-readable descriptions, and the agents that read them
 
-Both are **off by default** - they describe endpoints already documented in
-prose, and a public deployment has no reason to advertise them.
+`/openapi.json`, `/arazzo.json` and `/.well-known/ai.json` are **always
+public**. A description nobody can fetch describes nothing, and an agent that
+has to be told to turn a document on has already failed to discover it. Only
+the browsable pages - Swagger UI and ReDoc - stay behind
+`COS_WEB_ENABLE_DOCS`.
 
-They are, however, served entirely from this origin: Swagger UI and ReDoc are
+They are served entirely from this origin: Swagger UI and ReDoc are
 rendered with the copies in
 [`frontend/static/vendor/`](../frontend/static/vendor/) rather than FastAPI's
 own pages, which fetch their JavaScript from jsDelivr. Those default pages
@@ -278,7 +301,7 @@ FastAPI's version mounts the UI from an inline `<script>`, and the policy
 below refuses to run inline script, so the one call that starts it lives in
 `/static/js/docs.js`.
 
-Turn it on for development:
+Turn the browsable pages on for development:
 
 ```bash
 COS_WEB_ENABLE_DOCS=true \
@@ -290,11 +313,14 @@ COS_WEB_REDIS_URL=memory:// \
 - ReDoc: <http://127.0.0.1:8080/redoc>
 - The schema itself: <http://127.0.0.1:8080/openapi.json>
 - The workflows: <http://127.0.0.1:8080/arazzo.json>
+- The discovery document: <http://127.0.0.1:8080/.well-known/ai.json>
+- The MCP endpoint: <http://127.0.0.1:8080/mcp>
 
-In Docker, set `COS_WEB_ENABLE_DOCS: "true"` on the `web_app` service in
-[`docker/docker-compose.yml`](../docker/docker-compose.yml).
+The last four need no switch at all. In Docker, set
+`COS_WEB_ENABLE_DOCS: "true"` on the `web_app` service in
+[`docker/docker-compose.yml`](../docker/docker-compose.yml) for the first two.
 
-When it is on, the landing page links to all three. Enabling it relaxes the
+Enabling it relaxes the
 Content-Security-Policy on `/docs` and `/redoc` and **nowhere else**, and only
 by allowing inline styles and a blob worker - both pages need them to render,
 and no foreign origin is allowed even there. The landing page, the result page
@@ -302,14 +328,21 @@ and the schema keep the strict policy, and a test fails if that ever leaks.
 The service also logs `api_docs_enabled` at startup, so a deployment that
 turned it on by accident says so.
 
-Prefer not to serve it at all? The schema is static, so write it to a file and
-open it in your own viewer:
+The schema is static, so it can also be written to a file and opened in your
+own viewer:
 
 ```bash
-COS_WEB_ENABLE_DOCS=true COS_WEB_REDIS_URL=memory:// python -c \
-  "import json;from webapp.app import create_app;print(json.dumps(create_app().openapi()))" \
+COS_WEB_REDIS_URL=memory:// python -c \
+  "import json;from webapp.openapi import openapi_document;print(json.dumps(openapi_document()))" \
   > openapi.json
 ```
+
+[`openapi.py`](openapi.py) writes that document by hand rather than letting
+FastAPI infer one. The inferred version described a form body where the API
+takes JSON, a 200 where the API answers 202, and `{}` where an agent needed
+the shape of a result; the hand-written one mirrors `store.ScanRecord`,
+`catalog.summarise` and `purge.PurgeReceipt` field for field, and
+`tests/test_webapp_openapi.py` drives the real endpoints to check it.
 
 ### The workflows, in Arazzo
 
@@ -318,8 +351,15 @@ asynchronous, that the uuid from the first call is the only way back to the
 second, that a batch answers with two lists, or that a 409 on an export means
 *not yet* rather than *no*. Those are the parts a client gets wrong, so they
 are written down as [Arazzo 1.0.1](https://spec.openapis.org/arazzo/latest.html)
-workflows at `/arazzo.json`: `scanOneInstance`, `scanManyInstances` and
-`exportFinishedScan`.
+workflows at `/arazzo.json`: `scanOneInstance`, `awaitScanResult`,
+`scanManyInstances`, `exportFinishedScan` and `eraseInstanceData`.
+
+`awaitScanResult` is the shared one - poll while `done` is false, stop on a
+404 because an unknown or expired uuid never becomes known, and give up after
+a bounded number of attempts rather than forever. `scanOneInstance` submits
+and then hands its uuid to it. `scanManyInstances` submits a batch and waits
+on the *accepted* uuids only: a target the backend rejected is not retried,
+because it was not refused for being early.
 
 [`arazzo.py`](arazzo.py) builds the document from this application rather than
 shipping a static copy, so it names this build's version, and
@@ -332,6 +372,79 @@ COS_WEB_REDIS_URL=memory:// python -c \
   "import json;from webapp.arazzo import arazzo_document;print(json.dumps(arazzo_document()))" \
   > scan-workflows.arazzo.json
 ```
+
+### The MCP endpoint
+
+`POST /mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io)
+over streamable HTTP - stateless, JSON responses, no session to keep alive. It
+is the *execution* layer for the two documents above, and deliberately not a
+second implementation of anything: [`mcp_server.py`](mcp_server.py) calls this
+application's own HTTP API in process, through an ASGI transport, so a tool
+meets the same rate limits, the same SSRF guard and the same purge
+authorisation a browser does.
+
+| Tool | What it does |
+|:-----|:-------------|
+| `scan_instance` | Submit one target, wait for it, return the rating. `wait: false` returns the uuid instead |
+| `scan_instances` | The same for a list, over the batch endpoint, waiting only on the accepted ones |
+| `get_scan_result` | Read one uuid once, without waiting |
+| `plan_remediation` | What would raise the grade, in order, with the rating each step reaches |
+| `export_scan` | Download a finished result as `json`, `csv`, `sarif` or `pdf` |
+| `erase_instance_data` | **Destructive.** Erase everything held about one hostname. Needs the operator's credential |
+
+Configuring a client against it is documented for operators in
+[`docs/mcp.md`](../docs/mcp.md).
+
+Three resources expose the specifications under `spec://` URIs - the OpenAPI
+document, the Arazzo document and the discovery document - so an agent can
+read the contracts without leaving the protocol.
+
+The tools are user-level tasks rather than one per endpoint, because the task
+is "scan this instance", not "create, poll, poll, poll, fetch". The polling
+and retry semantics live in [`workflows.py`](workflows.py), which is also what
+`arazzo.py` renders its retry numbers from: the described behaviour and the
+executed behaviour are the same code, so they cannot drift.
+
+`erase_instance_data` reads its `Authorization: Bearer` header from the
+agent's own request, never from a tool argument. The credential is therefore
+never a value the model has seen, and an agent without it gets the same 404 or
+401 anyone else does.
+
+Four properties hold the endpoint to the same rules the rest of the service
+follows, and each has a test that fails if it is removed:
+
+- **A scanned host does not get to write to the model.** A version string, a
+  product name, an explanation and an error message are all text a stranger's
+  server chose, and they end up in a language model's context. Every one of
+  them is collapsed, stripped of non-printables and truncated on the way out,
+  a version that does not look like a version becomes `unparsable`, and the
+  answer carries an `untrusted` block naming those fields and saying plainly
+  that they are to be reported, never obeyed.
+- **A uuid is a uuid.** A tool argument reaches an HTTP path and an HTTP
+  client resolves `..`, so an identifier that does not parse as a UUID is
+  answered 404 before any request is made - the same answer unknown and
+  expired get. The purge target is percent-encoded for the same reason.
+- **Each agent has its own rate-limit bucket.** The in-process transport
+  carries the *real* peer address of the MCP request, so a tool call is
+  counted against whoever made it. Without that every agent in the world
+  shares one bucket and rations strangers by each other.
+- **Waiting is bounded.** `COS_WEB_MCP_MAX_CONCURRENT_WAITS` caps how many
+  tool calls may sit waiting on a scan at once. Reaching it refuses nothing:
+  the scan is submitted exactly as it would have been and the uuid comes back
+  with a note to poll `get_scan_result`, which is what `wait: false` answers
+  anyway. Overload queues here too.
+
+### Discovery, for an agent that knows only the origin
+
+`/.well-known/ai.json` is the entry point: the two specification URLs, the MCP
+endpoint, the limits worth respecting and the link to running the whole check
+yourself. `base.html` also carries `<link rel="service-desc">`, `rel="arazzo"`
+and `rel="ai-discovery"` hints, and `/ai` says the same thing in prose for a
+human.
+
+It is an **application-level convention**, not a registered standard. Nothing
+about the filename makes an agent look for it; it exists so that one that does
+look needs exactly one request to find everything else.
 
 ## What a request may not ask for
 
@@ -393,8 +506,13 @@ before the first deployment:
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one batch may carry; each still spends a scan from every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Only behind a proxy that **overwrites** the header, or the limit is decorative |
+| `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin in the canonical links and `sitemap.xml`. Set it behind a proxy |
+| `COS_WEB_ALLOW_INDEXING` | `true` | Index the six public pages. A result page is `noindex` either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
-| `COS_WEB_ENABLE_DOCS` | `false` | Swagger UI, ReDoc and the schema |
+| `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |
+| `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp`, when the optional `mcp` extra is installed |
+| `COS_WEB_MCP_ALLOWED_HOSTS` | *(empty)* | `Host` values `/mcp` accepts. Empty turns the DNS-rebinding check off |
+| `COS_WEB_MCP_MAX_CONCURRENT_WAITS` | `8` | How many tool calls may wait on a scan at once; past that the uuid comes back to be polled |
 | `COS_WEB_AUDIT_LOG` | `false` | An audit record per request, rejection and triggered limit, with fingerprints rather than addresses |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge`. Unset means the endpoint is not there at all |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion, so a receipt can be checked long after the data went |
@@ -438,8 +556,10 @@ cp -r frontend /srv/my-frontend
 COS_WEB_FRONTEND_DIR=/srv/my-frontend uvicorn webapp.app:app
 ```
 
-The template contract is small: `base.html` receives `version`, `project_url`
-and `result_ttl_minutes` on every page; `index.html` also gets `waivers`,
+The template contract is small: `base.html` receives `version`, `project_url`,
+`result_ttl_minutes`, `site_name`, `robots`, `canonical_url` and `og_image` on
+every page - `canonical_url` is `None` on anything a crawler may not index, and
+`robots` says so a second time in the markup; `index.html` also gets `waivers`,
 `tracks`, `release_track`, `error`, `error_self_host` and `target_url`;
 `scan.html` gets the record and its `summary`. The content pages -
 `/how-it-works`, `/api`, `/privacy` and `/about` - need nothing beyond the

@@ -14,6 +14,7 @@ scanner.
 * [Editing the design](#editing-the-design)
 * [The template contract](#the-template-contract)
 * [The scripts](#the-scripts)
+* [Discovery, in the markup](#discovery-in-the-markup)
 * [Running your own frontend](#running-your-own-frontend)
 * [Accessibility](#accessibility)
 * [Tests](#tests)
@@ -27,7 +28,8 @@ frontend/
 │   ├── base.html    the shell: header, footer, version badge, legal notice
 │   ├── index.html   the landing page: the hero, the form and nothing else
 │   ├── how-it-works.html  what gets tested, and the four steps
-│   ├── api.html     the JSON API, the fair use limits, the schema links
+│   ├── api.html     the JSON API, the fair use limits, the machine-readable
+│   │                specifications and the note for AI agents
 │   ├── privacy.html what is kept, for how long, and what the log omits
 │   ├── about.html   OpenCloud, and this project's independence from it
 │   ├── _page-nav.html  the "Read on" cross-links every content page ends with
@@ -36,6 +38,7 @@ frontend/
 └── static/
     ├── css/app.css  the whole design system, tokens first
     ├── js/app.js    landing page niceties; the form works without it
+    ├── js/nav.js    collapses the header nav behind a button on a phone
     ├── js/scan.js   polls the scan until it settles, then reloads once
     ├── js/docs.js   starts Swagger UI, which may not be started inline
     ├── img/         logo.svg, hero.svg, expired.svg
@@ -52,12 +55,25 @@ service is quiet, and a page that quietly fetched a font would make it a lie.
 - **No third-party anything.** No CDN, no font service, no analytics, no
   tracking pixel, no embedded video. Type comes from the reader's own system
   stack.
+- **Twitter/X, Google and Meta by name, and not only as requests.** No
+  `twitter:` cards, no `fb:` properties, no `google-site-verification`, no
+  Fonts, Analytics, Tag Manager or reCAPTCHA, no pixel, embed or share
+  button. The address a visitor types here is a system they are responsible
+  for, and a result URL's uuid is the whole of its authorisation - neither
+  belongs in somebody else's referrer log. OpenGraph `og:` tags stay: they
+  name no platform and nothing fetches them.
 - **No inline styles or scripts.** The policy is `default-src 'self'` with no
   `unsafe-inline`, so an inline `style=` or `<script>` does not merely fail
   review - it fails in the browser.
 - **The form works with JavaScript blocked.** `app.js` is decoration only.
-  `scan.js` is load-bearing for live progress, and the page it polls renders
-  the same result on a plain reload.
+  `nav.js` is too: it is the file itself that switches the header into its
+  collapsed layout, so a browser that never ran it shows the links in full and
+  wraps them onto a second row. `scan.js` is load-bearing for live progress,
+  and the page it polls renders the same result on a plain reload.
+- **Nothing may be wider than the screen it is read on.** The header is the
+  one that keeps trying: a brand line and six links do not fit across 390px,
+  and a nav that overflows can only be reached by scrolling the page
+  sideways.
 - **Nothing generic.** No stock photography, no icon pack, no boilerplate
   illustration. The SVGs here were drawn for this project and are inline in
   the templates or in `img/`.
@@ -106,6 +122,12 @@ to its meaning - a green **F** would be a very expensive joke.
 | `version` | The backend version, shown as the footer badge |
 | `project_url` | The project on GitHub, for the footer and the rate-limit note |
 | `result_ttl_minutes` | How long a result lives, so the page can say so |
+| `site_name` | The suffix on every `<title>`, and the OpenGraph site name |
+| `robots` | `index, follow` on a public page, `noindex, nofollow` everywhere else |
+| `canonical_url` | The one address the page should be known by, or `None` where nothing may be indexed |
+| `og_image` | The absolute URL of the share image |
+| `mcp_enabled` | Whether the MCP endpoint is mounted, so the API page can offer it |
+| `mcp_url` | Where it is, absolute when the origin is known |
 
 `index.html` also receives:
 
@@ -122,8 +144,11 @@ to its meaning - a green **F** would be a very expensive joke.
 (`state`, `target`, `releaseTrack`, `expiresIn`, `queue`, and `result` once
 there is one) plus `summary`, the same result regrouped for the dashboard.
 `404.html` and the content pages - `how-it-works.html`, `api.html`,
-`privacy.html`, `about.html` - receive nothing but the base variables, plus
-`limits` and `docs_enabled` for the API page. Each of them ends by including
+`ai.html`, `privacy.html`, `about.html` - receive nothing but the base
+variables, plus `limits` and `docs_enabled` for the API page. `docs_enabled`
+now governs only the browsable Swagger and ReDoc links: `/openapi.json`,
+`/arazzo.json` and `/.well-known/ai.json` are public regardless, and
+`ai.html`, the page at `/ai`, links them whether the switch is on or not. Each of them ends by including
 `_page-nav.html`, which drops the link to the page it is rendered on by
 comparing `request.url.path`.
 
@@ -141,6 +166,12 @@ is ever sent.
 `app.js` (45 lines) keeps the waiver counter in the summary honest and
 disables the button on submit. Delete it and the page still works.
 
+`nav.js` sets `data-nav="enhanced"` on `<html>`, which is what the collapsed
+header layout in `app.css` keys off, and then toggles `aria-expanded` on the
+button and `data-open` on the nav. Escape closes the menu and returns the
+focus to the button; growing the window past the breakpoint closes it too, so
+it cannot survive as a column under a header that has room for a row again.
+
 `scan.js` (153 lines) polls `/api/scans/{uuid}` - the uuid comes from
 `data-scan-uuid` on `<body>`, which came from the URL the visitor is already
 on - every two seconds, backing off to fifteen on errors, and reloads once the
@@ -149,6 +180,23 @@ report would mean the untested one is the one people read.
 
 Both are plain ES5-era JavaScript in an IIFE, because there is no bundler and
 there does not need to be one.
+
+## Discovery, in the markup
+
+The head of `base.html` carries three `<link>` hints, on every page:
+
+```html
+<link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
+<link rel="arazzo" type="application/json" href="/arazzo.json">
+<link rel="ai-discovery" type="application/json" href="/.well-known/ai.json">
+```
+
+`service-desc` is registered and is the one a general client is most likely to
+follow. The other two are hints rather than standards - nothing obliges an
+agent to know what `arazzo` means - which is why the canonical entry point is
+`/.well-known/ai.json` and why `ai.html`, at `/ai`, says all of it in prose,
+as ordinary clickable links, under **For AI agents**. A crawler that reads only
+text finds it; an agent that reads only the head finds it too.
 
 ## Running your own frontend
 
@@ -185,6 +233,10 @@ once it is rendered:
 uv run pytest tests/test_webapp_api.py
 uv run pytest tests/test_webapp_worker.py -k renders
 ```
+
+`tests/test_webapp_seo.py` covers the head of every page - the canonical
+link, the robots directive and the generated `sitemap.xml` - and the collapsed
+header nav, including that the links stay reachable with `nav.js` blocked.
 
 Among other things they assert that every `script`, `link` and `img` URL
 starts with `/static/`, that the trademark notice and the version badge appear

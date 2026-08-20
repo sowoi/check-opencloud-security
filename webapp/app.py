@@ -23,6 +23,7 @@ service that punishes people for being interested.
 from __future__ import annotations
 
 import hmac
+import importlib.util
 import json
 import logging
 import os
@@ -34,7 +35,13 @@ from typing import Any
 
 from fastapi import FastAPI, Form, Request
 from fastapi.openapi.docs import get_redoc_html
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -58,7 +65,16 @@ from .catalog import (
     summarise,
     waiver_options,
 )
+from .discovery import (
+    ARAZZO_PATH,
+    DISCOVERY_PATH,
+    MCP_PATH,
+    OPENAPI_MEDIA_TYPE,
+    OPENAPI_PATH,
+    discovery_document,
+)
 from .encryption import ensure_encryption_ready
+from .openapi import openapi_document
 from .purge import PurgeRejected, build_receipt, normalise_target
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
@@ -71,6 +87,16 @@ from .reports import (
     pdf_report,
     sarif_report,
 )
+from .seo import (
+    OG_IMAGE_PATH,
+    SITE_NAME,
+    canonical_url,
+    is_indexable,
+    robots_txt,
+    site_origin,
+    sitemap_xml,
+    wants_robots_tag,
+)
 from .settings import WebSettings
 from .ssrf import TargetRejected, validate_target
 from .store import (
@@ -82,6 +108,11 @@ from .store import (
 )
 
 LOGGER = logging.getLogger("check_opencloud.web")
+
+
+def mcp_available() -> bool:
+    """Whether the optional ``mcp`` extra is installed in this environment."""
+    return importlib.util.find_spec("mcp") is not None
 
 OUTPUT_FORMATS = ("dashboard", "json", "csv", "sarif", "pdf")
 
@@ -240,34 +271,90 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     root = frontend_dir()
     templates = Jinja2Templates(directory=str(root / "templates"))
     templates.env.tests["safe_link"] = is_safe_link
+    # The MCP extra is optional: a deployment that only wants the website
+    # should not be made to install an agent runtime, and one that installed
+    # it should not have to remember a second switch.
+    mcp_enabled = settings.enable_mcp and mcp_available()
 
     @asynccontextmanager
     async def lifespan(instance: FastAPI) -> AsyncIterator[None]:
-        yield
+        # A mounted sub-application's own lifespan is never run by Starlette,
+        # so the MCP session manager is started here or not at all.
+        manager = getattr(instance.state, "mcp_server", None)
+        if manager is None:
+            yield
+        else:
+            async with manager.session_manager.run():
+                yield
         if instance.state.queue is not None:  # pragma: no cover - teardown
             await instance.state.queue.close()
         await instance.state.backend.close()
 
-    # The schema, Swagger UI and ReDoc are opt-in. FastAPI's own pages load
-    # their JavaScript from a CDN, which this service does not do and which
-    # leaves a blank page anywhere that CDN is unreachable, so the two pages
-    # below are served with the copies in frontend/static/vendor/ instead.
+    # The machine-readable documents are always public. An agent handed only
+    # this service's address has to be able to read what it can do, and a
+    # contract nobody can fetch is not a contract. The two *browsable* pages
+    # stay opt-in: they are a convenience for an operator, not part of the
+    # service.
     app = FastAPI(
         title="check-opencloud-security",
         summary="Public security scan service for OpenCloud instances",
         version=__version__,
         docs_url=None,
         redoc_url=None,
-        openapi_url="/openapi.json" if settings.enable_docs else None,
+        openapi_url=None,
         lifespan=lifespan,
     )
+
+    # Written by hand in webapp/openapi.py, because the generated one
+    # describes the browser form rather than the API: form fields where a
+    # client sends JSON, 200 where the handler answers 202, and no shape at
+    # all for a scan record.
+    def _openapi(request: Request | None = None) -> dict[str, Any]:
+        origin = (
+            site_origin(str(request.base_url), settings.public_base_url)
+            if request is not None
+            else (settings.public_base_url or "")
+        )
+        return openapi_document(server_url=origin or None)
+
+    app.openapi = _openapi  # type: ignore[method-assign]
+
+    @app.get(OPENAPI_PATH, include_in_schema=False)
+    async def openapi_schema(request: Request) -> Response:
+        """The API contract. Public, because an agent has to read it."""
+        return JSONResponse(
+            _openapi(request),
+            media_type=OPENAPI_MEDIA_TYPE,
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
+    @app.get(ARAZZO_PATH, include_in_schema=False)
+    async def arazzo(request: Request) -> Response:
+        """The workflow description, next to the schema it builds on."""
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return JSONResponse(
+            arazzo_document(openapi_url=f"{origin}{OPENAPI_PATH}"),
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
+    @app.get(DISCOVERY_PATH, include_in_schema=False)
+    async def ai_discovery(request: Request) -> Response:
+        """
+        Where an agent that knows only the domain starts.
+
+        Not a registered standard, and it does not pretend to be: an explicit
+        application-level document naming the OpenAPI description, the Arazzo
+        workflows and the MCP endpoint, so that none of the three has to be
+        guessed at.
+        """
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return JSONResponse(
+            discovery_document(origin, mcp_enabled=mcp_enabled),
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
     if settings.enable_docs:
         LOGGER.warning("api_docs_enabled")
-
-        @app.get("/arazzo.json", include_in_schema=False)
-        async def arazzo() -> Response:
-            """The workflow description, next to the schema it builds on."""
-            return JSONResponse(arazzo_document())
 
         @app.get("/docs", include_in_schema=False)
         async def swagger_ui() -> Response:
@@ -276,7 +363,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         @app.get("/redoc", include_in_schema=False)
         async def redoc_ui() -> Response:
             return get_redoc_html(
-                openapi_url="/openapi.json",
+                openapi_url=OPENAPI_PATH,
                 title="check-opencloud-security - API",
                 redoc_js_url="/static/vendor/redoc.standalone.js",
                 redoc_favicon_url="/static/img/logo.svg",
@@ -316,16 +403,35 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
+        # The meta tag only covers a rendered page. A result export, a JSON
+        # body or a redirect needs saying in the header, or a crawler that
+        # reached a uuid would keep it.
+        if wants_robots_tag(request.url.path, allow_indexing=settings.allow_indexing):
+            response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
         if settings.enable_docs and request.url.path in DOCS_PATHS:
             response.headers["Content-Security-Policy"] = DOCS_CSP
         return response
 
     def page(request: Request, name: str, context: dict[str, Any], status: int = 200):
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        indexable = is_indexable(
+            request.url.path, allow_indexing=settings.allow_indexing, status=status
+        )
         payload = {
             "version": __version__,
             "project_url": PROJECT_URL,
             "result_ttl_minutes": max(1, settings.result_ttl // 60),
             "docs_enabled": settings.enable_docs,
+            "mcp_enabled": mcp_enabled,
+            "mcp_url": f"{origin}{MCP_PATH}" if origin else MCP_PATH,
+            "site_name": SITE_NAME,
+            "robots": "index, follow" if indexable else "noindex, nofollow",
+            # A canonical URL for a page nobody may index would only invite
+            # one to be created.
+            "canonical_url": (
+                canonical_url(origin, request.url.path) if indexable else None
+            ),
+            "og_image": f"{origin}{OG_IMAGE_PATH}",
             "limits": {
                 "client": settings.ip_rate_limit,
                 "window_minutes": max(1, settings.ip_rate_window // 60),
@@ -467,9 +573,35 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def api_page(request: Request) -> Response:
         return page(request, "api.html", {})
 
+    @app.get("/ai", response_class=HTMLResponse, include_in_schema=False)
+    async def ai_page(request: Request) -> Response:
+        return page(request, "ai.html", {})
+
     @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
     async def about(request: Request) -> Response:
         return page(request, "about.html", {})
+
+    # Two files a crawler asks for before anything else. Both are generated:
+    # the sitemap from the page list in `seo.py` and the template mtimes, so
+    # it cannot drift from the pages that actually exist.
+    @app.get("/robots.txt", include_in_schema=False)
+    async def robots(request: Request) -> Response:
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return PlainTextResponse(
+            robots_txt(origin, allow_indexing=settings.allow_indexing),
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    async def sitemap(request: Request) -> Response:
+        if not settings.allow_indexing:
+            return not_found(request)
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return Response(
+            sitemap_xml(origin, root / "templates"),
+            media_type="application/xml",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     # The browser form posts to "/" and the API to "/api/scans". They are the
     # same handler: a submission that fails validation is re-rendered at the
@@ -821,6 +953,20 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "worker": "ok",
             }
         )
+
+    # The agent-facing execution layer, mounted rather than reimplemented:
+    # the tools call the routes above through the ordinary ASGI stack, so an
+    # agent reaches exactly the rate limits, SSRF guard and authorisation a
+    # browser does.
+    app.state.mcp_server = None
+    if mcp_enabled:
+        from .mcp_server import McpPathNormaliser, build_mcp_server, mcp_app
+
+        server = build_mcp_server(app, settings)
+        app.state.mcp_server = server
+        app.mount(MCP_PATH, mcp_app(server, settings))
+        app.add_middleware(McpPathNormaliser, path=MCP_PATH)
+        LOGGER.info("mcp_enabled path=%s", MCP_PATH)
 
     @app.exception_handler(404)
     async def _handle_404(request: Request, exc: Exception) -> Response:

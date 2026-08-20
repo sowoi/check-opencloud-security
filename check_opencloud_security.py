@@ -1074,6 +1074,8 @@ def _explain_lines(
             "Hardening measures are observed but not reported (--check-hardening is off)."
         )
 
+    lines.extend(_remediation_lines(response_scan))
+
     waived = _waived(response_scan)
     if waived:
         lines.append("")
@@ -1107,6 +1109,43 @@ def _explain_lines(
     # The performance data is appended to the last line of the output, so the
     # block deliberately ends on a short sentence rather than a long URL.
     lines.append("--- end of explanation ---")
+    return lines
+
+
+def _remediation_lines(response_scan: dict[str, Any]) -> list[str]:
+    """
+    The ordered fix list, with the letters this layer is responsible for.
+
+    The scanner worked the order and the predicted ratings out while it was
+    rating the instance; the only thing added here is the grade each number
+    maps to, because turning a number into a letter is a judgement and
+    judgements are this file's job.
+    """
+    plan = response_scan.get("remediationPlan")
+    if not isinstance(plan, dict) or not plan.get("steps"):
+        return []
+
+    lines = ["", "--- What would raise the rating ---", str(plan.get("summary") or "")]
+    for step in plan["steps"]:
+        if not isinstance(step, dict):
+            continue
+        after = step.get("ratingAfter")
+        grade = RATE_MAP.get(after, "?") if isinstance(after, int) else "?"
+        moves = (step.get("ratingGain") or 0) > 0
+        outcome = f"then {after}/5 ({grade})" if moves else f"still {after}/5 ({grade})"
+        lines.append(
+            f"{step.get('order')}. {step.get('id')} [{step.get('severity')}] - {outcome}"
+        )
+        lines.append(f"    {step.get('title')}")
+        if step.get("detail"):
+            lines.append(f"    Observed: {step['detail']}")
+        lines.append(f"    Fix: {step.get('action')}")
+    for step in plan.get("blocked") or []:
+        if isinstance(step, dict):
+            lines.append(
+                f"Not fixable: {step.get('id')} - OpenCloud hardcodes this, so "
+                "the plan above cannot reach further."
+            )
     return lines
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.7.0"
+version = "1.8.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -31,6 +31,14 @@ web = [
     "redis>=5.3.1,<6",
     "arq>=0.28.0",
     "cryptography>=50.0.0",
+]
+# The agent-facing layer: an MCP server mounted on the web application, plus
+# the in-process HTTP client it drives the REST API with. Separate from `web`
+# because a deployment that only serves the website and the JSON API has no
+# use for it, and `COS_WEB_ENABLE_MCP` is off without it.
+mcp = [
+    "mcp>=2.0.0",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]

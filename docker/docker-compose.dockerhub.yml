@@ -30,7 +30,14 @@ services:
       COS_WEB_TRUST_FORWARDED_FOR: "false"
       # Do not query the release feed once per visitor by default.
       COS_WEB_RELEASES_MODE: "off"
+      # The browsable /docs and /redoc pages. /openapi.json, /arazzo.json and
+      # /.well-known/ai.json are public whatever this says.
       COS_WEB_ENABLE_DOCS: "true"
+      # The MCP endpoint at /mcp, for AI agents. Turn it off without editing
+      # this file: COS_WEB_ENABLE_MCP=false docker compose up -d. Leave the
+      # host list empty behind a proxy that already fixes the Host header.
+      COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
+      COS_WEB_MCP_ALLOWED_HOSTS: ""
     read_only: true
     tmpfs:
       - /tmp:size=16m

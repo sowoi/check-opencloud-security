@@ -39,6 +39,7 @@
   * [Measures that are not settings](#measures-that-are-not-settings)
   * [Accepting a finding you are not going to fix](#accepting-a-finding-you-are-not-going-to-fix)
 * [Explaining a rating](#explaining-a-rating)
+* [What would raise the rating](#what-would-raise-the-rating)
 * [Webhook notifications](#webhook-notifications)
   * [Uptime Kuma](#uptime-kuma)
 * [Reporting only what changed](#reporting-only-what-changed)
@@ -701,6 +702,11 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 |:------|:---------|:--------|
 | `httpsAvailable`, `tlsHandshake`, `tlsProtocol` | critical/high | Instance only reachable over HTTP, broken TLS, or a protocol older than TLS 1.2 |
 | `tlsCertificate`, `tlsTrusted` | high/medium | Certificate expired, expiring within `scanner.tls_min_days`, or not trusted |
+| `tlsDeprecatedProtocol` | high | The server still accepts TLS 1.0 or 1.1 even though it negotiated something newer with us |
+| `tlsHostname` | high | The certificate does not cover the name it was asked for |
+| `tlsChain` | medium | The chain is missing an intermediate, so it validates only for clients that happen to have one cached |
+| `tlsCertificateLifetime` | low | The certificate is valid for longer than the 398 days browsers accept |
+| `tlsOcspStapling` | low | No OCSP response stapled to the handshake, although the certificate names a responder |
 | `header:<name>` | high - low | One of the headers above missing or too weak |
 | `authentication:/remote.php/dav/files/`, `/graph/v1.0/users`, `/ocs/v1.php/cloud/user` | critical/high | An endpoint that must demand authentication answered anyway |
 | `exposed:/opencloud.yaml`, `/proxy/server.key`, `/idm/opencloud.boltdb`, `/.env`, `/docker-compose.yml`, `/storage/users/`, `/.git/config` | critical/high | Deployment internals published by a misconfigured reverse proxy |
@@ -803,7 +809,7 @@ Neither becomes a check and neither can move the rating.
   password is ever tried, and no request is made with an `Authorization`
   header.
 
-[opencloud-idp]: https://docs.opencloud.eu/docs/admin/getting-started/container/external-idm
+[opencloud-idp]: https://docs.opencloud.eu/docs/admin/configuration/authentication-and-user-management/external-idp
 
 ## Reading the version correctly
 
@@ -1490,6 +1496,55 @@ Note that `--debug` also switches logging to `DEBUG`, so HTTP-level detail
 goes to stderr while the explanation goes to stdout with the rest of the
 plugin output.
 
+# What would raise the rating
+
+Knowing why a rating is a C is only half of what an operator wants. The other
+half is which two things to fix to make it an A+, and in which order.
+
+Every scan result carries a `remediationPlan`, worked out by replaying the
+rating arithmetic with one finding removed at a time. Because it is a replay
+of the same code that produced the rating, the predicted grades cannot drift
+away from the real ones - and because it is derived, nothing extra is stored.
+
+```shell
+python -m opencloud_local_scan.cli scan opencloud.example.com | jq .remediationPlan
+```
+
+`--debug` prints the same list under the explanation:
+
+```text
+--- What would raise the rating ---
+Two fixes would raise this instance from 3/5 to 5/5.
+1. exposed:/opencloud.yaml [high] - then 4/5 (B)
+    A deployment file is publicly readable (/opencloud.yaml)
+    Observed: HTTP 200 with 4.1 kB of YAML
+    Fix: Stop serving the deployment directory. Proxy to OpenCloud's own
+    address rather than exposing the filesystem ...
+2. basicAuthDisabled [medium] - then 5/5 (A+)
+    HTTP Basic authentication is enabled
+    Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
+```
+
+Three things about that list are worth knowing before acting on it:
+
+- **The order is not arbitrary.** Findings of the same severity share one
+  ceiling, so fixing the first of three medium findings changes nothing at
+  all. Steps that gain nothing on their own are still listed - with `still
+  4/5` rather than `then 5/5` - because leaving them out would suggest they
+  can be skipped.
+- **An update can be one of the steps.** Fixing findings can never lift a
+  rating above what the installed version allows, so the plan inserts the
+  upgrade at the point where it actually starts to gain something.
+- **Some findings can never be fixed.** Flags OpenCloud hardcodes are listed
+  separately as blocked, and they bound how far the plan can reach. See
+  [Measures that are not settings](#measures-that-are-not-settings).
+
+Waived findings are listed too, marked as waived: a waiver silences an alert,
+it does not fix anything, and the plan says so.
+
+The same plan appears on the web dashboard, in the JSON, CSV, SARIF and PDF
+exports, and as the `plan_remediation` MCP tool.
+
 # Webhook notifications
 The plugin can post a JSON notification to an HTTP(S) endpoint when a check
 reaches a critical level. The feature is **optional and disabled by default** -
@@ -1858,6 +1913,8 @@ this file stays the reference for the options themselves.
 | [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
 | [The public scan service](docs/webapp.md) | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits |
+| [Using the scanner from an AI agent](docs/mcp.md) | The MCP endpoint: configuring Claude Code, Claude Desktop, GitHub Copilot, Cursor, Zed and Windsurf against the hosted or a self-hosted service, and turning it off |
+| [Reverse proxies](docs/reverse-proxy.md) | nginx, Apache, Caddy, Traefik and HAProxy - in front of an OpenCloud instance, and in front of the scan service |
 | [Checking a fleet of instances](docs/many-instances.md) | One configuration file per instance, and keeping waivers honest |
 | [Prometheus and Grafana](docs/prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
 | [Webhook recipes](docs/webhook-recipes.md) | Adapters for Slack, Discord, ntfy and Alertmanager |
@@ -2060,8 +2117,9 @@ check-opencloud-scanner scan opencloud.example.com | jq '.ignored, .extraChecks'
 
 # Contributing
 Bug reports, feature requests and pull requests are welcome.
-[ARCHITECTURE.md](ARCHITECTURE.md) is the map: the three layers, where a new
-check, setting or endpoint belongs, and which decisions already have an
+[ARCHITECTURE.md](ARCHITECTURE.md) is the map: the three layers, the
+agent-facing surfaces, where a new check, setting, endpoint or MCP tool
+belongs, and which decisions already have an
 [architectural record](adr/README.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the test suite,
 the linting rules and how releases are cut, and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for what to expect from everyone
