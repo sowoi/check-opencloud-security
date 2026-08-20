@@ -59,6 +59,7 @@ from .releases import (
 from .releases import (
     MODES as RELEASE_MODES,
 )
+from .remediation import plan as remediation_plan
 from .scanner import (
     DEFAULT_CONCURRENCY,
     MAX_CONCURRENCY,
@@ -210,6 +211,7 @@ __all__ = [
     "plan_upgrade",
     "release_line",
     "release_settings_from_config",
+    "remediation_plan",
     "run_setup",
     "scan",
     "scanner_settings_from_config",

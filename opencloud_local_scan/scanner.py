@@ -37,7 +37,6 @@ import fnmatch
 import logging
 import re
 import socket
-import ssl
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -50,6 +49,10 @@ from urllib.parse import urljoin, urlsplit
 import requests
 
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
+from .remediation import SEVERITY_RATING_CAP as _SEVERITY_RATING_CAP
+from .remediation import plan as remediation_plan
+from .tls import TlsInspection
+from .tls import inspect as inspect_tls
 from .versions import (
     TRACK_AUTO,
     ReleaseSchedule,
@@ -202,7 +205,10 @@ FOREIGN_PRODUCTS: tuple[str, ...] = ("owncloud", "infinitescale", "nextcloud")
 # Requested to find out how the server answers for something that cannot exist.
 CATCH_ALL_PATH = "/check-opencloud-security-probe-404"
 
-SEVERITY_RATING_CAP: dict[str, int] = {"critical": 2, "high": 3, "medium": 4, "low": 5}
+# Re-exported from the remediation planner, which has to replay this
+# arithmetic with one finding removed at a time and would otherwise keep a
+# second copy of it. One table, two readers.
+SEVERITY_RATING_CAP = _SEVERITY_RATING_CAP
 
 # Basic authentication is a finding, not a catastrophe. Every client that
 # cannot speak OpenID Connect - CalDAV and CardDAV calendars, WebDAV mounts,
@@ -868,112 +874,6 @@ def _identity_provider_vendor(issuer: str) -> str:
     return ""
 
 
-def _tls_handshake(
-    hostname: str, port: int, timeout: int, *, verify: bool
-) -> tuple[dict[str, Any] | None, str, Exception | None]:
-    """Open one TLS connection and return (certificate, protocol, error)."""
-    context = ssl.create_default_context()
-    if not verify:
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-    try:
-        raw = socket.create_connection((hostname, port), timeout=timeout)
-        with raw:
-            tls = context.wrap_socket(raw, server_hostname=hostname)
-            with tls:
-                return tls.getpeercert(), tls.version() or "unknown", None
-    except (OSError, ssl.SSLError) as exc:
-        return None, "", exc
-
-
-def _certificate_finding(
-    certificate: Mapping[str, Any] | None, settings: ScannerSettings
-) -> Finding | None:
-    """Turn the certificate's notAfter field into a finding."""
-    not_after = (certificate or {}).get("notAfter")
-    if not isinstance(not_after, str):
-        return None
-    try:
-        expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(
-            tzinfo=timezone.utc
-        )
-    except ValueError:
-        return Finding(
-            "tlsCertificate", "medium", False, f"Unparsable certificate date {not_after!r}"
-        )
-    days_left = (expires - datetime.now(timezone.utc)).days
-    return Finding(
-        "tlsCertificate",
-        "high" if days_left <= 0 else "medium",
-        days_left >= settings.tls_min_days,
-        f"Certificate expires in {days_left} day(s) ({not_after})",
-    )
-
-
-def _tls_findings(
-    hostname: str, port: int, settings: ScannerSettings, *, verification_required: bool = True
-) -> list[Finding]:
-    """
-    Inspect the TLS certificate, its trust chain and the negotiated protocol.
-
-    OpenCloud generates a self-signed certificate during ``opencloud init``
-    unless real ones are configured, so an untrusted chain is a common and
-    important finding rather than a scan failure.
-    """
-    findings: list[Finding] = []
-    certificate, protocol, error = _tls_handshake(
-        hostname, port, settings.timeout, verify=True
-    )
-    trusted = error is None
-
-    if error is not None:
-        # Retry without verification: a certificate that merely is not
-        # trusted still tells us the protocol and the expiry date.
-        certificate, protocol, insecure_error = _tls_handshake(
-            hostname, port, settings.timeout, verify=False
-        )
-        if insecure_error is not None:
-            return [
-                Finding(
-                    "tlsHandshake",
-                    "high",
-                    False,
-                    f"TLS handshake with {hostname}:{port} failed: {insecure_error}",
-                )
-            ]
-
-    findings.append(
-        Finding("tlsHandshake", "high", True, f"TLS handshake succeeded ({protocol})")
-    )
-    findings.append(
-        Finding(
-            "tlsTrusted",
-            # An operator who passed --insecure knowingly accepts the
-            # certificate, so the finding is reported but does not weigh in.
-            "high" if verification_required else "low",
-            trusted or not verification_required,
-            "Certificate chain is trusted"
-            if trusted
-            else f"Certificate is not trusted (self-signed or unknown CA): {error}",
-        )
-    )
-
-    modern = protocol in {"TLSv1.3", "TLSv1.2"}
-    findings.append(
-        Finding(
-            "tlsProtocol",
-            "high",
-            modern,
-            f"Negotiated {protocol}" + ("" if modern else " (TLS 1.2 or newer expected)"),
-        )
-    )
-
-    certificate_finding = _certificate_finding(certificate, settings)
-    if certificate_finding is not None:
-        findings.append(certificate_finding)
-    return findings
-
-
 def _catch_all_probe(probe: _Probe) -> requests.Response | None:
     """
     Fetch a path that cannot exist, to learn how the server answers 404.
@@ -1586,15 +1486,18 @@ def _collect_extra_findings(
     challenge: str | None,
     identity_provider: Mapping[str, Any] | None = None,
     reverse_proxy: Mapping[str, Any] | None = None,
+    tls_inspection: TlsInspection | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
     """Run every check that goes beyond product, version and headers."""
     findings: list[Finding] = []
-    if probe.base_url.startswith("https://"):
+    if tls_inspection is not None:
         findings.extend(
-            _tls_findings(
-                hostname, port, settings, verification_required=verification_required
+            Finding(*check)
+            for check in tls_inspection.checks(
+                min_days=settings.tls_min_days,
+                verification_required=verification_required,
             )
         )
     findings.extend(_authentication_findings(probe))
@@ -1756,6 +1659,14 @@ def scan(
     )
     vulnerabilities = [advisory.as_dict() for advisory in database.matches(version)]
 
+    # The TLS layer is inspected once, before the findings are assembled, so
+    # that the full detail can be published beside them: the findings say what
+    # is wrong, the `tls` block says what was actually observed.
+    tls_inspection = (
+        inspect_tls(hostname, port, settings.timeout)
+        if settings.extra_checks and probe.base_url.startswith("https://")
+        else None
+    )
     findings = (
         _collect_extra_findings(
             probe,
@@ -1768,6 +1679,7 @@ def scan(
             challenge,
             identity_provider,
             reverse_proxy,
+            tls_inspection,
             verification_required=verification_required,
         )
         if settings.extra_checks
@@ -1821,6 +1733,7 @@ def scan(
         "vulnerabilities": vulnerabilities,
         "hardenings": hardenings,
         "setup": {"https": https, "headers": headers},
+        "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
         "identityProvider": identity_provider,
         "reverseProxy": reverse_proxy,
         "integrations": integrations,
@@ -1830,6 +1743,9 @@ def scan(
         "advisorySources": database.sources,
         "capabilitiesAvailable": capabilities is not None,
     }
+    # Derived from the document above and stored nowhere else: the plan is
+    # the rating's own arithmetic replayed with one finding removed at a time.
+    result["remediationPlan"] = remediation_plan(result)
     return result
 
 

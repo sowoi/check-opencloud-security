@@ -24,6 +24,7 @@ DEFAULT_IP_RATE_LIMIT = 10
 DEFAULT_IP_RATE_WINDOW_SECONDS = 60
 DEFAULT_TARGET_COOLDOWN_SECONDS = 300
 DEFAULT_MAX_BATCH_TARGETS = 10
+DEFAULT_MCP_MAX_CONCURRENT_WAITS = 8
 
 
 def _env(name: str) -> str | None:
@@ -117,6 +118,18 @@ class WebSettings:
     """Read the client address from ``X-Forwarded-For``. Only behind a proxy
     that overwrites the header, otherwise the rate limit is trivially evaded."""
 
+    public_base_url: str | None = None
+    """The origin this service is reached at, for the canonical links and the
+    sitemap. Unset means the address of the request is used, which is right
+    for a direct deployment and wrong behind a proxy: the service would
+    otherwise publish URLs only the proxy can reach."""
+
+    allow_indexing: bool = True
+    """Let search engines index the landing page and the four explanations.
+    Result pages are never indexable whatever this says. Turn it off for a
+    deployment that should not be found at all: ``robots.txt`` becomes a flat
+    refusal and every page carries ``noindex``."""
+
     releases_mode: str = "off"
     """Update check against the OpenCloud release feed. ``off`` by default so
     that a public deployment does not hammer the feed once per visitor."""
@@ -124,10 +137,30 @@ class WebSettings:
     releases_token: str | None = None
 
     enable_docs: bool = False
-    """Serve the OpenAPI schema and Swagger UI at ``/openapi.json``, ``/docs``
-    and ``/redoc``. Off by default: a public deployment has three endpoints
-    and a page describing them, and Swagger UI is the one part of this service
-    that loads a script from somebody else's server."""
+    """Serve the browsable API pages at ``/docs`` and ``/redoc``. Off by
+    default because they are a convenience for an operator rather than part
+    of the service. The machine-readable documents - ``/openapi.json``,
+    ``/arazzo.json`` and ``/.well-known/ai.json`` - are always public: an
+    agent that cannot read the contract has to guess at it."""
+
+    enable_mcp: bool = True
+    """Serve the MCP endpoint at ``/mcp``, so an agent can execute the same
+    workflows the Arazzo document describes. Turns itself off when the ``mcp``
+    extra is not installed, so a deployment without it still starts."""
+
+    mcp_allowed_hosts: tuple[str, ...] = field(default_factory=tuple)
+    """Host header values the MCP endpoint accepts, as DNS-rebinding
+    protection. Empty means accept any, which is right behind a proxy that
+    already decides which names reach this service and wrong for an MCP
+    endpoint exposed straight to a browser."""
+
+    mcp_max_concurrent_waits: int = DEFAULT_MCP_MAX_CONCURRENT_WAITS
+    """How many MCP tool calls may sit waiting for a scan at once. A waiting
+    call holds a connection and a task for as long as the scan takes, so a
+    ceiling stops one agent pinning the process open. Reaching it refuses
+    nothing: the scan is submitted and the uuid returned for the caller to
+    poll, exactly as ``wait: false`` would have answered. ``0`` never waits
+    in the tool call at all."""
 
     webhook_secret: str | None = None
     """Shared secret for signing webhook payloads. If set, webhook POSTs include
@@ -202,9 +235,18 @@ class WebSettings:
             ),
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
+            public_base_url=_env("PUBLIC_BASE_URL"),
+            allow_indexing=_env_bool("ALLOW_INDEXING", True),
             releases_mode=(_env("RELEASES_MODE") or "off").lower(),
             releases_token=_env("RELEASES_TOKEN"),
             enable_docs=_env_bool("ENABLE_DOCS", False),
+            enable_mcp=_env_bool("ENABLE_MCP", True),
+            mcp_allowed_hosts=_env_list("MCP_ALLOWED_HOSTS"),
+            mcp_max_concurrent_waits=_env_int(
+                "MCP_MAX_CONCURRENT_WAITS",
+                DEFAULT_MCP_MAX_CONCURRENT_WAITS,
+                minimum=0,
+            ),
             webhook_secret=_env("WEBHOOK_SECRET"),
             encrypt_results=_env_bool("ENCRYPT_RESULTS", False),
             max_batch_targets=_env_int(

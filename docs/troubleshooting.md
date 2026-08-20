@@ -35,6 +35,11 @@ Something in front of the instance answers `200` for everything, including the
 path the scanner probes to detect exactly that. Check the reverse proxy's
 fallback rule.
 
+**Security headers are reported missing, and OpenCloud sends them**
+A proxy in front of the instance is stripping them, or answering before
+OpenCloud does. [Reverse proxies](reverse-proxy.md) has the header set this
+check looks for, written out for nginx, Apache, Caddy, Traefik and HAProxy.
+
 **The check is slow**
 Debug-port probing costs up to `debug_port_timeout` seconds per port on a
 firewalled host. Use `--no-debug-ports`, lower

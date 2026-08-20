@@ -32,6 +32,14 @@ web = [
     "arq>=0.28.0",
     "cryptography>=50.0.0",
 ]
+# The agent-facing layer: an MCP server mounted on the web application, plus
+# the in-process HTTP client it drives the REST API with. Separate from `web`
+# because a deployment that only serves the website and the JSON API has no
+# use for it, and `COS_WEB_ENABLE_MCP` is off without it.
+mcp = [
+    "mcp>=2.0.0",
+    "httpx>=0.28.1",
+]
 
 [project.scripts]
 check-opencloud-security = "check_opencloud_security:main"
@@ -105,6 +113,8 @@ test = [
     "cryptography>=50.0.0",
     "redis>=5.3.1,<6",
     "arq>=0.28.0",
+    "mcp>=2.0.0",
+    "httpx>=0.28.1",
 ]
 
 [tool.pytest.ini_options]

@@ -460,16 +460,25 @@ def test_nothing_is_loaded_from_a_third_party():
     named by a relative path. A single external stylesheet or script would
     turn "air-gapped" into a claim the network traffic contradicts, and an
     absolute URL would hand the page's own host name back to it.
+
+    The canonical link and the discovery hints are excluded because they are
+    not resources: they are addresses the browser never fetches, and the
+    canonical one has to be absolute to mean anything at all.
     """
     test_client = client()
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
+        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
 
     for body in pages:
+        body = re.sub(
+            r'<link rel="(?:canonical|service-desc|arazzo|ai-discovery)"[^>]*>',
+            "",
+            body,
+        )
         resources = re.findall(r'<(?:script|link|img)[^>]*?(?:src|href)="([^"]+)"', body)
         assert resources, "the page should load at least its own stylesheet"
         for url in resources:
@@ -570,7 +579,7 @@ def test_every_page_carries_the_trademark_notice():
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
+        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
     pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)
@@ -578,6 +587,30 @@ def test_every_page_carries_the_trademark_notice():
     for body in pages:
         assert "not affiliated with" in body
         assert "OpenCloud GmbH" in body
+
+
+def test_every_page_says_the_check_is_not_exhaustive_and_a_grade_is_not_a_certificate():
+    """
+    A grade is the thing people quote, and quoting it as a clean bill of
+    health is the misreading that does real harm.
+
+    Somebody linked straight to a result must be told, on that page, that the
+    scan sees only what an anonymous visitor sees - so the caveat lives in the
+    footer, where no page can be rendered without it.
+    """
+    test_client = client()
+    identifier = _create(test_client).json()["uuid"]
+    pages = [
+        test_client.get(path).text
+        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+    ]
+    pages.append(test_client.get(f"/scan/{identifier}").text)
+
+    for body in pages:
+        assert "not exhaustive" in body
+        assert "not that the instance" in body
+        # The negative half: it does not overclaim on the way past.
+        assert "security audit or a penetration test" in body
 
 
 def test_the_footer_names_the_backend_version_on_every_page():
@@ -594,7 +627,7 @@ def test_the_footer_names_the_backend_version_on_every_page():
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/privacy", "/about")
+        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
     pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)
@@ -605,23 +638,42 @@ def test_the_footer_names_the_backend_version_on_every_page():
     assert test_client.get("/healthz").json()["version"] == __version__
 
 
-def test_the_api_schema_is_off_unless_an_operator_asks_for_it():
+def test_the_browsable_api_pages_are_off_unless_an_operator_asks_for_them():
     """
-    A public deployment should not serve a UI that fetches a script elsewhere.
+    Swagger UI and ReDoc are a convenience for whoever runs the service.
 
-    Swagger UI is a convenience for whoever runs the service, not part of what
-    a visitor is offered, so the default has to be silence.
+    They are two more pages to render, they exist to be clicked through by a
+    person, and a public deployment already has a page explaining the API. The
+    default is therefore silence - which says nothing about the *documents*
+    they display, which are always public.
     """
     quiet = client()
-    for path in ("/docs", "/redoc", "/openapi.json"):
+    for path in ("/docs", "/redoc"):
         assert quiet.get(path).status_code == 404
 
     loud = client(enable_docs=True)
-    for path in ("/docs", "/redoc", "/openapi.json"):
+    for path in ("/docs", "/redoc"):
         assert loud.get(path).status_code == 200
 
-    schema = loud.get("/openapi.json").json()
+
+def test_the_machine_readable_documents_are_public_without_any_switch():
+    """
+    An agent handed only this address has to be able to read the contract.
+
+    A specification nobody can fetch is not a specification, so the three
+    documents that describe this service do not depend on an operator having
+    turned a browsable page on.
+    """
+    quiet = client()
+    for path in ("/openapi.json", "/arazzo.json", "/.well-known/ai.json"):
+        response = quiet.get(path)
+        assert response.status_code == 200, path
+        assert response.json(), path
+
+    schema = quiet.get("/openapi.json").json()
     assert set(schema["paths"]) >= {"/api/scans", "/api/scans/{identifier}", "/healthz"}
+    # The negative half: the pages that only a person reads are still off.
+    assert quiet.get("/docs").status_code == 404
 
 
 def test_the_api_docs_load_nothing_from_anywhere_else():

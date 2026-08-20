@@ -45,7 +45,11 @@ HEADER_IDS: tuple[str, ...] = (
 CHECK_IDS: tuple[str, ...] = (
     "tlsTrusted",
     "tlsProtocol",
+    "tlsDeprecatedProtocol",
     "tlsCertificate",
+    "tlsCertificateLifetime",
+    "tlsChain",
+    "tlsOcspStapling",
     "versionDisclosure:Server",
     "versionDisclosure:X-Powered-By",
     "webfingerVersionDisclosure",
@@ -294,6 +298,7 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
         "rating": rating,
         "label": rating_label(rating),
         "tone": rating_tone(rating),
+        "remediation": _remediation(result),
         "eol": bool(result.get("EOL")),
         "domain": result.get("domain"),
         "product": result.get("product"),
@@ -310,6 +315,7 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
         "missingHeaders": missing_headers,
         "passedCount": passed_count,
         "https": https,
+        "tls": result.get("tls") or {},
         "identityProvider": result.get("identityProvider") or {},
         "reverseProxy": result.get("reverseProxy") or {},
         "integrations": result.get("integrations") or {},
@@ -319,6 +325,36 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
             "info": sum(1 for item in issues if item["tag"] == "info"),
             "vulnerabilities": len(result.get("vulnerabilities") or []),
         },
+    }
+
+
+def _remediation(result: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    The scanner's remediation plan, with the letters this layer knows about.
+
+    The order, the predicted ratings and the wording all come from the
+    library, which worked them out while it was rating the instance. The only
+    thing added here is the label for each number, because a letter is a
+    judgement and judgements live in the plugin's RATE_MAP - the same map the
+    grade on the page comes from.
+    """
+    plan = result.get("remediationPlan")
+    if not isinstance(plan, Mapping):
+        return {}
+    steps = [
+        {
+            **step,
+            "label": rating_label(step.get("ratingAfter")),
+            "tag": SEVERITY_TAGS.get(str(step.get("severity")), "info"),
+        }
+        for step in plan.get("steps") or []
+        if isinstance(step, Mapping)
+    ]
+    return {
+        **plan,
+        "steps": steps,
+        "currentLabel": rating_label(plan.get("currentRating")),
+        "achievableLabel": rating_label(plan.get("achievableRating")),
     }
 
 

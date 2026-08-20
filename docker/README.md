@@ -77,6 +77,8 @@ Common changes:
 | Behind a proxy | Set `COS_WEB_TRUST_FORWARDED_FOR: "true"`, but only if the proxy **overwrites** `X-Forwarded-For` |
 | More scans at once | Raise `COS_WEB_MAX_WORKERS` on `arq_worker`, and think about the instances on the other end |
 | Swagger UI | `COS_WEB_ENABLE_DOCS: "true"` on `web_app`, then <http://127.0.0.1:8080/docs> |
+| The schema, the workflows and the discovery document | Already public: `/openapi.json`, `/arazzo.json`, `/.well-known/ai.json` |
+| An AI agent to use it | The MCP endpoint at `/mcp`, on by default in the web image. `COS_WEB_ENABLE_MCP=false docker compose up -d` turns it off without editing the file; [the MCP guide](../docs/mcp.md) has the client configuration |
 | Scan your own network | `COS_WEB_ALLOW_PRIVATE_TARGETS: "true"` - only for a deployment nobody else can reach |
 | Your own branding | Mount a frontend and set `COS_WEB_FRONTEND_DIR` to it |
 

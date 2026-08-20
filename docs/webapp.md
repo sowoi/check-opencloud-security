@@ -68,7 +68,7 @@ same stack from a checkout.
 From a checkout, with three terminals or three `&`:
 
 ```bash
-pip install ".[web]"
+pip install ".[web,mcp]"    # the mcp extra is optional; it serves /mcp
 redis-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
@@ -134,10 +134,15 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again. `0` disables |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
+| `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin this service is reached at, used for the canonical links and `sitemap.xml`. Set it behind a proxy, which otherwise publishes an address only the proxy can reach |
+| `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and the five explanations. Result pages are never indexable whatever this says |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Where templates and static assets live |
-| `COS_WEB_ENABLE_DOCS` | `false` | Serve `/openapi.json`, `/docs` and `/redoc`. Swagger UI loads its bundle from jsDelivr, so leave it off in public |
+| `COS_WEB_ENABLE_DOCS` | `false` | Serve the browsable `/docs` and `/redoc` pages. The machine-readable documents are public whatever this says |
+| `COS_WEB_ENABLE_MCP` | `true` | Serve the MCP endpoint at `/mcp`. Ignored when the optional `mcp` extra is not installed |
+| `COS_WEB_MCP_ALLOWED_HOSTS` | *(empty)* | `Host` values the MCP endpoint accepts, separated by `;`. Empty turns the DNS-rebinding check off, which is right when a proxy already fixes the host |
+| `COS_WEB_MCP_MAX_CONCURRENT_WAITS` | `8` | How many MCP tool calls may sit waiting for a scan at once. Reaching the ceiling refuses nothing: the scan is submitted and the uuid comes back to be polled |
 | `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
 | `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
 | `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |
@@ -307,6 +312,10 @@ above.
 
 ## Putting it behind a reverse proxy
 
+Worked configuration for nginx, Apache httpd, Caddy, Traefik and HAProxy -
+including the streaming the MCP endpoint needs and the paths a proxy must not
+rewrite - is in [Reverse proxies](reverse-proxy.md). The short version:
+
 Terminate TLS in front, pass `X-Forwarded-For`, and only then set
 `COS_WEB_TRUST_FORWARDED_FOR=true`. The proxy must **overwrite** the header
 rather than append to it - trusting a header a client can send makes the
@@ -408,6 +417,18 @@ A finished scan as a file: `json`, `csv`, `sarif` or `pdf`.
 curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
 ```
 
+All four carry the remediation plan - the ordered fix list with the grade each
+step reaches - as summary and step rows in the CSV,
+`runs[0].properties.remediation` in the SARIF, a "What gets you to A+" section
+in the PDF and `remediationPlan` in the JSON.
+
+They carry the transport-security detail in the same places: the header block
+in the CSV, `runs[0].properties.tls` in the SARIF, a "Transport security"
+section in the PDF and the `tls` block in the JSON - protocol, cipher,
+certificate validity and remaining days, chain completeness and OCSP stapling.
+A measurement that could not be taken is `null`, meaning "not determined"
+rather than "fine".
+
 All four are renderings of the same finished result, produced on request and
 gone when the scan expires. The PDF is written by this service rather than by
 a reporting library, for the same reason the frontend loads nothing from a
@@ -477,26 +498,80 @@ hostname, and **404** whenever `COS_WEB_PURGE_TOKEN` is unset.
 An instance with nothing stored answers 200 with zero counts, which is a proof
 in its own right: no data was held.
 
-### `GET /openapi.json`, `GET /arazzo.json`, `GET /docs`, `GET /redoc`
+### `GET /openapi.json`, `GET /arazzo.json`, `GET /.well-known/ai.json`
 
-Opt-in, behind `COS_WEB_ENABLE_DOCS`. The schema says what each endpoint
-accepts; the [Arazzo](https://spec.openapis.org/arazzo/latest.html) document
-beside it says how they are used together - submit and poll until `done`, walk
-a batch's accepted uuids, wait out a 409 before downloading a file, and erase
-an instance against a receipt. It is
-generated from the same application, and a test fails if a workflow describes
-an endpoint that no longer exists.
+**Always public, and never behind a switch.** A description nobody can fetch
+describes nothing, and an agent that must be told to turn a document on has
+already failed to discover it. `COS_WEB_ENABLE_DOCS` now governs only the
+browsable `/docs` and `/redoc` pages.
+
+The [OpenAPI](https://spec.openapis.org/oas/latest.html) document says what
+each endpoint accepts and returns, down to the shape of every response; the
+[Arazzo](https://spec.openapis.org/arazzo/latest.html) document beside it says
+how those operations are used together - submit and poll until `done`, walk a
+batch's accepted uuids, wait out a 409 before downloading a file, and erase an
+instance against a receipt. Both are built from the same application, and a
+test fails if a workflow describes an operation that no longer exists.
+
+`/.well-known/ai.json` is the entry point: name, description, the two
+specification URLs, the MCP endpoint, the usage limits an agent should respect
+and the self-hosting link. It is an **application-level convention**, not a
+registered standard - it exists so that an agent starting from nothing but the
+origin can find the rest in one request.
+
+### `POST /mcp`
+
+The [Model Context Protocol](https://modelcontextprotocol.io) endpoint, over
+streamable HTTP, stateless, with JSON responses. It is the agent-facing
+execution layer, not a second implementation: every tool calls this
+application's own HTTP API in process, so an agent meets exactly the rate
+limits, the SSRF guard and the purge authorisation a browser meets.
+
+Six tools, one per user-level task rather than one per endpoint:
+`scan_instance`, `scan_instances`, `get_scan_result`, `plan_remediation`,
+`export_scan` and `erase_instance_data`. Three resources expose the OpenAPI, Arazzo and
+discovery documents under `spec://` URIs. The polling, retry and error
+semantics come from `webapp/workflows.py`, which is also what the Arazzo
+document is generated from, so the two cannot drift apart.
+
+`erase_instance_data` is marked destructive and needs the same
+`Authorization: Bearer` credential the HTTP endpoint does. The credential is
+read from the agent's request headers and never from a tool argument, so it is
+never a value the model has seen.
+
+Configuring a client against it - Claude Code, Claude Desktop, GitHub Copilot
+in VS Code and the CLI, Cursor, Zed, Windsurf - is in [Using the scanner from
+an AI agent](mcp.md), which also covers turning the endpoint off.
 
 ### `GET /scan/{uuid}`, `GET /`, `GET /healthz`
 
 The result page, the landing page, and a Redis-backed health probe that says
 nothing about any scan. The explanations the landing page used to carry sit on
-their own pages - `GET /how-it-works`, `GET /api`, `GET /privacy` and
-`GET /about` - which are HTML only and stay out of the OpenAPI schema. `GET /healthz` returns 200 only after the configured
+their own pages - `GET /how-it-works`, `GET /api`, `GET /ai`, `GET /privacy`
+and `GET /about` - which are HTML only and stay out of the OpenAPI schema. `GET /healthz` returns 200 only after the configured
 backend answers `PING`, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate `queueDepth`
 and `worker: "ok"`; it returns a detail-free 503 while any dependency is
 unavailable.
+
+### `GET /robots.txt`, `GET /sitemap.xml`
+
+Both are generated, never files on disk. The sitemap lists the six public
+pages - the landing page and the five explanations - and takes each
+`lastmod` from the template that renders it, so it cannot drift from the
+pages that actually exist. Neither ever mentions a result: the uuid is the
+whole of the authorisation, and a listing is exactly what this service does
+not have. `robots.txt` disallows `/scan/`, `/api/`, the schema and the health
+probe, and points at the sitemap.
+
+`COS_WEB_PUBLIC_BASE_URL` decides the origin in both, together with the
+canonical link on every page. Behind a proxy the service only sees its own
+internal address, and without that setting it would publish URLs nobody
+outside can reach.
+
+`COS_WEB_ALLOW_INDEXING=false` turns the lot off: `robots.txt` becomes a flat
+refusal, `sitemap.xml` answers 404 and every page carries `noindex`. A result
+page carries `noindex` and an `X-Robots-Tag` either way.
 
 ## Layout
 
@@ -515,10 +590,11 @@ webapp/                 the service
 ├── reports.py          the CSV, SARIF and PDF exports
 ├── arazzo.py           the API described as executable workflows
 ├── purge.py            erasure on request, and the signed receipt for it
+├── seo.py              the public page list, robots.txt and sitemap.xml
 └── catalog.py          the waiver allow-list and the dashboard grouping
 
 frontend/
-├── static/{css,js,img} vanilla CSS, two small scripts, hand-drawn SVG
+├── static/{css,js,img} vanilla CSS, small scripts, hand-drawn SVG
 └── templates/          base, index, scan, 404, and the content pages
 
 docker/

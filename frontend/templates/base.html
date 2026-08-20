@@ -4,11 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta name="robots" content="noindex, nofollow">
-  <title>{% block title %}OpenCloud security scan{% endblock %}</title>
-  <meta name="description" content="{% block description %}Check an OpenCloud instance for known vulnerabilities, missing hardening and weak security headers. Nothing is stored.{% endblock %}">
+  {# A result page is reachable only with its uuid, so only the pages that
+     exist before anybody scans anything are ever offered to a crawler. #}
+  <meta name="robots" content="{{ robots|default('noindex, nofollow', true) }}">
+  <title>{% block title %}Scan an OpenCloud instance{% endblock %} &middot; {{ site_name|default('OpenCloud Security Scan', true) }}</title>
+  <meta name="description" content="{% block description %}Check an OpenCloud instance for known vulnerabilities, missing hardening and weak security headers. Free, independent and nothing is stored.{% endblock %}">
+  {% if canonical_url %}
+  <link rel="canonical" href="{{ canonical_url }}">
+  {% endif %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ site_name|default('OpenCloud Security Scan', true) }}">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  {% if canonical_url %}
+  <meta property="og:url" content="{{ canonical_url }}">
+  {% endif %}
+  {% if og_image %}
+  <meta property="og:image" content="{{ og_image }}">
+  <meta property="og:image:alt" content="The check-opencloud-security mark">
+  {% endif %}
+  <meta name="theme-color" content="#fff6ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#080d1e" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/app.css">
+  {# Discovery hints for anything reading the markup rather than the page.
+     service-desc is the registered relation for a description of the service
+     this document belongs to; the other two are conventions of this
+     application, which is why /.well-known/ai.json - which names all three
+     with absolute URLs - is the one an agent should start from. #}
+  <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
+  <link rel="arazzo" type="application/json" href="/arazzo.json">
+  <link rel="ai-discovery" type="application/json" href="/.well-known/ai.json">
   {% block head %}{% endblock %}
 </head>
 <body {% block body_attrs %}{% endblock %}>
@@ -20,10 +46,28 @@
         <img src="/static/img/logo.svg" alt="" width="34" height="34">
         <span>Security scan for OpenCloud instances</span>
       </a>
-      <nav class="site-nav" aria-label="Primary">
+      {#
+        The menu button only becomes visible once nav.js has marked the
+        document as enhanced. Without scripting the links stay where they are
+        and wrap onto their own row, so a narrow screen never has to be
+        scrolled sideways to reach them.
+      #}
+      <button class="nav-toggle" type="button" aria-controls="site-nav" aria-expanded="false">
+        <svg class="icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>
+        </svg>
+        <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="m6 6 12 12"/><path d="M18 6 6 18"/>
+        </svg>
+        <span>Menu</span>
+      </button>
+      <nav class="site-nav" id="site-nav" aria-label="Primary">
         <a href="/"{% if request.url.path == "/" %} aria-current="page"{% endif %}>New scan</a>
         <a href="/how-it-works"{% if request.url.path == "/how-it-works" %} aria-current="page"{% endif %}>How it works</a>
         <a href="/api"{% if request.url.path == "/api" %} aria-current="page"{% endif %}>API</a>
+        <a href="/ai"{% if request.url.path == "/ai" %} aria-current="page"{% endif %}>AI</a>
         <a href="/privacy"{% if request.url.path == "/privacy" %} aria-current="page"{% endif %}>Privacy</a>
         <a href="/about"{% if request.url.path == "/about" %} aria-current="page"{% endif %}>About</a>
         <a href="https://github.com/sowoi/check-opencloud-security" rel="noopener noreferrer">Source</a>
@@ -46,6 +90,7 @@
       <nav class="footer-nav" aria-label="Secondary">
         <a href="/how-it-works">How it works</a>
         <a href="/api">API</a>
+        <a href="/ai">AI</a>
         <a href="/privacy">Privacy</a>
         <a href="/about">About</a>
       </nav>
@@ -67,6 +112,19 @@
         </a>
       </p>
       <p class="legal">
+        <strong>This check is not exhaustive, and a good grade is not a
+        certificate.</strong> It reads what a publicly reachable OpenCloud
+        instance shows an anonymous visitor: its version, the advisories
+        against that version, its transport, its headers and a set of
+        settings that are visible without logging in. An
+        &ldquo;A&rdquo; means none of those went wrong - not that the instance
+        is secure. Everything behind the login, the
+        server it runs on, the network around it, the data in it and the
+        people with accounts on it are outside what any unauthenticated scan
+        can see. Treat the result as one input among several, never as a
+        security audit or a penetration test.
+      </p>
+      <p class="legal">
         This is an independent community project. It is not affiliated with
         OpenCloud GmbH and is neither recommended nor supported by the
         company. &ldquo;OpenCloud&rdquo;, the OpenCloud logo and all
@@ -76,6 +134,7 @@
     </div>
   </footer>
 
+  <script src="/static/js/nav.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

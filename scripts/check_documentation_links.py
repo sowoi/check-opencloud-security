@@ -9,6 +9,11 @@ None of that is under our control. When OpenCloud reorganises its
 documentation those links rot silently, and a plugin that explains a finding
 with a dead link is a plugin nobody can act on.
 
+Two sources feed the check: every text file in the repository, and the
+hardening catalogue itself, imported rather than grepped - a reference long
+enough to be split across two string literals is invisible to a regular
+expression, and those are the long, deeply nested URLs most likely to move.
+
 So the links are checked on every merge into ``main``:
 
     python scripts/check_documentation_links.py            # check and fail
@@ -20,6 +25,16 @@ those are the ones whose accuracy this project is responsible for. A link is
 out of date when it is broken: a 4xx, a 5xx or a transport error that
 survives the retries. A
 temporary redirect is normal and passes.
+
+**A status code is not enough for the documentation site.**
+``docs.opencloud.eu`` is a single-page application: it answers an address
+that no longer exists with HTTP 200 and the application shell, and renders
+"Page not found" in the browser afterwards. Every dead documentation link this
+project has ever had looked perfectly healthy to a status check - which is the
+same trap the scanner itself guards against when it probes an OpenCloud
+instance for exposed paths. So links to a site in :data:`SITEMAP_SOURCES` are
+checked against that site's own ``sitemap.xml`` as well: a ``/docs/`` address
+the site does not list is broken, whatever it answers.
 """
 
 from __future__ import annotations
@@ -82,6 +97,18 @@ SKIPPED_DIRECTORIES: frozenset[str] = frozenset(
         "tests",
     }
 )
+
+# Sites that answer every address with 200 and sort it out in the browser, and
+# the list of addresses they admit to having. Checked in addition to the HTTP
+# request, never instead of it: a page can be listed and still be broken.
+SITEMAP_SOURCES: dict[str, str] = {
+    "docs.opencloud.eu": "https://docs.opencloud.eu/sitemap.xml",
+}
+
+# Only paths under these prefixes are held to the sitemap. A sitemap lists
+# pages, so an image, a download or a feed being absent from one means
+# nothing.
+SITEMAP_PREFIXES: tuple[str, ...] = ("/docs/",)
 
 # Answers that say "not to you, not right now" rather than "not here": an
 # anonymous GitHub API call is rate limited, and bot protection answers 403 to
@@ -160,9 +187,37 @@ def _files(root: Path) -> Iterator[Path]:
         yield path
 
 
+def catalogue_links() -> Iterator[Link]:
+    """Every documentation address the hardening catalogue sends operators to.
+
+    Read from the imported catalogue rather than from the text of
+    ``hardening.py``, because a reference long enough to be split across two
+    string literals is invisible to a regular expression - and those are
+    exactly the long, deeply nested documentation URLs most likely to move.
+    A finding explained with a dead link is a finding nobody can act on, so
+    this source is explicit rather than incidental.
+    """
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    try:
+        from opencloud_local_scan import hardening
+    except ImportError:  # pragma: no cover - the library is always importable here
+        return
+    catalogue = list(hardening.HARDENINGS.values()) + list(hardening.CHECKS.values())
+    for entry in catalogue:
+        if entry.reference:
+            yield Link(url=entry.reference, source="opencloud_local_scan/hardening.py")
+
+
 def collect_links(root: Path = REPO_ROOT) -> list[Link]:
     """Find every documented OpenCloud link, deduplicated by URL."""
     found: dict[str, Link] = {}
+    if root == REPO_ROOT:
+        # The catalogue belongs to this repository, not to whatever tree a
+        # caller pointed at, so it is only consulted for the real one.
+        for link in catalogue_links():
+            if is_opencloud_link(link.url) and link.url not in found:
+                found[link.url] = link
     for path in _files(root):
         try:
             text = path.read_text(encoding="utf-8")
@@ -178,6 +233,62 @@ def collect_links(root: Path = REPO_ROOT) -> list[Link]:
     return [found[url] for url in sorted(found)]
 
 
+_SITEMAP_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.IGNORECASE)
+
+# Loaded once per run and shared, because every documentation link is checked
+# against the same file. `None` records a sitemap that could not be read, so
+# that the attempt is not repeated for every link and so that an unreachable
+# sitemap stays inconclusive rather than condemning the whole documentation.
+_SITEMAPS: dict[str, frozenset[str] | None] = {}
+
+
+def _normalise(url: str) -> str:
+    """The comparable part of an address: no fragment, no query, no trailing slash."""
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    return f"{host}{parsed.path.rstrip('/')}"
+
+
+def load_sitemap(host: str, *, timeout: int = DEFAULT_TIMEOUT) -> frozenset[str] | None:
+    """Every address a site lists, or None when the list could not be read."""
+    if host in _SITEMAPS:
+        return _SITEMAPS[host]
+    source = SITEMAP_SOURCES.get(host)
+    entries: frozenset[str] | None = None
+    if source is not None:
+        request = urllib.request.Request(source, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - constant https URL
+                body = response.read().decode("utf-8", "replace")
+            found = frozenset(_normalise(loc) for loc in _SITEMAP_LOC.findall(body))
+            # An empty or unparsable answer is a failure to read the sitemap,
+            # not a site with no pages.
+            entries = found or None
+        except (urllib.error.URLError, OSError, ValueError):
+            entries = None
+    _SITEMAPS[host] = entries
+    return entries
+
+
+def _sitemap_problem(url: str, *, timeout: int) -> str | None:
+    """Describe an address the site itself does not list, if that applies here."""
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    if host not in SITEMAP_SOURCES:
+        return None
+    if not parsed.path.startswith(SITEMAP_PREFIXES):
+        return None
+    listed = load_sitemap(host, timeout=timeout)
+    if listed is None:
+        return None
+    if _normalise(url) in listed:
+        return None
+    return (
+        f"not listed in https://{host}/sitemap.xml - the site answers 200 for "
+        "any address and renders 'Page not found' in the browser"
+    )
+
+
 def check(
     link: Link, *, timeout: int = DEFAULT_TIMEOUT, attempts: int = DEFAULT_ATTEMPTS
 ) -> Problem | None:
@@ -187,6 +298,10 @@ def check(
     the network hiccups gets muted, and a muted check protects nothing. An
     HTTP status is an answer and is not retried.
     """
+    missing = _sitemap_problem(link.url, timeout=timeout)
+    if missing is not None:
+        return Problem(link=link, detail=missing, broken=True)
+
     detail: str | None = None
     for attempt in range(max(attempts, 1)):
         detail, broken = _check_once(link.url, timeout=timeout)

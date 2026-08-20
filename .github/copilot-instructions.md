@@ -182,6 +182,20 @@ casually and points at
 same check themselves with no limits. Keep both channels working: the template
 branch behind `error_self_host` and the JSON `hint` / `selfHostUrl` fields.
 
+**Never wire anything to Twitter/X, Google or Meta.** No script, stylesheet,
+font, iframe, image, API, SDK, analytics, tag manager, CAPTCHA, sign-in, share
+button or embed, and no card metadata naming them - no `twitter:`, no `fb:`,
+no `google-site-verification`. This covers the web application, the frontend,
+the scanner, the plugin, the container images, the CI workflows and the
+documentation, and it covers dependencies that would phone one of them home. A
+visitor hands this service the address of a system they are responsible for,
+and the referrer on a result page carries a uuid that is the whole of the
+authorisation. Plain links a person clicks are fine, and so is
+platform-neutral metadata nothing fetches, such as OpenGraph `og:` tags.
+`tests/test_webapp_seo.py` fails on the metadata; the third-party test in
+`tests/test_webapp_api.py` fails on any foreign origin at all. `AGENTS.md`
+lists the named services under **Third parties**.
+
 **The frontend is hand-written and self-hosted, without exception.** No
 Bootstrap, no Tailwind, no CDN, no font service, no analytics - every byte
 comes from `/static/`, and a test asserts it. The CSP has no `unsafe-inline`,
@@ -200,6 +214,39 @@ software being checked. The notice lives in `README.md`, `docs/README.md`,
 `docs/webapp.md`, `opencloud_local_scan/README.md`, the footer of
 `frontend/templates/base.html` and the generated `QUICKSTART.md`. Do not
 remove it, do not imply a partnership, and add it to any new user-facing page.
+
+## The agent-facing surfaces
+
+**One workflow layer, three descriptions.** `/openapi.json` says which
+operations exist, `/arazzo.json` how they combine into a task, `/mcp` executes
+it, and `/.well-known/ai.json` is how anything finds the other three. The
+semantics live once in `webapp/workflows.py` - the submission status, the poll
+interval, the attempt ceiling, that a `404` is final and a `409` means *not
+yet*. `webapp/arazzo.py` reads those constants and `webapp/mcp_server.py`
+calls those functions; a test fails if either invents its own number. See
+[ADR 0011](../adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md).
+
+**MCP calls this service's own HTTP API in-process**, never the internals, so
+the SSRF guard, the client rate limit, the target cooldown, the queue and the
+authorisation on erasure are the real ones. An agent must not reach a code
+path a browser could not, nor be rationed more generously.
+`COS_WEB_MCP_MAX_CONCURRENT_WAITS` bounds waiting calls and refuses nothing:
+the uuid comes back with a note to poll.
+
+**Six tools, and they are tasks rather than endpoints**: `scan_instance`,
+`scan_instances`, `get_scan_result`, `plan_remediation`, `export_scan`,
+`erase_instance_data`, plus three `spec://` resources for the OpenAPI, Arazzo
+and discovery documents. Descriptions are written for an agent - inputs,
+outputs, duration, retryability, when to stop - and a destructive tool says so.
+Never hold, log or return a credential; validate a uuid as a uuid before it
+reaches a request path. A scanned host's version, product name and error text
+stay collapsed, stripped, truncated and inside the `untrusted` block.
+
+**The four documents are public and unauthenticated.** `COS_WEB_ENABLE_DOCS`
+governs only `/docs` and `/redoc`; `COS_WEB_ENABLE_MCP` turns the endpoint off
+and the discovery document then stops naming it. A new tool needs a row in
+`docs/mcp.md`, `webapp/README.md` and `docs/webapp.md` and a test in
+`tests/test_webapp_mcp.py`.
 
 ## Tests
 

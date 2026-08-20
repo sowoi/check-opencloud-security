@@ -119,11 +119,23 @@ calls in `opencloud_local_scan/`.
 
 ## Run it without Docker
 
-    pip install ".[web]"
+    pip install ".[web,mcp]"
     redis-server &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \\
         uvicorn webapp.app:app --host 127.0.0.1 --port 8080
+
+## For AI agents
+
+The service describes itself. Everything below is public, needs no
+credential, and is enough to use the API without reading any source:
+
+    /.well-known/ai.json   what this service is, and where the rest of it is
+    /openapi.json          every operation, request and response
+    /arazzo.json           how those operations combine into workflows
+    /mcp                   the Model Context Protocol endpoint
+
+The MCP endpoint needs the `mcp` extra, which the Docker image installs.
 
 ## Before you expose it
 

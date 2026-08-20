@@ -189,7 +189,13 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    /* A URL, a header name or a config key has no space to break at, and on a
+       phone one of them is wider than the screen. */
+    overflow-wrap: break-word;
 }
+
+/* Nothing may push the document wider than the viewport. */
+img, svg { max-width: 100%; }
 
 /*
  * The stars. One fixed tile behind the whole document, drawn only when the
@@ -263,6 +269,30 @@ code, kbd, samp { font-family: var(--mono); font-size: .92em; }
 .site-nav { display: flex; gap: 1.25rem; align-items: center; font-size: .93rem; }
 .site-nav a { color: var(--ink-soft); text-decoration: none; }
 .site-nav a:hover { color: var(--brand-deep); text-decoration: underline; }
+
+/*
+ * The menu button. Hidden until nav.js marks the document as enhanced, and
+ * even then only on the widths where the row of links does not fit.
+ */
+.nav-toggle {
+    display: none;
+    align-items: center;
+    gap: .45rem;
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: .45rem .7rem;
+    cursor: pointer;
+}
+.nav-toggle:hover { color: var(--brand-deep); border-color: var(--brand); }
+.nav-toggle svg { width: 20px; height: 20px; }
+.nav-toggle .icon-close { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-open { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-close { display: block; }
 
 main { flex: 1 0 auto; padding-bottom: 4rem; }
 
@@ -621,6 +651,32 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .finding .fix { color: var(--ink); }
 .finding .fix strong { color: var(--ink); }
 
+/* remediation plan - the findings list, numbered and with a predicted grade */
+.plan { margin-top: .4rem; }
+.plan-step[data-gain="no"] { border-left-color: var(--line); }
+.plan-order {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.55rem; height: 1.55rem; border-radius: 999px;
+    background: var(--paper); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: .8rem; color: var(--ink-soft);
+}
+.plan-grade {
+    margin-left: auto; font-size: .78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--good-ink);
+    background: var(--good-soft); border-radius: 999px; padding: .15rem .6rem;
+}
+.plan-step[data-gain="no"] .plan-grade {
+    color: var(--ink-faint); background: var(--paper); border: 1px solid var(--line);
+}
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1rem; margin: .6rem 0 0; }
+.facts dt { color: var(--ink-faint); font-size: .88rem; }
+.facts dd { margin: 0; font-size: .95rem; overflow-wrap: anywhere; }
+@media (max-width: 30rem) {
+  .facts { grid-template-columns: 1fr; gap: 0 0; }
+  .facts dd { margin: 0 0 .5rem; }
+}
+
 .pill-list { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; margin: .6rem 0 0; list-style: none; }
 .pill-list li {
     font-family: var(--mono); font-size: .82rem;
@@ -707,3 +763,72 @@ pre.json {
 .score-dial[data-rating="3"] { --fill: 60; }
 .score-dial[data-rating="4"] { --fill: 80; }
 .score-dial[data-rating="5"] { --fill: 100; }
+
+/* ------------------------------------------------------------- small screens */
+/*
+ * Everything above is written for a desk. These two blocks are the phone, and
+ * they are last so they win without a specificity trick.
+ *
+ * The header is the reason this section exists: a brand line and six links
+ * across 390px used to run off the side of the screen, and the only way to
+ * reach "About" was to scroll the page sideways.
+ */
+@media (max-width: 900px) {
+    .site-header .shell { flex-wrap: wrap; row-gap: .9rem; }
+    /* A basis rather than `auto`: flex breaks a line before it shrinks an
+       item, so a brand asking for its full width would push the button onto
+       a row of its own instead of wrapping its own second line. */
+    .brand { flex: 1 1 55%; min-width: 0; }
+    .brand span { font-size: .95rem; }
+    /* Without JavaScript: a second row that wraps, never a sideways scroll. */
+    .site-nav { width: 100%; flex-wrap: wrap; gap: .55rem 1.1rem; }
+
+    [data-nav="enhanced"] .nav-toggle { display: inline-flex; }
+    [data-nav="enhanced"] .site-nav { display: none; }
+    [data-nav="enhanced"] .site-nav[data-open="true"] {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: .3rem 0;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+    [data-nav="enhanced"] .site-nav[data-open="true"] a {
+        padding: .7rem 1rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .shell { width: min(100% - 1.6rem, var(--page)); }
+
+    .hero { padding: 1.2rem 0 .5rem; }
+    .hero-art { margin-top: 1rem; }
+    .card { padding: 1.15rem; }
+    main { padding-bottom: 2.5rem; }
+
+    /* A submit button the width of the thumb that reaches it. */
+    .form-actions { flex-direction: column; align-items: stretch; }
+    .form-actions .btn { width: 100%; justify-content: center; }
+    .field-narrow { flex: 1 1 100%; }
+    .export-list .btn { width: 100%; justify-content: center; }
+
+    /* Four steps side by side leave four unreadable columns; two rows of two
+       keep the labels legible. */
+    .progress-track { flex-wrap: wrap; gap: .5rem .6rem; }
+    .progress-track .step { flex: 1 1 40%; }
+
+    .score { gap: 1rem; }
+    .score-dial { width: 118px; height: 118px; }
+    .score-dial .grade { font-size: 2.1rem; }
+    .score-facts dl { grid-template-columns: 1fr; gap: .1rem; }
+    .score-facts dd { margin-bottom: .45rem; }
+
+    .scan-track { margin-left: 0; margin-top: .4rem; }
+
+    .site-footer .shell { flex-direction: column; }
+    .site-footer .build { margin-left: 0; }
+}

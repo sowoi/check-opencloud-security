@@ -175,3 +175,102 @@ def test_a_broken_link_fails_the_run_while_a_redirect_only_reports(monkeypatch, 
 
     monkeypatch.setattr(links, "check", lambda link, **kwargs: None)
     assert links.main([]) == 0
+
+
+def test_a_documentation_page_the_site_does_not_list_is_broken(monkeypatch):
+    """docs.opencloud.eu answers 200 for addresses that no longer exist.
+
+    It is a single-page application: a removed page returns the shell with
+    HTTP 200 and renders "Page not found" in the browser afterwards. Every
+    dead documentation link this project has had looked healthy to a status
+    check, so the sitemap has to be the authority.
+    """
+    listed = frozenset(
+        {"docs.opencloud.eu/docs/admin/maintenance/upgrade/upgrade-guide"}
+    )
+    monkeypatch.setattr(links, "_SITEMAPS", {"docs.opencloud.eu": listed})
+    # A 200 for everything, exactly as the real site answers.
+    monkeypatch.setattr(links, "_check_once", lambda url, timeout: (None, False))
+
+    gone = links.Link(
+        "https://docs.opencloud.eu/docs/admin/getting-started/container/update", "hardening.py"
+    )
+    problem = links.check(gone, attempts=1)
+    assert problem is not None and problem.broken is True
+    assert "sitemap" in problem.detail
+
+    current = links.Link(
+        "https://docs.opencloud.eu/docs/admin/maintenance/upgrade/upgrade-guide", "hardening.py"
+    )
+    assert links.check(current, attempts=1) is None
+
+
+def test_only_documentation_paths_are_held_to_the_sitemap(monkeypatch):
+    """A sitemap lists pages, so an image missing from one proves nothing.
+
+    Holding every asset to it would fail the workflow over favicons and
+    teach everybody to ignore the check.
+    """
+    monkeypatch.setattr(links, "_SITEMAPS", {"docs.opencloud.eu": frozenset()})
+    assert links._sitemap_problem("https://docs.opencloud.eu/img/logo.svg", timeout=1) is None
+    assert links._sitemap_problem("https://opencloud.eu/anything", timeout=1) is None
+
+
+def test_a_sitemap_that_could_not_be_read_condemns_nothing(monkeypatch):
+    """An unreachable sitemap is a network problem, not evidence of rot.
+
+    Treating it as proof would mark every documentation link broken the first
+    time the site is slow, which is the fastest way to make a check worthless.
+    """
+    monkeypatch.setattr(links, "_SITEMAPS", {"docs.opencloud.eu": None})
+    monkeypatch.setattr(links, "_check_once", lambda url, timeout: (None, False))
+    link = links.Link("https://docs.opencloud.eu/docs/admin/anything", "README.md")
+    assert links.check(link, attempts=1) is None
+
+    monkeypatch.setattr(links, "_SITEMAPS", {"docs.opencloud.eu": frozenset({"other"})})
+    assert links.check(link, attempts=1).broken is True
+
+
+def test_the_sitemap_is_read_once_and_reused(monkeypatch):
+    """Fetching it per link would turn one request into dozens.
+
+    The cache also keeps a single failure from being retried for every link.
+    """
+    calls = []
+
+    class _Response:
+        def read(self):
+            calls.append(1)
+            return b"<urlset><loc>https://docs.opencloud.eu/docs/a/</loc></urlset>"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(links, "_SITEMAPS", {})
+    monkeypatch.setattr(links.urllib.request, "urlopen", lambda *a, **k: _Response())
+
+    first = links.load_sitemap("docs.opencloud.eu")
+    second = links.load_sitemap("docs.opencloud.eu")
+    assert first == second == frozenset({"docs.opencloud.eu/docs/a"})
+    assert len(calls) == 1
+
+
+def test_every_link_the_catalogue_publishes_is_collected(tmp_path):
+    """A finding explained with a dead link is a finding nobody can act on.
+
+    hardening.py is where a report sends an operator, so its references have
+    to be inside the set the workflow checks - not merely nearby.
+    """
+    from opencloud_local_scan import hardening
+
+    collected = {link.url for link in links.collect_links(REPO_ROOT)}
+    published = {
+        entry.reference
+        for entry in list(hardening.HARDENINGS.values()) + list(hardening.CHECKS.values())
+        if entry.reference and links.is_opencloud_link(entry.reference)
+    }
+    assert published, "the catalogue must reference OpenCloud's documentation"
+    assert published <= collected

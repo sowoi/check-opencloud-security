@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -120,6 +121,60 @@ def _advisory_rows(summary: dict[str, Any]) -> list[tuple[str, str, str]]:
     return rows
 
 
+def _tls_lines(summary: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """
+    The transport measurement as label/value pairs, for the flat formats.
+
+    Every export shows the TLS *findings* already, through the failed checks.
+    These are the numbers behind them - the negotiated version, the chain, the
+    dates - which is what somebody reading the report a month later needs in
+    order to tell whether anything actually changed.
+    """
+    tls = summary.get("tls") or {}
+    if not tls.get("reachable"):
+        return []
+    certificate = tls.get("certificate") or {}
+    protocol = str(tls.get("protocol") or "unknown")
+    cipher = str(tls.get("cipher") or "")
+    lines = [("TLS", f"{protocol}{', ' + cipher if cipher else ''}")]
+
+    accepted = tls.get("deprecatedProtocolsAccepted") or []
+    probed = tls.get("deprecatedProtocolsProbed") or []
+    if probed:
+        lines.append(
+            (
+                "Deprecated versions",
+                "still accepted: " + ", ".join(accepted)
+                if accepted
+                else "refused: " + ", ".join(probed),
+            )
+        )
+
+    trusted = tls.get("trusted")
+    chain = "trusted" if trusted else ("not established" if trusted is None else "not trusted")
+    if tls.get("chainComplete") is False:
+        chain += ", no path to a public root"
+    lines.append(("Certificate chain", chain))
+
+    if certificate:
+        days = certificate.get("daysRemaining")
+        expiry = str(certificate.get("notAfter") or "unknown")
+        if isinstance(days, int):
+            expiry += (
+                f" (expired {abs(days)} day(s) ago)"
+                if days < 0
+                else f" ({days} day(s) left)"
+            )
+        lines.append(("Certificate", f"{certificate.get('subject') or 'unnamed'}"))
+        lines.append(("Issued by", str(certificate.get("issuer") or "unknown")))
+        lines.append(("Expires", expiry))
+    if tls.get("ocspStapled") is not None:
+        lines.append(
+            ("OCSP stapling", "stapled" if tls.get("ocspStapled") else "not stapled")
+        )
+    return lines
+
+
 def csv_report(result: dict[str, Any]) -> str:
     """
     The scan as a spreadsheet.
@@ -142,9 +197,28 @@ def csv_report(result: dict[str, Any]) -> str:
         writer, "Rating", f"{summary.get('rating')}", rating_label(summary.get("rating"))
     )
     _write(writer, "Scanned at", _scanned_at(result))
+    for label, value in _tls_lines(summary):
+        _write(writer, label, value)
     writer.writerow([])
 
+    plan = summary.get("remediation") or {}
+    if plan.get("summary"):
+        _write(writer, "Remediation", plan["summary"])
+        writer.writerow([])
+
     _write(writer, "Section", "ID", "Severity", "Detail", "Remediation")
+    for step in plan.get("steps") or []:
+        # The order is the whole value of the plan, so it is the first thing
+        # in the row rather than something a reader has to reconstruct.
+        _write(
+            writer,
+            f"fix step {step.get('order')}",
+            step.get("id") or "",
+            step.get("severity") or "",
+            f"{step.get('title') or ''} (then {step.get('label')}, "
+            f"{step.get('ratingAfter')}/5)",
+            step.get("action") or "",
+        )
     for identifier, severity, detail in _advisory_rows(summary):
         _write(writer, "advisory", identifier, severity, detail, "")
     for issue in summary.get("issues") or []:
@@ -282,6 +356,13 @@ def sarif_report(result: dict[str, Any]) -> dict[str, Any]:
                     "rating": summary.get("rating"),
                     "ratingLabel": summary.get("label"),
                     "endOfLife": bool(summary.get("eol")),
+                    # The ordered fix list, so a dashboard consuming SARIF can
+                    # say what to do first rather than only what is wrong.
+                    "remediation": summary.get("remediation") or {},
+                    # The transport measurement, unjudged, for a dashboard
+                    # that wants to trend certificate expiry rather than only
+                    # alert on it.
+                    "tls": summary.get("tls") or {},
                 },
             }
         ],
@@ -476,6 +557,30 @@ def pdf_report(result: dict[str, Any], *, identifier: str | None = None) -> byte
         f"Advisories {counts.get('vulnerabilities', 0)}   "
         f"Passed {summary.get('passedCount', 0)}"
     )
+
+    plan = summary.get("remediation") or {}
+    if plan.get("steps"):
+        doc.heading(f"What gets you to {plan.get('achievableLabel') or 'the top grade'}")
+        doc.paragraph(str(plan.get("summary") or ""))
+        doc.gap(4)
+        for step in plan["steps"]:
+            grade = "then" if (step.get("ratingGain") or 0) > 0 else "still"
+            doc.paragraph(
+                f"{step.get('order')}. {step.get('id')} [{step.get('severity')}] "
+                f"- {grade} {step.get('label')}",
+                bold=True,
+            )
+            doc.paragraph(str(step.get("title") or ""), indent=14)
+            if step.get("action"):
+                doc.paragraph(f"Fix: {step['action']}", indent=14)
+            doc.gap(4)
+
+    tls_lines = _tls_lines(summary)
+    if tls_lines:
+        doc.heading("Transport security")
+        for label, value in tls_lines:
+            doc.paragraph(f"{label}: {value}")
+        doc.gap(6)
 
     advisories = _advisory_rows(summary)
     if advisories:

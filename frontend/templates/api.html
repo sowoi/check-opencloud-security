@@ -49,16 +49,30 @@ curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
 <section class="card section-gap" aria-labelledby="api-schema">
   <h2 id="api-schema">The schema</h2>
   <p class="flush">
+    The machine-readable documents are always public, on this deployment and
+    on every other: the
+    <a href="/openapi.json">OpenAPI 3.1 description</a> of every operation,
+    and the <a href="/arazzo.json">Arazzo 1.0.1 workflows</a> that say how
+    those operations combine into submitting a scan, waiting for it and
+    taking the result away.
     {% if docs_enabled %}
-    The full schema is browsable here:
-    <a href="/docs">Swagger UI</a>, <a href="/redoc">ReDoc</a>, and the raw
-    <a href="/openapi.json">OpenAPI document</a>. All three are served from
-    this server - nothing is fetched from anywhere else.
+    Both are browsable here as <a href="/docs">Swagger UI</a> and
+    <a href="/redoc">ReDoc</a>, served from this server like everything else -
+    nothing is fetched from anywhere.
     {% else %}
-    The interactive schema (Swagger UI at <code>/docs</code>, ReDoc at
-    <code>/redoc</code>) is switched off on this deployment; an operator turns
-    it on with <code>COS_WEB_ENABLE_DOCS=true</code>.
+    The interactive viewers (Swagger UI at <code>/docs</code>, ReDoc at
+    <code>/redoc</code>) are switched off on this deployment; an operator
+    turns them on with <code>COS_WEB_ENABLE_DOCS=true</code>.
     {% endif %}
+  </p>
+</section>
+
+<section class="card section-gap" aria-labelledby="api-agents">
+  <h2 id="api-agents">For AI agents</h2>
+  <p class="flush">
+    Software that was not written for this service has a page of its own:
+    <a href="/ai">for AI agents</a> collects the discovery document, the
+    OpenAPI schema, the Arazzo workflows and the MCP endpoint in one place.
   </p>
 </section>
 
