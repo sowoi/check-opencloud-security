@@ -96,9 +96,9 @@ It is the fastest way to see what this project does before deciding whether to
 install anything, and it is genuinely useful on its own for a one-off look at
 a server.
 
-![The hosted scanner's landing page](img/opencloud-scan-landing.png)
+![The hosted scanner's landing page](https://raw.githubusercontent.com/sowoi/check-opencloud-security/refs/heads/main/img/opencloud-scan-landing.png)
 
-![A completed scan of the OpenCloud demonstration instance](img/opencloud-demo-scan-result.png)
+![A completed scan of the OpenCloud demonstration instance](https://raw.githubusercontent.com/sowoi/check-opencloud-security/refs/heads/main/img/opencloud-demo-scan-result.png)
 
 Two things worth knowing, because the paragraph above just said nothing is
 ever sent to a third party - and using a hosted service is exactly that:
