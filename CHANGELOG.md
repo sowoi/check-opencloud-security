@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-20
+
 ### Added
 
 - **A remediation planner**, answering "what gets you to A+" rather than only
