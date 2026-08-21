@@ -594,6 +594,10 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 .brackets::after { bottom: -7px; right: -7px; border-bottom-width: 2px; border-right-width: 2px; }
 
 .grid { display: grid; gap: 1.25rem; }
+/* The gap already separates the cards: without this, the stacked-card
+   rhythm above taxes every card but the first, and the row stops sharing
+   one height. */
+.grid > .card + .card { margin-top: 0; }
 @media (min-width: 800px) {
     .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
