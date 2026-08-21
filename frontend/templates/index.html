@@ -4,26 +4,29 @@
 
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 3 4 6v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V6l-8-3z"/>
-      <path d="m9 12 2 2 4-4"/>
-    </svg>
-    Independent, air-gapped, nothing stored
-  </p>
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3 4 6v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V6l-8-3z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        Independent, air-gapped, nothing stored
+      </p>
 
-  <h1>How secure is your OpenCloud instance?</h1>
-  <p class="lede">
-    Enter the address of an instance you are responsible for. This server talks
-    to it over HTTPS the way any visitor would, reads what it publishes without
-    logging in, and grades the result from <strong>A+</strong> to <strong>F</strong>.
-  </p>
+      <h1>How secure is your <span class="grad">OpenCloud instance</span>?</h1>
+      <p class="lede">
+        Enter the address of an instance you are responsible for. This server talks
+        to it over HTTPS the way any visitor would, reads what it publishes without
+        logging in, and grades the result from <strong>A+</strong> to <strong>F</strong>.
+      </p>
 
-  <img class="hero-art" src="/static/img/hero.svg" alt=""
-       width="480" height="260">
+      <img class="hero-art" src="/static/img/hero.svg" alt=""
+           width="480" height="260">
+    </div>
 
-  <form class="scan-form card" method="post" action="/">
+    <form class="scan-form card" method="post" action="/">
     {% if error %}
     <p class="alert" role="alert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -120,6 +123,7 @@
       <span class="hint hint-flush">Takes a few seconds. No sign-up.</span>
     </div>
   </form>
+  </div>
 
   <ul class="badges" aria-label="How this service handles your data">
     <li class="badge">

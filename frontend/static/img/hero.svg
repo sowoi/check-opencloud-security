@@ -1,129 +1,133 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" role="img"
-     aria-label="An OpenCloud instance being checked against a shield of security findings">
-  <title>A scan in progress</title>
+     aria-label="A shield being scanned, with findings orbiting around it">
+  <title>The scan emblem</title>
   <!--
-    Drawn by hand, and drawn twice: the tokens below give the same scene a
-    sunrise and a night. Loaded with <img>, so these styles are scoped to this
-    document and nothing else can be reached from here.
+    Drawn by hand, and drawn twice: the tokens below give the same emblem a
+    day shift and a night shift. Loaded with <img>, so these styles - and the
+    small animations - are scoped to this document, and nothing else can be
+    reached from here. The motion is a radar sweep, one expanding ring and a
+    lazy bob on the findings; reduced-motion readers get the still emblem.
   -->
   <style>
     svg {
-      --wash-a: #ffd9a3; --wash-b: #ffe9d2;
-      --shield-top: #f6a04a; --shield-bottom: #c94e1b;
-      --tick: #ffffff;
-      --panel: #fffcf8; --panel-line: #c94e1b; --chrome: #c94e1b;
-      --beam: #2f9e7a; --probe: #2f9e7a;
-      --good: #2f9560; --fair: #c1830a; --bad: #d33f3f;
-      --sun-opacity: 1; --moon-opacity: 0;
+      --ring-a: #4f46e5; --ring-b: #0d9488; --core: #eef0fe;
+      --panel: #ffffff; --panel-line: #e2e8f0; --bar: #d8deee;
+      --shield-top: #818cf8; --shield-bottom: #4f46e5; --tick: #ffffff;
+      --good: #059669; --fair: #d97706; --info: #0284c7; --bad: #dc2626;
+      --spark: #a5b4fc;
     }
     @media (prefers-color-scheme: dark) {
       svg {
-        --wash-a: #1a2445; --wash-b: #121a38;
-        --shield-top: #cdd8ff; --shield-bottom: #8b9ce0;
-        --tick: #101838;
-        --panel: #111a30; --panel-line: #a9bcff; --chrome: #a9bcff;
-        --beam: #f5d78e; --probe: #f5d78e;
-        --good: #6fe0a5; --fair: #f7cf7a; --bad: #ff9ba0;
-        --sun-opacity: 0; --moon-opacity: 1;
+        --ring-a: #a5b4fc; --ring-b: #5eead4; --core: #18224a;
+        --panel: #101a2f; --panel-line: rgba(148, 163, 184, .25); --bar: #2b3a5c;
+        --shield-top: #c7d2fe; --shield-bottom: #818cf8; --tick: #1c2450;
+        --good: #34d399; --fair: #fbbf24; --info: #38bdf8; --bad: #fb7185;
+        --spark: #cdd8ff;
       }
     }
-    .wash-a { stop-color: var(--wash-a); }
-    .wash-b { stop-color: var(--wash-b); }
+    .ring-a { stop-color: var(--ring-a); }
+    .ring-b { stop-color: var(--ring-b); }
+    .sweep-stop { stop-color: var(--ring-b); }
     .shield-top { stop-color: var(--shield-top); }
     .shield-bottom { stop-color: var(--shield-bottom); }
-    .beam-stop { stop-color: var(--beam); }
+    .core { fill: var(--core); }
     .tick { fill: var(--tick); }
-    .panel { fill: var(--panel); }
-    .panel-line { fill: var(--panel-line); }
-    .chrome { fill: var(--chrome); }
-    .probe { fill: var(--probe); }
+    .panel { fill: var(--panel); stroke: var(--panel-line); }
+    .bar { fill: var(--bar); }
     .good { fill: var(--good); }
     .fair { fill: var(--fair); }
+    .info { fill: var(--info); }
     .bad { fill: var(--bad); }
-    .sun { opacity: var(--sun-opacity); }
-    .moon { opacity: var(--moon-opacity); }
+    .spark { fill: var(--spark); }
+
+    .sweep {
+      animation: spin 7s linear infinite;
+      transform-origin: 240px 130px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .pulse-ring { animation: ring-out 3.2s ease-out infinite; }
+    @keyframes ring-out {
+      from { r: 58; opacity: .45; }
+      to { r: 100; opacity: 0; }
+    }
+
+    .chip { animation: bob 5s ease-in-out infinite; }
+    .chip-2 { animation-duration: 6.4s; animation-delay: .7s; }
+    .chip-3 { animation-duration: 5.6s; animation-delay: 1.3s; }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .spark { animation: twinkle 4s ease-in-out infinite; }
+    .spark-2 { animation-duration: 5.2s; animation-delay: 1.1s; }
+    .spark-3 { animation-duration: 3.4s; animation-delay: 2s; }
+    @keyframes twinkle {
+      0%, 100% { opacity: .25; }
+      50% { opacity: .85; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sweep, .pulse-ring, .chip, .spark { animation: none; }
+    }
   </style>
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" class="wash-a" stop-opacity=".55"/>
-      <stop offset="1" class="wash-b" stop-opacity=".38"/>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="ring-a"/>
+      <stop offset="1" class="ring-b"/>
     </linearGradient>
     <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" class="shield-top"/>
       <stop offset="1" class="shield-bottom"/>
     </linearGradient>
-    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" class="beam-stop" stop-opacity="0"/>
-      <stop offset="1" class="beam-stop" stop-opacity=".55"/>
+    <linearGradient id="sweep" gradientUnits="userSpaceOnUse" x1="240" y1="130" x2="330" y2="79">
+      <stop offset="0" class="sweep-stop" stop-opacity=".45"/>
+      <stop offset="1" class="sweep-stop" stop-opacity="0"/>
     </linearGradient>
-    <clipPath id="frame">
-      <rect x="0" y="0" width="480" height="260" rx="28"/>
-    </clipPath>
-    <radialGradient id="sunGlow">
-      <stop offset="0" stop-color="#ffc97a" stop-opacity=".5"/>
-      <stop offset="1" stop-color="#ffc97a" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="moonGlow">
-      <stop offset="0" stop-color="#e2e9ff" stop-opacity=".26"/>
-      <stop offset="1" stop-color="#e2e9ff" stop-opacity="0"/>
-    </radialGradient>
-    <!-- The crescent is one disc with a second bitten out of it. -->
-    <mask id="crescent">
-      <rect x="0" y="0" width="480" height="260" fill="#000000"/>
-      <circle cx="438" cy="32" r="17" fill="#ffffff"/>
-      <circle cx="427" cy="24" r="15" fill="#000000"/>
-    </mask>
   </defs>
 
-  <rect x="0" y="0" width="480" height="260" rx="28" fill="url(#sky)"/>
+  <!-- the instrument: three rings and a sweep that never stops looking -->
+  <circle cx="240" cy="130" r="102" fill="none" stroke="url(#ring)" stroke-width="2" opacity=".45"/>
+  <circle cx="240" cy="130" r="80" fill="none" stroke="url(#ring)" stroke-width="1.5" opacity=".28"/>
+  <circle cx="240" cy="130" r="56" class="core" stroke="url(#ring)" stroke-width="1.5"/>
+  <circle cx="240" cy="130" r="58" class="pulse-ring" fill="none" stroke="var(--ring-b)" stroke-width="2" opacity=".45"/>
+  <path class="sweep" fill="url(#sweep)" d="M240 130 L240 28 A102 102 0 0 1 328.3 79 Z"/>
 
-  <!-- morning, or night: only one of the two is ever visible -->
-  <g clip-path="url(#frame)">
-    <g class="sun">
-      <circle cx="438" cy="32" r="56" fill="url(#sunGlow)"/>
-      <circle cx="438" cy="32" r="22" fill="#ffb454" opacity=".6"/>
-    </g>
-    <g class="moon">
-      <circle cx="438" cy="32" r="54" fill="url(#moonGlow)"/>
-      <circle cx="438" cy="32" r="17" fill="#e8eeff" opacity=".9" mask="url(#crescent)"/>
-      <g fill="#e8eeff" opacity=".65">
-        <circle cx="352" cy="24" r="2"/>
-        <circle cx="380" cy="62" r="1.6"/>
-        <circle cx="452" cy="88" r="1.8"/>
-        <circle cx="316" cy="46" r="1.4"/>
-      </g>
-    </g>
-  </g>
-
-  <!-- the instance -->
-  <g>
-    <rect x="42" y="74" width="150" height="104" rx="14" class="panel" opacity=".97"/>
-    <rect x="42" y="74" width="150" height="26" rx="14" class="chrome" opacity=".14"/>
-    <circle cx="60" cy="87" r="4" class="bad" opacity=".75"/>
-    <circle cx="74" cy="87" r="4" class="fair" opacity=".75"/>
-    <circle cx="88" cy="87" r="4" class="good" opacity=".75"/>
-    <rect x="60" y="116" width="94" height="9" rx="4.5" class="panel-line" opacity=".35"/>
-    <rect x="60" y="134" width="114" height="9" rx="4.5" class="panel-line" opacity=".22"/>
-    <rect x="60" y="152" width="70" height="9" rx="4.5" class="panel-line" opacity=".22"/>
-  </g>
-
-  <!-- the probe beam -->
-  <g>
-    <path d="M196 126h84" stroke="url(#beam)" stroke-width="10" stroke-linecap="round" fill="none"/>
-    <circle cx="288" cy="126" r="7" class="probe"/>
-  </g>
-
-  <!-- the verdict -->
-  <g transform="translate(300 46)">
+  <!-- the verdict at the centre -->
+  <g transform="translate(206.3 89.7) scale(.51)">
     <path fill="url(#shield)" d="M66 0 12 20v56c0 41 25 71 54 82 29-11 54-41 54-82V20L66 0z"/>
     <path class="tick" opacity=".94"
           d="M96 51a7 7 0 0 0-10 .6L60 80.4 47.6 68.1A7 7 0 1 0 37.7 78l17.6 17.4a7 7 0 0 0 10-.3l31.3-33.7A7 7 0 0 0 96 51z"/>
   </g>
 
-  <!-- findings ticking away underneath -->
-  <g opacity=".75">
-    <rect x="42" y="196" width="86" height="12" rx="6" class="good" opacity=".4"/>
-    <rect x="138" y="196" width="60" height="12" rx="6" class="fair" opacity=".4"/>
-    <rect x="208" y="196" width="42" height="12" rx="6" class="bad" opacity=".35"/>
+  <!-- findings riding the outer ring -->
+  <g stroke="var(--panel)" stroke-width="2.5">
+    <circle cx="328.3" cy="79" r="5" class="good"/>
+    <circle cx="291" cy="218.4" r="5" class="info"/>
+    <circle cx="151.7" cy="181" r="5" class="fair"/>
+    <circle cx="161.8" cy="64.4" r="5" class="bad"/>
   </g>
+
+  <!-- and the same findings as chips, drifting loose -->
+  <g class="chip">
+    <rect x="26" y="40" width="96" height="30" rx="15" class="panel" stroke-width="1.5"/>
+    <circle cx="46" cy="55" r="4" class="good"/>
+    <rect x="60" y="52.5" width="42" height="5" rx="2.5" class="bar"/>
+  </g>
+  <g class="chip chip-2">
+    <rect x="350" y="60" width="104" height="30" rx="15" class="panel" stroke-width="1.5"/>
+    <circle cx="370" cy="75" r="4" class="fair"/>
+    <rect x="384" y="72.5" width="48" height="5" rx="2.5" class="bar"/>
+  </g>
+  <g class="chip chip-3">
+    <rect x="40" y="192" width="88" height="30" rx="15" class="panel" stroke-width="1.5"/>
+    <circle cx="60" cy="207" r="4" class="info"/>
+    <rect x="74" y="204.5" width="36" height="5" rx="2.5" class="bar"/>
+  </g>
+
+  <!-- a little static in the air -->
+  <path class="spark" transform="translate(190 26)" d="M0-6 1.6-1.6 6 0 1.6 1.6 0 6 -1.6 1.6 -6 0 -1.6-1.6Z"/>
+  <path class="spark spark-2" transform="translate(318 36) scale(.7)" d="M0-6 1.6-1.6 6 0 1.6 1.6 0 6 -1.6 1.6 -6 0 -1.6-1.6Z"/>
+  <path class="spark spark-3" transform="translate(150 226) scale(.8)" d="M0-6 1.6-1.6 6 0 1.6 1.6 0 6 -1.6 1.6 -6 0 -1.6-1.6Z"/>
 </svg>

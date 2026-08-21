@@ -12,6 +12,19 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **The web application has a new frontend design.** The whole design system
+  in `frontend/static/css/app.css` was rebuilt: a cool indigo-and-teal palette
+  with a quiet aurora backdrop, a translucent sticky header, a two-column hero
+  that keeps the scan form beside the pitch, terminal-style code blocks,
+  form fields that stay visible against their card in both schemes, and a
+  little quiet motion - arrivals, a breathing step marker, a dial that sweeps
+  to its rating. The automatic light and dark modes stay, driven as before by
+  one token list and its `prefers-color-scheme: dark` counterpart, and the
+  artwork was redrawn to match: a new logo mark and an animated scan emblem
+  replace the old hero scene.
+
 ## [1.9.0] - 2026-08-21
 
 ### Added

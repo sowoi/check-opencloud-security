@@ -94,6 +94,8 @@ limit read as a nudge rather than a door: the **trademark notice** and the
     --paper / --card / --line            surfaces
     --brand / --brand-deep / --brand-soft / --accent
     --good / --fair / --bad / --info     ratings and severities (+ *-soft)
+    --header-bg / --header-line          the translucent sticky header
+    --code-bg / --code-ink / --tint      code blocks, and inline code
     --radius-sm / --radius / --radius-lg
 }
 ```
