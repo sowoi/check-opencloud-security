@@ -44,7 +44,7 @@ With Docker, which brings its own Redis:
 ```bash
 cd docker
 docker compose -f docker-compose.dockerhub.yml up -d
-# http://127.0.0.1:8080
+# http://127.0.0.1:8811
 ```
 
 The published image is on Docker Hub as **`okxo/opencloud-scanner`**, so a
@@ -54,7 +54,7 @@ the released version, `MAJOR.MINOR` follows the line, and `edge` is the current
 both the web service and the worker - they differ only in the command:
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 8811:8811 \
     -e COS_WEB_REDIS_URL=redis://redis:6379/0 \
     okxo/opencloud-scanner:latest
 ```
@@ -72,7 +72,7 @@ pip install ".[web,mcp]"    # the mcp extra is optional; it serves /mcp
 redis-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
-    uvicorn webapp.app:app --host 127.0.0.1 --port 8080
+    uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 ```
 
 Building the release archive yourself:
@@ -81,6 +81,43 @@ Building the release archive yourself:
 python scripts/build_web_bundle.py
 # dist/check_opencloud_security_web.tar.gz  (+ .sha256)
 ```
+
+### A deployment of your own
+
+The two compose files are the two usual shapes. For anything else -
+a different port, an on-premise instance the SSRF guard would otherwise
+refuse, encryption at rest, a sign-in on `/mcp` - answer the questions instead
+of editing one into place:
+
+```bash
+cd docker
+./setup-wizard.py
+```
+
+It explains each setting, shows an example answer, and writes a commented
+compose file with the non-secret answers inline plus a `.env`, owner-readable
+only, holding the credentials that file refers to as `${NAME}`. Answer
+`generate` and it creates the erasure token, the signing key, the audit salt
+and the encryption key for you. `--preset private` starts from what an estate
+scanning its own instances wants, and `--non-interactive` takes every default
+for an unattended install.
+
+`--sign-in` requires a token on `/mcp` and asks for the issuer, the audience
+and the keys of the provider you already run. `--with-authentik` provisions
+one instead - Authentik and its database join the generated stack, those three
+values are derived from the answers, and the blueprint is written beside the
+compose file that mounts it. The two are independent: provisioning a provider
+does not close the endpoint, so the ordinary way in is to bring Authentik up
+with `/mcp` still open, get a token, and turn the guard on once it works.
+Neither is a default, and nothing of Authentik is written into a deployment
+that did not ask for it. When it is asked for, so are its mail settings
+(`--smtp-host`, `--smtp-from`, `--smtp-security` and the rest), since an
+identity provider that cannot send a password recovery locks out the one
+account it starts with; the password comes from `AUTHENTIK_EMAIL_PASSWORD` in
+the environment rather than from a flag.
+[`docker/README.md`](../docker/README.md#the-setup-wizard) has the flags. It
+is unrelated to `check-opencloud-security --configure`, which sets up a
+monitoring check rather than a container deployment.
 
 ## What a visitor can ask for
 
@@ -138,23 +175,80 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and the five explanations. Result pages are never indexable whatever this says |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
+| `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day and rate scans against what it says. One request a day for the whole deployment, not one per visitor |
+| `COS_WEB_SCHEDULE_REFRESH_URL` | *(the OpenCloud lifecycle page)* | Where that schedule is read from. Operator configuration, so it may point at a mirror; never a request field |
+| `COS_WEB_SCHEDULE_REFRESH_HOUR` | `4` | The hour (UTC) of the daily read. Worth varying between deployments so they do not all arrive at once |
+| `COS_WEB_ADVISORY_REFRESH` | `true` | Ask the advisory feed once a day which vulnerabilities affect OpenCloud and rate scans against the answer. A refresh only ever adds an advisory, and never believes one with no version bounds |
+| `COS_WEB_ADVISORY_REFRESH_URL` | `https://api.osv.dev/v1/query` | Where the advisories are read from. Operator configuration, so it may point at a mirror; never a request field |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Where templates and static assets live |
 | `COS_WEB_ENABLE_DOCS` | `false` | Serve the browsable `/docs` and `/redoc` pages. The machine-readable documents are public whatever this says |
 | `COS_WEB_ENABLE_MCP` | `true` | Serve the MCP endpoint at `/mcp`. Ignored when the optional `mcp` extra is not installed |
 | `COS_WEB_MCP_ALLOWED_HOSTS` | *(empty)* | `Host` values the MCP endpoint accepts, separated by `;`. Empty turns the DNS-rebinding check off, which is right when a proxy already fixes the host |
 | `COS_WEB_MCP_MAX_CONCURRENT_WAITS` | `8` | How many MCP tool calls may sit waiting for a scan at once. Reaching the ceiling refuses nothing: the scan is submitted and the uuid comes back to be polled |
+| `COS_WEB_MCP_AUTH_ENABLED` | `false` | Require a bearer token on `/mcp`. Off, because the service is meant to answer anybody; a deployment that wants the opposite turns it on and names an issuer. See [a sign-in on the MCP endpoint](authentik.md) |
+| `COS_WEB_MCP_AUTH_ISSUER` | *(empty)* | The OIDC issuer whose tokens are accepted, exactly as its discovery document spells it. A trailing slash is accepted either way |
+| `COS_WEB_MCP_AUTH_AUDIENCE` | *(empty)* | What a token's `aud` claim must contain, normally the client ID agents authenticate as. **Required** when the sign-in is on: empty refuses to start, because a token minted for another application behind the same provider would otherwise open this one |
+| `COS_WEB_MCP_AUTH_JWKS_URL` | *(derived)* | Where the signing keys are published. Defaults to `<issuer>/jwks/`, which is what a provider following the discovery specification answers with |
+| `COS_WEB_MCP_AUTH_RESOURCE_URL` | *(derived)* | The URL this endpoint claims as its protected resource. Defaults to `<COS_WEB_PUBLIC_BASE_URL>/mcp`; a token's audience is checked against it |
+| `COS_WEB_MCP_AUTH_SCOPES` | *(empty)* | Scopes a token must carry, separated by `;`. Empty means any valid token from the issuer is enough |
 | `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
 | `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
 | `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge` and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion. Unset still erases, but the receipt cannot be verified afterwards |
+| `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |
 | `COS_WEB_ENCRYPT_RESULTS` | `false` | Encrypt the stored result document with AES-256-GCM. Requires a key; a process asked to encrypt without one refuses to start |
 | `COS_WEB_ENCRYPTION_KEY_<n>` | *(none)* | A 32-byte key as 64 hex characters. The highest `<n>` encrypts, lower ones still decrypt, which is how a key is rotated |
 
 `COS_WEB_RELEASES_MODE` is `off` by default on purpose: a public deployment
 that queries the release feed once per visitor gets rate limited, and then
-every visitor's update check fails at once. The bundled release schedule still
-decides end of life without any network access.
+every visitor's update check fails at once. The release schedule still decides
+end of life without it.
+
+`COS_WEB_SCHEDULE_REFRESH` is the opposite case, and is on by default. The
+schedule that ships in the image is written by CI, so a service that has been
+up for six weeks rates instances against a six-week-old picture of the world:
+it calls last week's release "ahead of the schedule" and a line that expired
+since the build "still supported". The worker therefore re-reads the published
+lifecycle page once a day - at startup as well, so a fresh deployment does not
+wait for the small hours - and keeps the result in Redis, where the scan jobs
+pick it up.
+
+A refresh can only ever add knowledge. A document that has lost a line the
+bundled schedule knows about is refused, because a missing line turns an
+end-of-life instance into an unknown one; an unreachable page, a redesigned
+page or a truncated table all leave the previous schedule exactly as it was;
+and a newer bundled file after a redeployment wins over whatever is left in
+Redis. Nothing is written to the repository - `README.md` and the bundled
+JSON stay CI's business. Turn the refresh off for a deployment with no
+outbound access, which then behaves exactly as it did before. `/healthz`
+reports the schedule's date and the time of the last successful read, and
+[ADR 0016](../adr/0016-the-release-schedule-refreshes-itself.md) holds the
+reasoning.
+
+`COS_WEB_ADVISORY_REFRESH` does the same for the other half of what a rating
+is made of, and it matters more. The advisory database decides whether an
+instance is *reported as vulnerable*, so a database that has not heard of last
+month's advisory does not merely grade an instance generously - it tells the
+visitor a vulnerable instance is fine, and they have no way to tell that
+answer apart from a real one. The worker therefore asks the feed once a day,
+at startup as well, and the scan jobs rate against what it last accepted.
+
+The rules are the mirror image of the schedule's, because this can fail in
+both directions. A refresh **only ever adds**: the answer is merged into the
+database the deployment already has, so a feed returning an empty list changes
+nothing and a hand-written entry survives. Nothing **unbounded** is ever
+believed - an advisory that names no versions would match every release there
+has ever been, and public feeds do publish that shape - and an answer with
+absurdly many advisories in it is refused whole. Any failure leaves the
+database exactly as it was. Nothing is written to disk; the bundled JSON stays
+CI's business, refreshed by `.github/workflows/vulnerability-db.yml`. Turn it
+off for a deployment with no outbound access, which then rates against the
+bundled file exactly as the plugin does on a monitoring host. `/healthz`
+reports how many advisories it would rate against and when it last asked -
+counts and dates, never a finding - and
+[ADR 0017](../adr/0017-the-advisory-database-refreshes-itself.md) holds the
+reasoning.
 
 ## How a scan flows through it
 
@@ -332,7 +426,7 @@ policy of its own, make sure it does not loosen this one.
 ### `POST /api/scans`
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8080/api/scans \
+curl -sS -X POST http://127.0.0.1:8811/api/scans \
   -H 'Content-Type: application/json' \
   -d '{"target_url": "https://opencloud.example.com",
        "ignore_hardenings": ["cspWithoutUnsafeInline"]}'
@@ -374,7 +468,7 @@ when the uuid is unknown or expired.
 For a caller with an estate to check rather than one instance:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8080/api/scans/batch \
+curl -sS -X POST http://127.0.0.1:8811/api/scans/batch \
   -H 'Content-Type: application/json' \
   -d '{"targets": ["https://one.example.com", "https://two.example.com"]}'
 ```
@@ -414,7 +508,7 @@ self-hosting hint if it was a limit, **400** or **422** otherwise.
 A finished scan as a file: `json`, `csv`, `sarif` or `pdf`.
 
 ```bash
-curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
+curl -sS -OJ http://127.0.0.1:8811/api/scans/0f4a1f22-.../export/pdf
 ```
 
 All four carry the remediation plan - the ordered fix list with the grade each
@@ -448,7 +542,7 @@ receipt to put in the file afterwards.
 ```bash
 curl -sS -X DELETE \
   -H "Authorization: Bearer $COS_WEB_PURGE_TOKEN" \
-  "http://127.0.0.1:8080/api/purge?target=opencloud.example.com"
+  "http://127.0.0.1:8811/api/purge?target=opencloud.example.com"
 ```
 
 ```json
@@ -529,7 +623,11 @@ limits, the SSRF guard and the purge authorisation a browser meets.
 
 Six tools, one per user-level task rather than one per endpoint:
 `scan_instance`, `scan_instances`, `get_scan_result`, `plan_remediation`,
-`export_scan` and `erase_instance_data`. Three resources expose the OpenAPI, Arazzo and
+`export_scan` and `erase_instance_data`. Six prompts name the tasks people ask
+for - `audit_instance`, `audit_estate`, `explain_scan_result`,
+`triage_findings`, `review_transport_security` and `check_release_support` -
+so a client can offer "audit this instance and write a remediation plan" as
+one thing to pick. Three resources expose the OpenAPI, Arazzo and
 discovery documents under `spec://` URIs. The polling, retry and error
 semantics come from `webapp/workflows.py`, which is also what the Arazzo
 document is generated from, so the two cannot drift apart.
@@ -537,7 +635,26 @@ document is generated from, so the two cannot drift apart.
 `erase_instance_data` is marked destructive and needs the same
 `Authorization: Bearer` credential the HTTP endpoint does. The credential is
 read from the agent's request headers and never from a tool argument, so it is
-never a value the model has seen.
+never a value the model has seen. Where the endpoint itself requires a sign-in
+it moves to `X-Purge-Authorization`, because `Authorization` then carries the
+agent's identity token and reading one as the other is a confusion worth
+refusing.
+
+**The endpoint is open unless an operator says otherwise.** Set
+`COS_WEB_MCP_AUTH_ENABLED` and an issuer and it becomes an OAuth 2.0 resource
+server: a token is verified offline against the provider's published keys -
+signature, issuer, audience, expiry, scopes - and a request without one gets a
+401 whose `WWW-Authenticate` names
+`/.well-known/oauth-protected-resource/mcp`, the public RFC 9728 document
+saying which provider to ask. `/.well-known/ai.json` says the same before the
+first request, under `mcp.authentication`.
+
+This service issues nothing, stores nothing and holds no account: it checks a
+token somebody else signed. And it buys an agent nothing else - the client
+rate limit, the target cooldown, the SSRF guard and the queue are identical
+signed in. A misconfiguration that would leave the endpoint open while the
+operator believes it is protected refuses to start. [Authentik in front of
+the MCP endpoint](authentik.md) is the worked setup.
 
 Configuring a client against it - Claude Code, Claude Desktop, GitHub Copilot
 in VS Code and the CLI, Cursor, Zed, Windsurf - is in [Using the scanner from

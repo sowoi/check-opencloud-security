@@ -47,6 +47,7 @@ from fastapi.templating import Jinja2Templates
 
 from opencloud_local_scan import __version__
 
+from .advisories import advisory_state
 from .arazzo import arazzo_document
 from .audit import (
     REASON_BATCH_TOO_LARGE,
@@ -74,6 +75,14 @@ from .discovery import (
     discovery_document,
 )
 from .encryption import ensure_encryption_ready
+from .export_signing import SIGNATURE_HEADER, sign_bytes
+from .mcp_auth import (
+    PROTECTED_RESOURCE_PATH,
+    auth_required,
+    discovery_authentication,
+    ensure_mcp_auth_ready,
+    protected_resource_metadata,
+)
 from .openapi import openapi_document
 from .purge import PurgeRejected, build_receipt, normalise_target
 from .queue import ScanQueue, create_queue
@@ -87,6 +96,7 @@ from .reports import (
     pdf_report,
     sarif_report,
 )
+from .schedule import schedule_state
 from .seo import (
     OG_IMAGE_PATH,
     SITE_NAME,
@@ -349,9 +359,30 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         """
         origin = site_origin(str(request.base_url), settings.public_base_url)
         return JSONResponse(
-            discovery_document(origin, mcp_enabled=mcp_enabled),
+            discovery_document(
+                origin,
+                mcp_enabled=mcp_enabled,
+                mcp_auth=discovery_authentication(settings),
+            ),
             headers={"Cache-Control": "public, max-age=300"},
         )
+
+    if auth_required(settings):
+
+        @app.get(PROTECTED_RESOURCE_PATH, include_in_schema=False)
+        async def protected_resource() -> Response:
+            """
+            RFC 9728: which authorisation server issues tokens for /mcp.
+
+            Served here rather than only inside the mounted sub-application,
+            because a client reads it at the origin - the path is derived
+            from the resource URL, not from wherever this service happens to
+            mount its endpoint.
+            """
+            return JSONResponse(
+                protected_resource_metadata(settings),
+                headers={"Cache-Control": "public, max-age=300"},
+            )
 
     if settings.enable_docs:
         LOGGER.warning("api_docs_enabled")
@@ -377,6 +408,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # Before anything can be written: a deployment that asked for encryption
     # and cannot do it must fail here rather than store results in the clear.
     ensure_encryption_ready(settings)
+    # And before anything can be served: a deployment that asked for a
+    # sign-in on /mcp and cannot enforce one must not come up open.
+    ensure_mcp_auth_ready(settings)
     app.state.store = ScanStore(
         backend=app.state.backend,
         ttl=settings.result_ttl,
@@ -896,14 +930,19 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status_code=409,
             )
         body = _render_export(record.result, fmt, identifier)
+        raw_body = body.encode("utf-8") if isinstance(body, str) else body
+        signature = sign_bytes(raw_body, settings.export_signing_key)
+        headers = {
+            "Content-Disposition": (
+                f'attachment; filename="{export_filename(identifier, fmt)}"'
+            )
+        }
+        if signature:
+            headers[SIGNATURE_HEADER] = signature
         return Response(
-            body,
+            raw_body,
             media_type=MEDIA_TYPES[fmt],
-            headers={
-                "Content-Disposition": (
-                    f'attachment; filename="{export_filename(identifier, fmt)}"'
-                )
-            },
+            headers=headers,
         )
 
     @app.get("/api/scans/{identifier}")
@@ -951,6 +990,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "version": __version__,
                 "queueDepth": health.queue_depth,
                 "worker": "ok",
+                # Dates, never a target: enough for an operator to see that
+                # the daily lifecycle refresh is actually happening.
+                "releaseSchedule": await schedule_state(app.state.backend, settings),
+                "advisories": await advisory_state(app.state.backend, settings),
             }
         )
 
@@ -966,7 +1009,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         app.state.mcp_server = server
         app.mount(MCP_PATH, mcp_app(server, settings))
         app.add_middleware(McpPathNormaliser, path=MCP_PATH)
-        LOGGER.info("mcp_enabled path=%s", MCP_PATH)
+        LOGGER.info(
+            "mcp_enabled path=%s authenticated=%s",
+            MCP_PATH,
+            auth_required(settings),
+        )
 
     @app.exception_handler(404)
     async def _handle_404(request: Request, exc: Exception) -> Response:

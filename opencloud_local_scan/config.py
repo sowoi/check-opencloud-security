@@ -18,13 +18,13 @@ Nested keys map one to one onto environment variable names, so
     webhook:
       url: https://example.com/hook
     scanner:
-      port: 8080
+      port: 8811
 
 and its JSON equivalent
 
 .. code-block:: json
 
-    {"webhook": {"url": "https://example.com/hook"}, "scanner": {"port": 8080}}
+    {"webhook": {"url": "https://example.com/hook"}, "scanner": {"port": 8811}}
 
 are both equivalent to ``COS_WEBHOOK_URL`` and ``COS_SCANNER_PORT``.
 

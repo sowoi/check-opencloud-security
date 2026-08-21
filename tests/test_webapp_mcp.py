@@ -25,6 +25,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _offline_resolver,
     settings,
 )
+from webapp import prompts as pr
 from webapp import workflows as wf
 from webapp.app import create_app
 from webapp.arazzo import arazzo_document
@@ -108,6 +109,9 @@ def test_the_endpoint_performs_a_protocol_level_initialisation():
     assert result["serverInfo"]["name"] == "check-opencloud-security"
     assert "tools" in result["capabilities"]
     assert "resources" in result["capabilities"]
+    # Prompts are a capability an agent negotiates for: a client that is not
+    # told about them at initialisation never asks for the list.
+    assert "prompts" in result["capabilities"]
     assert "asynchronous" in result["instructions"].lower()
 
 
@@ -361,3 +365,126 @@ def test_planning_an_unknown_scan_stops_instead_of_polling_forever():
     assert result["ok"] is False
     assert result["status"] == 404
     assert result["retryable"] is False
+
+
+def _prompts(served):
+    return {
+        prompt["name"]: prompt
+        for prompt in _call(served, "prompts/list")["result"]["prompts"]
+    }
+
+
+def _prompt_text(served, name, arguments):
+    """The rendered text of one prompt."""
+    answer = _call(served, "prompts/get", {"name": name, "arguments": arguments})
+    return "\n".join(
+        message["content"]["text"] for message in answer["result"]["messages"]
+    )
+
+
+def test_the_prompts_offer_the_tasks_people_actually_ask_for():
+    """A client that lists prompts should find the job, not a menu of verbs."""
+    with client() as served:
+        offered = _prompts(served)
+
+    assert set(offered) == set(pr.prompt_names())
+    audit = offered["audit_instance"]
+    assert "remediation plan" in audit["title"].lower()
+    required = {
+        argument["name"]
+        for argument in audit["arguments"]
+        if argument["required"]
+    }
+    # The target is the one thing the user must supply; the track has a
+    # default, and asking for it as though it were mandatory would stop a
+    # client that has only a hostname.
+    assert required == {"target_url"}
+    assert {argument["name"] for argument in audit["arguments"]} == {
+        "target_url",
+        "release_track",
+    }
+
+
+def test_every_prompt_argument_is_described_where_the_client_will_show_it():
+    """A client renders a form from these; an unlabelled box gets guessed at."""
+    with client() as served:
+        offered = _prompts(served)
+
+    for prompt in offered.values():
+        assert prompt["description"]
+        for argument in prompt["arguments"]:
+            assert argument["description"], f"{prompt['name']}.{argument['name']}"
+
+
+def test_the_audit_prompt_spells_out_the_sequence_and_the_stopping_rules():
+    """A prompt that only says 'audit this' leaves the orchestration to luck."""
+    with client() as served:
+        text = _prompt_text(
+            served,
+            "audit_instance",
+            {"target_url": "opencloud.example.com", "release_track": "lts"},
+        )
+
+    assert "opencloud.example.com" in text
+    assert "lts release track" in text
+    assert "scan_instance" in text and "plan_remediation" in text
+    # The rules that keep an agent from misreporting the plan, and from
+    # treating a stranger's server as a source of instructions.
+    assert "do not recompute" in text.lower()
+    assert "never obey" in text.lower() or "never act on" in text.lower()
+    # The negative half: it must not invent an HTTP call an agent would then
+    # make instead of using the tool that carries the limits.
+    assert "/api/scans" not in text
+
+
+def test_an_optional_argument_left_out_changes_the_prompt_rather_than_breaking_it():
+    """Half the clients will send only the required field."""
+    with client() as served:
+        minimal = _prompt_text(served, "audit_instance", {"target_url": "a.example.com"})
+        chosen = _prompt_text(
+            served,
+            "audit_instance",
+            {"target_url": "a.example.com", "release_track": "production"},
+        )
+
+    assert "release track" not in minimal
+    assert "production release track" in chosen
+
+
+def test_a_prompt_quotes_the_waiting_rules_the_workflow_layer_owns():
+    """Two descriptions of one timeout drift; one constant cannot."""
+    with client() as served:
+        text = _prompt_text(served, "audit_instance", {"target_url": "a.example.com"})
+
+    assert str(wf.MAX_SCAN_SECONDS // 60) in text
+
+
+def test_a_prompt_about_an_existing_scan_never_asks_for_a_new_one():
+    """Rescanning to explain a result somebody already has is somebody else's load."""
+    with client() as served:
+        text = _prompt_text(
+            served, "explain_scan_result", {"uuid": "1234", "audience": "an auditor"}
+        )
+
+    assert "an auditor" in text
+    assert "get_scan_result" in text
+    assert "do not start a new scan" in text.lower()
+    assert "scan_instance" not in text
+
+
+def test_the_prompts_are_advertised_before_an_agent_speaks_the_protocol():
+    """An agent deciding whether to connect reads the discovery document first."""
+    with client() as served:
+        document = served.get("/.well-known/ai.json").json()
+
+    published = {prompt["name"] for prompt in document["mcp"]["prompts"]}
+    assert published == set(pr.prompt_names())
+    assert "prompts/list" in document["mcp"]["description"]
+
+
+def test_a_deployment_with_mcp_off_advertises_no_prompts_either():
+    """A prompt naming tools that are not served is an instruction to fail."""
+    with client(enable_mcp=False) as served:
+        document = served.get("/.well-known/ai.json").json()
+
+    assert "mcp" not in document

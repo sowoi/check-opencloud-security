@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh OpenCloud security reference data
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=check-opencloud-security
+StateDirectory=check-opencloud-security
+ExecStart=/usr/bin/check-opencloud-scanner refresh-data --output-dir /var/lib/check-opencloud-security
+

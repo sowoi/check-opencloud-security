@@ -74,7 +74,7 @@ body:
       render: shell
       placeholder: |
         check-opencloud-security --host opencloud.example.com:9200 --insecure --debug
-        curl -sS -X POST http://127.0.0.1:8080/api/scans -d '{"target_url": "https://opencloud.example.com"}'
+        curl -sS -X POST http://127.0.0.1:8811/api/scans -d '{"target_url": "https://opencloud.example.com"}'
     validations:
       required: true
 

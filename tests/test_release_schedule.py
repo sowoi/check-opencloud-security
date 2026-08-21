@@ -282,6 +282,101 @@ def test_successor_is_looked_up_per_track():
     assert SCHEDULE.successor(SCHEDULE.lines[(7, 2)], "production") is None
 
 
+# --- A schedule older than the instance it is judging ---
+#
+# The bundled file is a snapshot of a page that keeps moving, so an instance
+# patched last week is routinely newer than the data it is compared against.
+# The only correct response is to say so and stand back: the schedule is what
+# is out of date, and an operator who patched promptly must not be marked
+# down for it.
+
+
+def test_a_patch_newer_than_the_record_marks_the_schedule_stale():
+    """
+    The everyday case: 7.2.4 ships, this copy of the schedule still says the
+    7.2 line ends at 7.2.3. Saying nothing would leave an operator reading a
+    support window worked out from data that predates their own instance.
+    """
+    verdict = status("7.2.4")
+
+    assert verdict.schedule_stale is True
+    assert "probably out of date" in (verdict.schedule_note or "")
+    assert versions.LIFECYCLE_DOCUMENTATION_URL in (verdict.schedule_note or "")
+    # The negative half, and the point of the whole thing: nothing about the
+    # verdict got worse for it.
+    assert verdict.state == "supported"
+    assert verdict.eol is False
+    assert verdict.upgrade_to is None
+    assert verdict.latest_on_line is None
+
+
+def test_a_release_line_newer_than_the_whole_schedule_says_so_too():
+    """A new line is the same staleness one step larger, and it must not be
+    read as a version nobody supports."""
+    verdict = status("8.0.0")
+
+    assert verdict.schedule_stale is True
+    assert verdict.state == "supported"
+    assert verdict.eol is False
+
+
+def test_a_version_the_schedule_knows_exactly_is_not_called_stale():
+    """
+    The assertion that keeps the note honest.
+
+    If every scan carried it, it would say nothing. It appears only when the
+    instance is genuinely ahead of the file - not for the newest release on
+    record, and not for an old one that simply never got updated.
+    """
+    assert status("7.4.0").schedule_stale is False
+    assert status("7.4.0").schedule_note is None
+    assert status("2.0.5").schedule_stale is False
+    assert status("7.2.0").schedule_stale is False
+    assert versions.ReleaseSchedule().status_for("7.2.4", TODAY).schedule_stale is False
+
+
+def test_being_newer_than_the_schedule_never_costs_anything_on_any_track():
+    """
+    Whatever track an operator declared, a version ahead of the recorded one
+    is supported, gets no upgrade arrow and is never end of life. A stale file
+    turning a promptly patched instance into an F would be the worst failure
+    this module has.
+    """
+    for track in ("rolling", "production", "lts", "auto", None):
+        verdict = SCHEDULE.status_for("7.4.9", TODAY, track=track)
+
+        assert verdict.schedule_stale is True, track
+        assert verdict.eol is not True, track
+        assert verdict.upgrade_to is None, track
+
+
+def test_a_stale_schedule_does_not_rescue_a_line_that_really_expired():
+    """
+    The other side of the same coin, and the invariant it must not break.
+
+    Support is granted per line, so patching inside a line whose window has
+    closed does not reopen it. 2.0.6 would be newer than the record and still
+    unsupported - the note explains the data, it does not overturn the
+    verdict.
+    """
+    verdict = status("2.0.6")
+
+    assert verdict.schedule_stale is True
+    assert verdict.state == "endOfLife"
+
+
+def test_the_schedule_says_where_it_came_from_and_when():
+    """The note points at a page rather than at nothing, and the shipped file
+    carries both, so a reader can check the verdict at its source."""
+    bundled = versions.load_release_schedule()
+
+    assert bundled.source == versions.LIFECYCLE_DOCUMENTATION_URL
+    assert bundled.updated
+    document = bundled.status_for("7.4.0").as_dict()
+    assert document["scheduleSource"] == versions.LIFECYCLE_DOCUMENTATION_URL
+    assert document["scheduleUpdated"] == bundled.updated
+
+
 def test_lifecycle_status_is_serialisable():
     """The scanner puts this straight into its JSON result document."""
     document = status("7.2.3").as_dict()
@@ -297,6 +392,10 @@ def test_lifecycle_status_is_serialisable():
         "upgradeTo",
         "reason",
         "declaredTrack",
+        "scheduleStale",
+        "scheduleUpdated",
+        "scheduleSource",
+        "scheduleNote",
     }
     assert document["line"] == "7.2"
     assert document["releaseType"] == "production"

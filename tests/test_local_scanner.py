@@ -304,6 +304,46 @@ def test_a_release_newer_than_the_schedule_keeps_a_declared_track():
     assert result["lifecycle"]["declaredTrack"] == "lts"
 
 
+def test_a_release_newer_than_the_schedule_says_the_schedule_is_stale():
+    """
+    The bundled schedule is a snapshot; OpenCloud keeps publishing patches
+    after it was generated, so an instance patched promptly is routinely
+    newer than the file it is compared against. The result document says so
+    and points at the published lifecycle page, because a support window
+    worked out from stale data is worth re-reading at its source.
+    """
+    result = scan_version("99.0.0")
+
+    lifecycle = result["lifecycle"]
+    assert lifecycle["scheduleStale"] is True
+    assert "out of date" in lifecycle["scheduleNote"]
+    assert lifecycle["scheduleSource"].startswith("https://docs.opencloud.eu/")
+    assert lifecycle["scheduleUpdated"]
+
+
+def test_being_newer_than_the_schedule_costs_the_instance_nothing():
+    """
+    The note is a remark about this project's own data, never a finding.
+
+    An instance ahead of the bundled schedule must rate exactly as one the
+    schedule knows about: same grade, no end-of-life verdict, no upgrade
+    being recommended backwards. Anything else would punish an operator for
+    patching faster than this package is released.
+    """
+    ahead = scan_version("99.0.0")
+    known = scan_version("7.2.3")
+
+    assert ahead["lifecycle"]["scheduleStale"] is True
+    assert ahead["EOL"] is False
+    assert ahead["rating"] >= known["rating"]
+    assert ahead["lifecycle"]["upgradeTo"] is None
+    assert ahead["latestVersionInBranch"] is not False
+    # The negative half: a version the schedule does know about carries no
+    # note at all, so the note means something when it does appear.
+    assert known["lifecycle"]["scheduleStale"] is False
+    assert known["lifecycle"]["scheduleNote"] is None
+
+
 def test_extra_checks_can_be_switched_off():
     """--no-extra-checks reduces the scan to product, version and headers."""
     settings = ScannerSettings(scheme="http", timeout=3, extra_checks=False)

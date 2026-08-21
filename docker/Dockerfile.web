@@ -65,10 +65,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     COS_WEB_REDIS_URL=redis://redis:6379/0
 
-EXPOSE 8080
+EXPOSE 8811
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+    CMD ["python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8811/healthz')"]
 
 # Overridden by the worker service in docker/docker-compose.yml, which runs
 # `python -m webapp.tasks` instead.
@@ -80,5 +80,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # operator sets COS_WEB_TRUST_FORWARDED_FOR=true, which is the switch that
 # should decide it. `--no-access-log` keeps the scan uuid - which is the
 # capability token for the result - and the client address out of the log.
-CMD ["uvicorn", "webapp.app:app", "--host", "0.0.0.0", "--port", "8080", \
+CMD ["uvicorn", "webapp.app:app", "--host", "0.0.0.0", "--port", "8811", \
      "--no-server-header", "--no-access-log"]

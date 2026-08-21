@@ -103,6 +103,18 @@
           {{ summary.releaseType or "unknown" }}
           {% if summary.eol %}<span class="tag tag-critical">End of life</span>{% endif %}
         </dd>
+        {% if summary.lifecycle.scheduleStale %}
+        <dt>Release schedule</dt>
+        <dd>
+          {{ summary.version }} is newer than this copy of the OpenCloud
+          release schedule{% if summary.lifecycle.scheduleUpdated %},
+          generated {{ summary.lifecycle.scheduleUpdated }}{% endif %}, so the
+          schedule is probably out of date. It is not counted against the
+          instance -
+          <a href="{{ summary.lifecycle.scheduleSource }}" rel="noopener noreferrer">check
+          the published lifecycle page</a>.
+        </dd>
+        {% endif %}
         <dt>Sign-in</dt>
         <dd>
           {% if summary.identityProvider.detected %}
@@ -132,6 +144,13 @@
         {% if summary.updates.available_version %}
         <dt>Newest release</dt><dd>{{ summary.updates.available_version }}</dd>
         {% endif %}
+        {% for fact in summary.tlsOverview %}
+        <dt>{{ fact.label }}</dt>
+        <dd>
+          <span class="tls-fact" data-tone="{{ fact.tone }}">{{ fact.value }}</span>
+          {% if fact.detail %}<span class="hint-inline">{{ fact.detail }}</span>{% endif %}
+        </dd>
+        {% endfor %}
         <dt>Score</dt><dd>{{ summary.rating }} out of 5</dd>
       </dl>
 

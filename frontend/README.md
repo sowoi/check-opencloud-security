@@ -204,7 +204,7 @@ Point `COS_WEB_FRONTEND_DIR` at a copy:
 
 ```bash
 cp -r frontend /srv/my-frontend
-COS_WEB_FRONTEND_DIR=/srv/my-frontend uvicorn webapp.app:app --port 8080
+COS_WEB_FRONTEND_DIR=/srv/my-frontend uvicorn webapp.app:app --port 8811
 ```
 
 In Docker, mount it over the copy in the image and set the variable on the

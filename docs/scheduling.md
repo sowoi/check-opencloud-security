@@ -6,6 +6,13 @@ systemd timers or cron. Ready-to-adapt example files live in
 - [`contrib/systemd/check-opencloud-security.service`](../contrib/systemd/check-opencloud-security.service)
   and [`.timer`](../contrib/systemd/check-opencloud-security.timer)
 - [`contrib/systemd/check-opencloud-security.env.example`](../contrib/systemd/check-opencloud-security.env.example)
+
+The separate
+[`check-opencloud-security-refresh.timer`](../contrib/systemd/check-opencloud-security-refresh.timer)
+keeps the scanner's release schedule and advisory database current. Configure
+the scanner to read the two files under `/var/lib/check-opencloud-security`
+before enabling it; the refresh command validates both documents and writes
+them atomically.
 - [`contrib/cron/check-opencloud-security.cron`](../contrib/cron/check-opencloud-security.cron)
 
 ## systemd timer

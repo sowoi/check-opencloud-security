@@ -153,12 +153,22 @@ host installing the plugin must not receive FastAPI, Redis or ARQ.
 **Every container file lives in `docker/`, and every build context is the
 repository root.** `docker/Dockerfile` is the plugin, `docker/Dockerfile.web`
 is the web image, `docker/docker-compose.yml` is the ready-to-run stack
-(`web_app`, `arq_worker`, `redis`) and `docker/docker-compose.monitoring.yml`
-is the plugin's unrelated scan service. Build with
+(`web_app`, `arq_worker`, `redis`), `docker/docker-compose.authentik.yml` the
+same stack plus Authentik for a sign-in on `/mcp`, and
+`docker/docker-compose.monitoring.yml` is the plugin's unrelated scan service. Build with
 `docker build -f docker/Dockerfile.web .` from the root; run compose from
 inside `docker/`, where the paths point one level up. `.dockerignore` stays in
 the root - the daemon reads it from the context, not from next to the
 Dockerfile.
+
+**`docker/setup-wizard.py` generates a deployment, it does not configure the
+plugin.** It is standalone and stdlib-only, asks question by question with an
+explanation and an example, and writes a commented compose file plus a `.env`
+holding every credential the compose file refers to as `${NAME}` - a secret
+never lands in the compose file, and `.env` is created `0600`. It refuses to
+overwrite the compose files that ship in `docker/`. Keep it independent of
+`opencloud_local_scan.wizard`, which sets up a monitoring check;
+`tests/test_docker_wizard.py` asserts both the split and the independence.
 
 **A request chooses what to scan, never how hard.** `target_url`,
 `ignore_hardenings`, `release_track`, `output_format` - and nothing else,
@@ -170,6 +180,38 @@ are `COS_WEB_*` environment variables with no request-side equivalent.
 **Overload queues, it does not fail.** Submissions past the worker count are
 accepted, get a uuid and wait in FIFO order with the position on screen. A
 valid submission never gets a 503.
+
+**The release schedule refreshes itself, and may only gain knowledge.** The
+schedule CI commits is frozen the moment an image is built, so the worker
+re-reads the published lifecycle page once a day (`webapp/schedule.py`,
+`COS_WEB_SCHEDULE_REFRESH`, on by default) and keeps it in Redis, where each
+scan picks it up. There is one parser -
+`opencloud_local_scan/schedule_source.py`, which `scripts/` also uses - and a
+candidate document is accepted only when it still knows every line the bundled
+file knows, because losing a line turns an end-of-life instance into an
+unknown one. A failed, redesigned or truncated page changes nothing, a newer
+bundled file wins after a redeployment, and nothing is ever written back to
+`README.md` or the bundled JSON: those stay CI's. The plugin does not do this
+- a check running every few minutes must not become a documentation fetch.
+See [ADR 0016](../adr/0016-the-release-schedule-refreshes-itself.md).
+
+**The advisory database refreshes itself, and may only gain advisories.**
+Same reason, higher stakes: a database that has not heard of last month's
+advisory does not grade an instance generously, it tells a visitor a
+vulnerable instance is fine. The worker asks the advisory feed once a day
+(`webapp/advisories.py`, `COS_WEB_ADVISORY_REFRESH`, on by default) and the
+scan jobs rate against the answer. One reader again -
+`opencloud_local_scan/advisory_source.py`, which `scripts/` and CI also use -
+and the acceptance rules are the mirror image, because this can fail by
+*gaining* an advisory as well as by losing one: a refresh only ever adds, so a
+feed answering with an empty list changes nothing; **nothing unbounded is ever
+believed**, because an advisory naming no versions matches every release there
+has ever been and public feeds do publish that shape; an absurd number of
+advisories is refused whole; and any failure leaves the database as it was.
+One advisory can affect several release lines patched separately, so every
+range is kept and the fix reported is the one for the line the instance is
+actually on. Nothing is written to disk. See
+[ADR 0017](../adr/0017-the-advisory-database-refreshes-itself.md).
 
 **A uuid is a capability.** Own `scan:{uuid}:status|result|metadata`
 namespace, TTL on every key, no listing endpoint ever, and unknown, invalid
@@ -241,6 +283,28 @@ outputs, duration, retryability, when to stop - and a destructive tool says so.
 Never hold, log or return a credential; validate a uuid as a uuid before it
 reaches a request path. A scanned host's version, product name and error text
 stay collapsed, stripped, truncated and inside the `untrusted` block.
+
+**Prompts are tasks a person asks for**, and their wording lives once in
+`webapp/prompts.py`, composed from the notes and constants in
+`webapp/workflows.py`. A prompt names tools rather than endpoints - the tools
+carry the limits - and it decides nothing: it quotes the workflow layer's
+numbers, the scanner's ordering and the plugin's grades. The catalogue is
+published in the `mcp.prompts` block of `/.well-known/ai.json`. A new one
+needs a row in `docs/mcp.md`, `webapp/README.md` and `docs/webapp.md` and a
+test in `tests/test_webapp_mcp.py`. See
+[ADR 0014](../adr/0014-prompts-are-tasks-and-their-text-lives-beside-the-workflows.md).
+
+**`/mcp` is open unless an operator says otherwise.** `webapp/mcp_auth.py`
+makes it an OAuth 2.0 *resource server* when `COS_WEB_MCP_AUTH_ENABLED` and an
+issuer are set: a bearer token verified offline against the provider's
+published JWKS, asymmetric algorithms only, RFC 9728 metadata at
+`/.well-known/oauth-protected-resource/mcp` and a `401` naming it. Issue,
+store or accept nothing of your own, and never let a sign-in change a limit -
+**authentication decides who may ask, never how hard**. A deployment that
+cannot enforce the sign-in it asked for refuses to start; one that asked with
+`/mcp` switched off does not. With a sign-in on, the purge credential moves to
+`X-Purge-Authorization` with no fallback. `docs/authentik.md` and
+[ADR 0015](../adr/0015-the-mcp-endpoint-may-require-a-sign-in.md).
 
 **The four documents are public and unauthenticated.** `COS_WEB_ENABLE_DOCS`
 governs only `/docs` and `/redoc`; `COS_WEB_ENABLE_MCP` turns the endpoint off

@@ -200,10 +200,11 @@ published on several tracks, and is judged by whichever supports it longest:
   production window closed when `7.2` arrived, but its LTS backports run until
   two years after `4.0.0`.
 
-`scripts/update_release_schedule.py` scrapes the release dates from the
+`schedule_source.py` reads the release dates off the
 [OpenCloud admin documentation][lifecycle] - the only source that states the
 release *type*; the GitHub release list cannot tell a rolling release from a
-production one - and writes `data/release_schedule.json`:
+production one. `scripts/update_release_schedule.py` runs it in CI and writes
+the result to `data/release_schedule.json`, which is the file that ships:
 
 [lifecycle]: https://docs.opencloud.eu/docs/admin/resources/lifecycle/
 
@@ -230,6 +231,23 @@ Two cases are deliberately *not* end of life:
   ages between updates and a fresh release must not trip the alarm;
 - the newest line of a track, which has nothing to upgrade to.
 
+A version ahead of the file is also *said out loud*. When the reported release
+is newer than the newest one recorded for its line - or sits on a line newer
+than every line on record - the verdict carries `scheduleStale: true` together
+with `scheduleUpdated`, `scheduleSource` and a `scheduleNote` naming the
+[lifecycle page][lifecycle]. It is a remark about this package's data and
+never a finding: the rating, the upgrade recommendation and the end-of-life
+verdict are all exactly what they would be without it. `ReleaseSchedule.is_behind()`
+is the same question asked directly.
+
+The plugin keeps the schedule that shipped with it: a monitoring host runs the
+check every few minutes and must not turn that into a documentation fetch, so
+the file is refreshed by upgrading. The web application is the other case - a
+process that stays up for months - and re-reads the same page once a day
+through `schedule_source.fetch_schedule_document()`, handing the result to
+`ScannerSettings.release_schedule`. Either way the scanner is *given* a
+schedule and decides nothing new about where it came from.
+
 ```yaml
 scanner:
   use_release_schedule: true       # false skips the EOL check entirely
@@ -237,8 +255,9 @@ scanner:
 ```
 
 The full verdict appears as `lifecycle` in the result document - line, track,
-release date, end of support, days remaining, and the release to upgrade to -
-so a stale or overridden schedule is visible rather than silent.
+release date, end of support, days remaining, the release to upgrade to, and
+how old the schedule that decided all of it is - so a stale or overridden
+schedule is visible rather than silent.
 
 ## Update check
 
@@ -271,15 +290,39 @@ internal mirror needs no special format. Drafts and prereleases are skipped.
 
 ## Vulnerabilities
 
-`data/vulnerabilities.json` **ships empty on purpose** - and in OpenCloud's
-case unusually literally so: at the time of writing no CVE or GHSA has been
-published for the product at all. The single entry in the file is disabled and
-exists only to document the format.
+### Refreshing reference data on a monitoring host
 
-`vulnerabilities: []` from a scan therefore means *"nothing in the database you
-configured matched"*, not *"this instance has no known vulnerabilities"*. The
-rating you get is driven almost entirely by the configuration checks. Point it
-at a real source before relying on that part:
+The package includes a separate `refresh-data` command for installations that
+cannot wait for a package upgrade:
+
+```console
+$ check-opencloud-scanner refresh-data \
+    --output-dir /var/lib/check-opencloud-security
+/var/lib/check-opencloud-security/release_schedule.json
+/var/lib/check-opencloud-security/vulnerabilities.json
+```
+
+It fetches both sources, rejects a lifecycle document that loses a bundled
+release line, refuses unbounded advisories, and replaces each file atomically.
+It never writes into the installed package. Point
+`scanner.release_schedule` and `scanner.vulnerability_db` at the two generated
+files, then run the supplied
+[`check-opencloud-security-refresh.timer`](../contrib/systemd/check-opencloud-security-refresh.timer)
+daily. A network failure leaves the previous files untouched.
+
+`data/vulnerabilities.json` carries the advisories published against
+OpenCloud, and is regenerated daily by
+`.github/workflows/vulnerability-db.yml`, which runs
+`scripts/update_vulnerability_db.py` against the OSV query API and opens a
+pull request when the answer has changed. The refresh **only ever adds**: an
+advisory the feed has forgotten stays in the file, and a hand-written entry
+survives. Removing one is a deliberate edit.
+
+It is still only as complete as the feeds it is built from.
+`vulnerabilities: []` from a scan means *"nothing in the database you
+configured matched"*, not *"this instance has no known vulnerabilities"*, and
+a large part of the rating comes from the configuration checks either way.
+Add your own source if you have one:
 
 ```yaml
 scanner:
@@ -294,6 +337,34 @@ feed to a file without conversion. Entries match on the half-open version range
 `[introduced, fixed)` and are de-duplicated by id across sources. The sources
 that were actually loaded appear as `advisorySources` in the result document,
 so a misconfigured path is visible rather than silent.
+
+One advisory can affect several release lines that were patched separately.
+`GHSA-vf5j-r2hw-2hrw` was fixed in both `4.0.3` and `5.0.2`, and that is one
+advisory with two disjoint ranges rather than two advisories, so an entry may
+carry a `ranges` list:
+
+```json
+{
+  "id": "GHSA-vf5j-r2hw-2hrw",
+  "severity": "high",
+  "ranges": [
+    {"introduced": "4.0.0", "fixed": "4.0.3"},
+    {"introduced": "5.0.0", "fixed": "5.0.2"}
+  ]
+}
+```
+
+A match reports the fix belonging to the line the scanned instance is on, so a
+`5.0.1` instance is told to upgrade to `5.0.2` rather than to a release that
+fixes nothing for it. `introduced` and `fixed` stay beside it as the first
+range, which is what a single-range advisory has always been.
+
+**An advisory with no version bounds at all is dropped**, wherever it comes
+from. A range that is open at both ends matches every release there has ever
+been, and public feeds do publish that shape - the Go vulnerability database
+records this very advisory as `introduced: "0"` with no fix. Believing one
+would report every OpenCloud instance in the world as vulnerable, so the
+parser refuses it rather than trusting the feed to be sensible.
 
 ## Hardenings
 

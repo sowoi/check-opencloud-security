@@ -44,7 +44,7 @@ RUN uv pip install --system --no-cache /tmp/*.whl \
 USER nagios
 
 # Port of the optional scan service (`check-opencloud-scanner serve`).
-EXPOSE 8080
+EXPOSE 8811
 
 # The image is normally a one-shot check, so this verifies the image itself
 # rather than any instance: the package imports, and the two data files it
@@ -67,7 +67,7 @@ ENTRYPOINT ["check-opencloud-security"]
 # remote backend to point it at. The same image also ships the scanner as a
 # standalone service for scheduled scans and for reusing one cached result
 # across several monitoring consumers:
-#   docker run --rm -p 8080:8080 \
+#   docker run --rm -p 8811:8811 \
 #     --entrypoint check-opencloud-scanner check-opencloud-security serve
 # and a one-shot scan that prints the result document as JSON:
 #   docker run --rm \

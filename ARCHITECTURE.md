@@ -120,6 +120,8 @@ the letters come from the plugin's `RATE_MAP`.
 | `openapi.py` | The OpenAPI 3.1 document, written rather than inferred |
 | `arazzo.py` | Those workflows described as Arazzo 1.0.1 |
 | `mcp_server.py` | The MCP endpoint: the same workflows, executed for an agent |
+| `prompts.py` | The prompts an agent is offered: the tasks people ask for, written once |
+| `mcp_auth.py` | The optional sign-in on `/mcp`: a token verified, never issued |
 | `discovery.py` | `/.well-known/ai.json`, which names all of the above |
 | `seo.py` | Canonical URLs, `robots.txt` and the generated sitemap |
 | `purge.py` | Erasure on request, and the receipt that proves it happened |
@@ -240,6 +242,35 @@ in `workflows.py`. Three resources - `spec://check-opencloud-security/...` for
 the OpenAPI, Arazzo and discovery documents - let an agent read the contracts
 it is working against. A specification is a document an agent reads, not a
 call it makes, so it gets a resource URI rather than a link.
+
+Six **prompts** name the tasks a person asks for - `audit_instance`,
+`audit_estate`, `explain_scan_result`, `triage_findings`,
+`review_transport_security` and `check_release_support` - so a client offers
+the job rather than a menu of verbs. Their wording lives once in
+`prompts.py`, composed from the notes and constants in `workflows.py`, and a
+prompt names tools rather than endpoints because the tools are what carry the
+limits. See
+[ADR 0014](adr/0014-prompts-are-tasks-and-their-text-lives-beside-the-workflows.md).
+
+The endpoint is **open unless an operator says otherwise**, which is what the
+public deployment wants and what the default is. An estate running it for
+itself sets `COS_WEB_MCP_AUTH_ENABLED` and an issuer, and `mcp_auth.py` makes
+it an OAuth 2.0 resource server: a bearer token verified offline against the
+provider's published keys - signature, issuer, audience, expiry, scopes,
+asymmetric algorithms only - with a `401` naming the RFC 9728 metadata
+document, which names the provider. This service issues nothing, stores
+nothing and holds no account; `docker/docker-compose.authentik.yml` is a
+complete alternative stack for operators who want a provider to hand, and
+nothing in the code knows its name.
+
+Two properties hold that layer in place. **Authentication decides who may
+ask, never how hard**: every rate limit, cooldown and guard is identical for
+an authenticated agent, because a sign-in that raised a limit would have
+become the way around it. And a deployment that **asked for a sign-in it
+cannot enforce refuses to start**, exactly as one asked to encrypt without a
+key does - an operator who believes the endpoint is protected while it is
+served open is the worst outcome available. See
+[ADR 0015](adr/0015-the-mcp-endpoint-may-require-a-sign-in.md).
 
 ### Discovery
 

@@ -20,6 +20,7 @@ places this check tends to end up.
 | [Kubernetes](kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on a field of the result document |
 | [Using the scanner from an AI agent](mcp.md) | The MCP endpoint at `/mcp`: worked configuration for Claude Code, Claude Desktop, GitHub Copilot in VS Code and the CLI, Cursor, Zed and Windsurf, against [scan.okxo.de](https://scan.okxo.de) or your own deployment - and how to turn it off |
+| [A sign-in on the MCP endpoint](authentik.md) | One compose file with Authentik in it, the provider a blueprint creates for you, the `COS_WEB_MCP_AUTH_*` settings, adding the people and service accounts allowed to use it, how each of them gets a token, and the backup Authentik does not do for you |
 | [Reverse proxies](reverse-proxy.md) | Worked nginx, Apache, Caddy, Traefik and HAProxy configuration - the headers this check grades in front of OpenCloud, and what the scan service needs from a proxy |
 | [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits. Running at [scan.okxo.de](https://scan.okxo.de) |
 

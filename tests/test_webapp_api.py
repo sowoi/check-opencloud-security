@@ -14,6 +14,8 @@ import re
 import pytest
 
 from opencloud_local_scan import ScannerSettings, __version__
+from opencloud_local_scan.versions import load_release_schedule
+from opencloud_local_scan.vulndb import load_database
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
@@ -501,6 +503,39 @@ def test_the_health_endpoint_says_nothing_about_any_scan():
     assert payload["queueDepth"] == 1
     assert identifier not in str(payload)
     assert "target" not in payload
+
+
+def test_the_health_endpoint_reports_the_age_of_the_release_schedule():
+    """An operator has no other way to see whether the daily refresh runs."""
+    test_client = client()
+    asyncio.run(backend().set(WORKER_HEARTBEAT_KEY, "1", ex=30))
+
+    schedule = test_client.get("/healthz").json()["releaseSchedule"]
+
+    assert schedule["updated"] == load_release_schedule().updated
+    # Nothing has refreshed yet, and the probe says so rather than guessing.
+    assert schedule["checked"] is None
+    assert schedule["refresh"] is True
+
+
+def test_the_health_endpoint_reports_the_state_of_the_advisory_database():
+    """
+    The same question about the other half of what a rating is made of.
+
+    Counts and dates only: a probe nobody has to authenticate for must not
+    say which findings this deployment would report.
+    """
+    test_client = client()
+    asyncio.run(backend().set(WORKER_HEARTBEAT_KEY, "1", ex=30))
+
+    advisories = test_client.get("/healthz").json()["advisories"]
+
+    assert advisories["advisories"] == len(load_database().advisories)
+    assert advisories["checked"] is None
+    assert advisories["refresh"] is True
+    assert not any(
+        isinstance(value, (list, dict)) for value in advisories.values()
+    ), "an advisory title or range must never reach an unauthenticated probe"
 
 
 def test_the_health_endpoint_rejects_an_unavailable_redis_backend(monkeypatch):

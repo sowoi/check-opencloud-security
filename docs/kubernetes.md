@@ -126,9 +126,9 @@ spec:
         - name: scanner
           image: registry.example.com/check-opencloud-security:1.1.0
           command: ["check-opencloud-scanner"]
-          args: ["serve", "--port=8080", "--cache-ttl=900"]
+          args: ["serve", "--port=8811", "--cache-ttl=900"]
           ports:
-            - containerPort: 8080
+            - containerPort: 8811
           env:
             # Without a token every endpoint is open to anyone who can reach
             # the pod, and the scanner will scan any host they name.
@@ -136,10 +136,10 @@ spec:
               valueFrom:
                 secretKeyRef: {name: opencloud-security, key: service-token}
           livenessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8811}
             periodSeconds: 30
           readinessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /healthz, port: 8811}
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
@@ -155,8 +155,8 @@ metadata:
 spec:
   selector: {app: opencloud-scanner}
   ports:
-    - port: 8080
-      targetPort: 8080
+    - port: 8811
+      targetPort: 8811
 ```
 
 `/healthz` needs no token, which is what makes it usable as a probe. Every
@@ -165,7 +165,7 @@ other endpoint does:
 ```shell
 kubectl run curl --rm -it --image=curlimages/curl --restart=Never -- \
   curl -sS -H "Authorization: $TOKEN" \
-  'http://opencloud-scanner.monitoring:8080/api/scan?url=opencloud.example.com'
+  'http://opencloud-scanner.monitoring:8811/api/scan?url=opencloud.example.com'
 ```
 
 Give the pod a `NetworkPolicy` that lets it reach only the instances you

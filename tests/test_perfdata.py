@@ -333,6 +333,44 @@ def test_a_pending_patch_on_the_line_is_reported(capsys):
     assert "upgrade to 7.2.4" in capsys.readouterr().out
 
 
+def test_a_schedule_older_than_the_instance_is_reported_and_not_charged_for(capsys):
+    """
+    The bundled schedule ages between releases of this package, so an
+    instance patched last week can be newer than the file judging it. The
+    operator is told, and pointed at the page the schedule came from - but
+    the check still exits OK, because being ahead of our data is not a
+    finding about their server.
+    """
+    code = run(
+        lifecycle_result(
+            scheduleStale=True,
+            scheduleUpdated="2026-08-12",
+            scheduleSource="https://docs.opencloud.eu/docs/admin/resources/lifecycle/",
+            scheduleNote=(
+                "7.2.4 is newer than anything in the bundled release schedule "
+                "(generated 2026-08-12), so that schedule is probably out of "
+                "date. This is not counted against the instance. Check the "
+                "current support window at "
+                "https://docs.opencloud.eu/docs/admin/resources/lifecycle/."
+            ),
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert "Release schedule:" in output
+    assert "probably out of date" in output
+    assert "https://docs.opencloud.eu/docs/admin/resources/lifecycle/" in output
+    assert code == 0
+
+
+def test_a_schedule_that_knows_the_release_says_nothing_about_itself(capsys):
+    """A note on every run would be noise, and noise is how a real one gets
+    missed - it appears only when the schedule is actually behind."""
+    run(lifecycle_result())
+
+    assert "Release schedule:" not in capsys.readouterr().out
+
+
 def test_an_end_of_life_line_is_named_in_the_critical_message(capsys):
     """'This server version' is not actionable; the track and target are."""
     code = run(

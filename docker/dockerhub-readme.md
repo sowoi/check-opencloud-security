@@ -86,7 +86,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    ports: ["127.0.0.1:8080:8080"]
+    ports: ["127.0.0.1:8811:8811"]
     environment:
       COS_WEB_REDIS_URL: redis://redis:6379/0
       COS_WEB_RESULT_TTL: "3600"
@@ -129,7 +129,7 @@ docker run -d --name opencloud-scanner-worker \
 
 docker run -d --name opencloud-scanner-web \
   --network opencloud-scanner \
-  -p 127.0.0.1:8080:8080 \
+  -p 127.0.0.1:8811:8811 \
   --read-only --tmpfs /tmp:size=16m \
   --security-opt no-new-privileges:true --cap-drop ALL \
   -e COS_WEB_REDIS_URL=redis://opencloud-scanner-redis:6379/0 \
@@ -139,7 +139,7 @@ docker run -d --name opencloud-scanner-web \
   okxo/opencloud-scanner:latest
 ```
 
-Open <http://127.0.0.1:8080>. To stop and remove this stack:
+Open <http://127.0.0.1:8811>. To stop and remove this stack:
 
 ```bash
 docker rm -f opencloud-scanner-web opencloud-scanner-worker opencloud-scanner-redis

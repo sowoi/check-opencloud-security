@@ -1,0 +1,57 @@
+name: Supply-chain checks
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  dependencies:
+    name: Audit dependencies and build an SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+
+      - name: Export the locked dependency set
+        run: >
+          uv export --locked --all-groups --all-extras
+          --no-emit-project --no-hashes --format requirements-txt
+          > requirements.txt
+
+      - name: Audit Python dependencies
+        run: uvx pip-audit -r requirements.txt
+
+      - name: Install the locked environment
+        run: uv sync --locked --all-groups --all-extras
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          mkdir -p sbom
+          uvx --from cyclonedx-bom cyclonedx-py environment .venv \
+            --of JSON --pyproject pyproject.toml --mc-type application \
+            -o sbom/check-opencloud-security.cdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: check-opencloud-security-sbom
+          path: sbom/check-opencloud-security.cdx.json
+          if-no-files-found: error
+
+      - name: Attest SBOM
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: sbom/check-opencloud-security.cdx.json

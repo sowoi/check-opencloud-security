@@ -43,12 +43,17 @@ FILES: tuple[str, ...] = (
     "pyproject.toml",
     "docker/Dockerfile.web",
     "docker/docker-compose.yml",
+    "docker/docker-compose.authentik.yml",
+    "docker/authentik-env.sh",
+    "docker/setup-wizard.py",
+    "authentik/blueprints/opencloud-scanner.yaml",
     "docker/README.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
     "SECURITY.md",
     "docs/webapp.md",
+    "docs/authentik.md",
 )
 
 # Never, under any circumstances, in an archive people download.
@@ -115,7 +120,17 @@ calls in `opencloud_local_scan/`.
 ## Run it
 
     cd docker && docker compose up --build
-    # then open http://127.0.0.1:8080
+    # then open http://127.0.0.1:8811
+
+## Set it up for your own deployment
+
+    cd docker && ./setup-wizard.py
+
+Asks what this deployment should be reachable at, how hard it may scan, what
+it may reach and who may erase a result, explaining each setting and showing
+an example, then writes a commented compose file and a `.env` holding the
+credentials that file refers to. `--preset private` starts from what an estate
+scanning its own instances wants.
 
 ## Run it without Docker
 
@@ -123,7 +138,7 @@ calls in `opencloud_local_scan/`.
     redis-server &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \\
-        uvicorn webapp.app:app --host 127.0.0.1 --port 8080
+        uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 
 ## For AI agents
 
@@ -155,6 +170,22 @@ respective owners and are used only to identify the software this tool checks.
 """
 
 
+def _normalise(entry: tarfile.TarInfo) -> tarfile.TarInfo:
+    """Give every member the same owner and a mode that does not depend on
+    whoever ran the build.
+
+    Two things go wrong otherwise. The builder's account name ends up in a
+    file the public downloads, and the builder's `umask` decides whether the
+    Authentik blueprint is readable by the uid inside that container - a
+    0750 checkout produces a tarball whose provider never provisions.
+    """
+    entry.uid = entry.gid = 0
+    entry.uname = entry.gname = "root"
+    executable = entry.isdir() or entry.mode & 0o100
+    entry.mode = 0o755 if executable else 0o644
+    return entry
+
+
 def build(output_dir: Path, name: str) -> Path:
     """Assemble the tarball and return where it landed."""
     version = _version()
@@ -170,7 +201,7 @@ def build(output_dir: Path, name: str) -> Path:
         _stage(staging)
         (staging / "QUICKSTART.md").write_text(_quickstart(version), encoding="utf-8")
         with tarfile.open(archive, "w:gz") as tar:
-            tar.add(staging, arcname=staging.name)
+            tar.add(staging, arcname=staging.name, filter=_normalise)
     finally:
         shutil.rmtree(staging_root, ignore_errors=True)
 

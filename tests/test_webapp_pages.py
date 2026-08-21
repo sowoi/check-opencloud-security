@@ -174,3 +174,73 @@ def test_an_unknown_page_is_still_a_404():
     assert test_client.get("/privacy-policy").status_code == 404
     assert test_client.get("/how-it-works/extra").status_code == 404
     assert test_client.get("/privacy").status_code == 200
+
+
+# --- The result page, when our own data is older than the instance ---
+
+
+def _finished_page(version: str) -> str:
+    """Scan a fake instance claiming ``version`` and return its result page."""
+    import asyncio
+
+    from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
+    from tests.webapp_support import MEMORY_URL, settings
+    from webapp.redis_backend import memory_backend
+    from webapp.store import ScanStore
+    from webapp.tasks import run_scan
+
+    identifier = "9d4b1f2e-3c4d-4a5b-8c9d-0e1f2a3b4c5d"
+    configured = settings(allow_private_targets=True, verify_tls=False, scan_timeout=5)
+    store = ScanStore(backend=memory_backend(MEMORY_URL), ttl=configured.result_ttl)
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = version
+    with FakeOpenCloud(behaviour) as instance:
+        asyncio.run(
+            store.create(
+                identifier,
+                target=f"http://{instance.host}",
+                ignore_hardenings=(),
+                output_format="dashboard",
+            )
+        )
+        asyncio.run(run_scan({"web_settings": configured, "store": store}, identifier))
+    served = client(
+        allow_private_targets=True, verify_tls=False, redis_url=MEMORY_URL
+    )
+    page = served.get(f"/scan/{identifier}")
+    assert page.status_code == 200
+    return page.text
+
+
+def test_a_result_page_says_when_our_schedule_is_older_than_the_instance():
+    """
+    The bundled release schedule is a snapshot of a page that keeps moving,
+    so a visitor who patched yesterday can be newer than the file we judged
+    them with. Telling them - and linking the page the schedule came from -
+    is the difference between an answer they can check and one they have to
+    take on trust.
+    """
+    page = _finished_page("99.0.0")
+
+    assert "Release schedule" in page
+    assert "probably out of date" in page
+    assert "docs.opencloud.eu/docs/admin/resources/lifecycle/" in page
+    # The negative half, and the whole promise of it: being ahead of our data
+    # is not a finding, so the page must not have marked them down for it.
+    assert "End of life" not in page
+
+
+def test_a_result_page_stays_quiet_when_the_schedule_knows_the_release():
+    """A notice on every result would be furniture, and furniture is what
+    people stop reading - it appears only when it is actually true."""
+    from opencloud_local_scan.versions import load_release_schedule
+
+    # Taken from the schedule that ships beside this test rather than typed
+    # out, so regenerating the schedule cannot quietly make this pass for the
+    # wrong reason.
+    current = load_release_schedule().latest_for()
+    assert current, "the bundled schedule should name a newest release"
+
+    page = _finished_page(current)
+
+    assert "Release schedule" not in page

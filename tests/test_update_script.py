@@ -96,7 +96,7 @@ def line_of(schedule_document, name):
 )
 def test_parse_version(cell, expected):
     """Announced-but-unnamed and out-of-range rows are rejected."""
-    assert script._parse_version(cell) == expected
+    assert script.parse_version(cell) == expected
 
 
 @pytest.mark.parametrize(
@@ -111,7 +111,7 @@ def test_parse_version(cell, expected):
 )
 def test_parse_date(cell, expected):
     """The page writes dates as 'YEAR MONTH DAY', occasionally zero padded."""
-    assert script._parse_date(cell) == expected
+    assert script.parse_release_date(cell) == expected
 
 
 def test_releases_are_grouped_into_lines(schedule):

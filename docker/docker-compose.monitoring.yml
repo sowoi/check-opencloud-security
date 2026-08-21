@@ -31,11 +31,11 @@ services:
     command: ["serve"]
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8811:8811"
     environment:
       # Bind address and port of the scan service.
       COS_SERVICE_LISTEN: "0.0.0.0"
-      COS_SERVICE_PORT: "8080"
+      COS_SERVICE_PORT: "8811"
       COS_SERVICE_CACHE_TTL: "900"
       # Optional shared secret; clients send it as 'Authorization: Bearer ...'.
       COS_SERVICE_TOKEN: "secret://scanner_token"
@@ -56,7 +56,7 @@ services:
       - releases_token
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8811/healthz')"]
       interval: 30s
       timeout: 5s
       retries: 3

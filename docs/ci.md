@@ -18,6 +18,15 @@ Whatever the platform, three things decide whether it works:
 
 ## GitHub Actions
 
+The repository's `Supply-chain checks` workflow runs on pull requests, pushes
+to `main` and weekly. It exports the fully resolved `uv.lock` dependency set,
+runs `pip-audit` over core, web and MCP dependencies, and publishes a
+CycloneDX SBOM as a workflow artifact. Pushes and scheduled runs also receive
+a GitHub Sigstore attestation, so the SBOM can be verified with
+`gh attestation verify`. The release workflow repeats this for the exact
+runtime environment shipped with each package and attests the package files
+and web bundle.
+
 ```yaml
 name: OpenCloud security check
 

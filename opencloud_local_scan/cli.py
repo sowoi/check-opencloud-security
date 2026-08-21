@@ -21,10 +21,12 @@ import json
 import logging
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from .completion import enable as enable_completion
 from .config import ConfigurationError, load_configuration
 from .factory import release_settings_from_config, scanner_settings_from_config
+from .refresh_data import RefreshError, refresh_data
 from .scanner import ScanError, scan
 from .service import (
     DEFAULT_CACHE_TTL_SECONDS,
@@ -142,6 +144,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Do not offer a test scan of the host before saving.",
     )
+    refresh_parser = sub.add_parser(
+        "refresh-data",
+        help="Fetch validated release and advisory data for a monitoring host.",
+    )
+    refresh_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("~/.cache/check-opencloud-security").expanduser(),
+        help="Directory for the two JSON cache files.",
+    )
+    refresh_parser.add_argument("--schedule-url", help="Lifecycle page or mirror URL.")
+    refresh_parser.add_argument("--advisory-url", help="OSV query endpoint or mirror URL.")
+    refresh_parser.add_argument("--timeout", type=int, default=30)
 
     enable_completion(parser)
     return parser
@@ -187,6 +202,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             force=args.force,
             verify=args.verify,
         )
+    if args.command == "refresh-data":
+        try:
+            paths = refresh_data(
+                args.output_dir,
+                schedule_url=args.schedule_url,
+                advisory_url=args.advisory_url,
+                timeout=args.timeout,
+            )
+        except RefreshError as exc:
+            LOGGER.error("%s", exc)
+            return 1
+        for path in paths:
+            print(path)
+        return 0
 
     try:
         config = load_configuration(args.config)

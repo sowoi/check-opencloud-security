@@ -627,6 +627,18 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .score-facts dt { color: var(--ink-faint); font-size: .88rem; }
 .score-facts dd { margin: 0; font-weight: 600; font-size: .95rem; }
 
+/* A transport fact beside the grade. The colour is the scanner's own verdict
+   on that check; the dot carries it for anybody who cannot see the hue. */
+.tls-fact::before {
+    content: ""; display: inline-block; width: .5rem; height: .5rem;
+    border-radius: 50%; margin-right: .4rem; vertical-align: .05rem;
+    background: var(--ink-faint);
+}
+.tls-fact[data-tone="good"]::before { background: var(--good); }
+.tls-fact[data-tone="bad"]::before { background: var(--bad); }
+.tls-fact[data-tone="bad"] { color: var(--bad-ink); }
+.hint-inline { color: var(--ink-faint); font-weight: 400; font-size: .85rem; }
+
 .counters { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
 .counter {
     border-radius: var(--radius); border: 1px solid var(--line);
