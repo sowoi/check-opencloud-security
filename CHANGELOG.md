@@ -12,6 +12,10 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Grid heigtht fixed. **
+
 ## [1.9.1] - 2026-08-21
 
 ### Changed
@@ -34,6 +38,7 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   hand-off entirely), and the artwork was redrawn to match: the hero is a
   technical instrument drawing with the same hand-drawn, two-scheme
   discipline as before.
+
 
 ## [1.9.0] - 2026-08-21
 
