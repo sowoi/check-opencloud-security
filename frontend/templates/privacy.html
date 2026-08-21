@@ -5,13 +5,15 @@
 
 {% block content %}
 <section class="page-head">
+  <p class="kicker">Privacy</p>
   <h1>What this server keeps</h1>
   <p class="lede">
     Short answer: the scan, for {{ result_ttl_minutes }} minutes, in memory.
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="privacy">
+<section class="card section-gap" aria-labelledby="privacy" data-reveal>
+  <p class="kicker">Retention</p>
   <h2 id="privacy">While a scan is alive</h2>
   <p>
     The address you submit, the checks you chose to waive and the result live

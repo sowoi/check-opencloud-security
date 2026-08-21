@@ -6,6 +6,11 @@
  * Rendering the dashboard here as well would mean two implementations of the
  * same report, and the one nobody tests would be the one people read.
  *
+ * The reload is a hand-off, not a hard cut: the steps settle into done, the
+ * page gets a beat to say the report is ready, falls away, and only then is
+ * the new document asked for. A reader who asked for reduced motion gets the
+ * old immediate reload, because the beat is the animation.
+ *
  * Everything it touches is addressed by the scan's own identifier, which came
  * from the URL the visitor is already on. It asks for no other scan, and
  * there is no endpoint that would let it.
@@ -110,6 +115,37 @@
 
     var delay = POLL_MS;
 
+    /*
+     * A terminal state is announced, held for a beat so the settled steps
+     * register, and only then traded for the rendered page. The exit mark is
+     * what app.css turns into the fall-away; without motion to show, the
+     * whole sequence collapses back to the plain reload.
+     */
+    var reducedMotion = window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function finish(state) {
+        if (reducedMotion) {
+            window.location.reload();
+            return;
+        }
+        if (title) {
+            title.textContent = state === "completed"
+                ? "Report ready" : "Scan finished";
+        }
+        if (detail) {
+            detail.textContent = state === "completed"
+                ? "The grade is in. Opening the report."
+                : "The scan could not be completed. Opening what came back.";
+        }
+        window.setTimeout(function () {
+            document.documentElement.setAttribute("data-exit", "true");
+            window.setTimeout(function () {
+                window.location.reload();
+            }, 300);
+        }, 1100);
+    }
+
     function poll() {
         fetch("/api/scans/" + encodeURIComponent(uuid), {
             headers: { "Accept": "application/json" },
@@ -134,7 +170,7 @@
             describeQueue(payload);
             countdown(payload.expiresIn);
             if (terminal(payload.state)) {
-                window.location.reload();
+                finish(payload.state);
                 return;
             }
             window.setTimeout(poll, delay);

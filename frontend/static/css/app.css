@@ -5,21 +5,27 @@
  * page needs is in this file and the small scripts next to it, which is what
  * makes `default-src 'self'` an honest header rather than an aspiration.
  *
- * Type comes from the reader's own system stack: it is already on the
- * machine, it renders in their preferred language, and it costs no request.
+ * The design is a field report. A scan here is a document somebody acts on,
+ * so the page is built like one: serif display type set like a title page,
+ * monospace dossier labels, hairline rules, and the reticle of the instrument
+ * that did the measuring. The warmth is deliberate - paper, not plastic.
  *
- * The two schemes are one instrument panel read at two distances. Light is a
- * control room in daylight: cool white surfaces, a deep indigo signal colour
- * and a quiet aurora wash behind everything. Dark is the same room on the
- * night shift: a navy sky, the same signal turned luminous, and starlight
- * where the daylight had its glow. Everything is a token here and in the
- * `prefers-color-scheme: dark` block below, so a rule further down never
- * names a colour and the whole page turns over by swapping this list.
+ * Two schemes, one instrument. Light is a desk in daylight: warm bone paper,
+ * ink that is nearly black, a deep ultramarine signal. Dark is the same desk
+ * on the night shift: blue-black paper, the ink turned warm white, the signal
+ * gone luminous, and a sky of hand-placed stars. Everything is a token here
+ * and in the `prefers-color-scheme: dark` block below, so a rule further down
+ * never names a colour and the whole page turns over by swapping this list.
  *
- * The motion is meant to be felt rather than seen: a rise when things
- * arrive, a drift in the headline's gradient, a breathing step marker. All
- * of it dies with `prefers-reduced-motion`, which the reset below enforces
- * on every animation and transition in this file at once.
+ * Type comes from the reader's own system stack - ui-serif for display, the
+ * system sans for text, the system mono for labels - because it is already on
+ * the machine, it renders in the reader's preferred language, and it costs
+ * no request.
+ *
+ * Motion is meant to be felt rather than seen: a short rise when things
+ * arrive, a sweep when the dial finds its rating, a breathing marker on the
+ * step that is running. All of it dies with `prefers-reduced-motion`, which
+ * the reset below enforces on every animation and transition in this file.
  */
 
 /* ------------------------------------------------------------------ tokens */
@@ -29,53 +35,55 @@
     /*
      * Three tones per status, and the split is what keeps the page bright
      * without becoming unreadable: `--x` is the graphic tone, used for the
-     * dial, borders and rules where nothing has to be read at 13px; `--x-soft`
+     * dial, markers and rules where nothing has to be read at 13px; `--x-soft`
      * is the tint behind it; `--x-ink` is the one that carries text on that
      * tint. Every `--x-ink` on its `--x-soft` clears WCAG AA (4.5:1).
      */
 
-    --ink: #0f172a;
-    --ink-soft: #475569;
-    --ink-faint: #64748b;
-    --paper: #f3f5fa;
-    --card: #ffffff;
-    --line: #e2e8f0;
+    --ink: #1a1c22;
+    --ink-soft: #494e5b;
+    --ink-faint: #717684;
+    --paper: #f3f1e9;
+    --card: #fbfaf4;
+    --line: rgba(26, 28, 34, .14);
+    --line-strong: rgba(26, 28, 34, .32);
 
-    --brand: #4f46e5;
-    --brand-deep: #4338ca;
-    --brand-soft: #e8eafe;
-    --accent: #0d9488;
-    --accent-ink: #0f766e;
-    --on-brand: #ffffff;
+    --brand: #3539c4;
+    --brand-deep: #2a2da0;
+    --brand-soft: #e4e5f6;
+    --accent: #0c7c6e;
+    --accent-ink: #0a6b5f;
+    --on-brand: #fbfaf4;
 
-    --good: #059669;
-    --good-soft: #ddf7ec;
-    --good-ink: #047857;
-    --fair: #d97706;
-    --fair-soft: #fdf0d5;
-    --fair-ink: #92400e;
-    --bad: #dc2626;
-    --bad-soft: #fde8e8;
-    --bad-ink: #b91c1c;
-    --info: #0284c7;
-    --info-soft: #e2f2fd;
-    --info-ink: #075985;
+    --good: #0a7a4d;
+    --good-soft: #def0e3;
+    --good-ink: #075e3c;
+    --fair: #b45309;
+    --fair-soft: #f4e6cf;
+    --fair-ink: #7c3f06;
+    --bad: #c22424;
+    --bad-soft: #f5ddd8;
+    --bad-ink: #8f1d1d;
+    --info: #1d6fa8;
+    --info-soft: #dde9f2;
+    --info-ink: #155a87;
 
-    --brand-glow: rgba(79, 70, 229, .28);
-    --brand-glow-strong: rgba(79, 70, 229, .40);
+    --brand-glow: rgba(53, 57, 196, .22);
+    --brand-glow-strong: rgba(53, 57, 196, .36);
 
     /*
-     * The backdrop behind everything, and the layer of stars in front of it.
-     * Both are properties rather than rules so the two schemes swap the whole
-     * scene by redefining a token, and neither needs a second selector.
-     * Light: a quiet aurora of indigo and teal at the top corners, fading
-     * long before the content starts. Dark: the same washes turned up, plus
-     * the star layer the light scheme keeps switched off.
+     * The backdrop behind everything: a quiet aurora in the top corners,
+     * fading long before the content starts, plus a grain of monochrome
+     * noise baked into an SVG tile so the paper has a texture and not a
+     * flat fill. Dark adds the star field the light scheme keeps off.
      */
     --sky:
-        radial-gradient(58rem 30rem at 10% -12%, rgba(79, 70, 229, .10), transparent 62%),
-        radial-gradient(50rem 28rem at 92% -8%, rgba(13, 148, 136, .10), transparent 60%),
-        radial-gradient(72rem 44rem at 50% 115%, rgba(79, 70, 229, .06), transparent 62%);
+        radial-gradient(58rem 30rem at 8% -14%, rgba(53, 57, 196, .09), transparent 62%),
+        radial-gradient(50rem 28rem at 94% -8%, rgba(12, 124, 110, .08), transparent 60%),
+        radial-gradient(72rem 44rem at 50% 118%, rgba(53, 57, 196, .05), transparent 62%);
+    --grain:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+    --gridline: rgba(26, 28, 34, .055);
     --stars: none;
     --star-opacity: 0;
 
@@ -83,8 +91,8 @@
      * The sticky header is translucent and blurs whatever scrolls under it,
      * so it needs colours of its own rather than the opaque surface tokens.
      */
-    --header-bg: rgba(255, 255, 255, .78);
-    --header-line: rgba(226, 232, 240, .9);
+    --header-bg: rgba(243, 241, 233, .82);
+    --header-line: rgba(26, 28, 34, .12);
 
     /*
      * A field sits *inside* a card, so copying the card's own colour made it
@@ -92,69 +100,72 @@
      * into one slab. Fields get an inset tint of their own and a border a
      * step stronger than the card's hairline.
      */
-    --field-bg: #f8fafc;
-    --field-border: #cbd5e1;
+    --field-bg: #f0eee5;
+    --field-border: rgba(26, 28, 34, .3);
 
     /* Code blocks are a terminal: dark in both schemes, always. Inline code
        only borrows a tint of the surrounding surface. */
-    --code-bg: #0f172a;
-    --code-ink: #e2e8f0;
-    --tint: #edf0f8;
+    --code-bg: #14161d;
+    --code-ink: #e4e6ee;
+    --tint: #e9e7dc;
 
-    --radius-sm: 10px;
-    --radius: 14px;
-    --radius-lg: 20px;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
 
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .04);
-    --shadow: 0 12px 32px rgba(15, 23, 42, .08), 0 2px 8px rgba(15, 23, 42, .04);
-    --shadow-lg: 0 28px 64px rgba(15, 23, 42, .14);
+    --shadow-sm: 0 1px 2px rgba(26, 28, 34, .05);
+    --shadow: 0 1px 2px rgba(26, 28, 34, .05), 0 10px 28px rgba(26, 28, 34, .07);
+    --shadow-lg: 0 2px 4px rgba(26, 28, 34, .06), 0 24px 56px rgba(26, 28, 34, .12);
 
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
         "Noto Sans", Arial, sans-serif;
+    --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype",
+        Palatino, Georgia, "Times New Roman", serif;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
         "Liberation Mono", monospace;
 
-    --measure: 68ch;
-    --page: 1120px;
+    --measure: 66ch;
+    --page: 1140px;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ink: #e6ebf5;
-        --ink-soft: #9aa7bf;
-        --ink-faint: #8593ae;
-        --paper: #0a101f;
-        --card: #101a2f;
-        --line: rgba(148, 163, 184, .16);
+        --ink: #e8e6dc;
+        --ink-soft: #a3a8b6;
+        --ink-faint: #7d8290;
+        --paper: #0b0d14;
+        --card: #12151f;
+        --line: rgba(232, 230, 220, .13);
+        --line-strong: rgba(232, 230, 220, .3);
 
         --brand: #a5b4fc;
         --brand-deep: #c7d2fe;
-        --brand-soft: #1c2450;
+        --brand-soft: #1d2242;
         /* The night-shift signal: mint where daylight had teal. */
         --accent: #5eead4;
         --accent-ink: #7ef0dd;
         /*
-         * The button keeps a dark label in dark mode: its gradient is the
-         * light brand tone here, so white on it would be the one unreadable
-         * thing on the page.
+         * Filled brand surfaces carry dark ink in dark mode: the signal
+         * tones are luminous here, so white on them would be the one
+         * unreadable thing on the page.
          */
-        --on-brand: #0d1230;
+        --on-brand: #101322;
 
         --good: #34d399;
-        --good-soft: #0a2a20;
+        --good-soft: #0d281e;
         --good-ink: #6ee7b7;
         --fair: #fbbf24;
-        --fair-soft: #2b2110;
+        --fair-soft: #2a200e;
         --fair-ink: #fcd34d;
         --bad: #fb7185;
-        --bad-soft: #31121b;
+        --bad-soft: #2e1218;
         --bad-ink: #fda4af;
         --info: #38bdf8;
-        --info-soft: #0c2a44;
+        --info-soft: #0e2434;
         --info-ink: #7dd3fc;
 
-        --brand-glow: rgba(99, 102, 241, .30);
-        --brand-glow-strong: rgba(99, 102, 241, .45);
+        --brand-glow: rgba(99, 102, 241, .28);
+        --brand-glow-strong: rgba(99, 102, 241, .44);
 
         /*
          * Night: the aurora stays, joined by one tile of hand-placed stars,
@@ -162,9 +173,10 @@
          * cost nothing.
          */
         --sky:
-            radial-gradient(54rem 30rem at 86% -12%, rgba(99, 102, 241, .16), transparent 64%),
-            radial-gradient(46rem 26rem at 8% -6%, rgba(45, 212, 191, .09), transparent 60%),
-            radial-gradient(80rem 48rem at 50% 122%, rgba(99, 102, 241, .08), transparent 66%);
+            radial-gradient(54rem 30rem at 88% -12%, rgba(99, 102, 241, .15), transparent 64%),
+            radial-gradient(46rem 26rem at 6% -6%, rgba(45, 212, 191, .08), transparent 60%),
+            radial-gradient(80rem 48rem at 50% 124%, rgba(99, 102, 241, .07), transparent 66%);
+        --gridline: rgba(232, 230, 220, .04);
         --stars:
             radial-gradient(1.6px 1.6px at 12% 18%, #ffffff, transparent 60%),
             radial-gradient(1.2px 1.2px at 47% 8%, #dfe6ff, transparent 60%),
@@ -176,21 +188,21 @@
             radial-gradient(1.2px 1.2px at 36% 41%, #ffffff, transparent 60%);
         --star-opacity: .5;
 
-        --header-bg: rgba(10, 16, 31, .75);
-        --header-line: rgba(148, 163, 184, .14);
+        --header-bg: rgba(11, 13, 20, .78);
+        --header-line: rgba(232, 230, 220, .1);
 
         /* Darker than the card around them, and with a border that actually
            shows against it - the unreadable dark-mode field was both. */
-        --field-bg: #0a1226;
-        --field-border: rgba(148, 163, 184, .38);
+        --field-bg: #0c0f18;
+        --field-border: rgba(232, 230, 220, .32);
 
-        --code-bg: #0a1226;
-        --code-ink: #dbe4f5;
-        --tint: rgba(148, 163, 184, .16);
+        --code-bg: #0c0e16;
+        --code-ink: #dde2ef;
+        --tint: rgba(232, 230, 220, .12);
 
         --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-        --shadow: 0 12px 32px rgba(0, 0, 0, .45);
-        --shadow-lg: 0 28px 64px rgba(0, 0, 0, .55);
+        --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px rgba(0, 0, 0, .42);
+        --shadow-lg: 0 2px 4px rgba(0, 0, 0, .45), 0 24px 56px rgba(0, 0, 0, .52);
     }
 }
 
@@ -215,9 +227,9 @@ body {
     line-height: 1.65;
     color: var(--ink);
     background: var(--paper);
-    background-image: var(--sky);
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-image: var(--sky), var(--grain);
+    background-repeat: no-repeat, repeat;
+    background-attachment: fixed, fixed;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -230,12 +242,31 @@ body {
 img, svg { max-width: 100%; }
 
 /*
- * The stars. One fixed tile behind the whole document, drawn only when the
- * scheme asks for it: in light mode `--stars` is `none` and the element
- * paints nothing at all. It is decorative, so it is inert to the pointer and
- * invisible to a screen reader by having no content to read.
+ * The graph paper. One fixed layer of faint engineering grid behind the
+ * document, masked so it dissolves before the fold ends - an instrument
+ * panel's backdrop, not a wallpaper. It is decorative, so it is inert to the
+ * pointer and invisible to a screen reader by having no content to read.
  */
 body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background-image:
+        linear-gradient(to right, var(--gridline) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--gridline) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82vh);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 82vh);
+}
+
+/*
+ * The stars. One fixed tile behind the whole document, drawn only when the
+ * scheme asks for it: in light mode `--stars` is `none` and the element
+ * paints nothing at all.
+ */
+body::after {
     content: "";
     position: fixed;
     inset: 0;
@@ -253,16 +284,20 @@ body::before {
     opacity: var(--star-opacity);
 }
 
+/* -------------------------------------------------------------- typography */
 h1, h2, h3, h4 {
-    line-height: 1.15; margin: 0 0 .5em;
-    font-weight: 720; letter-spacing: -.025em;
+    font-family: var(--font-display);
+    font-weight: 560;
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0 0 .5em;
     text-wrap: balance;
 }
-h1 { font-size: clamp(2.15rem, 1.5rem + 2.8vw, 3.35rem); }
-h2 { font-size: clamp(1.35rem, 1.1rem + 1.1vw, 1.85rem); }
-h3 { font-size: 1.12rem; }
+h1 { font-size: clamp(2.3rem, 1.6rem + 3vw, 3.6rem); line-height: 1.04; letter-spacing: -.02em; }
+h2 { font-size: clamp(1.4rem, 1.15rem + 1.1vw, 1.8rem); }
+h3 { font-size: 1.08rem; }
 p { margin: 0 0 1em; }
-a { color: var(--brand-deep); text-underline-offset: 3px; }
+a { color: var(--brand-deep); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:hover { color: var(--brand); }
 
 code, kbd, samp { font-family: var(--mono); font-size: .92em; }
@@ -270,9 +305,9 @@ code, kbd, samp { font-family: var(--mono); font-size: .92em; }
    terminal and undoes this below. */
 code {
     background: var(--tint);
-    border-radius: 6px;
+    border-radius: 4px;
     padding: .08em .38em;
-    font-size: .88em;
+    font-size: .86em;
 }
 pre code { background: transparent; padding: 0; border-radius: 0; font-size: inherit; }
 
@@ -281,9 +316,9 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 ::placeholder { color: var(--ink-faint); opacity: 1; }
 
 :focus-visible {
-    outline: 3px solid var(--brand);
-    outline-offset: 2px;
-    border-radius: 4px;
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
 }
 
 .visually-hidden {
@@ -304,21 +339,72 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 /* Anchored headings land below the sticky header, not underneath it. */
 [id] { scroll-margin-top: 5.5rem; }
 
+/*
+ * The dossier voice. A kicker is the small monospace line that names a
+ * section before the serif headline speaks - the leading rule is the
+ * signature of the whole design, and it is drawn, not typed.
+ */
+.kicker {
+    display: flex; align-items: center; gap: .7rem;
+    margin: 0 0 .85rem;
+    font-family: var(--mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+}
+.kicker::before {
+    content: "";
+    width: 1.75rem; height: 1px;
+    background: var(--brand);
+}
+
+/* The serif's italic carries the one phrase of a headline that matters. */
+.swash { font-style: italic; color: var(--brand); }
+
 /* -------------------------------------------------------------- the motion */
 /*
- * One arrival, used everywhere: a short rise from a few pixels down. Cards
- * get it as a group, the hero's copy gets it line by line, and the mobile
- * menu reuses it for its links. `backwards` fill so the element is visible
- * before the delay, and no fill after, so a hover transform is never
- * fighting a finished animation for the same property.
+ * One arrival, used everywhere: a short rise from a few pixels down. The
+ * hero's copy gets it line by line and the mobile menu reuses it for its
+ * links. `backwards` fill so the element is visible before the delay, and no
+ * fill after, so a hover transform is never fighting a finished animation
+ * for the same property.
  */
 @keyframes rise {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: none; }
 }
-@keyframes card-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
+
+/*
+ * Below the fold the arrival is reveal.js's job: it marks the document, and
+ * only then do [data-reveal] blocks start hidden - a browser that never runs
+ * the script simply shows everything, which is the same contract nav.js
+ * keeps with the header.
+ */
+[data-reveal-root="on"] [data-reveal] {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .55s ease, transform .55s cubic-bezier(.22, 1, .36, 1);
+}
+[data-reveal-root="on"] [data-reveal][data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+}
+[data-reveal-root="on"] [data-reveal="2"] { transition-delay: .07s; }
+[data-reveal-root="on"] [data-reveal="3"] { transition-delay: .14s; }
+[data-reveal-root="on"] [data-reveal="4"] { transition-delay: .21s; }
+
+/*
+ * The hand-off from waiting to reading. scan.js marks the document a beat
+ * before it reloads, and the page leaves the way its blocks arrive - a
+ * short fall instead of a hard cut. Reduced-motion readers never get the
+ * attribute, so for them the reload stays as immediate as it always was.
+ */
+[data-exit="true"] main {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .28s ease, transform .28s ease;
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -333,10 +419,10 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
     position: sticky;
     top: 0;
     z-index: 30;
-    padding: .85rem 0;
+    padding: .8rem 0;
     background: var(--header-bg);
-    -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
     border-bottom: 1px solid var(--header-line);
 }
 .site-header .shell {
@@ -344,21 +430,32 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 }
 .brand {
     display: inline-flex; align-items: center; gap: .65rem;
-    font-weight: 700; letter-spacing: -.02em; text-decoration: none; color: var(--ink);
+    font-family: var(--font-display);
+    font-weight: 600; font-size: 1.08rem; letter-spacing: -.01em;
+    text-decoration: none; color: var(--ink);
 }
-.brand img { width: 34px; height: 34px; }
+.brand img { width: 32px; height: 32px; }
 
-.site-nav { display: flex; gap: .15rem; align-items: center; font-size: .93rem; }
+.site-nav { display: flex; gap: .1rem; align-items: center; font-size: .92rem; }
 .site-nav a {
+    position: relative;
     color: var(--ink-soft); text-decoration: none;
-    padding: .4rem .8rem; border-radius: 999px;
-    transition: color .15s ease, background .15s ease;
+    padding: .45rem .55rem;
+    transition: color .15s ease;
 }
-.site-nav a:hover { color: var(--brand-deep); background: var(--brand-soft); }
-.site-nav a[aria-current="page"] {
-    color: var(--brand-deep); font-weight: 650;
-    background: var(--brand-soft);
+.site-nav a::after {
+    content: "";
+    position: absolute; left: .55rem; right: .55rem; bottom: .15rem;
+    height: 2px;
+    background: var(--brand);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .18s ease;
 }
+.site-nav a:hover { color: var(--ink); }
+.site-nav a:hover::after { transform: scaleX(1); }
+.site-nav a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.site-nav a[aria-current="page"]::after { transform: scaleX(1); }
 
 /*
  * The menu button. Hidden until nav.js marks the document as enhanced, and
@@ -395,27 +492,38 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 .nav-toggle[aria-expanded="true"] .icon-open { opacity: 0; transform: rotate(90deg) scale(.7); }
 .nav-toggle[aria-expanded="true"] .icon-close { opacity: 1; transform: none; }
 
-main { flex: 1 0 auto; padding-bottom: 4rem; }
+main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 
+/* ------------------------------------------------------------------ footer */
 .site-footer {
     border-top: 1px solid var(--line);
-    padding: 1.6rem 0 2.4rem;
+    padding: 2.2rem 0 2.6rem;
     color: var(--ink-faint);
     font-size: .88rem;
 }
-.site-footer .shell { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; justify-content: space-between; }
+.footer-grid {
+    display: grid; gap: 1.4rem 2.5rem;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+    align-items: start;
+}
+.footer-grid p { margin: 0; }
+.footer-note strong { color: var(--ink-soft); font-weight: 600; }
+.footer-nav { display: grid; gap: .35rem; align-content: start; }
+.footer-nav a { color: var(--ink-faint); text-decoration: none; width: fit-content; }
+.footer-nav a:hover { color: var(--brand-deep); text-decoration: underline; }
+
 /* Which build answered you. Small, but the first thing worth knowing when a
    result looks wrong. */
-.site-footer .build { margin-left: auto; }
 .version-badge {
     display: inline-flex;
     align-items: center;
-    gap: .4rem;
-    padding: .25rem .6rem;
+    gap: .45rem;
+    padding: .35rem .7rem;
     border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: .8rem;
-    font-variant-numeric: tabular-nums;
+    border-radius: var(--radius-sm);
+    font-family: var(--mono);
+    font-size: .76rem;
+    letter-spacing: .04em;
     color: var(--ink-soft);
     text-decoration: none;
     transition: border-color .15s ease, color .15s ease, transform .15s ease;
@@ -430,12 +538,9 @@ main { flex: 1 0 auto; padding-bottom: 4rem; }
 }
 
 /* The trademark notice: present on every page, never competing for attention. */
-/* Full width, like everything else in the footer. A measure of its own made
-   it read as a narrow column pinned to the left of a wide rule. */
 .site-footer .legal {
-    flex: 1 0 100%;
-    margin-top: .4rem;
-    padding-top: .8rem;
+    margin: 1.6rem 0 0;
+    padding-top: 1rem;
     border-top: 1px solid var(--line);
     font-size: .8rem;
     line-height: 1.55;
@@ -449,11 +554,28 @@ main { flex: 1 0 auto; padding-bottom: 4rem; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow);
     padding: 1.75rem;
-    animation: card-in .5s ease backwards;
 }
 .card + .card { margin-top: 1.25rem; }
 .card h2 { margin-bottom: .35rem; }
 .card > .lede { color: var(--ink-soft); margin-bottom: 1.2rem; }
+
+/*
+ * Registration marks. Two diagonal corner brackets, drawn outside the card
+ * they frame - the reticle of the instrument, and the one ornament the
+ * design repeats. They sit on the form that starts a scan and on the dial
+ * that ends one.
+ */
+.brackets { position: relative; }
+.brackets::before,
+.brackets::after {
+    content: "";
+    position: absolute;
+    width: 16px; height: 16px;
+    border: 0 solid var(--brand);
+    pointer-events: none;
+}
+.brackets::before { top: -7px; left: -7px; border-top-width: 2px; border-left-width: 2px; }
+.brackets::after { bottom: -7px; right: -7px; border-bottom-width: 2px; border-right-width: 2px; }
 
 .grid { display: grid; gap: 1.25rem; }
 @media (min-width: 800px) {
@@ -463,13 +585,13 @@ main { flex: 1 0 auto; padding-bottom: 4rem; }
 
 /* -------------------------------------------------------------------- hero */
 /*
- * The pitch on the left, the instrument on the right. Below the breakpoint
+ * The pitch on the left, the requisition on the right. Below the breakpoint
  * the grid collapses to one column and the form simply follows the copy.
  */
-.hero { padding: 2.75rem 0 1rem; }
-.hero-grid { display: grid; gap: 2.25rem; align-items: center; }
-@media (min-width: 980px) {
-    .hero-grid { grid-template-columns: 1.02fr .98fr; gap: 3rem; }
+.hero { padding: 3.25rem 0 1rem; }
+.hero-grid { display: grid; gap: 2.5rem; align-items: start; }
+@media (min-width: 1000px) {
+    .hero-grid { grid-template-columns: 1.04fr .96fr; gap: 3.25rem; }
 }
 
 /* The copy arrives line by line; the artwork follows last and then stays
@@ -477,48 +599,65 @@ main { flex: 1 0 auto; padding-bottom: 4rem; }
 .hero-copy > * { animation: rise .55s ease backwards; }
 .hero-copy > *:nth-child(2) { animation-delay: .07s; }
 .hero-copy > *:nth-child(3) { animation-delay: .14s; }
+.hero-copy > *:nth-child(4) { animation-delay: .21s; }
 
 .hero .lede {
     font-size: 1.13rem; color: var(--ink-soft);
     max-width: var(--measure);
 }
-.hero .eyebrow {
-    display: inline-flex; align-items: center; gap: .5rem;
-    background: var(--brand-soft); color: var(--brand-deep);
-    border-radius: 999px; padding: .35rem .9rem;
-    font-size: .82rem; font-weight: 650; letter-spacing: .01em;
-    margin-bottom: 1.1rem;
-}
-.hero .eyebrow svg { width: 16px; height: 16px; }
 
-/* One phrase of the headline carries the signal gradient, and it breathes:
-   a slow drift along the gradient, barely there, so the page never feels
-   frozen. */
-.grad {
-    background: linear-gradient(100deg, var(--brand) 20%, var(--accent) 50%, var(--brand) 80%);
-    background-size: 220% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: grad-drift 9s ease-in-out infinite alternate;
+.hero .eyebrow {
+    display: inline-flex; align-items: center; gap: .55rem;
+    border: 1px solid var(--line);
+    border-radius: 999px; padding: .38rem .9rem;
+    font-family: var(--mono);
+    font-size: .72rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 1.35rem;
 }
-@keyframes grad-drift {
-    from { background-position: 0% center; }
-    to { background-position: 100% center; }
+/* The live dot: the service is up, and it says so once a second. */
+.hero .eyebrow::before {
+    content: "";
+    width: .5rem; height: .5rem; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--brand-glow);
+    animation: pulse 2.4s ease-in-out infinite;
 }
+
+.hero h1 { margin-bottom: .9rem; }
 
 .hero-art {
-    display: block; width: min(100%, 440px); margin-top: 1.75rem;
-    animation: rise .55s ease .21s backwards;
+    display: block; width: min(100%, 460px); margin-top: 1.9rem;
+    animation: rise .55s ease .28s backwards;
 }
 
 /* -------------------------------------------------------------------- form */
 .scan-form { margin: 0; }
 
-.field-row { display: flex; gap: .85rem; flex-wrap: wrap; }
+/*
+ * The form is a requisition: a numbered slip with a head that says what it
+ * is, a dashed tear line, and fields underneath. The right-hand label is
+ * deliberately bureaucratic - it is the one joke the page allows itself.
+ */
+.ticket-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    margin: 0 0 1.3rem;
+    padding-bottom: .9rem;
+    border-bottom: 1px dashed var(--line-strong);
+}
+.ticket-head .kicker { margin: 0; }
+.ticket-no {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .14em;
+    color: var(--ink-faint);
+    white-space: nowrap;
+}
+
+.field-row { display: flex; gap: .95rem; flex-wrap: wrap; }
 .field-row .field { flex: 1 1 22rem; }
 
-label { display: block; font-weight: 600; margin-bottom: .35rem; }
+label { display: block; font-weight: 600; font-size: .95rem; margin-bottom: .35rem; }
 .hint { color: var(--ink-faint); font-size: .87rem; margin: .4rem 0 0; }
 
 input[type="url"], input[type="text"], select {
@@ -527,47 +666,54 @@ input[type="url"], input[type="text"], select {
     color: var(--ink);
     background: var(--field-bg);
     border: 1px solid var(--field-border);
-    border-radius: var(--radius);
-    padding: .85rem 1rem;
-    box-shadow: inset 0 1px 3px rgba(15, 23, 42, .06), var(--shadow-sm);
+    border-radius: var(--radius-sm);
+    padding: .8rem .95rem;
+    box-shadow: inset 0 1px 3px rgba(26, 28, 34, .05);
     transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
 }
+input[type="text"]#target_url { font-family: var(--mono); font-size: .95rem; }
 select { cursor: pointer; }
 input[type="url"]:hover, input[type="text"]:hover, select:hover { border-color: var(--brand); }
 input[type="url"]:focus, input[type="text"]:focus, select:focus {
     border-color: var(--brand);
     background: var(--card);
-    box-shadow: 0 0 0 4px var(--brand-soft);
+    box-shadow: 0 0 0 3px var(--brand-soft);
     outline: none;
 }
 
 .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
-    font: inherit; font-weight: 650;
-    border: 0; border-radius: var(--radius);
-    padding: .85rem 1.5rem;
+    font: inherit; font-weight: 600; font-size: .98rem;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    padding: .8rem 1.4rem;
     cursor: pointer;
     text-decoration: none;
     transition: transform .16s ease, box-shadow .16s ease, background .16s ease,
         border-color .16s ease, color .16s ease;
 }
 .btn svg { width: 18px; height: 18px; }
+/*
+ * Ink, not gradient: the primary action is set like a headline. The signal
+ * colour is saved for the hover, where it lands harder for being rare.
+ */
 .btn-primary {
-    color: var(--on-brand);
-    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 10px 24px var(--brand-glow);
+    color: var(--paper);
+    background: var(--ink);
+    border-color: var(--ink);
+    box-shadow: var(--shadow-sm);
 }
 .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 14px 30px var(--brand-glow-strong);
     color: var(--on-brand);
+    background: var(--brand);
+    border-color: var(--brand);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px var(--brand-glow);
 }
 .btn-primary:active { transform: translateY(0); }
-.btn:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 .btn-quiet {
-    background: var(--card); color: var(--ink-soft);
-    border: 1px solid var(--line);
-    box-shadow: var(--shadow-sm);
+    background: transparent; color: var(--ink-soft);
+    border-color: var(--line-strong);
 }
 .btn-quiet:hover { color: var(--brand-deep); border-color: var(--brand); }
 
@@ -576,11 +722,11 @@ details.waivers {
     margin-top: 1.25rem;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    background: var(--card);
+    background: transparent;
     overflow: hidden;
 }
 details.waivers > summary {
-    cursor: pointer; padding: .9rem 1.1rem; font-weight: 600;
+    cursor: pointer; padding: .85rem 1.05rem; font-weight: 600; font-size: .95rem;
     list-style: none; display: flex; align-items: center; gap: .6rem;
     transition: color .15s ease;
 }
@@ -595,44 +741,65 @@ details.waivers > summary::after {
     transition: transform .18s ease;
 }
 details.waivers[open] > summary::after { transform: rotate(-135deg); }
-.waiver-body { padding: 0 1.1rem 1.1rem; border-top: 1px solid var(--line); }
+.waiver-body { padding: 0 1.05rem 1.05rem; border-top: 1px solid var(--line); }
 .waiver-group { margin-top: 1rem; }
-.waiver-group h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); }
+.waiver-group h3 {
+    font-family: var(--mono); font-size: .72rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .14em; color: var(--ink-faint);
+}
 .waiver-list { display: grid; gap: .5rem; }
 @media (min-width: 720px) { .waiver-list { grid-template-columns: 1fr 1fr; } }
 
 .toggle {
     display: flex; gap: .7rem; align-items: flex-start;
-    border: 1px solid var(--line); border-radius: var(--radius);
-    padding: .7rem .85rem; cursor: pointer;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: .65rem .8rem; cursor: pointer;
     transition: border-color .16s ease, background .16s ease;
 }
-.toggle:hover { border-color: var(--brand); background: var(--brand-soft); }
+.toggle:hover { border-color: var(--brand); }
 .toggle input { margin-top: .3rem; accent-color: var(--brand); width: 1.05rem; height: 1.05rem; }
-.toggle strong { display: block; font-weight: 600; font-size: .93rem; }
+.toggle strong { display: block; font-family: var(--mono); font-weight: 600; font-size: .85rem; }
 .toggle span { display: block; color: var(--ink-faint); font-size: .82rem; line-height: 1.45; }
 .toggle:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
 
-/* ------------------------------------------------------------------ badges */
-.badges { display: flex; flex-wrap: wrap; gap: .6rem; margin: 2rem 0 0; padding: 0; list-style: none; }
-.badge {
-    display: inline-flex; align-items: center; gap: .45rem;
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 999px; padding: .45rem .95rem;
-    font-size: .86rem; font-weight: 600; color: var(--ink-soft);
-    box-shadow: var(--shadow-sm);
-    transition: transform .15s ease, box-shadow .15s ease;
+/* ---------------------------------------------------------- the assay strip */
+/*
+ * The promises, set as a ruled specification row rather than a cloud of
+ * pills: one hairline box, four columns, each with its mark. It is the
+ * landing page's signature element, and it reads the same on paper.
+ */
+.assurance {
+    list-style: none; margin: 3rem 0 0; padding: 0;
+    display: grid;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
 }
-.badge:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.badge svg { width: 16px; height: 16px; color: var(--accent); }
-@media (prefers-reduced-motion: reduce) {
-    .badge, .badge:hover { transition: none; transform: none; }
+.assurance li {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: 1.15rem 1.25rem;
+    border-top: 1px solid var(--line);
+}
+.assurance li:first-child { border-top: 0; }
+.assurance svg { width: 19px; height: 19px; flex: none; margin-top: .15rem; color: var(--accent); }
+.assurance strong { display: block; font-size: .92rem; font-weight: 650; }
+.assurance span { display: block; color: var(--ink-faint); font-size: .82rem; line-height: 1.5; }
+@media (min-width: 720px) {
+    .assurance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .assurance li:nth-child(-n + 2) { border-top: 0; }
+    .assurance li:nth-child(even) { border-left: 1px solid var(--line); }
+}
+@media (min-width: 1060px) {
+    .assurance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .assurance li { border-top: 0; border-left: 1px solid var(--line); }
+    .assurance li:first-child { border-left: 0; }
 }
 
+/* ------------------------------------------------------------------ badges */
 .tag {
     display: inline-flex; align-items: center; gap: .35rem;
-    border-radius: 999px; padding: .12rem .6rem;
-    font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    border-radius: 4px; padding: .14rem .55rem;
+    font-family: var(--mono);
+    font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
 }
 .tag-critical { background: var(--bad-soft); color: var(--bad-ink); }
 .tag-warning { background: var(--fair-soft); color: var(--fair-ink); }
@@ -641,7 +808,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 
 .alert {
     display: flex; gap: .7rem; align-items: flex-start;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     padding: .9rem 1.05rem; margin-bottom: 1.2rem;
     background: var(--bad-soft); color: var(--bad-ink);
     border: 1px solid var(--bad);
@@ -653,9 +820,9 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .feature { transition: transform .18s ease, box-shadow .18s ease; }
 .feature:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .feature .icon {
-    width: 46px; height: 46px; border-radius: 14px;
-    display: grid; place-items: center; margin-bottom: .9rem;
-    background: linear-gradient(135deg, var(--brand-soft), var(--tint));
+    width: 44px; height: 44px; border-radius: var(--radius-sm);
+    display: grid; place-items: center; margin-bottom: .95rem;
+    background: var(--brand-soft);
     color: var(--brand-deep);
     border: 1px solid var(--line);
 }
@@ -665,22 +832,22 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     .feature, .feature:hover { transition: none; transform: none; }
 }
 
-.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; }
-.steps li { display: flex; gap: .9rem; align-items: flex-start; }
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 1.05rem; }
+.steps li { display: flex; gap: .95rem; align-items: flex-start; }
 .steps li::before {
-    counter-increment: step; content: counter(step);
-    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    counter-increment: step; content: counter(step, decimal-leading-zero);
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
     display: grid; place-items: center;
-    background: linear-gradient(135deg, var(--brand), var(--brand-deep));
-    color: var(--on-brand); font-weight: 700; font-size: .9rem;
-    box-shadow: 0 4px 10px var(--brand-glow);
+    border: 1.5px solid var(--line-strong);
+    color: var(--brand-deep);
+    font-family: var(--mono); font-weight: 600; font-size: .8rem;
 }
 
 /* --------------------------------------------------- content sub-pages */
 /* The landing page keeps the form; the explanations live on their own pages,
    each opening with this block and closing with the cross-links below. */
-.page-head { padding: 1.9rem 0 .4rem; max-width: var(--measure); }
-.page-head h1 { margin-bottom: .5rem; }
+.page-head { padding: 2.4rem 0 .4rem; max-width: var(--measure); }
+.page-head h1 { margin-bottom: .55rem; }
 .page-head .lede { color: var(--ink-soft); font-size: 1.1rem; margin: 0; }
 
 .page-nav-title { font-size: 1.05rem; margin-bottom: .9rem; }
@@ -692,56 +859,111 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     .page-nav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .page-nav-card {
+    position: relative;
     display: grid; gap: .3rem; height: 100%;
-    padding: 1.1rem 1.25rem;
+    padding: 1.1rem 2.6rem 1.1rem 1.25rem;
     text-decoration: none; color: var(--ink);
     transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.page-nav-card strong { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
+.page-nav-card span { color: var(--ink-soft); font-size: .92rem; }
+/* The arrow is drawn, not typed, and it slides on hover. */
+.page-nav-card::after {
+    content: "";
+    position: absolute; right: 1.15rem; top: 1.25rem;
+    width: .6rem; height: .6rem;
+    border-top: 2px solid var(--ink-faint);
+    border-right: 2px solid var(--ink-faint);
+    transform: rotate(45deg);
+    transition: transform .18s ease, border-color .18s ease;
 }
 .page-nav-card:hover {
     border-color: var(--brand);
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
 }
-.page-nav-card span { color: var(--ink-soft); font-size: .92rem; }
+.page-nav-card:hover::after { border-color: var(--brand); transform: rotate(45deg) translate(2px, -2px); }
 .page-nav-cta { border-color: var(--brand); }
-
-.footer-nav { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; }
-.footer-nav a { color: var(--ink-faint); text-decoration: none; }
-.footer-nav a:hover { color: var(--brand-deep); text-decoration: underline; }
+.page-nav-cta::after { border-color: var(--brand); }
 
 @media (prefers-reduced-motion: reduce) {
     .page-nav-card, .page-nav-card:hover { transition: none; transform: none; }
+    .page-nav-card::after, .page-nav-card:hover::after { transition: none; transform: rotate(45deg); }
 }
 
 /* -------------------------------------------------------------- scan page */
 .scan-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+.scan-head h1 { margin-bottom: .3rem; }
 .scan-target {
-    font-family: var(--mono); font-size: 1.02rem;
+    font-family: var(--mono); font-size: .98rem;
     background: var(--brand-soft); color: var(--brand-deep);
-    border-radius: var(--radius-sm); padding: .25rem .6rem;
+    border-radius: var(--radius-sm); padding: .28rem .6rem;
     word-break: break-all;
+}
+/* Which track the result was rated against. It changes what "end of life"
+   means, so it belongs next to the address rather than in the details. */
+.scan-track {
+    display: inline-block;
+    margin-left: .5rem;
+    padding: .14rem .55rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-family: var(--mono);
+    font-size: .74rem;
+    letter-spacing: .05em;
+    text-transform: capitalize;
+    color: var(--ink-soft);
+    vertical-align: middle;
 }
 
 .progress { display: grid; gap: 1.1rem; }
+/*
+ * The pipeline, drawn as an instrument: a node per stage, a hairline between
+ * them, and the stage that is running breathes in the signal colour. The
+ * labels are set in the dossier mono, small enough never to wrap into each
+ * other on a desk; the phone reflow is at the bottom of this file.
+ */
 .progress-track { display: flex; gap: .5rem; }
 .progress-track .step {
-    flex: 1; text-align: center; font-size: .82rem; font-weight: 600;
+    position: relative;
+    flex: 1;
+    padding-top: 1.35rem;
+    font-family: var(--mono);
+    font-size: .72rem; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase;
     color: var(--ink-faint);
-    padding-top: .8rem;
-    border-top: 4px solid var(--line);
-    transition: color .3s ease, border-color .3s ease;
+    transition: color .3s ease;
 }
-.progress-track .step[data-state="active"] {
-    color: var(--brand-deep);
-    animation: step-breathe 1.8s ease-in-out infinite;
+.progress-track .step::before {
+    content: "";
+    position: absolute; top: 0; left: 0;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--card);
+    border: 2px solid var(--line-strong);
+    transition: border-color .3s ease, background .3s ease;
 }
-.progress-track .step[data-state="done"] { color: var(--good-ink); border-color: var(--good); }
-.progress-track .step[data-state="failed"] { color: var(--bad-ink); border-color: var(--bad); }
-/* The active step breathes between the line and the signal colour; the label
-   never moves, only the marker above it. */
-@keyframes step-breathe {
-    0%, 100% { border-color: var(--brand); }
-    50% { border-color: var(--brand-soft); }
+.progress-track .step::after {
+    content: "";
+    position: absolute; top: 5px; left: 19px; right: -3px;
+    height: 1.5px;
+    background: var(--line-strong);
+    transition: background .3s ease;
+}
+.progress-track .step:last-child::after { display: none; }
+.progress-track .step[data-state="active"] { color: var(--brand-deep); }
+.progress-track .step[data-state="active"]::before {
+    border-color: var(--brand);
+    animation: node-breathe 1.6s ease-in-out infinite;
+}
+.progress-track .step[data-state="done"] { color: var(--good-ink); }
+.progress-track .step[data-state="done"]::before { border-color: var(--good); background: var(--good); }
+.progress-track .step[data-state="done"]::after { background: var(--good); }
+.progress-track .step[data-state="failed"] { color: var(--bad-ink); }
+.progress-track .step[data-state="failed"]::before { border-color: var(--bad); background: var(--bad); }
+/* The active node breathes a halo; the label never moves. */
+@keyframes node-breathe {
+    0%, 100% { box-shadow: 0 0 0 0 var(--brand-glow-strong); }
+    50% { box-shadow: 0 0 0 6px transparent; }
 }
 
 .pulse {
@@ -757,13 +979,38 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 
 .queue-note {
     background: var(--info-soft); color: var(--info-ink);
-    border-radius: var(--radius); padding: .85rem 1.05rem;
+    border-radius: var(--radius-sm); padding: .85rem 1.05rem;
     font-weight: 600;
+}
+
+/*
+ * The waiting beam: one highlight travelling a hairline, so a queued or
+ * running scan reads as movement rather than as a page that forgot about
+ * you. It lives only inside the progress card, which hides the moment there
+ * is a result - and it is the first thing the reduced-motion query takes
+ * away, because a traveller that never arrives is just a smudge.
+ */
+.progress-beam {
+    height: 2px; border-radius: 2px;
+    background: var(--line);
+    overflow: hidden;
+}
+.progress-beam span {
+    display: block; height: 100%; width: 32%;
+    background: linear-gradient(90deg, transparent, var(--brand), transparent);
+    animation: beam 1.7s ease-in-out infinite;
+}
+@keyframes beam {
+    from { transform: translateX(-110%); }
+    to { transform: translateX(330%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .progress-beam { display: none; }
 }
 
 /* score */
 .score {
-    display: flex; gap: 1.75rem; align-items: center; flex-wrap: wrap;
+    display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;
 }
 /*
  * Registering --fill is what lets the dial sweep from zero to the rating
@@ -777,35 +1024,57 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     inherits: false;
     initial-value: 0;
 }
+/*
+ * The dial: the rating as one clean arc in the verdict's colour, sweeping in
+ * from zero, with the grade set heavy at the centre. The only ornament is a
+ * soft glow in the same tone, so the instrument reads as lit rather than
+ * decorated.
+ */
 .score-dial {
     --dial: var(--good);
     --dial-ink: var(--good-ink);
     position: relative; flex: none;
-    width: 152px; height: 152px; border-radius: 50%;
+    width: 156px; height: 156px; border-radius: 50%;
     display: grid; place-items: center;
     background: conic-gradient(var(--dial) calc(var(--fill) * 1%), var(--line) 0);
+    box-shadow: 0 0 0 1px var(--line), 0 18px 38px -14px var(--dial);
     animation: dial .9s cubic-bezier(.22, 1, .36, 1) backwards,
         sweep 1.1s ease-out .15s backwards;
 }
 .score-dial::after {
     content: ""; position: absolute; inset: 11px;
     background: var(--card); border-radius: 50%;
-    box-shadow: inset 0 2px 6px rgba(15, 23, 42, .08);
+    box-shadow: inset 0 2px 6px rgba(26, 28, 34, .1);
 }
 .score-dial .grade {
     position: relative; z-index: 1;
-    font-size: 2.8rem; font-weight: 800; letter-spacing: -.04em; color: var(--dial-ink);
+    font-size: 2.9rem; font-weight: 800; letter-spacing: -.04em; color: var(--dial-ink);
 }
 .score-dial[data-tone="good"] { --dial: var(--good); --dial-ink: var(--good-ink); }
 .score-dial[data-tone="fair"] { --dial: var(--fair); --dial-ink: var(--fair-ink); }
 .score-dial[data-tone="bad"] { --dial: var(--bad); --dial-ink: var(--bad-ink); }
-@keyframes dial { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes dial { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes sweep { from { --fill: 0; } }
 
-.score-facts { flex: 1 1 18rem; }
-.score-facts dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1rem; margin: 0; }
-.score-facts dt { color: var(--ink-faint); font-size: .88rem; }
-.score-facts dd { margin: 0; font-weight: 600; font-size: .95rem; }
+/*
+ * The facts beside the grade, set as a ledger: hairline rows, the term in
+ * small caps on the left and the reading on the right. It is the part of the
+ * page that most wants to look like a report, so it does.
+ */
+.score-facts { flex: 1 1 20rem; }
+.score-facts dl { display: grid; grid-template-columns: minmax(8.5rem, auto) 1fr; margin: 0; }
+.score-facts dt, .score-facts dd { padding: .42rem 0; }
+.score-facts dt {
+    color: var(--ink-faint);
+    font-size: .76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    padding-right: 1rem;
+}
+.score-facts dd { margin: 0; font-weight: 550; font-size: .95rem; }
+.score-facts dt:not(:first-of-type),
+.score-facts dt:not(:first-of-type) + dd { border-top: 1px solid var(--line); }
 
 /* A transport fact beside the grade. The colour is the scanner's own verdict
    on that check; the dot carries it for anybody who cannot see the hue. */
@@ -819,28 +1088,35 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .tls-fact[data-tone="bad"] { color: var(--bad-ink); }
 .hint-inline { color: var(--ink-faint); font-weight: 400; font-size: .85rem; }
 
-.counters { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.1rem; }
+.counters { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.15rem; }
 .counter {
-    border-radius: var(--radius); border: 1px solid var(--line);
-    padding: .55rem .9rem; text-align: center; min-width: 5.5rem;
-    background: var(--paper);
+    border-radius: var(--radius-sm); border: 1px solid var(--line);
+    padding: .5rem .85rem; text-align: center; min-width: 5.25rem;
 }
-.counter strong { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
-.counter span { font-size: .78rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+.counter strong {
+    display: block;
+    font-family: var(--mono); font-weight: 600;
+    font-size: 1.3rem; font-variant-numeric: tabular-nums;
+}
+.counter span {
+    font-family: var(--mono);
+    font-size: .68rem; color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: .1em;
+}
 
 /* findings */
-.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: .8rem; }
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
 .finding {
-    border: 1px solid var(--line); border-left: 4px solid var(--line);
-    border-radius: var(--radius); padding: .9rem 1.05rem; background: var(--card);
+    border: 1px solid var(--line); border-left: 3px solid var(--line);
+    border-radius: var(--radius-sm); padding: .85rem 1.05rem;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
-.finding:hover { box-shadow: var(--shadow-sm); }
+.finding:hover { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
 .finding[data-tag="critical"] { border-left-color: var(--bad); }
 .finding[data-tag="warning"] { border-left-color: var(--fair); }
 .finding[data-tag="info"] { border-left-color: var(--info); }
 .finding-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-.finding-head code { font-size: .95rem; font-weight: 600; }
+.finding-head code { font-size: .92rem; font-weight: 600; color: var(--brand-deep); }
 .finding p { margin: .5rem 0 0; font-size: .93rem; color: var(--ink-soft); }
 .finding .fix { color: var(--ink); }
 .finding .fix strong { color: var(--ink); }
@@ -850,17 +1126,19 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .plan-step[data-gain="no"] { border-left-color: var(--line); }
 .plan-order {
     display: inline-flex; align-items: center; justify-content: center;
-    min-width: 1.55rem; height: 1.55rem; border-radius: 999px;
-    background: var(--paper); border: 1px solid var(--line);
-    font-family: var(--mono); font-size: .8rem; color: var(--ink-soft);
+    min-width: 1.6rem; height: 1.6rem; border-radius: 50%;
+    border: 1.5px solid var(--line-strong);
+    font-family: var(--mono); font-size: .76rem; color: var(--ink-soft);
 }
 .plan-grade {
-    margin-left: auto; font-size: .78rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .04em; color: var(--good-ink);
-    background: var(--good-soft); border-radius: 999px; padding: .15rem .6rem;
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: .74rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--good-ink);
+    background: var(--good-soft); border-radius: 4px; padding: .18rem .55rem;
 }
 .plan-step[data-gain="no"] .plan-grade {
-    color: var(--ink-faint); background: var(--paper); border: 1px solid var(--line);
+    color: var(--ink-faint); background: transparent; border: 1px solid var(--line);
 }
 
 .facts { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1rem; margin: .6rem 0 0; }
@@ -873,14 +1151,14 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 
 .pill-list { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; margin: .6rem 0 0; list-style: none; }
 .pill-list li {
-    font-family: var(--mono); font-size: .82rem;
-    background: var(--paper); border: 1px solid var(--line);
-    border-radius: 999px; padding: .15rem .65rem; color: var(--ink-soft);
+    font-family: var(--mono); font-size: .8rem;
+    border: 1px solid var(--line);
+    border-radius: 4px; padding: .2rem .6rem; color: var(--ink-soft);
 }
 
 .expiry {
     display: flex; gap: .6rem; align-items: center;
-    color: var(--ink-faint); font-size: .88rem; margin-top: 1.2rem;
+    color: var(--ink-faint); font-size: .88rem; margin-top: 1.4rem;
 }
 .expiry svg { width: 17px; height: 17px; }
 
@@ -891,7 +1169,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .export-list { margin: .6rem 0 0; padding: 0; list-style: none; }
 .export-list li {
     display: flex; flex-wrap: wrap; align-items: center; gap: .7rem;
-    padding: .5rem 0; border-bottom: 1px solid var(--line);
+    padding: .6rem 0; border-bottom: 1px solid var(--line);
 }
 .export-list li:last-child { border-bottom: 0; }
 .export-list .btn { min-width: 8.5rem; text-align: center; }
@@ -904,7 +1182,7 @@ details > summary:hover { color: var(--brand-deep); }
 
 pre.code-block {
     background: var(--code-bg); border: 1px solid transparent;
-    border-radius: var(--radius); padding: .95rem 1.1rem;
+    border-radius: var(--radius-sm); padding: .95rem 1.1rem;
     overflow-x: auto; font-size: .84rem; line-height: 1.6;
     margin: 0 0 1rem;
 }
@@ -912,14 +1190,17 @@ pre.code-block code { font-family: var(--mono); color: var(--code-ink); }
 
 pre.json {
     background: var(--code-bg); border: 1px solid transparent;
-    border-radius: var(--radius); padding: 1rem 1.1rem;
+    border-radius: var(--radius-sm); padding: 1rem 1.1rem;
     overflow-x: auto; font-size: .84rem; line-height: 1.5;
     max-height: 26rem; color: var(--code-ink);
 }
 
 /* -------------------------------------------------------------- not found */
 .empty { text-align: center; padding: 3rem 0; }
+.empty .kicker { justify-content: center; }
+.empty .kicker::before { display: none; }
 .empty img { width: min(100%, 280px); margin-bottom: 1.5rem; }
+.empty .lede { margin-inline: auto; max-width: var(--measure); }
 
 /* ---------------------------------------------------------- small helpers */
 /*
@@ -933,19 +1214,6 @@ pre.json {
 .hint-flush { margin: 0; }
 .hint-lead { margin-top: .9rem; }
 .field-narrow { flex: 0 1 12rem; }
-/* Which track the result was rated against. It changes what "end of life"
-   means, so it belongs next to the address rather than in the details. */
-.scan-track {
-    display: inline-block;
-    margin-left: .5rem;
-    padding: .1rem .5rem;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: .78rem;
-    text-transform: capitalize;
-    color: var(--ink-soft);
-    vertical-align: middle;
-}
 .form-actions {
     margin-top: 1.4rem;
     display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
@@ -1009,6 +1277,7 @@ pre.json {
         border-radius: var(--radius-sm);
         animation: rise .3s ease backwards;
     }
+    [data-nav="enhanced"] .site-nav[data-open="true"] a::after { display: none; }
     [data-nav="enhanced"] .site-nav[data-open="true"] a:nth-child(2) { animation-delay: .04s; }
     [data-nav="enhanced"] .site-nav[data-open="true"] a:nth-child(3) { animation-delay: .08s; }
     [data-nav="enhanced"] .site-nav[data-open="true"] a:nth-child(4) { animation-delay: .12s; }
@@ -1020,7 +1289,7 @@ pre.json {
 @media (max-width: 640px) {
     .shell { width: min(100% - 1.6rem, var(--page)); }
 
-    .hero { padding: 1.4rem 0 .5rem; }
+    .hero { padding: 1.6rem 0 .5rem; }
     .hero-art { margin-top: 1.25rem; }
     .card { padding: 1.15rem; }
     main { padding-bottom: 2.5rem; }
@@ -1031,19 +1300,18 @@ pre.json {
     .field-narrow { flex: 1 1 100%; }
     .export-list .btn { width: 100%; }
 
-    /* Three steps side by side leave three unreadable columns; two rows keep
-       the labels legible. */
-    .progress-track { flex-wrap: wrap; gap: .5rem .6rem; }
-    .progress-track .step { flex: 1 1 40%; }
+    .ticket-head { flex-direction: column; gap: .3rem; align-items: flex-start; }
 
-    .score { gap: 1rem; }
-    .score-dial { width: 122px; height: 122px; }
-    .score-dial .grade { font-size: 2.15rem; }
-    .score-facts dl { grid-template-columns: 1fr; gap: .1rem; }
-    .score-facts dd { margin-bottom: .45rem; }
+    /* The ledger stacks: the term above the reading, one hairline per row. */
+    .score { gap: 1.25rem; }
+    .score-dial { width: 136px; height: 136px; }
+    .score-dial .grade { font-size: 2.4rem; }
+    .score-facts dl { grid-template-columns: 1fr; }
+    .score-facts dt { padding-bottom: 0; border-top: 1px solid var(--line); }
+    .score-facts dt:first-of-type { border-top: 0; }
+    .score-facts dl > dd { padding-top: .1rem; border-top: 0; margin-bottom: .3rem; }
 
     .scan-track { margin-left: 0; margin-top: .4rem; }
 
-    .site-footer .shell { flex-direction: column; }
-    .site-footer .build { margin-left: 0; }
+    .footer-grid { grid-template-columns: 1fr; }
 }

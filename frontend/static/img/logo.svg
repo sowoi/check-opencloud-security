@@ -8,8 +8,8 @@
   -->
   <style>
     svg {
-      --tile-a: #4f46e5; --tile-b: #0d9488;
-      --shield: #ffffff; --tick: #4f46e5; --sheen: #ffffff;
+      --tile-a: #3539c4; --tile-b: #0c7c6e;
+      --shield: #ffffff; --tick: #3539c4; --sheen: #ffffff;
     }
     @media (prefers-color-scheme: dark) {
       svg {
@@ -29,7 +29,7 @@
       <stop offset="1" class="tile-b"/>
     </linearGradient>
   </defs>
-  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#tile)"/>
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#tile)"/>
   <circle cx="18" cy="14" r="18" class="sheen" opacity=".12"/>
   <path class="shield" d="M32 13l13 4.9v10.6c0 8.8-5.5 15.4-13 18.5-7.5-3.1-13-9.7-13-18.5V17.9L32 13z"/>
   <path class="tick" fill="none" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"

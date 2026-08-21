@@ -5,6 +5,7 @@
 
 {% block content %}
 <section class="page-head">
+  <p class="kicker">The method</p>
   <h1>How the scan works</h1>
   <p class="lede">
     Everything this service reports it works out itself, by talking to the
@@ -16,7 +17,7 @@
 <section class="grid three section-gap-lg" aria-labelledby="what-we-test">
   <h2 id="what-we-test" class="visually-hidden">What gets tested</h2>
 
-  <article class="card feature">
+  <article class="card feature" data-reveal>
     <div class="icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round">
@@ -31,7 +32,7 @@
     </p>
   </article>
 
-  <article class="card feature">
+  <article class="card feature" data-reveal="2">
     <div class="icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round">
@@ -46,7 +47,7 @@
     </p>
   </article>
 
-  <article class="card feature">
+  <article class="card feature" data-reveal="3">
     <div class="icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round">
@@ -63,7 +64,8 @@
   </article>
 </section>
 
-<section class="card section-gap" aria-labelledby="how-it-works">
+<section class="card section-gap" aria-labelledby="how-it-works" data-reveal>
+  <p class="kicker">The pipeline</p>
   <h2 id="how-it-works">What happens when you press the button</h2>
   <p class="lede">Four steps, and the third one is where the queue comes in.</p>
   <ol class="steps">

@@ -5,9 +5,10 @@
 {% block body_attrs %}data-scan-uuid="{{ scan.uuid }}" data-scan-state="{{ scan.state }}" data-expires-in="{{ scan.expiresIn }}"{% endblock %}
 
 {% block content %}
-<section class="card">
+<section class="card" data-reveal>
   <div class="scan-head">
     <div>
+      <p class="kicker">Field report</p>
       <h1>Scan result</h1>
       <p class="flush">
         <span class="scan-target">{{ scan.target }}</span>
@@ -25,6 +26,7 @@
 {# --------------------------------------------------------------- progress #}
 <section class="card" id="progress-card" aria-live="polite"
          {% if scan.state in ("completed", "failed") %}hidden{% endif %}>
+  <p class="kicker">In progress</p>
   <h2 id="progress-heading">
     <span class="pulse" aria-hidden="true"></span>
     <span id="progress-title">
@@ -47,6 +49,7 @@
       <div class="step" id="step-running">Running</div>
       <div class="step" id="step-done">Result</div>
     </div>
+    <div class="progress-beam" aria-hidden="true"><span></span></div>
     <p class="queue-note" id="queue-note" hidden></p>
     <noscript>
       <p class="hint flush">
@@ -78,7 +81,8 @@
 {# ----------------------------------------------------------------- results #}
 {% if summary %}
 {% if scan.outputFormat == "json" %}
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Result document</p>
   <h2>Result document</h2>
   <p class="lede">
     The same document the command line check and the Nagios plugin evaluate.
@@ -87,7 +91,8 @@
 </section>
 {% else %}
 
-<section class="card">
+<section class="card" data-reveal="2">
+  <p class="kicker">Verdict</p>
   <h2 class="visually-hidden">Overall rating</h2>
   <div class="score">
     <div class="score-dial" data-tone="{{ summary.tone }}" data-rating="{{ summary.rating }}"
@@ -186,7 +191,8 @@
 </section>
 
 {% if summary.remediation.steps %}
-<section class="card">
+<section class="card" data-reveal="3">
+  <p class="kicker">Remediation plan</p>
   <h2 id="remediation">What gets you to {{ summary.remediation.achievableLabel }}</h2>
   <p class="lede">{{ summary.remediation.summary }}</p>
   <ol class="findings plan">
@@ -245,7 +251,8 @@
 {% endif %}
 
 {% if summary.vulnerabilities %}
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Advisories</p>
   <h2>Known advisories for this version</h2>
   <p class="lede">Published advisories whose affected range includes {{ summary.version }}.</p>
   <ul class="findings">
@@ -263,7 +270,8 @@
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Findings</p>
   <h2>Checks that failed</h2>
   <p class="lede">
     Each one caps the grade at the level its severity allows. Fix the critical
@@ -292,7 +300,8 @@
 </section>
 
 {% if summary.missingHardenings or summary.missingHeaders %}
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Hardening</p>
   <h2>Hardening worth adding</h2>
   <p class="lede">
     Settings that are not switched on. None of these is an active
@@ -326,7 +335,8 @@
 {% endif %}
 
 {% if summary.waived or summary.unfixable %}
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Excluded</p>
   <h2>Reported, but not counted</h2>
   {% if summary.waived %}
   <h3>You asked to ignore these</h3>
@@ -348,7 +358,8 @@
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Scope</p>
   <h2 id="scan-limits">What this scan cannot see</h2>
   <p>
     Everything above was read without logging in, which is the point and also
@@ -382,7 +393,8 @@
 </section>
 
 {% if summary.tls and summary.tls.reachable %}
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Transport</p>
   <h2>Transport security</h2>
   <p class="lede">
     What the TLS layer said before a single byte of HTTP was exchanged. The
@@ -446,7 +458,8 @@
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Raw data</p>
   <h2>Technical details</h2>
   <p class="lede">The full result document, exactly as the plugin sees it.</p>
   <details>
@@ -456,7 +469,8 @@
 </section>
 {% endif %}
 
-<section class="card">
+<section class="card" data-reveal>
+  <p class="kicker">Export</p>
   <h2>Take this result with you</h2>
   <p class="lede">
     The same scan, rendered four ways. Each one is generated when you ask for

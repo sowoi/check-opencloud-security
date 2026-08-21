@@ -3,7 +3,7 @@
   <title>Nothing here any more</title>
   <!-- Two schemes in one drawing; see logo.svg for why the styles live here. -->
   <style>
-    svg { --line: #4f46e5; --spark: #0d9488; }
+    svg { --line: #3539c4; --spark: #0c7c6e; }
     @media (prefers-color-scheme: dark) {
       svg { --line: #a5b4fc; --spark: #5eead4; }
     }

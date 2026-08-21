@@ -15,15 +15,22 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 ### Changed
 
 - **The web application has a new frontend design.** The whole design system
-  in `frontend/static/css/app.css` was rebuilt: a cool indigo-and-teal palette
-  with a quiet aurora backdrop, a translucent sticky header, a two-column hero
-  that keeps the scan form beside the pitch, terminal-style code blocks,
-  form fields that stay visible against their card in both schemes, and a
-  little quiet motion - arrivals, a breathing step marker, a dial that sweeps
-  to its rating. The automatic light and dark modes stay, driven as before by
-  one token list and its `prefers-color-scheme: dark` counterpart, and the
-  artwork was redrawn to match: a new logo mark and an animated scan emblem
-  replace the old hero scene.
+  in `frontend/static/css/app.css` was rebuilt as a field report: serif
+  display type against warm bone paper, monospace dossier labels with a drawn
+  leading rule, hairline rules instead of filled chrome, and a reticle motif
+  that frames the scan form with registration brackets. The backdrop is a
+  faint engineering grid over a quiet aurora with a grain of baked-in noise,
+  the landing page states its promises as a ruled specification row, and a
+  tiny `reveal.js` arrives blocks as they scroll into view - decoration only,
+  so the page reads complete with scripting blocked. Waiting is theatre now
+  too: a beam travels the progress card while a scan runs, and when the
+  result is in, the page settles, announces the report and falls away before
+  the rendered answer arrives. The automatic light and dark modes stay,
+  driven as before by one token list and its `prefers-color-scheme: dark`
+  counterpart, reduced motion still turns every animation off (and skips the
+  hand-off entirely), and the artwork was redrawn to match: the hero is a
+  technical instrument drawing with the same hand-drawn, two-scheme
+  discipline as before.
 
 ## [1.9.0] - 2026-08-21
 

@@ -5,6 +5,7 @@
 
 {% block content %}
 <section class="page-head">
+  <p class="kicker">The API</p>
   <h1>Scanning from a script</h1>
   <p class="lede">
     The form is one of two front doors; the other is JSON, and it is the same
@@ -12,7 +13,8 @@
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="api">
+<section class="card section-gap" aria-labelledby="api" data-reveal>
+  <p class="kicker">Submit &amp; poll</p>
   <h2 id="api">Submit and poll</h2>
 <pre class="code-block"><code>curl -X POST https://scan.okxo.de/api/scans \
      -H 'Content-Type: application/json' \
@@ -28,7 +30,8 @@ curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="api-limits">
+<section class="card section-gap" aria-labelledby="api-limits" data-reveal>
+  <p class="kicker">Fair use</p>
   <h2 id="api-limits">Fair use</h2>
   <p class="flush">
     {% if limits.client %}
@@ -46,7 +49,8 @@ curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="api-schema">
+<section class="card section-gap" aria-labelledby="api-schema" data-reveal>
+  <p class="kicker">The schema</p>
   <h2 id="api-schema">The schema</h2>
   <p class="flush">
     The machine-readable documents are always public, on this deployment and
@@ -67,7 +71,8 @@ curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="api-agents">
+<section class="card section-gap" aria-labelledby="api-agents" data-reveal>
+  <p class="kicker">Agents</p>
   <h2 id="api-agents">For AI agents</h2>
   <p class="flush">
     Software that was not written for this service has a page of its own:

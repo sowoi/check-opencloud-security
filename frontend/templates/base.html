@@ -23,8 +23,8 @@
   <meta property="og:image" content="{{ og_image }}">
   <meta property="og:image:alt" content="The check-opencloud-security mark">
   {% endif %}
-  <meta name="theme-color" content="#f3f5fa" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0a101f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f1e9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0d14" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/app.css">
   {# Discovery hints for anything reading the markup rather than the page.
@@ -43,7 +43,7 @@
   <header class="site-header">
     <div class="shell">
       <a class="brand" href="/">
-        <img src="/static/img/logo.svg" alt="" width="34" height="34">
+        <img src="/static/img/logo.svg" alt="" width="32" height="32">
         <span>Security scan for OpenCloud instances</span>
       </a>
       {#
@@ -83,34 +83,35 @@
 
   <footer class="site-footer">
     <div class="shell">
-      <p>
-        Scans run from this server against the address you enter.
-        Results live in memory for {{ result_ttl_minutes }} minutes and are then gone.
-      </p>
-      <nav class="footer-nav" aria-label="Secondary">
-        <a href="/how-it-works">How it works</a>
-        <a href="/api">API</a>
-        <a href="/ai">AI</a>
-        <a href="/privacy">Privacy</a>
-        <a href="/about">About</a>
-      </nav>
-      <p>
-        Built on the <code>check-opencloud-security</code> scanner.
-        No trackers, no accounts, no analytics.
-        <a href="{{ project_url }}" rel="noopener noreferrer">Run it yourself</a>.
-      </p>
-      <p class="build">
-        <a class="version-badge" href="{{ project_url }}/releases"
-           rel="noopener noreferrer"
-           title="The scanner version that produced these results">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3 4 7v10l8 4 8-4V7l-8-4z"/><path d="M12 12 4 7"/>
-            <path d="m12 12 8-5"/><path d="M12 12v9"/>
-          </svg>
-          <span>Backend v{{ version }}</span>
-        </a>
-      </p>
+      <div class="footer-grid">
+        <p class="footer-note">
+          <strong>A quiet service, by design.</strong><br>
+          Scans run from this server against the address you enter.
+          Results live in memory for {{ result_ttl_minutes }} minutes and are then gone.
+          Built on the <code>check-opencloud-security</code> scanner -
+          no trackers, no accounts, no analytics.
+          <a href="{{ project_url }}" rel="noopener noreferrer">Run it yourself</a>.
+        </p>
+        <nav class="footer-nav" aria-label="Secondary">
+          <a href="/how-it-works">How it works</a>
+          <a href="/api">API</a>
+          <a href="/ai">AI</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/about">About</a>
+        </nav>
+        <p class="build">
+          <a class="version-badge" href="{{ project_url }}/releases"
+             rel="noopener noreferrer"
+             title="The scanner version that produced these results">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3 4 7v10l8 4 8-4V7l-8-4z"/><path d="M12 12 4 7"/>
+              <path d="m12 12 8-5"/><path d="M12 12v9"/>
+            </svg>
+            <span>Backend v{{ version }}</span>
+          </a>
+        </p>
+      </div>
       <p class="legal">
         <strong>This check is not exhaustive, and a good grade is not a
         certificate.</strong> It reads what a publicly reachable OpenCloud
@@ -135,6 +136,7 @@
   </footer>
 
   <script src="/static/js/nav.js" defer></script>
+  <script src="/static/js/reveal.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
