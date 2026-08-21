@@ -36,7 +36,7 @@ import json
 import logging
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -46,6 +46,12 @@ LOGGER = logging.getLogger("check_opencloud.versions")
 # Maintained by scripts/update_release_schedule.py from the release dates
 # published in the OpenCloud admin documentation.
 RELEASE_SCHEDULE_FILE = Path(__file__).with_name("data") / "release_schedule.json"
+
+# Where the schedule comes from, and where an operator goes when this copy of
+# it turns out to be older than the instance being scanned. A bundled file is
+# a snapshot: OpenCloud keeps publishing patches after it was generated, and
+# the page below is the authority the snapshot was taken from.
+LIFECYCLE_DOCUMENTATION_URL = "https://docs.opencloud.eu/docs/admin/resources/lifecycle/"
 
 TRACK_ROLLING = "rolling"
 TRACK_PRODUCTION = "production"
@@ -226,6 +232,40 @@ class LifecycleStatus:
     declared_track: str | None = None
     """The track the operator says this instance follows, if they said so."""
     reason: str = "no release schedule available"
+    schedule_stale: bool = False
+    """The instance runs a release this copy of the schedule never heard of.
+
+    Set when the reported version is newer than the newest release recorded
+    for its line, or when the line itself is newer than every line on record.
+    It is a statement about the *schedule*, never about the instance: a
+    version ahead of the bundled data is a machine that has been patched, and
+    the only thing out of date is the file it is being compared against.
+    """
+    schedule_updated: str | None = None
+    """The day the schedule this verdict came from was generated."""
+    schedule_source: str | None = None
+    """The published page that schedule was taken from."""
+
+    @property
+    def schedule_note(self) -> str | None:
+        """What to tell an operator when the schedule is behind the instance.
+
+        Worded so that nobody reads it as a finding. Nothing here is wrong
+        with the instance; the check simply cannot confirm a support window
+        against data older than the release it is looking at.
+        """
+        if not self.schedule_stale:
+            return None
+        version = self.version or "this release"
+        generated = f" (generated {self.schedule_updated})" if self.schedule_updated else ""
+        source = self.schedule_source or LIFECYCLE_DOCUMENTATION_URL
+        return (
+            f"{version} is newer than anything in the bundled release "
+            f"schedule{generated}, so that schedule is probably out of date. "
+            f"This is not counted against the instance. Check the current "
+            f"support window at {source}, and regenerate the schedule with "
+            f"scripts/update_release_schedule.py."
+        )
 
     @property
     def eol(self) -> bool | None:
@@ -253,6 +293,10 @@ class LifecycleStatus:
             "upgradeTo": self.upgrade_to,
             "declaredTrack": self.declared_track,
             "reason": self.reason,
+            "scheduleStale": self.schedule_stale,
+            "scheduleUpdated": self.schedule_updated,
+            "scheduleSource": self.schedule_source,
+            "scheduleNote": self.schedule_note,
         }
 
 
@@ -273,6 +317,7 @@ class ReleaseSchedule:
         lifetime_days: Mapping[str, int] | None = None,
         latest_release: Mapping[str, str] | None = None,
         updated: str | None = None,
+        source: str | None = None,
     ) -> None:
         self.lines: dict[tuple[int, int], ReleaseLine] = {
             entry.line: entry for entry in sorted(lines, key=lambda entry: entry.line)
@@ -280,6 +325,7 @@ class ReleaseSchedule:
         self.lifetime_days = {**DEFAULT_LIFETIME_DAYS, **(lifetime_days or {})}
         self.latest_release = dict(latest_release or {})
         self.updated = updated
+        self.source = source or LIFECYCLE_DOCUMENTATION_URL
 
     def __bool__(self) -> bool:
         return bool(self.lines)
@@ -429,7 +475,47 @@ class ReleaseSchedule:
             ),
         )
 
+    def is_behind(self, version: str | None) -> bool:
+        """Whether ``version`` is newer than anything this schedule records.
+
+        True in the two ways a snapshot can fall behind the software: a patch
+        released on a line it already knows, and a line released after it was
+        generated. A version *older* than the record is not staleness - it is
+        an instance that has not been updated - and a line missing from the
+        middle of the schedule is a gap rather than an edge.
+        """
+        normalised = normalise_version(version)
+        line = release_line(normalised)
+        if line is None or not self.lines:
+            return False
+        entry = self.lines.get(line)
+        if entry is None:
+            newest_line = self.newest_line
+            return newest_line is not None and line > newest_line
+        return compare_versions(normalised, entry.latest) > 0
+
     def status_for(
+        self,
+        version: str | None,
+        today: date | None = None,
+        track: str | None = None,
+    ) -> LifecycleStatus:
+        """Place a version in the lifecycle, and say how old the data is.
+
+        The verdict itself is :meth:`_status_for`; this adds the provenance
+        of the schedule it was made with, so that a reader can tell a support
+        window that has genuinely closed from one this copy of the file is
+        simply too old to know about.
+        """
+        status = self._status_for(version, today, track)
+        return replace(
+            status,
+            schedule_stale=self.is_behind(status.version),
+            schedule_updated=self.updated,
+            schedule_source=self.source,
+        )
+
+    def _status_for(
         self,
         version: str | None,
         today: date | None = None,
@@ -598,6 +684,19 @@ def load_release_schedule(path: Path | None = None) -> ReleaseSchedule:
     except (OSError, ValueError) as exc:
         LOGGER.debug("Release schedule unavailable (%s): %s", source, exc)
         return ReleaseSchedule()
+    return schedule_from_document(document)
+
+
+def schedule_from_document(document: object) -> ReleaseSchedule:
+    """
+    Build a schedule from an already-parsed release schedule document.
+
+    The bundled file is one source of such a document and the lifecycle page
+    the web application refreshes from is another, so the shape is understood
+    in exactly one place. Anything unrecognisable yields an empty schedule,
+    which the callers read as "no local knowledge" rather than "everything is
+    end of life".
+    """
     if not isinstance(document, Mapping):
         return ReleaseSchedule()
 
@@ -621,6 +720,7 @@ def load_release_schedule(path: Path | None = None) -> ReleaseSchedule:
         lifetime_days=lifetimes,
         latest_release=latest,
         updated=str(document.get("updated") or "") or None,
+        source=str(document.get("source") or "") or None,
     )
 
 

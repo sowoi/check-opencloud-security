@@ -2,12 +2,17 @@
 #
 #   cd docker
 #   docker compose up --build -d
-#   open http://127.0.0.1:8080
+#   open http://127.0.0.1:8811
 #
 # `web_app` serves the pages and the API out of `frontend/`; `arq_worker` runs
 # the scanner itself. Both are built from `Dockerfile.web` and run the same
 # image - they differ only in the command, which is what keeps the code the
 # page describes and the code the scan runs from drifting apart.
+#
+# `docker-compose.authentik.yml` next to this file is a different deployment of
+# the same thing: this stack *plus* Authentik, with the MCP endpoint requiring
+# a sign-in. Use one or the other, not both. This one is the public shape -
+# open to anybody, which is the point of it.
 #
 # `docker-compose.monitoring.yml` next to this file is the plugin's own stack -
 # the optional scan service for monitoring hosts - and is unrelated:
@@ -37,7 +42,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8811:8811"
     environment:
       COS_WEB_REDIS_URL: "redis://redis:6379/0"
       # How long a result stays readable. Also the lifetime of every key.
@@ -66,6 +71,17 @@ services:
       # public deployment does not query it once per visitor; set 'auto' and a
       # token to turn it on.
       COS_WEB_RELEASES_MODE: "off"
+      # Re-read the OpenCloud release lifecycle page once a day, so a
+      # deployment that has been up for months does not rate instances
+      # against the schedule its image was built with. One request a day
+      # for the whole stack; set 'false' with no outbound access.
+      COS_WEB_SCHEDULE_REFRESH: "true"
+      # Ask the advisory feed once a day which vulnerabilities affect
+      # OpenCloud, so an advisory published after this image was built still
+      # reaches the people scanning with it. A refresh only ever adds an
+      # advisory and never believes one with no version bounds; set 'false'
+      # with no outbound access.
+      COS_WEB_ADVISORY_REFRESH: "true"
       # The browsable Swagger UI and ReDoc pages at /docs and /redoc. Off in
       # public: enabling them relaxes the content policy on those two paths.
       # /openapi.json, /arazzo.json and /.well-known/ai.json are public
@@ -86,6 +102,44 @@ services:
       COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
       COS_WEB_MCP_ALLOWED_HOSTS: ""
       COS_WEB_MCP_MAX_CONCURRENT_WAITS: "8"
+      # Sign-in in front of /mcp. Off, because the public deployment is meant
+      # to answer anybody; an estate running this for itself either sets the
+      # four variables below against an identity provider it already has, or
+      # brings up `docker-compose.authentik.yml` next to this file, which is
+      # this stack and an identity provider together and needs none of them:
+      #
+      #     ./authentik-env.sh
+      #     docker compose -f docker-compose.authentik.yml up -d
+      #
+      # This service only ever *verifies* a token: it checks the signature
+      # against the provider's published keys, the issuer, the audience and
+      # the expiry, and holds no account, session or client secret of its own.
+      # Authentication decides who may ask, never how hard - the rate limits,
+      # the cooldown and the SSRF guard are identical for an agent that signed
+      # in.
+      #
+      # The issuer is the value from the provider's discovery document. For
+      # Authentik that is the per-provider form, ending in a slash:
+      # https://sso.example.com/application/o/<application-slug>/
+      # The audience is the provider's client ID, which is what Authentik puts
+      # in a token's `aud` claim.
+      #
+      # Setting COS_WEB_MCP_AUTH_ENABLED without an issuer, without an
+      # audience or without a public base URL is refused at startup rather
+      # than served open. The audience matters most of the three: a provider
+      # that serves other applications signs their tokens with the same key,
+      # so an `aud` nobody compares makes every one of them a key to /mcp.
+      COS_WEB_MCP_AUTH_ENABLED: "${COS_WEB_MCP_AUTH_ENABLED:-false}"
+      COS_WEB_MCP_AUTH_ISSUER: "${COS_WEB_MCP_AUTH_ISSUER:-}"
+      COS_WEB_MCP_AUTH_AUDIENCE: "${COS_WEB_MCP_AUTH_AUDIENCE:-}"
+      # Only when the provider publishes its keys somewhere other than
+      # <issuer>/jwks/, and only when the resource URL is not
+      # <public base URL>/mcp.
+      COS_WEB_MCP_AUTH_JWKS_URL: "${COS_WEB_MCP_AUTH_JWKS_URL:-}"
+      COS_WEB_MCP_AUTH_RESOURCE_URL: "${COS_WEB_MCP_AUTH_RESOURCE_URL:-}"
+      # Scopes a token must carry, separated by ';'. Empty means any valid
+      # token from the named issuer is enough.
+      COS_WEB_MCP_AUTH_SCOPES: "${COS_WEB_MCP_AUTH_SCOPES:-}"
       # An audit record for every scan request, rejection and triggered limit,
       # on the check_opencloud.web.audit logger as one JSON object per line.
       # Off by default: the ordinary log carries lifecycle markers and uuids
@@ -144,6 +198,17 @@ services:
       # scan. Off unless the targets are your own.
       COS_WEB_CHECK_DEBUG_PORTS: "false"
       COS_WEB_RELEASES_MODE: "off"
+      # Re-read the OpenCloud release lifecycle page once a day, so a
+      # deployment that has been up for months does not rate instances
+      # against the schedule its image was built with. One request a day
+      # for the whole stack; set 'false' with no outbound access.
+      COS_WEB_SCHEDULE_REFRESH: "true"
+      # Ask the advisory feed once a day which vulnerabilities affect
+      # OpenCloud, so an advisory published after this image was built still
+      # reaches the people scanning with it. A refresh only ever adds an
+      # advisory and never believes one with no version bounds; set 'false'
+      # with no outbound access.
+      COS_WEB_ADVISORY_REFRESH: "true"
       # Encrypt the stored result document with AES-256-GCM. Both this service
       # and the worker must agree, and both need the same key: the worker
       # writes the document and the web process reads it back. A key is 64 hex

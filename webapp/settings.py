@@ -12,6 +12,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from opencloud_local_scan.advisory_source import OSV_QUERY_URL
+from opencloud_local_scan.schedule_source import LIFECYCLE_URL
+
 ENV_PREFIX = "COS_WEB_"
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
@@ -136,6 +139,34 @@ class WebSettings:
 
     releases_token: str | None = None
 
+    schedule_refresh: bool = True
+    """Re-read the OpenCloud release lifecycle page once a day and rate scans
+    against what it says. On by default: this is one request a day for the
+    whole deployment, and without it a long-running service keeps rating
+    instances against the schedule that happened to ship in its image. Turn
+    it off for a deployment with no outbound access, which then uses the
+    bundled schedule exactly as before."""
+
+    schedule_refresh_url: str = LIFECYCLE_URL
+    """Where that schedule is read from. Operator configuration, so it may
+    point at a mirror of the documentation; it is never a request field."""
+
+    schedule_refresh_hour: int = 4
+    """The hour (UTC) of the daily read. Off-peak by default, and worth
+    varying between deployments so they do not all arrive at once."""
+
+    advisory_refresh: bool = True
+    """Ask OSV once a day which advisories affect OpenCloud, and rate scans
+    against the answer. On by default for the same reason the check exists at
+    all: an advisory published the day after this image was built would
+    otherwise reach nobody running it, and the visitor would be told their
+    instance is fine. A refresh never removes an advisory and never believes
+    an unbounded one."""
+
+    advisory_refresh_url: str = OSV_QUERY_URL
+    """Where the advisories are read from. Operator configuration, so it may
+    point at a mirror of the feed; it is never a request field."""
+
     enable_docs: bool = False
     """Serve the browsable API pages at ``/docs`` and ``/redoc``. Off by
     default because they are a convenience for an operator rather than part
@@ -161,6 +192,41 @@ class WebSettings:
     nothing: the scan is submitted and the uuid returned for the caller to
     poll, exactly as ``wait: false`` would have answered. ``0`` never waits
     in the tool call at all."""
+
+    mcp_auth_enabled: bool = False
+    """Require an OpenID Connect access token on ``/mcp``. Off by default: a
+    public scan service is public, and an account would only make an agent
+    identifiable without making anybody safer. On, this service becomes an
+    OAuth resource server - it verifies a token an identity provider such as
+    authentik issued, and never issues, stores or sees a credential itself.
+    A deployment that turns it on without an issuer refuses to start rather
+    than serve an endpoint its operator believes is protected."""
+
+    mcp_auth_issuer: str | None = None
+    """The identity provider that issues those tokens, exactly as the ``iss``
+    claim spells it. For authentik that is
+    ``https://authentik.example.com/application/o/<application-slug>/``."""
+
+    mcp_auth_jwks_url: str | None = None
+    """Where the provider publishes its signing keys. Unset derives
+    ``<issuer>/jwks/``, which is what authentik and most others serve; a
+    provider that puts them elsewhere is named here rather than unsupported."""
+
+    mcp_auth_audience: str | None = None
+    """The ``aud`` claim a token must carry, normally the client ID the agent
+    authenticated as. Required whenever the sign-in is on: a token whose
+    audience is never compared is one the provider minted for somebody
+    else's application, and startup refuses rather than accept it."""
+
+    mcp_auth_scopes: tuple[str, ...] = field(default_factory=tuple)
+    """Scopes a token must carry as well as being valid. Empty means any
+    authenticated caller may use the endpoint."""
+
+    mcp_auth_resource_url: str | None = None
+    """The URL agents reach ``/mcp`` at, used as the OAuth resource
+    identifier and as the base of the RFC 9728 metadata. Unset derives it
+    from ``COS_WEB_PUBLIC_BASE_URL``, which behind a proxy is the only place
+    this service can learn its own address from."""
 
     webhook_secret: str | None = None
     """Shared secret for signing webhook payloads. If set, webhook POSTs include
@@ -203,6 +269,9 @@ class WebSettings:
     """Signs the proof of deletion. Unset returns an unsigned receipt, which
     still states what was removed but cannot be checked by whoever holds it."""
 
+    export_signing_key: str | None = None
+    """Signs exported result bytes for CI and archival verification."""
+
     encryption_keys: dict[int, str] = field(default_factory=dict)
     """Encryption key mapping: version -> key (hex). Keys are read from
     COS_WEB_ENCRYPTION_KEY_<VERSION> env vars. New encryptions use the highest
@@ -239,6 +308,13 @@ class WebSettings:
             allow_indexing=_env_bool("ALLOW_INDEXING", True),
             releases_mode=(_env("RELEASES_MODE") or "off").lower(),
             releases_token=_env("RELEASES_TOKEN"),
+            schedule_refresh=_env_bool("SCHEDULE_REFRESH", True),
+            schedule_refresh_url=_env("SCHEDULE_REFRESH_URL") or LIFECYCLE_URL,
+            schedule_refresh_hour=min(
+                23, _env_int("SCHEDULE_REFRESH_HOUR", 4, minimum=0)
+            ),
+            advisory_refresh=_env_bool("ADVISORY_REFRESH", True),
+            advisory_refresh_url=_env("ADVISORY_REFRESH_URL") or OSV_QUERY_URL,
             enable_docs=_env_bool("ENABLE_DOCS", False),
             enable_mcp=_env_bool("ENABLE_MCP", True),
             mcp_allowed_hosts=_env_list("MCP_ALLOWED_HOSTS"),
@@ -247,6 +323,12 @@ class WebSettings:
                 DEFAULT_MCP_MAX_CONCURRENT_WAITS,
                 minimum=0,
             ),
+            mcp_auth_enabled=_env_bool("MCP_AUTH_ENABLED", False),
+            mcp_auth_issuer=_env("MCP_AUTH_ISSUER"),
+            mcp_auth_jwks_url=_env("MCP_AUTH_JWKS_URL"),
+            mcp_auth_audience=_env("MCP_AUTH_AUDIENCE"),
+            mcp_auth_scopes=_env_list("MCP_AUTH_SCOPES"),
+            mcp_auth_resource_url=_env("MCP_AUTH_RESOURCE_URL"),
             webhook_secret=_env("WEBHOOK_SECRET"),
             encrypt_results=_env_bool("ENCRYPT_RESULTS", False),
             max_batch_targets=_env_int(
@@ -257,5 +339,6 @@ class WebSettings:
             audit_salt=_env("AUDIT_SALT"),
             purge_token=_env("PURGE_TOKEN"),
             purge_signing_key=_env("PURGE_SIGNING_KEY"),
+            export_signing_key=_env("EXPORT_SIGNING_KEY"),
             encryption_keys=_read_encryption_keys(),
         )

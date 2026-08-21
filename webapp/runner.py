@@ -16,10 +16,12 @@ import logging
 from typing import Any
 
 from opencloud_local_scan import ReleaseSettings, ScannerSettings, scan
+from opencloud_local_scan.versions import ReleaseSchedule
+from opencloud_local_scan.vulndb import VulnerabilityDatabase
 
 from .catalog import DEFAULT_RELEASE_TRACK, sanitize_release_track
 from .settings import WebSettings
-from .ssrf import Target, redirect_guard, revalidate
+from .ssrf import Target, redirect_guard, redirect_pinner, revalidate
 
 LOGGER = logging.getLogger("check_opencloud.web.runner")
 
@@ -29,10 +31,18 @@ def scanner_settings_for(
     ignore_hardenings: tuple[str, ...],
     settings: WebSettings,
     release_track: str = DEFAULT_RELEASE_TRACK,
+    release_schedule: ReleaseSchedule | None = None,
 ) -> ScannerSettings:
-    """Build the frozen scanner settings for one web-submitted scan."""
+    """Build the frozen scanner settings for one web-submitted scan.
+
+    ``release_schedule`` is the possibly refreshed lifecycle schedule the
+    worker read from Redis; ``None`` means the scanner falls back to the one
+    bundled in the wheel, which is what a deployment with the daily refresh
+    switched off does on every scan.
+    """
     return ScannerSettings(
         release_track=sanitize_release_track(release_track),
+        release_schedule=release_schedule,
         timeout=settings.scan_timeout,
         verify_tls=settings.verify_tls,
         scheme=target.scheme,
@@ -43,6 +53,11 @@ def scanner_settings_for(
         concurrency=settings.scan_concurrency,
         ignore_hardenings=ignore_hardenings,
         redirect_guard=redirect_guard(
+            allow_private=settings.allow_private_targets,
+            allowed_hosts=settings.extra_hosts_allowed,
+        ),
+        pinned_addresses=((target.hostname, target.addresses),),
+        redirect_pinner=redirect_pinner(
             allow_private=settings.allow_private_targets,
             allowed_hosts=settings.extra_hosts_allowed,
         ),
@@ -64,6 +79,8 @@ def execute_scan(
     ignore_hardenings: tuple[str, ...],
     settings: WebSettings,
     release_track: str = DEFAULT_RELEASE_TRACK,
+    release_schedule: ReleaseSchedule | None = None,
+    database: VulnerabilityDatabase | None = None,
 ) -> dict[str, Any]:
     """
     Re-check the target, then run the scan and return the result document.
@@ -81,7 +98,11 @@ def execute_scan(
     return scan(
         checked.scan_host,
         settings=scanner_settings_for(
-            checked, ignore_hardenings, settings, release_track
+            checked, ignore_hardenings, settings, release_track, release_schedule
         ),
         release_settings=release_settings_for(settings),
+        # The advisory database the daily refresh last accepted; ``None``
+        # falls back to the one bundled in the wheel, exactly as the plugin
+        # does on a monitoring host.
+        database=database,
     )

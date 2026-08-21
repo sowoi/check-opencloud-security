@@ -1,0 +1,129 @@
+# The OAuth2 provider that guards the MCP endpoint, provisioned rather than
+# clicked.
+#
+# `docker/docker-compose.authentik.yml` mounts this directory at
+# /blueprints/custom in both Authentik containers, and the worker applies
+# every file it finds under /blueprints on start. The result is that a stack
+# brought up for the first time already has the provider and the application
+# the scanner is configured against - no admin interface, no client ID to
+# copy across, no step between `up -d` and an agent signing in.
+#
+# The client ID and secret come from `docker/.env`, written by
+# `docker/authentik-env.sh`. That is the whole reason they are generated
+# outside Authentik: both sides have to agree on them, and the value in
+# COS_WEB_MCP_AUTH_AUDIENCE is the one a token is checked against.
+#
+# `state: created` throughout, so this provisions once and then leaves the
+# operator alone. Change something in the admin interface afterwards - a
+# redirect URI, the flows, the scopes - and it stays changed; this file will
+# not put it back on the next start.
+#
+# Nothing here is secret. The client ID is published in every token it issues,
+# and the secret is a reference to an environment variable rather than a
+# value.
+
+version: 1
+
+metadata:
+  name: check-opencloud-security - MCP endpoint
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+    blueprints.goauthentik.io/description: >-
+      The OAuth2 provider and application the scan service checks tokens
+      against on /mcp.
+
+entries:
+  # The scope mappings below are created by a system blueprint, and the order
+  # blueprints run in is not guaranteed. Declaring the dependency is the
+  # documented way to stop a first start from failing on a lookup that would
+  # have succeeded a second later.
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        path: system/providers-oauth2.yaml
+      required: true
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: scanner-provider
+    state: created
+    identifiers:
+      name: check-opencloud-security
+    attrs:
+      client_id: !Env [AUTHENTIK_SCANNER_CLIENT_ID, opencloud-scanner]
+      client_secret: !Env AUTHENTIK_SCANNER_CLIENT_SECRET
+      client_type: confidential
+
+      # authorization_code for a person at a keyboard, whose client takes them
+      # through the browser; client_credentials for a headless agent, which
+      # Authentik answers by minting a service account of its own the first
+      # time it is asked. refresh_token so a long-running agent does not have
+      # to hold the client secret in memory for a week.
+      grant_types:
+        - authorization_code
+        - refresh_token
+        - client_credentials
+
+      authorization_flow: !Find [
+        authentik_flows.flow,
+        [slug, default-provider-authorization-implicit-consent],
+      ]
+      invalidation_flow: !Find [
+        authentik_flows.flow,
+        [slug, default-provider-invalidation-flow],
+      ]
+
+      # The single most important line in this file. With a signing key the
+      # tokens are signed asymmetrically and anybody can verify one against
+      # the published JWKS, which is what the scanner does. Without one
+      # Authentik falls back to signing with the client secret, and a resource
+      # server could only verify a token by being handed that secret - which
+      # is why the scanner refuses such a token outright.
+      signing_key: !Find [
+        authentik_crypto.certificatekeypair,
+        [name, "authentik Self-signed Certificate"],
+      ]
+
+      property_mappings:
+        - !Find [
+          authentik_providers_oauth2.scopemapping,
+          [managed, "goauthentik.io/providers/oauth2/scope-openid"],
+        ]
+        - !Find [
+          authentik_providers_oauth2.scopemapping,
+          [managed, "goauthentik.io/providers/oauth2/scope-profile"],
+        ]
+        - !Find [
+          authentik_providers_oauth2.scopemapping,
+          [managed, "goauthentik.io/providers/oauth2/scope-email"],
+        ]
+        - !Find [
+          authentik_providers_oauth2.scopemapping,
+          [managed, "goauthentik.io/providers/oauth2/scope-offline_access"],
+        ]
+
+      redirect_uris:
+        - matching_mode: strict
+          url: !Env [AUTHENTIK_SCANNER_REDIRECT_URI, "http://localhost:8811/"]
+        # The loopback callback an MCP client running on somebody's laptop
+        # opens. The port is chosen per run, so this one is a pattern rather
+        # than an address - and it is a pattern for 127.0.0.1 only, which is
+        # the one host a redirect cannot be stolen from.
+        - matching_mode: regex
+          url: "http://127\\.0\\.0\\.1:[0-9]{1,5}/.*"
+
+      # Per-provider, which is the default and what makes the issuer
+      # <authentik>/application/o/<application slug>/ - the value the scanner
+      # is configured with, built from the slug of the application below.
+      issuer_mode: per_provider
+
+  - model: authentik_core.application
+    state: created
+    identifiers:
+      slug: !Env [AUTHENTIK_SCANNER_SLUG, opencloud-scanner]
+    attrs:
+      name: OpenCloud security scanner
+      provider: !KeyOf scanner-provider
+      meta_description: >-
+        The MCP endpoint of check-opencloud-security. Signing in decides who
+        may ask for a scan; it does not change any rate limit.
+      meta_publisher: check-opencloud-security

@@ -26,6 +26,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     settings,
 )
 from webapp.catalog import summarise
+from webapp.export_signing import verify_bytes
 from webapp.redis_backend import memory_backend
 from webapp.reports import csv_report, pdf_report, sarif_report
 from webapp.store import ScanStore
@@ -149,6 +150,16 @@ def test_every_export_format_downloads_with_the_scans_own_name(finished_scan):
     assert json.loads(
         test_client.get(f"/api/scans/{IDENTIFIER}/export/sarif").text
     )["runs"]
+
+
+def test_a_configured_export_key_signs_the_exact_downloaded_bytes(finished_scan):
+    """CI can verify an export without trusting an intermediate proxy."""
+    test_client = client(export_signing_key="test-export-signing-key")
+    response = test_client.get(f"/api/scans/{IDENTIFIER}/export/json")
+
+    signature = response.headers["x-cos-signature"]
+    assert verify_bytes(response.content, signature, "test-export-signing-key")
+    assert not verify_bytes(response.content + b"\n", signature, "test-export-signing-key")
 
 
 def test_an_unfinished_scan_says_so_rather_than_pretending_to_be_missing():

@@ -986,8 +986,28 @@ Two things are worth knowing about the bundled schedule:
   publicly. If your vendor has committed to a different window, point
   `release_schedule` at your own file rather than letting the bundled one
   decide.
-- **A release newer than everything in the schedule is never rated `F`.** The
-  file ages between updates, and a fresh release must not trip the alarm.
+- **A release newer than the schedule is never rated `F`, and never counted
+  against the instance.** The file ages between updates of this package, so an
+  instance that was patched promptly is routinely newer than the data it is
+  compared against. It keeps its rating, gets no upgrade recommendation and is
+  never called end of life for it.
+- **It says so when that happens.** A version ahead of the newest release
+  recorded for its line - or on a line newer than every line on record - sets
+  `lifecycle.scheduleStale` in the result document, fills in `scheduleNote`,
+  `scheduleUpdated` and `scheduleSource`, and adds a line to the plugin's
+  output:
+
+  ```
+  Release schedule: 7.4.1 is newer than anything in the bundled release schedule (generated 2026-08-12), so that schedule is probably out of date. This is not counted against the instance. Check the current support window at https://docs.opencloud.eu/docs/admin/resources/lifecycle/, and regenerate the schedule with scripts/update_release_schedule.py.
+  ```
+
+  It is a statement about the bundled file, not about the instance: the
+  support window it worked out came from data older than the release it
+  judged, so it is worth re-reading at the [source][lifecycle]. Upgrading the
+  package, or running `python scripts/update_release_schedule.py`, clears it.
+  A line that genuinely expired stays expired - patching inside a dead line
+  does not reopen it, and the note explains the data rather than overturning
+  the verdict.
 
 ## Advisory database
 Known vulnerabilities are matched against the version range
@@ -1021,7 +1041,7 @@ very same scanner, either once or as a service:
 check-opencloud-scanner scan opencloud.example.com
 
 # as a service
-check-opencloud-scanner serve --port 8080
+check-opencloud-scanner serve --port 8811
 ```
 
 | Endpoint | Behaviour |
@@ -1044,13 +1064,13 @@ Protect it with a token whenever it is reachable by others - without
 scanner will happily scan any host they name:
 
 ```shell
-docker run -d --name opencloud-scanner -p 127.0.0.1:8080:8080 \
+docker run -d --name opencloud-scanner -p 127.0.0.1:8811:8811 \
   -e COS_SERVICE_TOKEN="$(openssl rand -hex 32)" \
   --entrypoint check-opencloud-scanner \
   check-opencloud-security serve
 
 curl -H "Authorization: Bearer <token>" \
-  'http://127.0.0.1:8080/api/scan?url=opencloud.example.com'
+  'http://127.0.0.1:8811/api/scan?url=opencloud.example.com'
 ```
 
 A ready-made [`docker/docker-compose.monitoring.yml`](docker/docker-compose.monitoring.yml)
@@ -1074,7 +1094,12 @@ docker compose -f docker-compose.monitoring.yml run --rm check
 ```
 
 The plain `docker compose up` in that directory is the public web application
-instead - see [the web application](docs/webapp.md).
+instead - see [the web application](docs/webapp.md). A deployment of it that
+needs different answers can be generated rather than edited:
+`docker/setup-wizard.py` asks what the service should be reachable at, how
+hard it may scan and who may erase a result, then writes a compose file and a
+`.env` holding the credentials it refers to - see
+[`docker/README.md`](docker/README.md#the-setup-wizard).
 
 Everything in `secrets/` except the `*.example` templates is git-ignored - see
 [`secrets/README.md`](secrets/README.md).
@@ -1607,7 +1632,11 @@ Example payload:
     "daysRemaining": -9,
     "latestOnLine": null,
     "upgradeTo": "7.4.0",
-    "reason": "rolling release, unsupported since 2026-08-03"
+    "reason": "rolling release, unsupported since 2026-08-03",
+    "scheduleStale": false,
+    "scheduleUpdated": "2026-08-12",
+    "scheduleSource": "https://docs.opencloud.eu/docs/admin/resources/lifecycle/",
+    "scheduleNote": null
   },
   "vulnerability_count": 0,
   "vulnerabilities": [],
@@ -1914,6 +1943,7 @@ this file stays the reference for the options themselves.
 | [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
 | [The public scan service](docs/webapp.md) | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits |
 | [Using the scanner from an AI agent](docs/mcp.md) | The MCP endpoint: configuring Claude Code, Claude Desktop, GitHub Copilot, Cursor, Zed and Windsurf against the hosted or a self-hosted service, and turning it off |
+| [A sign-in on the MCP endpoint](docs/authentik.md) | The whole stack with Authentik in it, the self-provisioning OIDC provider, the `COS_WEB_MCP_AUTH_*` settings, adding the users and service accounts that may use it, getting a token, sending mail, and backing it up |
 | [Reverse proxies](docs/reverse-proxy.md) | nginx, Apache, Caddy, Traefik and HAProxy - in front of an OpenCloud instance, and in front of the scan service |
 | [Checking a fleet of instances](docs/many-instances.md) | One configuration file per instance, and keeping waivers honest |
 | [Prometheus and Grafana](docs/prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |

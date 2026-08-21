@@ -21,6 +21,7 @@ from typing import Any
 from opencloud_local_scan import __version__
 
 from . import workflows as wf
+from .prompts import prompt_capabilities
 from .seo import SITE_NAME
 
 #: Where the document lives. Public, unauthenticated, and stable.
@@ -40,7 +41,10 @@ OPENAPI_LINK_REL = "service-desc"
 
 
 def discovery_document(
-    origin: str, *, mcp_enabled: bool = True
+    origin: str,
+    *,
+    mcp_enabled: bool = True,
+    mcp_auth: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     What this service is, and where to read the rest of it.
@@ -140,9 +144,15 @@ def discovery_document(
             "protocol": "https://modelcontextprotocol.io",
             "description": (
                 "Model Context Protocol endpoint. Initialize against this URL "
-                "and use the protocol's own tools/list and resources/list to "
-                "discover what it offers; the tools execute the workflows "
-                "described in the Arazzo document."
+                "and use the protocol's own tools/list, prompts/list and "
+                "resources/list to discover what it offers; the tools execute "
+                "the workflows described in the Arazzo document."
             ),
+            "prompts": prompt_capabilities(),
+            "authentication": mcp_auth
+            or {
+                "type": "none",
+                "note": "No token required. Connect and initialize.",
+            },
         }
     return document

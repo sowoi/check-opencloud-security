@@ -294,7 +294,7 @@ server {
     ssl_certificate_key /etc/ssl/scan/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8811;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -306,7 +306,7 @@ server {
 
     # The MCP endpoint streams. Buffering it breaks every agent session.
     location /mcp {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8811;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -319,7 +319,7 @@ server {
     }
 
     location /static/ {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8811;
         proxy_cache_valid 200 1h;
         expires 1h;
     }
@@ -358,14 +358,14 @@ the only check.
 
     # The event stream must not be buffered or the session never starts.
     <Location "/mcp">
-        ProxyPass        http://127.0.0.1:8080/mcp flushpackets=on timeout=3600
-        ProxyPassReverse http://127.0.0.1:8080/mcp
+        ProxyPass        http://127.0.0.1:8811/mcp flushpackets=on timeout=3600
+        ProxyPassReverse http://127.0.0.1:8811/mcp
         SetEnv proxy-sendchunked 1
         SetEnv no-gzip 1
     </Location>
 
-    ProxyPass        / http://127.0.0.1:8080/ timeout=300
-    ProxyPassReverse / http://127.0.0.1:8080/
+    ProxyPass        / http://127.0.0.1:8811/ timeout=300
+    ProxyPassReverse / http://127.0.0.1:8811/
 </VirtualHost>
 ```
 
@@ -379,14 +379,14 @@ scan.example.com {
     encode zstd gzip
 
     # Streaming, and a timeout long enough for a scan to finish.
-    reverse_proxy /mcp* 127.0.0.1:8080 {
+    reverse_proxy /mcp* 127.0.0.1:8811 {
         flush_interval -1
         transport http {
             read_timeout 1h
         }
     }
 
-    reverse_proxy 127.0.0.1:8080 {
+    reverse_proxy 127.0.0.1:8811 {
         transport http {
             read_timeout 5m
         }
@@ -407,7 +407,7 @@ labels:
   - "traefik.http.routers.scan.rule=Host(`scan.example.com`)"
   - "traefik.http.routers.scan.entrypoints=websecure"
   - "traefik.http.routers.scan.tls.certresolver=letsencrypt"
-  - "traefik.http.services.scan.loadbalancer.server.port=8080"
+  - "traefik.http.services.scan.loadbalancer.server.port=8811"
   # Do not buffer the MCP event stream; Traefik streams by default, so the
   # only thing to get right is the timeout on the entrypoint.
   - "traefik.http.services.scan.loadbalancer.responseForwarding.flushInterval=1ms"
@@ -446,7 +446,7 @@ backend scan
     no option http-buffer-request
     timeout server 1h
     timeout tunnel 1h
-    server scan1 127.0.0.1:8080 check
+    server scan1 127.0.0.1:8811 check
 ```
 
 `timeout tunnel` is what keeps the MCP stream alive; `timeout server` alone

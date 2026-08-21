@@ -170,12 +170,47 @@ def test_disabled_entries_never_match(tmp_path):
     assert database.matches("7.1.0") == []
 
 
-def test_bundled_database_ships_no_active_advisory():
-    """No CVE has been published for OpenCloud, so the bundle must stay empty."""
+def test_no_bundled_advisory_can_match_every_version():
+    """
+    An advisory without bounds reports every instance in the world as vulnerable.
+
+    OSV publishes exactly such a record beside each reviewed advisory, so this
+    is not hypothetical: one unbounded entry reaching the bundled file would
+    turn every scan into a critical finding.
+    """
     database = vulndb.load_database()
 
-    assert database.matches("7.2.0") == []
-    assert database.matches("1.0.0") == []
+    for advisory in database.advisories:
+        for introduced, fixed in advisory.all_ranges():
+            assert introduced or fixed, f"{advisory.id} affects every version"
+    # A version older than anything OpenCloud ever shipped stands in for
+    # "outside every range", and must come back clean however many advisories
+    # the daily refresh has added by then.
+    assert database.matches("0.0.1") == []
+
+
+def test_every_bundled_advisory_matches_below_its_fix_and_not_at_it():
+    """
+    The bundled ranges are half-open, and the refresh must not blunt that.
+
+    Derived from the file rather than from a list, so an advisory added by the
+    daily refresh is held to the same rule as the ones written by hand.
+    """
+    database = vulndb.load_database()
+    checked = 0
+
+    for advisory in database.advisories:
+        for introduced, fixed in advisory.all_ranges():
+            if not (introduced and fixed):
+                continue
+            checked += 1
+            assert advisory.affects(introduced), f"{advisory.id} misses {introduced}"
+            assert not advisory.affects(fixed), f"{advisory.id} still flags {fixed}"
+            # And the fix it reports is the one for *that* line, not the
+            # first fix in the list.
+            assert advisory.for_version(introduced).fixed == fixed
+
+    assert checked, "the bundled database has no bounded advisory to check"
 
 
 def test_unknown_version_matches_nothing(tmp_path):

@@ -115,7 +115,7 @@ scanner:
 # --- the scan service inside the container -----------------------------------
 service:
   listen: 0.0.0.0
-  port: 8080
+  port: 8811
   cache_ttl: 900
   # token: secret://scanner_token
 

@@ -1,0 +1,380 @@
+# The whole thing, signed in: the scanner, the MCP endpoint and the identity
+# provider that guards it.
+#
+#   cd docker
+#   ./authentik-env.sh          # writes the secrets into .env, once
+#   docker compose -f docker-compose.authentik.yml up -d
+#   open http://localhost:8811
+#
+# This is a **complete stack**, not an overlay - six services, one file, one
+# command. `docker-compose.yml` next to it is the other one: the public
+# service, open to anybody, with no identity provider anywhere near it. Run
+# one or the other, not both; they would fight over port 8811.
+#
+# What is different here, and it is the only thing that is different: the MCP
+# endpoint requires a token. `COS_WEB_MCP_AUTH_ENABLED` follows
+# `COS_WEB_ENABLE_MCP`, so the sign-in is on by default for as long as the
+# endpoint is - turning `/mcp` off turns the guard off with it, because there
+# is then nothing left to guard.
+#
+#   COS_WEB_ENABLE_MCP=false docker compose -f docker-compose.authentik.yml up -d
+#
+# The pages and the HTTP API are **not** behind the sign-in. This is a guard
+# on the agent endpoint, not a login for the website, and adding one is not
+# what it is for.
+#
+# Authentication decides who may ask, never how hard. An agent that signed in
+# meets exactly the same client rate limit, per-target cooldown, SSRF guard
+# and queue as a stranger with a browser - a sign-in that raised a limit would
+# have turned itself into the way around it.
+#
+# Everything else is as in `docker-compose.yml`, including the two rules that
+# file exists to enforce: concurrency is set here and nowhere else, and Redis
+# is a cache with no persistence. Only Authentik's PostgreSQL keeps anything.
+#
+# `docs/authentik.md` is the walkthrough: the blueprint below, what to change
+# for a real hostname, and the backup - which is yours to run, because
+# Authentik has none built in.
+
+services:
+  web_app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    image: check-opencloud-security-web:latest
+    container_name: opencloud-scan-web
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8811:8811"
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_RESULT_TTL: "3600"
+      COS_WEB_IP_RATE_LIMIT: "10"
+      COS_WEB_IP_RATE_WINDOW: "60"
+      COS_WEB_TARGET_COOLDOWN: "300"
+      COS_WEB_MAX_BATCH_TARGETS: "10"
+      COS_WEB_TRUST_FORWARDED_FOR: "false"
+      # The address agents and browsers reach this service at. It is also what
+      # a token's audience is checked against, so it is not optional here: get
+      # it wrong and every valid token is refused.
+      COS_WEB_PUBLIC_BASE_URL: "${COS_WEB_PUBLIC_BASE_URL:-http://localhost:8811}"
+      # A deployment with a sign-in on it is not one search engines should be
+      # finding. The opposite default to the public stack, deliberately.
+      COS_WEB_ALLOW_INDEXING: "false"
+      COS_WEB_RELEASES_MODE: "off"
+      COS_WEB_ENABLE_DOCS: "true"
+      COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
+      COS_WEB_MCP_ALLOWED_HOSTS: ""
+      COS_WEB_MCP_MAX_CONCURRENT_WAITS: "8"
+
+      # --- the sign-in ---------------------------------------------------
+      #
+      # On whenever the endpoint is. This service only ever *verifies* a
+      # token: the signature against Authentik's published keys, the issuer,
+      # the audience and the expiry, asymmetric algorithms only. It issues
+      # nothing, stores nothing and holds no account.
+      COS_WEB_MCP_AUTH_ENABLED: "${COS_WEB_ENABLE_MCP:-true}"
+      # The issuer as it appears in a token, which Authentik builds from the
+      # address the *client* used - so this is the public one, not a container
+      # name. The blueprint fixes the application slug, which is the part of
+      # it that would otherwise be a value to go and look up.
+      COS_WEB_MCP_AUTH_ISSUER: "${AUTHENTIK_URL:-http://localhost:9000}/application/o/${AUTHENTIK_SLUG:-opencloud-scanner}/"
+      # The keys, on the other hand, are fetched by this container, which
+      # cannot reach the address the browser used. Hence the split: the issuer
+      # is compared as a string, and only the JWKS has to resolve from in
+      # here.
+      #
+      # `authentik-server`, with a hyphen, is the network alias declared
+      # below, and the hyphen is the whole reason it exists: the Compose
+      # service is `authentik_server`, an underscore is not legal in a DNS
+      # host name, and Authentik answers a request whose Host carries one
+      # with a 404. The symptom is a JWKS URL that resolves, connects, and
+      # then cannot be found.
+      COS_WEB_MCP_AUTH_JWKS_URL: "http://authentik-server:9000/application/o/${AUTHENTIK_SLUG:-opencloud-scanner}/jwks/"
+      # Authentik puts the provider's client ID in `aud`. Leaving this empty
+      # would accept a token minted for any other application behind the same
+      # provider, which is why it is required rather than defaulted.
+      COS_WEB_MCP_AUTH_AUDIENCE: "${AUTHENTIK_CLIENT_ID:?run ./authentik-env.sh, or set AUTHENTIK_CLIENT_ID in docker/.env}"
+      COS_WEB_MCP_AUTH_SCOPES: "${COS_WEB_MCP_AUTH_SCOPES:-}"
+
+      COS_WEB_AUDIT_LOG: "false"
+      COS_WEB_AUDIT_LOG_TARGETS: "false"
+      # Erasure on request. With the sign-in on, this credential travels in
+      # X-Purge-Authorization rather than Authorization, because Authorization
+      # now belongs to the identity provider.
+      COS_WEB_PURGE_TOKEN: "${COS_WEB_PURGE_TOKEN:-}"
+      COS_WEB_PURGE_SIGNING_KEY: "${COS_WEB_PURGE_SIGNING_KEY:-}"
+      COS_WEB_ENCRYPT_RESULTS: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  arq_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    image: check-opencloud-security-web:latest
+    container_name: opencloud-scan-worker
+    restart: unless-stopped
+    command: ["python", "-m", "webapp.tasks"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_RESULT_TTL: "3600"
+      # The whole of this service's load on other people's servers, and set
+      # here alone. Nothing a request carries can change either number.
+      COS_WEB_MAX_WORKERS: "5"
+      COS_WEB_SCAN_CONCURRENCY: "4"
+      COS_WEB_SCAN_TIMEOUT: "15"
+      COS_WEB_JOB_TIMEOUT: "180"
+      COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
+      COS_WEB_CHECK_DEBUG_PORTS: "false"
+      COS_WEB_RELEASES_MODE: "off"
+      COS_WEB_ENCRYPT_RESULTS: "false"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os; from redis import Redis; os.kill(1, 0); Redis.from_url(os.environ['COS_WEB_REDIS_URL']).ping()",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  redis:
+    image: redis:8.10-alpine
+    container_name: opencloud-scan-redis
+    restart: unless-stopped
+    # Still a cache. Every key here has a TTL, and a dump file would be a copy
+    # of everybody's scans sitting on a disk. Authentik's state is a different
+    # service's problem, three down.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  # --- Authentik ---------------------------------------------------------
+  #
+  # Two containers from one image - the `command` is the only difference -
+  # and a PostgreSQL. No Redis: Authentik has kept sessions, caching and its
+  # task queue in the database since 2025.10, and the scanner's Redis, with no
+  # persistence and an eviction policy, would be the wrong place for them even
+  # if it had not.
+  #
+  # PostgreSQL is Alpine-based. Authentik is not, and cannot be: there is no
+  # Alpine variant of ghcr.io/goauthentik/server published.
+  #
+  # `authentik/blueprints/opencloud-scanner.yaml` is mounted below and creates
+  # the OAuth2 provider and the application on first start, with the client ID
+  # and secret from `.env`. That is the difference between this stack and a
+  # page of instructions: there is nothing to click, and the issuer and the
+  # audience above are already right.
+
+  authentik_postgresql:
+    image: docker.io/library/postgres:18.6-alpine
+    container_name: opencloud-scan-authentik-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${AUTHENTIK_PG_DB:-authentik}"
+      POSTGRES_USER: "${AUTHENTIK_PG_USER:-authentik}"
+      POSTGRES_PASSWORD: "${AUTHENTIK_PG_PASS:?run ./authentik-env.sh, or set AUTHENTIK_PG_PASS in docker/.env}"
+    volumes:
+      # PostgreSQL 18 moved the mount point up one level. The image now keeps
+      # its data in a major-version-specific subdirectory of
+      # /var/lib/postgresql, so that `pg_upgrade --link` has both versions on
+      # one filesystem; a volume mounted at the old /var/lib/postgresql/data
+      # is refused with an explanation, not silently ignored.
+      - authentik_database:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}",
+        ]
+      start_period: 20s
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  authentik_server:
+    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.0}"
+    container_name: opencloud-scan-authentik
+    restart: unless-stopped
+    command: server
+    depends_on:
+      authentik_postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_SECRET_KEY: "${AUTHENTIK_SECRET_KEY:?run ./authentik-env.sh, or set AUTHENTIK_SECRET_KEY in docker/.env}"
+      AUTHENTIK_POSTGRESQL__HOST: authentik_postgresql
+      AUTHENTIK_POSTGRESQL__NAME: "${AUTHENTIK_PG_DB:-authentik}"
+      AUTHENTIK_POSTGRESQL__USER: "${AUTHENTIK_PG_USER:-authentik}"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "${AUTHENTIK_PG_PASS}"
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      # Mail. Authentik sends a message for a password recovery, an invitation
+      # and an expiring-password notice, and every one of those is a page that
+      # says "check your inbox" for a mail that never arrives when this is
+      # unset. Nothing here is required: leave AUTHENTIK_EMAIL_HOST empty and
+      # Authentik keeps its built-in local delivery, which is fine for a stack
+      # whose only account is the one you created at the initial-setup flow.
+      #
+      # Set the four in `.env` next to this file - the password belongs there
+      # rather than here, like every other credential this stack uses:
+      #
+      #     AUTHENTIK_EMAIL_HOST=smtp.example.com
+      #     AUTHENTIK_EMAIL_USERNAME=authentik@example.com
+      #     AUTHENTIK_EMAIL_PASSWORD=...
+      #     AUTHENTIK_EMAIL_FROM=authentik@example.com
+      #
+      # Port 587 with STARTTLS is the usual pairing; 465 wants USE_SSL true
+      # and USE_TLS false, and the two are mutually exclusive - setting both
+      # is how a submission hangs until the timeout.
+      AUTHENTIK_EMAIL__HOST: "${AUTHENTIK_EMAIL_HOST:-}"
+      AUTHENTIK_EMAIL__PORT: "${AUTHENTIK_EMAIL_PORT:-587}"
+      AUTHENTIK_EMAIL__USERNAME: "${AUTHENTIK_EMAIL_USERNAME:-}"
+      AUTHENTIK_EMAIL__PASSWORD: "${AUTHENTIK_EMAIL_PASSWORD:-}"
+      AUTHENTIK_EMAIL__USE_TLS: "${AUTHENTIK_EMAIL_USE_TLS:-true}"
+      AUTHENTIK_EMAIL__USE_SSL: "${AUTHENTIK_EMAIL_USE_SSL:-false}"
+      AUTHENTIK_EMAIL__TIMEOUT: "${AUTHENTIK_EMAIL_TIMEOUT:-10}"
+      # What the recipient sees in From:. A provider that refuses to relay for
+      # an address it does not own will reject everything until this matches.
+      AUTHENTIK_EMAIL__FROM: "${AUTHENTIK_EMAIL_FROM:-authentik@localhost}"
+      # Authentik binds [::] by default and dies on a host whose kernel has
+      # IPv6 disabled, which a container host quite often does. IPv4 is what
+      # a Compose network offers anyway; override these two if yours is
+      # dual-stack and you want the other family.
+      AUTHENTIK_LISTEN__HTTP: "${AUTHENTIK_LISTEN_HTTP:-0.0.0.0:9000}"
+      AUTHENTIK_LISTEN__HTTPS: "${AUTHENTIK_LISTEN_HTTPS:-0.0.0.0:9443}"
+      AUTHENTIK_LISTEN__METRICS: "${AUTHENTIK_LISTEN_METRICS:-0.0.0.0:9300}"
+      # Read by the blueprint, so the provider is created with the same client
+      # ID the scanner above checks a token's audience against.
+      AUTHENTIK_SCANNER_SLUG: "${AUTHENTIK_SLUG:-opencloud-scanner}"
+      AUTHENTIK_SCANNER_CLIENT_ID: "${AUTHENTIK_CLIENT_ID}"
+      AUTHENTIK_SCANNER_CLIENT_SECRET: "${AUTHENTIK_CLIENT_SECRET:?run ./authentik-env.sh, or set AUTHENTIK_CLIENT_SECRET in docker/.env}"
+      AUTHENTIK_SCANNER_REDIRECT_URI: "${AUTHENTIK_REDIRECT_URI:-http://localhost:8811/}"
+    ports:
+      - "127.0.0.1:${AUTHENTIK_PORT_HTTP:-9000}:9000"
+      - "127.0.0.1:${AUTHENTIK_PORT_HTTPS:-9443}:9443"
+    networks:
+      # A hyphenated name for the same container, because the Compose service
+      # name has an underscore in it and a Host header carrying one is not a
+      # legal host name. Authentik answers such a request with a 404, so this
+      # alias is what makes the JWKS URL above resolvable *and* answered.
+      default:
+        aliases:
+          - authentik-server
+    shm_size: 512mb
+    volumes:
+      - ../authentik/blueprints:/blueprints/custom:ro
+      - authentik_media:/media
+      - authentik_templates:/templates
+    security_opt:
+      - no-new-privileges:true
+
+  authentik_worker:
+    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.0}"
+    container_name: opencloud-scan-authentik-worker
+    restart: unless-stopped
+    command: worker
+    depends_on:
+      authentik_postgresql:
+        condition: service_healthy
+    environment:
+      AUTHENTIK_SECRET_KEY: "${AUTHENTIK_SECRET_KEY:?run ./authentik-env.sh, or set AUTHENTIK_SECRET_KEY in docker/.env}"
+      AUTHENTIK_POSTGRESQL__HOST: authentik_postgresql
+      AUTHENTIK_POSTGRESQL__NAME: "${AUTHENTIK_PG_DB:-authentik}"
+      AUTHENTIK_POSTGRESQL__USER: "${AUTHENTIK_PG_USER:-authentik}"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "${AUTHENTIK_PG_PASS}"
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      # Mail. Authentik sends a message for a password recovery, an invitation
+      # and an expiring-password notice, and every one of those is a page that
+      # says "check your inbox" for a mail that never arrives when this is
+      # unset. Nothing here is required: leave AUTHENTIK_EMAIL_HOST empty and
+      # Authentik keeps its built-in local delivery, which is fine for a stack
+      # whose only account is the one you created at the initial-setup flow.
+      #
+      # Set the four in `.env` next to this file - the password belongs there
+      # rather than here, like every other credential this stack uses:
+      #
+      #     AUTHENTIK_EMAIL_HOST=smtp.example.com
+      #     AUTHENTIK_EMAIL_USERNAME=authentik@example.com
+      #     AUTHENTIK_EMAIL_PASSWORD=...
+      #     AUTHENTIK_EMAIL_FROM=authentik@example.com
+      #
+      # Port 587 with STARTTLS is the usual pairing; 465 wants USE_SSL true
+      # and USE_TLS false, and the two are mutually exclusive - setting both
+      # is how a submission hangs until the timeout.
+      AUTHENTIK_EMAIL__HOST: "${AUTHENTIK_EMAIL_HOST:-}"
+      AUTHENTIK_EMAIL__PORT: "${AUTHENTIK_EMAIL_PORT:-587}"
+      AUTHENTIK_EMAIL__USERNAME: "${AUTHENTIK_EMAIL_USERNAME:-}"
+      AUTHENTIK_EMAIL__PASSWORD: "${AUTHENTIK_EMAIL_PASSWORD:-}"
+      AUTHENTIK_EMAIL__USE_TLS: "${AUTHENTIK_EMAIL_USE_TLS:-true}"
+      AUTHENTIK_EMAIL__USE_SSL: "${AUTHENTIK_EMAIL_USE_SSL:-false}"
+      AUTHENTIK_EMAIL__TIMEOUT: "${AUTHENTIK_EMAIL_TIMEOUT:-10}"
+      # What the recipient sees in From:. A provider that refuses to relay for
+      # an address it does not own will reject everything until this matches.
+      AUTHENTIK_EMAIL__FROM: "${AUTHENTIK_EMAIL_FROM:-authentik@localhost}"
+      # Authentik binds [::] by default and dies on a host whose kernel has
+      # IPv6 disabled, which a container host quite often does. IPv4 is what
+      # a Compose network offers anyway; override these two if yours is
+      # dual-stack and you want the other family.
+      AUTHENTIK_LISTEN__HTTP: "${AUTHENTIK_LISTEN_HTTP:-0.0.0.0:9000}"
+      AUTHENTIK_LISTEN__HTTPS: "${AUTHENTIK_LISTEN_HTTPS:-0.0.0.0:9443}"
+      AUTHENTIK_LISTEN__METRICS: "${AUTHENTIK_LISTEN_METRICS:-0.0.0.0:9300}"
+      # The worker is what applies a blueprint, so these are the ones that
+      # actually matter.
+      AUTHENTIK_SCANNER_SLUG: "${AUTHENTIK_SLUG:-opencloud-scanner}"
+      AUTHENTIK_SCANNER_CLIENT_ID: "${AUTHENTIK_CLIENT_ID}"
+      AUTHENTIK_SCANNER_CLIENT_SECRET: "${AUTHENTIK_CLIENT_SECRET}"
+      AUTHENTIK_SCANNER_REDIRECT_URI: "${AUTHENTIK_REDIRECT_URI:-http://localhost:8811/}"
+    # The upstream compose file gives this container the Docker socket so it
+    # can manage outpost containers. This stack runs no outposts, so it does
+    # not: handing a container the daemon socket is handing it the host.
+    shm_size: 512mb
+    volumes:
+      - ../authentik/blueprints:/blueprints/custom:ro
+      - authentik_certs:/certs
+      - authentik_media:/media
+      - authentik_templates:/templates
+    security_opt:
+      - no-new-privileges:true
+
+# Only Authentik keeps anything, and all of it matters: the database holds
+# every user, flow, provider and signing key, and none of it is recoverable
+# without the AUTHENTIK_SECRET_KEY in `.env`. `docs/authentik.md` has the
+# backup, which is yours to run - Authentik has none built in.
+volumes:
+  authentik_database:
+  authentik_media:
+  authentik_templates:
+  authentik_certs:

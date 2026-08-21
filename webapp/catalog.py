@@ -316,6 +316,7 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
         "passedCount": passed_count,
         "https": https,
         "tls": result.get("tls") or {},
+        "tlsOverview": _tls_overview(result),
         "identityProvider": result.get("identityProvider") or {},
         "reverseProxy": result.get("reverseProxy") or {},
         "integrations": result.get("integrations") or {},
@@ -326,6 +327,117 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
             "vulnerabilities": len(result.get("vulnerabilities") or []),
         },
     }
+
+
+def _tls_outcomes(result: Mapping[str, Any]) -> dict[str, bool]:
+    """Whether each TLS check passed, as the scanner decided it."""
+    outcomes: dict[str, bool] = {}
+    for entry in result.get("extraChecks", []):
+        if isinstance(entry, Mapping) and str(entry.get("id")).startswith("tls"):
+            outcomes[str(entry.get("id"))] = bool(entry.get("passed", True))
+    return outcomes
+
+
+def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """
+    The few transport facts that belong beside the grade rather than below it.
+
+    A certificate that expires on Friday, a chain that only resolves in a
+    browser that has already cached the intermediate, and a protocol version
+    nobody should still be offering are all things somebody scanning their own
+    instance came to find out. They are shown at the top so that reading the
+    page is not a prerequisite for noticing them.
+
+    Nothing is judged here. Each fact takes its tone from the pass or fail the
+    scanner already recorded for the check behind it, so the colour beside a
+    certificate is the scanner's verdict on that certificate and not a second
+    threshold invented in this layer.
+    """
+    tls = result.get("tls") or {}
+    if not isinstance(tls, Mapping) or not tls.get("reachable"):
+        return []
+
+    outcomes = _tls_outcomes(result)
+    certificate = tls.get("certificate") or {}
+    if not isinstance(certificate, Mapping):
+        certificate = {}
+    facts: list[dict[str, Any]] = []
+
+    protocol = tls.get("protocol")
+    if protocol:
+        accepted = tls.get("deprecatedProtocolsAccepted") or []
+        detail = (
+            "also accepts " + ", ".join(str(name) for name in accepted)
+            if accepted
+            else ""
+        )
+        facts.append(
+            {
+                "id": "protocol",
+                "label": "TLS version",
+                "value": str(protocol),
+                "detail": detail,
+                "tone": _tone(
+                    outcomes.get("tlsProtocol", True)
+                    and outcomes.get("tlsDeprecatedProtocol", True)
+                ),
+            }
+        )
+
+    days = certificate.get("daysRemaining")
+    not_after = certificate.get("notAfter")
+    if not_after:
+        if isinstance(days, int):
+            detail = (
+                f"expired {abs(days)} day(s) ago"
+                if days < 0
+                else f"{days} day(s) left"
+            )
+        else:
+            detail = ""
+        facts.append(
+            {
+                "id": "expiry",
+                "label": "Certificate expires",
+                "value": str(not_after),
+                "detail": detail,
+                "tone": _tone(outcomes.get("tlsCertificate", True)),
+            }
+        )
+
+    complete = tls.get("chainComplete")
+    trusted = tls.get("trusted")
+    if complete is not None or trusted is not None:
+        if complete is False:
+            value = "Incomplete"
+            detail = "no path to a public root"
+        elif trusted is False:
+            value = "Not trusted"
+            detail = "self-signed, or an unknown authority"
+        elif trusted is None:
+            value = "Not established"
+            detail = "the handshake never reached the certificate"
+        else:
+            value = "Complete and trusted"
+            detail = ""
+        facts.append(
+            {
+                "id": "chain",
+                "label": "Chain",
+                "value": value,
+                "detail": detail,
+                "tone": _tone(
+                    outcomes.get("tlsChain", True) and outcomes.get("tlsTrusted", True)
+                ),
+            }
+        )
+
+    return facts
+
+
+def _tone(passed: bool) -> str:
+    """The dashboard tone for a check the scanner has already judged."""
+    return "good" if passed else "bad"
 
 
 def _remediation(result: Mapping[str, Any]) -> dict[str, Any]:

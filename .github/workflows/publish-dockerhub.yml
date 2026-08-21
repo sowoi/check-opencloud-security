@@ -165,7 +165,7 @@ jobs:
       # every versioned release image.
       - name: Publish Docker Hub description
         if: steps.creds.outputs.configured == 'true'
-        uses: peter-evans/dockerhub-description@v5
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

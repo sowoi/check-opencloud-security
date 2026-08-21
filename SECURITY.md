@@ -94,6 +94,11 @@ attached to the same GitHub release as
 to your own vulnerability scanner rather than trusting this list of
 dependencies to stay current.
 
+Pull requests and the weekly security workflow also run `pip-audit` against
+the complete locked dependency set, including the optional web and MCP
+extras. The generated SBOM is retained as a workflow artifact; the release
+copy is the authoritative one for downloaded packages.
+
 ## How the plugin handles your data
 
 Worth knowing when you assess the risk of running it:

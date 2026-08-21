@@ -266,3 +266,21 @@ def redirect_guard(
         return True
 
     return _allowed
+
+
+def redirect_pinner(
+    *,
+    allow_private: bool = False,
+    allowed_hosts: tuple[str, ...] = (),
+) -> Callable[[str], tuple[str, ...] | None]:
+    """Validate a redirect and return the exact addresses it may use."""
+
+    def _pin(url: str) -> tuple[str, ...] | None:
+        try:
+            return validate_target(
+                url, allow_private=allow_private, allowed_hosts=allowed_hosts
+            ).addresses
+        except TargetRejected:
+            return None
+
+    return _pin

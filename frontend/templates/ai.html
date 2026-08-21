@@ -36,11 +36,15 @@
       <strong>MCP</strong> - <code>{{ mcp_url }}</code>, a Model Context
       Protocol endpoint over streamable HTTP. Tools:
       <code>scan_instance</code>, <code>scan_instances</code>,
-      <code>get_scan_result</code>, <code>export_scan</code> and
-      <code>erase_instance_data</code>. <code>scan_instance</code> does the
-      whole task - submission, waiting and result - in one call. It answers
-      the protocol rather than a browser, so it is an address to configure
-      rather than a page to open.
+      <code>get_scan_result</code>, <code>plan_remediation</code>,
+      <code>export_scan</code> and <code>erase_instance_data</code>.
+      <code>scan_instance</code> does the whole task - submission, waiting and
+      result - in one call. Prompts name the jobs themselves, such as
+      <code>audit_instance</code>, which audits an instance and writes the
+      remediation plan, and <code>review_transport_security</code>, which
+      looks only at the certificate and the handshake. It answers the protocol
+      rather than a browser, so it is an address to configure rather than a
+      page to open.
     </li>
     {% endif %}
   </ul>

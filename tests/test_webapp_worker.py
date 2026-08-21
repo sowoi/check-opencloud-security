@@ -10,6 +10,7 @@ rather than from a list that goes stale the next time a check is added.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -25,6 +26,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
 )
 from webapp.catalog import summarise
 from webapp.redis_backend import memory_backend
+from webapp.schedule import SCHEDULE_DOCUMENT_KEY
 from webapp.store import WORKER_HEARTBEAT_KEY, ScanStore
 from webapp.tasks import HEARTBEAT_TTL_SECONDS, publish_worker_heartbeat, run_scan
 
@@ -280,7 +282,7 @@ def test_the_release_track_the_visitor_chose_reaches_the_scanner(monkeypatch):
 
     seen: list[str | None] = []
 
-    def _capture(host, *, settings, release_settings):
+    def _capture(host, *, settings, release_settings, database=None):
         seen.append(settings.release_track)
         return {"rating": 5, "productversion": "7.2.3", "extraChecks": []}
 
@@ -312,3 +314,93 @@ def test_the_release_track_the_visitor_chose_reaches_the_scanner(monkeypatch):
 
     assert seen == ["lts", "auto"]
     assert asyncio.run(store.get(chosen)).as_dict()["releaseTrack"] == "lts"
+
+
+def test_a_refreshed_release_schedule_is_what_a_queued_scan_is_rated_against():
+    """
+    A release published after this deployment shipped must not look unknown.
+
+    Without the daily refresh reaching the scan, an instance running a version
+    the bundled schedule has never heard of is reported with a note telling
+    the visitor the database is out of date - which is exactly the state the
+    refresh exists to leave behind.
+    """
+    import json
+
+    from tests.test_webapp_schedule import with_extra_release
+
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "99.9.0"
+    published = with_extra_release("99.9.0", datetime.now(tz=timezone.utc).date() + timedelta(days=1), "rolling")
+
+    # First without the refresh: the scanner says the schedule is behind.
+    context, store = _worker_context(schedule_refresh=False)
+    with FakeOpenCloud(behaviour) as instance:
+        identifier = _queue(store, f"http://{instance.host}")
+        asyncio.run(run_scan(context, identifier))
+    stale = asyncio.run(store.get(identifier))
+    assert stale is not None and stale.result is not None
+    assert stale.result["lifecycle"]["scheduleStale"] is True
+
+    # Then with a refresh that has already run.
+    context, store = _worker_context()
+    asyncio.run(store.backend.set(SCHEDULE_DOCUMENT_KEY, json.dumps(published)))
+    with FakeOpenCloud(behaviour) as instance:
+        identifier = _queue(store, f"http://{instance.host}")
+        asyncio.run(run_scan(context, identifier))
+    fresh = asyncio.run(store.get(identifier))
+    assert fresh is not None and fresh.result is not None
+    assert fresh.result["lifecycle"]["scheduleStale"] is False
+
+
+def test_a_refreshed_advisory_is_what_a_queued_scan_is_rated_against():
+    """
+    An advisory published after this deployment shipped must still be reported.
+
+    This is the failure the refresh exists to prevent, and it is a silent one:
+    without it the visitor is told their vulnerable instance is fine. So both
+    halves are pinned - the same instance is clean against the bundled
+    database and vulnerable against the refreshed one.
+    """
+    import json
+
+    from webapp.reference_data import ADVISORY_DOCUMENT_KEY
+
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = "99.9.0"
+    published = {
+        "advisories": [
+            {
+                "id": "TEST-WORKER-1",
+                "title": "A finding newer than this build",
+                "description": "Reported only when the refresh reaches the scan.",
+                "severity": "critical",
+                "introduced": "99.0.0",
+                "fixed": "99.9.1",
+                "source": "https://osv.example.invalid/v1/query",
+            }
+        ]
+    }
+
+    context, store = _worker_context(advisory_refresh=False)
+    with FakeOpenCloud(behaviour) as instance:
+        identifier = _queue(store, f"http://{instance.host}")
+        asyncio.run(run_scan(context, identifier))
+    unaware = asyncio.run(store.get(identifier))
+    assert unaware is not None and unaware.result is not None
+    assert unaware.result["vulnerabilities"] == []
+
+    context, store = _worker_context()
+    asyncio.run(store.backend.set(ADVISORY_DOCUMENT_KEY, json.dumps(published)))
+    with FakeOpenCloud(behaviour) as instance:
+        identifier = _queue(store, f"http://{instance.host}")
+        asyncio.run(run_scan(context, identifier))
+    aware = asyncio.run(store.get(identifier))
+    assert aware is not None and aware.result is not None
+    assert [entry["id"] for entry in aware.result["vulnerabilities"]] == [
+        "TEST-WORKER-1"
+    ]
+    assert aware.result["rating"] < unaware.result["rating"], (
+        "a critical advisory has to cost the instance its grade, not just "
+        "appear in the document"
+    )

@@ -2,7 +2,7 @@
 #
 #   cd docker
 #   docker compose -f docker-compose.dockerhub.yml up -d
-#   open http://127.0.0.1:8080
+#   open http://127.0.0.1:8811
 #
 # This stack pulls `okxo/opencloud-scanner:latest` for both application
 # services. The existing docker-compose.yml remains the local-build stack.
@@ -17,7 +17,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8811:8811"
     environment:
       COS_WEB_REDIS_URL: "redis://redis:6379/0"
       # How long a result stays readable. Also the lifetime of every key.
@@ -30,6 +30,17 @@ services:
       COS_WEB_TRUST_FORWARDED_FOR: "false"
       # Do not query the release feed once per visitor by default.
       COS_WEB_RELEASES_MODE: "off"
+      # Re-read the OpenCloud release lifecycle page once a day, so a
+      # deployment that has been up for months does not rate instances
+      # against the schedule its image was built with. One request a day
+      # for the whole stack; set 'false' with no outbound access.
+      COS_WEB_SCHEDULE_REFRESH: "true"
+      # Ask the advisory feed once a day which vulnerabilities affect
+      # OpenCloud, so an advisory published after this image was built still
+      # reaches the people scanning with it. A refresh only ever adds an
+      # advisory and never believes one with no version bounds; set 'false'
+      # with no outbound access.
+      COS_WEB_ADVISORY_REFRESH: "true"
       # The browsable /docs and /redoc pages. /openapi.json, /arazzo.json and
       # /.well-known/ai.json are public whatever this says.
       COS_WEB_ENABLE_DOCS: "true"
@@ -38,6 +49,21 @@ services:
       # host list empty behind a proxy that already fixes the Host header.
       COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
       COS_WEB_MCP_ALLOWED_HOSTS: ""
+      # An optional sign-in in front of /mcp, off by default. Set an issuer
+      # and this becomes an OAuth 2.0 resource server: a token verified
+      # against the provider's published keys, and nothing else changed -
+      # authentication decides who may ask, never how hard.
+      # docker-compose.authentik.yml is this stack with a provider already in
+      # it, one command and no variables to set, and docs/authentik.md walks
+      # through it. The issuer, the audience and a public base URL are all
+      # required once it is on, and a missing one refuses to start rather
+      # than serve /mcp open.
+      COS_WEB_MCP_AUTH_ENABLED: "${COS_WEB_MCP_AUTH_ENABLED:-false}"
+      COS_WEB_MCP_AUTH_ISSUER: "${COS_WEB_MCP_AUTH_ISSUER:-}"
+      COS_WEB_MCP_AUTH_AUDIENCE: "${COS_WEB_MCP_AUTH_AUDIENCE:-}"
+      COS_WEB_MCP_AUTH_JWKS_URL: "${COS_WEB_MCP_AUTH_JWKS_URL:-}"
+      COS_WEB_MCP_AUTH_RESOURCE_URL: "${COS_WEB_MCP_AUTH_RESOURCE_URL:-}"
+      COS_WEB_MCP_AUTH_SCOPES: "${COS_WEB_MCP_AUTH_SCOPES:-}"
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -66,6 +92,17 @@ services:
       COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
       COS_WEB_CHECK_DEBUG_PORTS: "false"
       COS_WEB_RELEASES_MODE: "off"
+      # Re-read the OpenCloud release lifecycle page once a day, so a
+      # deployment that has been up for months does not rate instances
+      # against the schedule its image was built with. One request a day
+      # for the whole stack; set 'false' with no outbound access.
+      COS_WEB_SCHEDULE_REFRESH: "true"
+      # Ask the advisory feed once a day which vulnerabilities affect
+      # OpenCloud, so an advisory published after this image was built still
+      # reaches the people scanning with it. A refresh only ever adds an
+      # advisory and never believes one with no version bounds; set 'false'
+      # with no outbound access.
+      COS_WEB_ADVISORY_REFRESH: "true"
     # The image health check probes the web server. The worker has no HTTP
     # listener, so verify its PID and the Redis connection it needs instead.
     healthcheck:

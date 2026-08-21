@@ -47,6 +47,8 @@ from typing import Any, TypeVar
 from urllib.parse import urljoin, urlsplit
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3 import PoolManager
 
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
 from .remediation import SEVERITY_RATING_CAP as _SEVERITY_RATING_CAP
@@ -312,6 +314,10 @@ class ScannerSettings:
     this, a target answering ``302 Location: http://127.0.0.1:...`` turns the
     scanner into a way to read the scanning host's own network.
     """
+    pinned_addresses: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    """Validated addresses for the initial hostname, used by web scans."""
+    redirect_pinner: Callable[[str], tuple[str, ...] | None] | None = None
+    """Validate and return addresses for each redirect before it is followed."""
 
     @property
     def proxies(self) -> dict[str, str] | None:
@@ -322,6 +328,51 @@ class ScannerSettings:
     def workers(self) -> int:
         """The concurrency actually used, clamped to something sane."""
         return max(1, min(int(self.concurrency), MAX_CONCURRENCY))
+
+
+class _PinnedPoolManager(PoolManager):
+    """Route validated hostnames to their already-checked IP addresses."""
+
+    def __init__(self, pins: dict[str, tuple[str, ...]]) -> None:
+        super().__init__()
+        self._pins = pins
+
+    def pin(self, hostname: str, addresses: tuple[str, ...]) -> None:
+        """Replace a hostname's connection pin before the next request."""
+        self._pins[hostname.lower().rstrip(".")] = addresses
+        self.clear()
+
+    def connection_from_host(
+        self,
+        host: str | None,
+        port: int | None = None,
+        scheme: str | None = "http",
+        pool_kwargs: dict[str, Any] | None = None,
+    ):
+        original = host or ""
+        addresses = self._pins.get(original.lower().rstrip("."))
+        if addresses:
+            host = addresses[0]
+            pool_kwargs = dict(pool_kwargs or {})
+            if scheme == "https":
+                pool_kwargs.setdefault("assert_hostname", original)
+                pool_kwargs.setdefault("server_hostname", original)
+        return super().connection_from_host(host, port, scheme, pool_kwargs)
+
+
+class _PinnedHTTPAdapter(HTTPAdapter):
+    """Requests adapter that keeps the URL host for Host/SNI but dials its IP."""
+
+    def __init__(self, pins: dict[str, tuple[str, ...]]) -> None:
+        self._pinned_pool = _PinnedPoolManager(pins)
+        super().__init__()
+
+    def init_poolmanager(self, *args: Any, **kwargs: Any) -> None:
+        self.poolmanager = self._pinned_pool
+
+    def pin(self, hostname: str, addresses: tuple[str, ...]) -> None:
+        """Update the pool used by this session."""
+        self._pinned_pool.pin(hostname, addresses)
 
 
 _T = TypeVar("_T")
@@ -384,6 +435,35 @@ class _Probe:
     _sessions: threading.local = field(default_factory=threading.local, repr=False)
     _owner: int = field(default_factory=threading.get_ident, repr=False)
 
+    def __post_init__(self) -> None:
+        """Mount the pinning adapter before the first request is made."""
+        self._mount(self.session)
+
+    def _mount(self, session: requests.Session) -> None:
+        pins = dict(self.settings.pinned_addresses)
+        if pins:
+            adapter = _PinnedHTTPAdapter(pins)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+
+    def _pin_redirect(self, url: str, addresses: tuple[str, ...]) -> None:
+        """Pin a validated redirect on the session making this request."""
+        for prefix in ("http://", "https://"):
+            adapter = self._session.get_adapter(prefix)
+            if isinstance(adapter, _PinnedHTTPAdapter):
+                hostname = urlsplit(url).hostname
+                if hostname:
+                    adapter.pin(hostname, addresses)
+                return
+
+    @staticmethod
+    def _headers(url: str) -> dict[str, str]:
+        """Keep the validated hostname while the adapter dials its IP."""
+        return {
+            "User-Agent": USER_AGENT,
+            "Host": urlsplit(url).netloc,
+        }
+
     def derive(self, base_url: str) -> _Probe:
         """A probe for another base URL that reuses this one's connections."""
         return replace(self, base_url=base_url)
@@ -402,6 +482,7 @@ class _Probe:
         session = getattr(self._sessions, "session", None)
         if session is None:
             session = requests.Session()
+            self._mount(session)
             self._sessions.session = session
         return session
 
@@ -426,7 +507,10 @@ class _Probe:
                     verify=self.settings.verify_tls,
                     proxies=self.settings.proxies,
                     allow_redirects=follow,
-                    headers={"User-Agent": self.settings.user_agent},
+                    headers={
+                        **self._headers(url),
+                        "User-Agent": self.settings.user_agent,
+                    },
                     stream=self.settings.max_response_bytes > 0,
                 )
             )
@@ -478,6 +562,12 @@ class _Probe:
             if not guard(target):
                 LOGGER.debug("Refusing to follow redirect to %s", target)
                 return response
+            if self.settings.redirect_pinner is not None:
+                addresses = self.settings.redirect_pinner(target)
+                if not addresses:
+                    LOGGER.debug("Refusing to pin redirect to %s", target)
+                    return response
+                self._pin_redirect(target, addresses)
             try:
                 response = self._capped(
                     self._session.request(
@@ -487,7 +577,10 @@ class _Probe:
                         verify=self.settings.verify_tls,
                         proxies=self.settings.proxies,
                         allow_redirects=False,
-                        headers={"User-Agent": self.settings.user_agent},
+                        headers={
+                            **self._headers(target),
+                            "User-Agent": self.settings.user_agent,
+                        },
                         stream=self.settings.max_response_bytes > 0,
                     )
                 )

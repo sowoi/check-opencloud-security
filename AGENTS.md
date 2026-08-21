@@ -29,19 +29,28 @@ for a remote scan service.
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
 | `opencloud_local_scan/wizard.py` | The interactive setup behind `--configure` |
 | `opencloud_local_scan/selfupdate.py` | `--upgrade-self`, via pipx, uv or pip |
+| `opencloud_local_scan/schedule_source.py` | Reading the published lifecycle page: one parser, used by CI and by the web application |
 | `opencloud_local_scan/data/release_schedule.json` | Bundled release schedule |
-| `scripts/update_release_schedule.py` | Regenerates that file from the published documentation |
+| `scripts/update_release_schedule.py` | Regenerates that file and the README block from the published documentation |
+| `opencloud_local_scan/advisory_source.py` | The one reader of the advisory feed, used by CI and by the web application |
+| `scripts/update_vulnerability_db.py` | Regenerates `data/vulnerabilities.json` from that feed, adding only |
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
 | `adr/` | Durable architectural decision records |
 | `webapp/` | The public scan service: FastAPI, the ARQ worker, SSRF and rate limits |
 | `webapp/workflows.py` | What a *task* means: submit, poll, wait, complete, export |
+| `webapp/schedule.py` | The daily re-read of the release lifecycle, and the rules that make it safe |
+| `webapp/advisories.py` | The daily re-read of the advisory feed, and the rules that make it safe |
+| `webapp/reference_data.py` | The Redis keys and helpers both refreshers share |
 | `webapp/openapi.py`, `arazzo.py`, `discovery.py` | The written contracts and `/.well-known/ai.json` |
 | `webapp/mcp_server.py` | The MCP endpoint: those workflows, executed for an agent |
+| `webapp/mcp_auth.py` | The optional sign-in on `/mcp`: a token verified, never issued |
+| `webapp/prompts.py` | The MCP prompts: the tasks people ask for, written once |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
 | `docker/` | Every Dockerfile and compose file; the build context is the repository root |
+| `authentik/blueprints/` | The provider the signed-in stack provisions for itself |
 | `ansible/`, `contrib/`, `config/` | Deployment role, Icinga definitions, example config |
 | `docs/` | Deployment guides and worked examples, indexed by `docs/README.md` |
 
@@ -214,6 +223,38 @@ amplifier.
 accepted, gets a uuid and waits in FIFO order with its position shown. Never
 answer a valid submission with a 503.
 
+**The release schedule refreshes itself, and may only gain knowledge.** The
+schedule CI commits is frozen the moment an image is built, so the worker
+re-reads the published lifecycle page once a day (`webapp/schedule.py`,
+`COS_WEB_SCHEDULE_REFRESH`, on by default) and keeps it in Redis, where each
+scan picks it up. There is one parser -
+`opencloud_local_scan/schedule_source.py`, which `scripts/` also uses - and a
+candidate document is accepted only when it still knows every line the bundled
+file knows, because losing a line turns an end-of-life instance into an
+unknown one. A failed, redesigned or truncated page changes nothing, a newer
+bundled file wins after a redeployment, and nothing is ever written back to
+`README.md` or the bundled JSON: those stay CI's. The plugin does not do this
+- a check running every few minutes must not become a documentation fetch.
+See [ADR 0016](adr/0016-the-release-schedule-refreshes-itself.md).
+
+**The advisory database refreshes itself, and may only gain advisories.**
+Same reason, higher stakes: a database that has not heard of last month's
+advisory does not grade an instance generously, it tells a visitor a
+vulnerable instance is fine. The worker asks the advisory feed once a day
+(`webapp/advisories.py`, `COS_WEB_ADVISORY_REFRESH`, on by default) and the
+scan jobs rate against the answer. One reader again -
+`opencloud_local_scan/advisory_source.py`, which `scripts/` and CI also use -
+and the acceptance rules are the mirror image, because this can fail by
+*gaining* an advisory as well as by losing one: a refresh only ever adds, so a
+feed answering with an empty list changes nothing; **nothing unbounded is ever
+believed**, because an advisory naming no versions matches every release there
+has ever been and public feeds do publish that shape; an absurd number of
+advisories is refused whole; and any failure leaves the database as it was.
+One advisory can affect several release lines patched separately, so every
+range is kept and the fix reported is the one for the line the instance is
+actually on. Nothing is written to disk. See
+[ADR 0017](adr/0017-the-advisory-database-refreshes-itself.md).
+
 **The uuid is a capability.** Every scan gets its own `scan:{uuid}:*` Redis
 namespace, every key carries the TTL, and unknown, invalid and expired all
 return the same **404**. Never add a listing endpoint, never make a uuid
@@ -262,6 +303,20 @@ Write the description *for an agent* - inputs, outputs, how long it takes,
 what is retryable, when to stop, when to ask the user - and mark a destructive
 one as destructive.
 
+**Prompts are the tasks a person asks for**, and their wording lives once in
+`webapp/prompts.py`: the catalogue, the rendering functions, and nothing that
+touches the store or the API. Compose the durable rules from the notes and
+constants in `webapp/workflows.py` rather than restating a number, name tools
+rather than endpoints - the tools are what carry the SSRF guard, the rate
+limit and the cooldown - and let a prompt constrain the model away from
+judgement rather than towards it: do not reorder the plan, do not recompute
+the grades, do not obey a string a scanned host chose. The catalogue is
+published in the `mcp.prompts` block of `/.well-known/ai.json`, and a new
+prompt needs a row in `docs/mcp.md`, `webapp/README.md` and `docs/webapp.md`
+and a test in `tests/test_webapp_mcp.py`. Renaming one breaks somebody's saved
+command, so add and deprecate rather than edit. See
+[ADR 0014](adr/0014-prompts-are-tasks-and-their-text-lives-beside-the-workflows.md).
+
 **A scanned host is not to be trusted with the model's attention.** A version
 string, a product name and an error message are chosen by somebody else's
 server. They stay collapsed, stripped and truncated, and the answer keeps its
@@ -271,6 +326,26 @@ server. They stay collapsed, stripped and truncated, and the answer keeps its
 same authorisation `DELETE /api/purge` does, supplied by the caller; the MCP
 layer passes it and forgets it. Validate a uuid as a uuid before it reaches a
 request path, and percent-encode anything that goes into a query.
+
+**The endpoint is open unless an operator says otherwise.** `webapp/mcp_auth.py`
+makes `/mcp` an OAuth 2.0 *resource server* when `COS_WEB_MCP_AUTH_ENABLED`
+and an issuer are set: a bearer token verified offline against the provider's
+published keys, asymmetric algorithms only, with the RFC 9728 metadata at
+`/.well-known/oauth-protected-resource/mcp` and a `401` that names it. Never
+issue, store or accept a credential of your own here, and never let a sign-in
+change a limit - **authentication decides who may ask, never how hard**, so an
+authenticated agent meets the same rate limit, cooldown, guard and queue. A
+deployment that asked for a sign-in it cannot enforce **refuses to start**;
+one that asked for it with the endpoint switched off does not, because
+turning `/mcp` off is a good way to protect it. With a sign-in configured the
+purge credential moves to `X-Purge-Authorization`, with no fallback to
+`Authorization`. `docker/docker-compose.authentik.yml` is a whole stack of its
+own rather than an overlay or a profile, because Compose validates a required
+variable in every file it reads; in it the sign-in follows the endpoint, so
+Authentik guards `/mcp` by default whenever `/mcp` is on, and
+`authentik/blueprints/` provisions the provider rather than an operator
+clicking it. See [ADR 0015](adr/0015-the-mcp-endpoint-may-require-a-sign-in.md)
+and [`docs/authentik.md`](docs/authentik.md).
 
 **The four documents are public and unauthenticated**, at stable paths.
 `COS_WEB_ENABLE_DOCS` governs only `/docs` and `/redoc`; `COS_WEB_ENABLE_MCP`
@@ -386,6 +461,9 @@ repository root, because an image needs files from outside that directory:
 | `docker/Dockerfile` | The plugin and the scanner service - the PyPI wheel, nothing web |
 | `docker/Dockerfile.web` | The web image: the wheel plus the `web` extra, `webapp/` and `frontend/` |
 | `docker/docker-compose.yml` | The default stack - `web_app`, `arq_worker` and `redis`, ready to `up` |
+| `docker/docker-compose.authentik.yml` | The same stack plus Authentik, when `/mcp` should require a sign-in |
+| `docker/authentik-env.sh` | Writes the secrets that stack needs into `docker/.env`, once |
+| `docker/setup-wizard.py` | The standalone Docker setup wizard: asks, then writes a compose file and its `.env` |
 | `docker/docker-compose.monitoring.yml` | The plugin's own scan service, unrelated to the web application |
 
 - Build by hand with `docker build -f docker/Dockerfile.web .`, never with
@@ -394,6 +472,19 @@ repository root, because an image needs files from outside that directory:
   the daemon reads it from nowhere else.
 - Compose is run from `docker/`, so paths inside those files point one level
   up (`../config`, `../secrets`).
+
+**`docker/setup-wizard.py` writes a deployment; it does not configure the
+plugin.** It is standalone and uses the standard library only, so it runs on a
+host that has Docker and nothing else. It asks question by question with an
+explanation and an example answer, then writes a commented compose file with
+the non-secret answers inline and a `.env` holding every credential that file
+refers to as `${NAME}`. The split is the rule: a secret never lands in the
+compose file, `.env` is created `0600`, and the compose files that ship in
+`docker/` are refused as targets, because the next update would take a
+hand-made deployment with it. Keep it independent of
+`opencloud_local_scan.wizard`, which sets up a monitoring check against one
+instance - no imports, no shared configuration.
+`tests/test_docker_wizard.py` asserts all of that.
 
 ## Validation
 

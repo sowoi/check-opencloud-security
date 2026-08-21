@@ -39,12 +39,17 @@ webapp/
 ├── queue.py          handing a scan to the worker pool
 ├── tasks.py          the ARQ worker; `python -m webapp.tasks`
 ├── runner.py         where a request becomes ScannerSettings
+├── schedule.py       the daily re-read of the OpenCloud release lifecycle
+├── advisories.py     the daily re-read of the advisory feed
+├── reference_data.py the Redis keys and helpers those two share
 ├── redis_backend.py  Redis, and the in-process stand-in for tests
 ├── reports.py        the CSV, SARIF and PDF exports
 ├── openapi.py        the OpenAPI 3.1 document, written rather than inferred
 ├── workflows.py      one place the polling, retry and error semantics live
 ├── arazzo.py         those workflows, rendered as Arazzo 1.0.1
 ├── mcp_server.py     the MCP endpoint: the same workflows, as agent tools
+├── prompts.py        the MCP prompts: the tasks people ask for, written once
+├── mcp_auth.py       the optional sign-in on /mcp: a token verified, never issued
 ├── discovery.py      /.well-known/ai.json, the entry point for an agent
 ├── purge.py          erasure on request, and the signed receipt for it
 ├── seo.py            the public page list, robots.txt and sitemap.xml
@@ -73,7 +78,7 @@ With Docker, which brings its own Redis:
 
 ```bash
 cd docker && docker compose -f docker-compose.dockerhub.yml up
-# http://127.0.0.1:8080
+# http://127.0.0.1:8811
 ```
 
 The released image is on Docker Hub as `okxo/opencloud-scanner`
@@ -92,7 +97,7 @@ pip install ".[web]"
 redis-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
-    uvicorn webapp.app:app --host 127.0.0.1 --port 8080 --reload
+    uvicorn webapp.app:app --host 127.0.0.1 --port 8811 --reload
 ```
 
 `COS_WEB_REDIS_URL=memory://` runs the API with an in-process stand-in and no
@@ -123,7 +128,7 @@ A small surface, and this is all of it.
 ### Starting a scan
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8080/api/scans \
+curl -sS -X POST http://127.0.0.1:8811/api/scans \
   -H 'Content-Type: application/json' \
   -d '{"target_url": "opencloud.example.com",
        "ignore_hardenings": ["cspWithoutUnsafeInline"],
@@ -153,7 +158,7 @@ never gets a **503**.
 ### Polling a scan
 
 ```bash
-curl -sS http://127.0.0.1:8080/api/scans/0f4a1f22-...
+curl -sS http://127.0.0.1:8811/api/scans/0f4a1f22-...
 ```
 
 ```json
@@ -181,7 +186,7 @@ real, and there is no endpoint that enumerates scans.
 otherwise the same request:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8080/api/scans/batch \
+curl -sS -X POST http://127.0.0.1:8811/api/scans/batch \
   -H 'Content-Type: application/json' \
   -d '{"targets": ["one.example.com", "two.example.com"],
        "release_track": "production"}'
@@ -220,7 +225,7 @@ scan - batching creates no handle over the group.
 `csv`, `sarif` or `pdf`:
 
 ```bash
-curl -sS -OJ http://127.0.0.1:8080/api/scans/0f4a1f22-.../export/pdf
+curl -sS -OJ http://127.0.0.1:8811/api/scans/0f4a1f22-.../export/pdf
 ```
 
 | Format | For |
@@ -234,6 +239,16 @@ Each carries the remediation plan the scanner produced: a summary line and one
 entry per fix in the CSV, `runs[0].properties.remediation` in the SARIF, a
 "What gets you to A+" section in the PDF, and `remediationPlan` in the JSON,
 which is the scanner's own document.
+
+When `COS_WEB_EXPORT_SIGNING_KEY` is set, the response also carries
+`X-COS-Signature: HMAC-SHA256=<hex>`. The signature covers the exact response
+bytes, including PDF and CSV, so verify the downloaded file rather than a
+parsed or re-serialised document:
+
+```bash
+COS_WEB_EXPORT_SIGNING_KEY='<key-from-secret-store>' \
+  scripts/verify_export.py result.json 'HMAC-SHA256=<hex-from-header>'
+```
 
 They carry the transport-security detail the same way: the negotiated protocol
 and cipher, the certificate's issuer, validity window and remaining days, the
@@ -260,7 +275,7 @@ key derived from it:
 ```bash
 curl -sS -X DELETE \
   -H "Authorization: Bearer $COS_WEB_PURGE_TOKEN" \
-  "http://127.0.0.1:8080/api/purge?target=opencloud.example.com"
+  "http://127.0.0.1:8811/api/purge?target=opencloud.example.com"
 ```
 
 Everything here expires on its own already; this is for the person who wants
@@ -306,15 +321,15 @@ Turn the browsable pages on for development:
 ```bash
 COS_WEB_ENABLE_DOCS=true \
 COS_WEB_REDIS_URL=memory:// \
-  uvicorn webapp.app:app --port 8080
+  uvicorn webapp.app:app --port 8811
 ```
 
-- Swagger UI: <http://127.0.0.1:8080/docs>
-- ReDoc: <http://127.0.0.1:8080/redoc>
-- The schema itself: <http://127.0.0.1:8080/openapi.json>
-- The workflows: <http://127.0.0.1:8080/arazzo.json>
-- The discovery document: <http://127.0.0.1:8080/.well-known/ai.json>
-- The MCP endpoint: <http://127.0.0.1:8080/mcp>
+- Swagger UI: <http://127.0.0.1:8811/docs>
+- ReDoc: <http://127.0.0.1:8811/redoc>
+- The schema itself: <http://127.0.0.1:8811/openapi.json>
+- The workflows: <http://127.0.0.1:8811/arazzo.json>
+- The discovery document: <http://127.0.0.1:8811/.well-known/ai.json>
+- The MCP endpoint: <http://127.0.0.1:8811/mcp>
 
 The last four need no switch at all. In Docker, set
 `COS_WEB_ENABLE_DOCS: "true"` on the `web_app` service in
@@ -399,6 +414,25 @@ Three resources expose the specifications under `spec://` URIs - the OpenAPI
 document, the Arazzo document and the discovery document - so an agent can
 read the contracts without leaving the protocol.
 
+Six prompts name the tasks people actually ask for, so a client offers the job
+rather than a menu of verbs. Their wording lives in [`prompts.py`](prompts.py),
+which composes it from the notes and constants in
+[`workflows.py`](workflows.py) and never touches the store or the API - a
+prompt names tools, and the tools are what execute.
+
+| Prompt | The task it asks for |
+|:-------|:---------------------|
+| `audit_instance` | Scan one instance, explain the grade, hand back the ordered plan |
+| `audit_estate` | Scan a list in one batch and rank it worst first |
+| `explain_scan_result` | Explain a finished scan to a named audience, without rescanning |
+| `triage_findings` | Turn a finished scan into one ticket per remediation step |
+| `review_transport_security` | The certificate and the handshake on their own |
+| `check_release_support` | Where the release sits in the lifecycle, and what to upgrade to |
+
+They are advertised twice: over the protocol, and in the `mcp.prompts` block
+of `/.well-known/ai.json`, so an agent deciding whether this service is worth
+connecting to can see the tasks before it speaks MCP at all.
+
 The tools are user-level tasks rather than one per endpoint, because the task
 is "scan this instance", not "create, poll, poll, poll, fetch". The polling
 and retry semantics live in [`workflows.py`](workflows.py), which is also what
@@ -428,6 +462,20 @@ follows, and each has a test that fails if it is removed:
   carries the *real* peer address of the MCP request, so a tool call is
   counted against whoever made it. Without that every agent in the world
   shares one bucket and rations strangers by each other.
+- **The sign-in is optional, and it is a resource server.** With
+  `COS_WEB_MCP_AUTH_ENABLED` and an issuer, `mcp_auth.py` verifies a bearer
+  token offline against the provider's published keys - signature, issuer,
+  audience, expiry, scopes, asymmetric algorithms only - and the endpoint
+  answers 401 with the RFC 9728 metadata URL otherwise. Nothing here issues a
+  token, stores one or holds an account, and a deployment that asked for a
+  sign-in it cannot enforce refuses to start rather than serve `/mcp` open.
+  The issuer and JWKS endpoints must use HTTPS; only loopback URLs are
+  accepted over HTTP for local development, so signing keys are never fetched
+  through an attacker-observable connection.
+  Authentication decides *who may ask*, never *how hard*: every limit above
+  is unchanged for an agent that signed in. The purge credential then moves
+  to `X-Purge-Authorization`, because `Authorization` belongs to the identity
+  provider and reading one as the other is a confusion worth refusing.
 - **Waiting is bounded.** `COS_WEB_MCP_MAX_CONCURRENT_WAITS` caps how many
   tool calls may sit waiting on a scan at once. Reaching it refuses nothing:
   the scan is submitted exactly as it would have been and the uuid comes back
@@ -511,11 +559,21 @@ before the first deployment:
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
 | `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |
 | `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp`, when the optional `mcp` extra is installed |
+| `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day, so a long-running deployment does not rate against the schedule its image shipped with |
+| `COS_WEB_ADVISORY_REFRESH` | `true` | Ask the advisory feed once a day, so an advisory published after this image was built still reaches the people scanning with it. Only ever adds; never believes an advisory with no version bounds |
+| `COS_WEB_ADVISORY_REFRESH_URL` | `https://api.osv.dev/v1/query` | Where the advisories are read from. May point at a mirror; never a request field |
 | `COS_WEB_MCP_ALLOWED_HOSTS` | *(empty)* | `Host` values `/mcp` accepts. Empty turns the DNS-rebinding check off |
 | `COS_WEB_MCP_MAX_CONCURRENT_WAITS` | `8` | How many tool calls may wait on a scan at once; past that the uuid comes back to be polled |
+| `COS_WEB_MCP_AUTH_ENABLED` | `false` | Require a bearer token on `/mcp`. Needs an issuer, and a public base URL to check an audience against |
+| `COS_WEB_MCP_AUTH_ISSUER` | *(empty)* | The HTTPS OIDC issuer whose tokens are accepted; loopback HTTP is allowed only for local development |
+| `COS_WEB_MCP_AUTH_AUDIENCE` | *(empty)* | What a token's `aud` must contain. **Required** when the sign-in is on; empty refuses to start |
+| `COS_WEB_MCP_AUTH_JWKS_URL` | *(derived)* | The HTTPS signing-key endpoint. Defaults to `<issuer>/jwks/`; loopback HTTP is allowed only for local development |
+| `COS_WEB_MCP_AUTH_RESOURCE_URL` | *(derived)* | The protected resource identifier. Defaults to `<public base URL>/mcp` |
+| `COS_WEB_MCP_AUTH_SCOPES` | *(empty)* | Scopes a token must carry, separated by `;` |
 | `COS_WEB_AUDIT_LOG` | `false` | An audit record per request, rejection and triggered limit, with fingerprints rather than addresses |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge`. Unset means the endpoint is not there at all |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion, so a receipt can be checked long after the data went |
+| `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |
 | `COS_WEB_ENCRYPT_RESULTS` | `false` | AES-256-GCM on the stored result. The web process and the worker need the same `COS_WEB_ENCRYPTION_KEY_<n>`, and one asked to encrypt without a key refuses to start |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Serve a different `templates/` and `static/` |
 

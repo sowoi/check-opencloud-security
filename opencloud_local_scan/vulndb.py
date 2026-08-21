@@ -27,7 +27,7 @@ import json
 import logging
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +52,14 @@ SEVERITY_ORDER = {"low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4
 
 @dataclass(frozen=True)
 class Advisory:
-    """A single known vulnerability affecting a range of OpenCloud releases."""
+    """A single known vulnerability affecting one or more OpenCloud releases.
+
+    One advisory can affect several release lines that were patched
+    separately - the public link exploit fixed in both ``4.0.3`` and ``5.0.2``
+    is one advisory with two disjoint ranges, not two advisories. ``ranges``
+    carries them; ``introduced`` and ``fixed`` are the first of them, which is
+    what a single-range advisory has always been.
+    """
 
     id: str
     title: str = ""
@@ -62,10 +69,33 @@ class Advisory:
     cwe: str = ""
     introduced: str | None = None
     fixed: str | None = None
+    #: Every affected range, as (introduced, fixed). Empty means the single
+    #: range described by ``introduced`` and ``fixed``.
+    ranges: tuple[tuple[str | None, str | None], ...] = ()
+
+    def all_ranges(self) -> tuple[tuple[str | None, str | None], ...]:
+        """Every affected range, however the advisory was written."""
+        return self.ranges or ((self.introduced, self.fixed),)
 
     def affects(self, version: str | None) -> bool:
-        """Return True when the advisory applies to the given version."""
-        return is_in_range(version, self.introduced, self.fixed)
+        """Return True when any of the advisory's ranges covers the version."""
+        return any(
+            is_in_range(version, introduced, fixed)
+            for introduced, fixed in self.all_ranges()
+        )
+
+    def for_version(self, version: str | None) -> Advisory:
+        """
+        The advisory as it applies to one version.
+
+        An advisory patched in both ``4.0.3`` and ``5.0.2`` must tell a ``5.0.1``
+        instance to upgrade to ``5.0.2``. Reporting the first fix in the list
+        would send half of them to a release that does not fix anything.
+        """
+        for introduced, fixed in self.all_ranges():
+            if is_in_range(version, introduced, fixed):
+                return replace(self, introduced=introduced, fixed=fixed, ranges=())
+        return self
 
     def as_dict(self) -> dict[str, Any]:
         """Render the advisory the way a scan result lists vulnerabilities."""
@@ -157,6 +187,14 @@ def _osv_severity(entry: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _osv_cwes(entry: dict[str, Any]) -> list[str]:
+    """The CWE identifiers an OSV record carries in database_specific."""
+    specific = entry.get("database_specific")
+    if not isinstance(specific, dict):
+        return []
+    return [str(item) for item in specific.get("cwe_ids") or [] if item]
+
+
 def _from_osv(entry: dict[str, Any]) -> Advisory | None:
     """Convert an OSV record (api.osv.dev) into an Advisory."""
     identifier = entry.get("id")
@@ -166,8 +204,11 @@ def _from_osv(entry: dict[str, Any]) -> Advisory | None:
     # A CVE identifier is more useful in an alert than the OSV id.
     identifier = next((alias for alias in aliases if alias.startswith("CVE-")), str(identifier))
 
-    introduced: str | None = None
-    fixed: str | None = None
+    # OSV expresses disjoint affected ranges as separate 'affected' entries
+    # for the same package: one advisory patched in both 4.0.3 and 5.0.2 has
+    # two of them. Reading only the first one leaves every instance on the
+    # other line unreported.
+    ranges: list[tuple[str | None, str | None]] = []
     for affected in entry.get("affected") or []:
         if not isinstance(affected, dict):
             continue
@@ -177,6 +218,8 @@ def _from_osv(entry: dict[str, Any]) -> Advisory | None:
         for version_range in affected.get("ranges") or []:
             if not isinstance(version_range, dict):
                 continue
+            introduced: str | None = None
+            fixed: str | None = None
             for event in version_range.get("events") or []:
                 if not isinstance(event, dict):
                     continue
@@ -184,8 +227,15 @@ def _from_osv(entry: dict[str, Any]) -> Advisory | None:
                     introduced = normalise_version(event["introduced"])
                 if event.get("fixed"):
                     fixed = normalise_version(event["fixed"])
-        break
-    else:
+            if introduced or fixed:
+                ranges.append((introduced, fixed))
+    if not ranges:
+        # Every bound is open, which would match every version there has ever
+        # been. The Go vulnerability database publishes such a record beside
+        # each reviewed GitHub advisory ('introduced: 0', no fix), and taking
+        # it at face value would report every instance in the world as
+        # vulnerable. An advisory that cannot say what it affects is not one.
+        LOGGER.debug("Ignoring unbounded OSV record %s", identifier)
         return None
 
     references = entry.get("references") or []
@@ -201,8 +251,10 @@ def _from_osv(entry: dict[str, Any]) -> Advisory | None:
         description=str(entry.get("details") or "")[:500],
         severity=_osv_severity(entry),
         url=url,
-        introduced=introduced,
-        fixed=fixed,
+        cwe=",".join(_osv_cwes(entry)),
+        introduced=ranges[0][0],
+        fixed=ranges[0][1],
+        ranges=tuple(ranges),
     )
 
 
@@ -211,6 +263,11 @@ def _from_native(entry: dict[str, Any]) -> Advisory | None:
     identifier = entry.get("id")
     if not identifier or entry.get("enabled") is False:
         return None
+    ranges = tuple(
+        (item.get("introduced"), item.get("fixed"))
+        for item in entry.get("ranges") or ()
+        if isinstance(item, dict) and (item.get("introduced") or item.get("fixed"))
+    )
     return Advisory(
         id=str(identifier),
         title=str(entry.get("title") or ""),
@@ -218,8 +275,9 @@ def _from_native(entry: dict[str, Any]) -> Advisory | None:
         severity=str(entry.get("severity") or "unknown").lower(),
         url=str(entry.get("url") or ""),
         cwe=str(entry.get("cwe") or ""),
-        introduced=entry.get("introduced"),
-        fixed=entry.get("fixed"),
+        introduced=entry.get("introduced") or (ranges[0][0] if ranges else None),
+        fixed=entry.get("fixed") or (ranges[0][1] if ranges else None),
+        ranges=ranges,
     )
 
 
@@ -232,7 +290,7 @@ def _convert(record: dict[str, Any]) -> Advisory | None:
     return _from_native(record)
 
 
-def _parse_document(document: Any) -> list[Advisory]:
+def parse_document(document: Any) -> list[Advisory]:
     """Parse any supported advisory format into a list of advisories."""
     if isinstance(document, dict):
         records = document.get("advisories")
@@ -265,7 +323,11 @@ class VulnerabilityDatabase:
 
     def matches(self, version: str | None) -> list[Advisory]:
         """Return every advisory affecting the given version, worst first."""
-        hits = [advisory for advisory in self.advisories if advisory.affects(version)]
+        hits = [
+            advisory.for_version(version)
+            for advisory in self.advisories
+            if advisory.affects(version)
+        ]
         return sorted(
             hits,
             key=lambda advisory: (-SEVERITY_ORDER.get(advisory.severity, 0), advisory.id),
@@ -283,7 +345,7 @@ def _load_file(path: Path) -> list[Advisory]:
     except (OSError, ValueError) as exc:
         LOGGER.warning("Ignoring advisory file %s: %s", path, exc)
         return []
-    return _parse_document(document)
+    return parse_document(document)
 
 
 def _load_feed(
@@ -304,7 +366,7 @@ def _load_feed(
         # an UNKNOWN result: the local database still provides a verdict.
         LOGGER.warning("Ignoring advisory feed %s: %s", url, exc)
         return []
-    return _parse_document(document)
+    return parse_document(document)
 
 
 def load_database(

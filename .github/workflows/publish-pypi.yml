@@ -19,12 +19,12 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
 
       - name: Read version
         id: version
@@ -95,7 +95,7 @@ jobs:
       # signing key for this project to leak.
       - name: Attest build provenance
         if: steps.check_tag.outputs.exists != 'true'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: "dist/*"
 
@@ -103,7 +103,7 @@ jobs:
       # which takes the same inputs.
       - name: Attest SBOM
         if: steps.check_tag.outputs.exists != 'true'
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: "dist/*.whl"
           sbom-path: "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
@@ -126,7 +126,7 @@ jobs:
 
       - name: Attest the web application bundle
         if: steps.check_tag.outputs.exists != 'true'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: "web-bundle/*.tar.gz"
 

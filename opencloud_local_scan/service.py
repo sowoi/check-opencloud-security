@@ -39,7 +39,7 @@ from .scanner import ScanError, ScannerSettings, scan
 LOGGER = logging.getLogger("check_opencloud.service")
 
 DEFAULT_LISTEN = "0.0.0.0"  # nosec B104 - a container service must bind all interfaces
-DEFAULT_PORT = 8080
+DEFAULT_PORT = 8811
 DEFAULT_CACHE_TTL_SECONDS = 900
 MAX_BODY_BYTES = 8192
 

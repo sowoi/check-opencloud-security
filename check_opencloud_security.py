@@ -398,6 +398,10 @@ def check_vulnerabilities(
     if lifecycle_line:
         detail_lines.append(lifecycle_line)
 
+    schedule_note = _schedule_note(response_scan)
+    if schedule_note:
+        detail_lines.append(schedule_note)
+
     if num_vulns:
         detail_lines.append(
             f"Known vulnerabilities: {_format_vulnerabilities(vulnerabilities)}"
@@ -922,6 +926,20 @@ def _support_days_left(response_scan: dict[str, Any]) -> int | None:
     """Days until the instance's release line stops receiving fixes."""
     remaining = _lifecycle(response_scan).get("daysRemaining")
     return remaining if isinstance(remaining, int) else None
+
+
+def _schedule_note(response_scan: dict[str, Any]) -> str | None:
+    """
+    Say so when the bundled release schedule is older than the instance.
+
+    A schedule that ships inside a package is a snapshot of a page that keeps
+    moving, so an instance can perfectly well be newer than the file it is
+    compared against. That is never held against it - the note says as much -
+    but it has to be visible, because a support window worked out from stale
+    data is worth re-reading at the source.
+    """
+    note = _lifecycle(response_scan).get("scheduleNote")
+    return f"Release schedule: {note}" if isinstance(note, str) and note else None
 
 
 def _format_lifecycle(response_scan: dict[str, Any]) -> str | None:

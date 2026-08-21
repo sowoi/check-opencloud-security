@@ -1,8 +1,8 @@
 {
   "$schema": "https://github.com/sowoi/check-opencloud-security/blob/main/opencloud_local_scan/data/vulnerabilities.schema.json",
-  "updated": "2026-08-12",
+  "updated": "2026-08-21",
   "source": "bundled",
-  "comment": "Local advisory database used by the built-in scanner. Entries are matched against the detected OpenCloud version using the half-open range [introduced, fixed). No public GHSA or CVE has been published for opencloud-eu/opencloud so far, so this database ships empty on purpose. Add your own entries here, or point --vulnerability-feed at a JSON feed - the native format, the GitHub Advisory API format and the OSV format (https://api.osv.dev/v1/query) are all understood.",
+  "comment": "Local advisory database used by the built-in scanner. Entries are matched against the detected OpenCloud version using the half-open range [introduced, fixed); an advisory that affects several release lines carries one entry per line in 'ranges'. Regenerate with scripts/update_vulnerability_db.py, which only ever adds to this file - a hand written entry is never removed by a refresh.",
   "advisories": [
     {
       "id": "OC-EOL",
@@ -14,6 +14,27 @@
       "introduced": null,
       "fixed": null,
       "enabled": false
+    },
+    {
+      "id": "GHSA-vf5j-r2hw-2hrw",
+      "cwe": "CWE-22",
+      "title": "OpenCloud Affected by Public Link Exploit",
+      "description": "### Impact\n\nA security issue was discovered in [Reva](https://github.com/opencloud-eu/reva) that enables a malicious user to bypass the scope validation of a public link. That allows it to access resources outside the scope of a public link.\n\nOpenCloud uses Reva as one of its core components and thus it is affected.\n\n### Patches\n\nUpdate to OpenCloud version >= 4.0.3 (stable release)\nUpdate to OpenCloud version >= 5.0.2 (rolling release)\n\n### Workarounds\n\nIf projects are unable to update immediat",
+      "severity": "high",
+      "url": "https://github.com/opencloud-eu/opencloud/security/advisories/GHSA-vf5j-r2hw-2hrw",
+      "introduced": "4.0.0",
+      "fixed": "4.0.3",
+      "source": "https://api.osv.dev/v1/query",
+      "ranges": [
+        {
+          "introduced": "4.0.0",
+          "fixed": "4.0.3"
+        },
+        {
+          "introduced": "5.0.0",
+          "fixed": "5.0.2"
+        }
+      ]
     }
   ]
 }
