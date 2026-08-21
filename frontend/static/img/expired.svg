@@ -3,9 +3,9 @@
   <title>Nothing here any more</title>
   <!-- Two schemes in one drawing; see logo.svg for why the styles live here. -->
   <style>
-    svg { --line: #c94e1b; --spark: #2f9e7a; }
+    svg { --line: #3539c4; --spark: #0c7c6e; }
     @media (prefers-color-scheme: dark) {
-      svg { --line: #a9bcff; --spark: #f5d78e; }
+      svg { --line: #a5b4fc; --spark: #5eead4; }
     }
     .stop { stop-color: var(--line); }
     .shape { fill: var(--line); }

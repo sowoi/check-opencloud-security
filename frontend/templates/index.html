@@ -4,26 +4,26 @@
 
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 3 4 6v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V6l-8-3z"/>
-      <path d="m9 12 2 2 4-4"/>
-    </svg>
-    Independent, air-gapped, nothing stored
-  </p>
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Independent &middot; air-gapped &middot; nothing stored</p>
 
-  <h1>How secure is your OpenCloud instance?</h1>
-  <p class="lede">
-    Enter the address of an instance you are responsible for. This server talks
-    to it over HTTPS the way any visitor would, reads what it publishes without
-    logging in, and grades the result from <strong>A+</strong> to <strong>F</strong>.
-  </p>
+      <h1>How secure is your <em class="swash">OpenCloud instance</em>?</h1>
+      <p class="lede">
+        Enter the address of an instance you are responsible for. This server talks
+        to it over HTTPS the way any visitor would, reads what it publishes without
+        logging in, and grades the result from <strong>A+</strong> to <strong>F</strong>.
+      </p>
 
-  <img class="hero-art" src="/static/img/hero.svg" alt=""
-       width="480" height="260">
+      <img class="hero-art" src="/static/img/hero.svg" alt=""
+           width="480" height="300">
+    </div>
 
-  <form class="scan-form card" method="post" action="/">
+    <form class="scan-form card brackets" method="post" action="/">
+    <div class="ticket-head">
+      <p class="kicker">Scan request</p>
+    </div>
+
     {% if error %}
     <p class="alert" role="alert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -120,27 +120,40 @@
       <span class="hint hint-flush">Takes a few seconds. No sign-up.</span>
     </div>
   </form>
+  </div>
 
-  <ul class="badges" aria-label="How this service handles your data">
-    <li class="badge">
+  <ul class="assurance" aria-label="How this service handles your data" data-reveal>
+    <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V6l-8-3z"/></svg>
-      100% air-gapped
+      <div>
+        <strong>100% air-gapped</strong>
+        <span>Every byte comes from this origin. No CDN, no font service, no analytics.</span>
+      </div>
     </li>
-    <li class="badge">
+    <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M6 7v12h12V7"/><path d="M10 11v5M14 11v5"/></svg>
-      No data stored
+      <div>
+        <strong>No data stored</strong>
+        <span>The result lives in memory and is dropped the moment it expires.</span>
+      </div>
     </li>
-    <li class="badge">
+    <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
-      No registration needed
+      <div>
+        <strong>No registration needed</strong>
+        <span>No account, no sign-up, no email address, no waiting.</span>
+      </div>
     </li>
-    <li class="badge">
+    <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      Ephemeral results
+      <div>
+        <strong>Ephemeral results</strong>
+        <span>The link stops working {{ result_ttl_minutes }} minutes after the scan.</span>
+      </div>
     </li>
   </ul>
 </section>

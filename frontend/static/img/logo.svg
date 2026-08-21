@@ -3,24 +3,35 @@
   <!--
     The mark carries its own two schemes. It is loaded with <img>, so it is a
     document of its own: the page's stylesheet cannot reach inside it, and the
-    page's CSP does not apply to it either. Sunrise by day, moonlight by night.
+    page's CSP does not apply to it either. A squircle tile in the signal
+    gradient, a shield cut from the surface, and a tick that answers it.
   -->
   <style>
-    svg { --shield-top: #f6a04a; --shield-bottom: #c94e1b; --tick: #ffffff; }
-    @media (prefers-color-scheme: dark) {
-      svg { --shield-top: #cdd8ff; --shield-bottom: #8b9ce0; --tick: #101838; }
+    svg {
+      --tile-a: #3539c4; --tile-b: #0c7c6e;
+      --shield: #ffffff; --tick: #3539c4; --sheen: #ffffff;
     }
-    .shield-top { stop-color: var(--shield-top); }
-    .shield-bottom { stop-color: var(--shield-bottom); }
-    .tick { fill: var(--tick); }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --tile-a: #a5b4fc; --tile-b: #5eead4;
+        --shield: #141a3a; --tick: #5eead4; --sheen: #ffffff;
+      }
+    }
+    .tile-a { stop-color: var(--tile-a); }
+    .tile-b { stop-color: var(--tile-b); }
+    .shield { fill: var(--shield); }
+    .tick { stroke: var(--tick); }
+    .sheen { fill: var(--sheen); }
   </style>
   <defs>
-    <linearGradient id="logoFill" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" class="shield-top"/>
-      <stop offset="1" class="shield-bottom"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="tile-a"/>
+      <stop offset="1" class="tile-b"/>
     </linearGradient>
   </defs>
-  <path fill="url(#logoFill)" d="M32 3 8 12v18c0 14.4 9.8 27.2 24 31 14.2-3.8 24-16.6 24-31V12L32 3z"/>
-  <path class="tick" opacity=".94" d="M45.6 20.7a3 3 0 0 0-4.3.2L28.9 34.4l-6.1-6a3 3 0 0 0-4.2 4.3l8.3 8.2a3 3 0 0 0 4.3-.1l14.6-15.8a3 3 0 0 0-.2-4.3z"/>
-  <path fill="#ffffff" opacity=".26" d="M32 3 8 12v18c0 3 .4 5.9 1.2 8.6C20.6 33 28.2 20.3 32 3z"/>
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#tile)"/>
+  <circle cx="18" cy="14" r="18" class="sheen" opacity=".12"/>
+  <path class="shield" d="M32 13l13 4.9v10.6c0 8.8-5.5 15.4-13 18.5-7.5-3.1-13-9.7-13-18.5V17.9L32 13z"/>
+  <path class="tick" fill="none" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"
+        d="M25.5 31.5l4.6 4.6 8.9-9.9"/>
 </svg>

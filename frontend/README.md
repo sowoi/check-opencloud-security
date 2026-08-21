@@ -1,6 +1,6 @@
 # The frontend
 
-Everything the browser sees: four templates, one stylesheet, two small
+Everything the browser sees: ten templates, one stylesheet, five small
 scripts and three SVGs drawn for this project. No framework, no build step, no
 `node_modules`, and nothing loaded from anywhere but `/static`.
 
@@ -41,6 +41,7 @@ frontend/
     ├── js/nav.js    collapses the header nav behind a button on a phone
     ├── js/scan.js   polls the scan until it settles, then reloads once
     ├── js/docs.js   starts Swagger UI, which may not be started inline
+    ├── js/reveal.js marks blocks below the fold as they scroll into view
     ├── img/         logo.svg, hero.svg, expired.svg
     └── vendor/      Swagger UI and ReDoc, for the optional API docs pages
 ```
@@ -91,10 +92,15 @@ limit read as a nudge rather than a door: the **trademark notice** and the
 ```css
 :root {
     --ink / --ink-soft / --ink-faint     text
-    --paper / --card / --line            surfaces
+    --paper / --card / --card-solid / --line / --line-strong   surfaces and hairlines
+    --glass-blur / --glass-hi              the frosted panes
     --brand / --brand-deep / --brand-soft / --accent
-    --good / --fair / --bad / --info     ratings and severities (+ *-soft)
+    --good / --fair / --bad / --info     ratings and severities (+ *-soft, *-ink)
+    --header-bg / --header-line          the translucent sticky header
+    --code-bg / --code-ink / --tint      code blocks, and inline code
+    --sky / --grain / --gridline / --stars   the backdrop layers
     --radius-sm / --radius / --radius-lg
+    --font / --font-display / --mono     sans, serif display, dossier mono
 }
 ```
 
@@ -103,11 +109,20 @@ Change a colour there, not at the call site. The dark theme is a
 a second stylesheet, and a token added without a dark value will look wrong on
 half the machines that visit.
 
+The voice of the design is set by four things: display headings in the
+system serif (`--font-display`), section labels in letterspaced monospace
+(the `.kicker` class, which draws its own leading rule), hairline rules
+instead of filled chrome, and frosted panes - cards are translucent and
+diffuse the backdrop they float over, carrying a single top-light. The one
+ornament is the reticle: two diagonal corner brackets from the `.brackets`
+class, framing the form that starts a scan. Keep that list short - the
+design works because the serif, the mono, the glass and the brackets are
+the only voices.
+
 Two media queries carry real obligations:
 
-- `prefers-reduced-motion: reduce` turns off the pulse, the progress
-  animation and the badge transitions. Any new animation belongs in that
-  block too.
+- `prefers-reduced-motion: reduce` turns off the pulse, the dial sweep and
+  every transition. Any new animation belongs in that block too.
 - `prefers-color-scheme: dark`, as above.
 
 Grades and severities have their own colour pairs. Keep a rating's colour tied
@@ -172,14 +187,23 @@ button and `data-open` on the nav. Escape closes the menu and returns the
 focus to the button; growing the window past the breakpoint closes it too, so
 it cannot survive as a column under a header that has room for a row again.
 
-`scan.js` (153 lines) polls `/api/scans/{uuid}` - the uuid comes from
+`scan.js` (189 lines) polls `/api/scans/{uuid}` - the uuid comes from
 `data-scan-uuid` on `<body>`, which came from the URL the visitor is already
 on - every two seconds, backing off to fifteen on errors, and reloads once the
 state is terminal. It renders no results: two implementations of the same
-report would mean the untested one is the one people read.
+report would mean the untested one is the one people read. The reload is a
+hand-off: the steps settle, the page says the report is ready, falls away,
+and only then is the rendered answer asked for - unless the reader asked for
+reduced motion, which keeps the old immediate reload.
 
-Both are plain ES5-era JavaScript in an IIFE, because there is no bundler and
-there does not need to be one.
+`reveal.js` (37 lines) is decoration in the same sense `nav.js` is: it sets
+`data-reveal-root="on"` on `<html>`, which is what the hidden-until-revealed
+rules in `app.css` key off, and then an IntersectionObserver marks each
+`[data-reveal]` block as it scrolls into view. A browser without the observer
+gets no attribute and therefore a page that hides nothing.
+
+All of them are plain ES5-era JavaScript in an IIFE, because there is no
+bundler and there does not need to be one.
 
 ## Discovery, in the markup
 

@@ -5,6 +5,7 @@
 
 {% block content %}
 <section class="page-head">
+  <p class="kicker">Machine guests</p>
   <h1>For AI agents</h1>
   <p class="lede">
     This service is meant to be usable by software that was not written for
@@ -14,7 +15,8 @@
   </p>
 </section>
 
-<section class="card section-gap" aria-labelledby="ai-discovery">
+<section class="card section-gap" aria-labelledby="ai-discovery" data-reveal>
+  <p class="kicker">Discovery</p>
   <h2 id="ai-discovery">Start from one address</h2>
   <ul class="plain-list">
     <li>
@@ -58,7 +60,8 @@
 </section>
 
 {% if mcp_enabled %}
-<section class="card section-gap" aria-labelledby="ai-clients">
+<section class="card section-gap" aria-labelledby="ai-clients" data-reveal>
+  <p class="kicker">Configuration</p>
   <h2 id="ai-clients">Wiring it into a client</h2>
   <p>
     Most agent tools take a URL and a transport. This one is streamable HTTP,
@@ -75,7 +78,8 @@
 </section>
 {% endif %}
 
-<section class="card section-gap" aria-labelledby="ai-rules">
+<section class="card section-gap" aria-labelledby="ai-rules" data-reveal>
+  <p class="kicker">The rules</p>
   <h2 id="ai-rules">The same rules as everybody else</h2>
   <p class="flush">
     The rules are the same for an agent as for anybody else. A scan is

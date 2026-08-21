@@ -9,8 +9,9 @@
   {"href": "/privacy", "title": "What this server keeps", "blurb": "In memory, for " ~ result_ttl_minutes ~ " minutes, and what the log leaves out."},
   {"href": "/about", "title": "About OpenCloud", "blurb": "The platform this checks, and why this project is independent of it."}
 ] %}
-<nav class="page-nav section-gap-lg" aria-label="More about this service">
-  <h2 class="page-nav-title">Read on</h2>
+<nav class="page-nav section-gap-lg" aria-label="More about this service" data-reveal>
+  <p class="kicker">Read on</p>
+  <h2 class="page-nav-title visually-hidden">Read on</h2>
   <ul class="page-nav-list">
     {% for entry in pages if entry.href != request.url.path %}
     <li>
