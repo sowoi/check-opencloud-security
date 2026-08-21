@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-21
+
 ### Added
 
 - **Monitoring hosts can refresh reference data without upgrading the plugin.**
