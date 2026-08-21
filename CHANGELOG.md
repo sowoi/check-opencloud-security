@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-08-21
+
 ### Changed
 
 - **The web application has a new frontend design.** The whole design system
