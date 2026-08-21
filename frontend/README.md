@@ -92,7 +92,8 @@ limit read as a nudge rather than a door: the **trademark notice** and the
 ```css
 :root {
     --ink / --ink-soft / --ink-faint     text
-    --paper / --card / --line / --line-strong   surfaces and hairlines
+    --paper / --card / --card-solid / --line / --line-strong   surfaces and hairlines
+    --glass-blur / --glass-hi              the frosted panes
     --brand / --brand-deep / --brand-soft / --accent
     --good / --fair / --bad / --info     ratings and severities (+ *-soft, *-ink)
     --header-bg / --header-line          the translucent sticky header
@@ -108,13 +109,15 @@ Change a colour there, not at the call site. The dark theme is a
 a second stylesheet, and a token added without a dark value will look wrong on
 half the machines that visit.
 
-The voice of the design is set by three things: display headings in the
+The voice of the design is set by four things: display headings in the
 system serif (`--font-display`), section labels in letterspaced monospace
-(the `.kicker` class, which draws its own leading rule), and hairline rules
-instead of filled chrome. The one ornament is the reticle: two diagonal
-corner brackets from the `.brackets` class, framing the form that starts a
-scan. Keep that list short - the design works because the serif, the mono and
-the brackets are the only voices.
+(the `.kicker` class, which draws its own leading rule), hairline rules
+instead of filled chrome, and frosted panes - cards are translucent and
+diffuse the backdrop they float over, carrying a single top-light. The one
+ornament is the reticle: two diagonal corner brackets from the `.brackets`
+class, framing the form that starts a scan. Keep that list short - the
+design works because the serif, the mono, the glass and the brackets are
+the only voices.
 
 Two media queries carry real obligations:
 

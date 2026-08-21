@@ -44,9 +44,19 @@
     --ink-soft: #494e5b;
     --ink-faint: #717684;
     --paper: #f3f1e9;
-    --card: #fbfaf4;
+    --card: rgba(251, 250, 244, .78);
+    --card-solid: #fbfaf4;
     --line: rgba(26, 28, 34, .14);
     --line-strong: rgba(26, 28, 34, .32);
+
+    /*
+     * The frost. Cards are panes, not slabs: they let the aurora and the
+     * grid through, diffuse them, and carry a single top-light. `--card-solid`
+     * is the same surface without the glass, for the few places something
+     * must be opaque - the dial's centre, a focused field, a stepped node.
+     */
+    --glass-blur: blur(18px) saturate(1.5);
+    --glass-hi: rgba(255, 255, 255, .55);
 
     --brand: #3539c4;
     --brand-deep: #2a2da0;
@@ -91,7 +101,7 @@
      * The sticky header is translucent and blurs whatever scrolls under it,
      * so it needs colours of its own rather than the opaque surface tokens.
      */
-    --header-bg: rgba(243, 241, 233, .82);
+    --header-bg: rgba(243, 241, 233, .72);
     --header-line: rgba(26, 28, 34, .12);
 
     /*
@@ -100,7 +110,7 @@
      * into one slab. Fields get an inset tint of their own and a border a
      * step stronger than the card's hairline.
      */
-    --field-bg: #f0eee5;
+    --field-bg: rgba(240, 238, 229, .85);
     --field-border: rgba(26, 28, 34, .3);
 
     /* Code blocks are a terminal: dark in both schemes, always. Inline code
@@ -113,9 +123,9 @@
     --radius: 10px;
     --radius-lg: 14px;
 
-    --shadow-sm: 0 1px 2px rgba(26, 28, 34, .05);
-    --shadow: 0 1px 2px rgba(26, 28, 34, .05), 0 10px 28px rgba(26, 28, 34, .07);
-    --shadow-lg: 0 2px 4px rgba(26, 28, 34, .06), 0 24px 56px rgba(26, 28, 34, .12);
+    --shadow-sm: 0 1px 2px rgba(26, 28, 34, .04);
+    --shadow: 0 1px 2px rgba(26, 28, 34, .04), 0 14px 36px rgba(26, 28, 34, .06);
+    --shadow-lg: 0 2px 4px rgba(26, 28, 34, .05), 0 28px 64px rgba(26, 28, 34, .1);
 
     --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
         "Noto Sans", Arial, sans-serif;
@@ -134,9 +144,13 @@
         --ink-soft: #a3a8b6;
         --ink-faint: #7d8290;
         --paper: #0b0d14;
-        --card: #12151f;
+        --card: rgba(18, 21, 31, .72);
+        --card-solid: #12151f;
         --line: rgba(232, 230, 220, .13);
         --line-strong: rgba(232, 230, 220, .3);
+
+        --glass-blur: blur(18px) saturate(1.4);
+        --glass-hi: rgba(255, 255, 255, .06);
 
         --brand: #a5b4fc;
         --brand-deep: #c7d2fe;
@@ -188,12 +202,12 @@
             radial-gradient(1.2px 1.2px at 36% 41%, #ffffff, transparent 60%);
         --star-opacity: .5;
 
-        --header-bg: rgba(11, 13, 20, .78);
+        --header-bg: rgba(11, 13, 20, .7);
         --header-line: rgba(232, 230, 220, .1);
 
         /* Darker than the card around them, and with a border that actually
            shows against it - the unreadable dark-mode field was both. */
-        --field-bg: #0c0f18;
+        --field-bg: rgba(12, 15, 24, .8);
         --field-border: rgba(232, 230, 220, .32);
 
         --code-bg: #0c0e16;
@@ -329,7 +343,7 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 
 .skip-link {
     position: absolute; left: 1rem; top: -4rem;
-    background: var(--card); color: var(--ink);
+    background: var(--card-solid); color: var(--ink);
     padding: .6rem 1rem; border-radius: var(--radius-sm);
     box-shadow: var(--shadow); z-index: 40;
     transition: top .18s ease;
@@ -421,8 +435,8 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
     z-index: 30;
     padding: .8rem 0;
     background: var(--header-bg);
-    -webkit-backdrop-filter: blur(14px) saturate(1.3);
-    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    backdrop-filter: blur(20px) saturate(1.6);
     border-bottom: 1px solid var(--header-line);
 }
 .site-header .shell {
@@ -473,7 +487,7 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
     font-size: .9rem;
     font-weight: 600;
     color: var(--ink-soft);
-    background: var(--card);
+    background: var(--card-solid);
     border: 1px solid var(--line);
     border-radius: 999px;
     padding: .45rem .85rem;
@@ -550,9 +564,11 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 /* ------------------------------------------------------------------- cards */
 .card {
     background: var(--card);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
     padding: 1.75rem;
 }
 .card + .card { margin-top: 1.25rem; }
@@ -608,6 +624,9 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 
 .hero .eyebrow {
     display: inline-flex; align-items: center; gap: .55rem;
+    background: var(--card);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--line);
     border-radius: 999px; padding: .38rem .9rem;
     font-family: var(--mono);
@@ -635,9 +654,8 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 .scan-form { margin: 0; }
 
 /*
- * The form is a requisition: a numbered slip with a head that says what it
- * is, a dashed tear line, and fields underneath. The right-hand label is
- * deliberately bureaucratic - it is the one joke the page allows itself.
+ * The form is a requisition: a head that says what it is, a dashed tear
+ * line, and fields underneath.
  */
 .ticket-head {
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
@@ -646,13 +664,6 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
     border-bottom: 1px dashed var(--line-strong);
 }
 .ticket-head .kicker { margin: 0; }
-.ticket-no {
-    font-family: var(--mono);
-    font-size: .72rem;
-    letter-spacing: .14em;
-    color: var(--ink-faint);
-    white-space: nowrap;
-}
 
 .field-row { display: flex; gap: .95rem; flex-wrap: wrap; }
 .field-row .field { flex: 1 1 22rem; }
@@ -676,7 +687,7 @@ select { cursor: pointer; }
 input[type="url"]:hover, input[type="text"]:hover, select:hover { border-color: var(--brand); }
 input[type="url"]:focus, input[type="text"]:focus, select:focus {
     border-color: var(--brand);
-    background: var(--card);
+    background: var(--card-solid);
     box-shadow: 0 0 0 3px var(--brand-soft);
     outline: none;
 }
@@ -938,7 +949,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     content: "";
     position: absolute; top: 0; left: 0;
     width: 11px; height: 11px; border-radius: 50%;
-    background: var(--card);
+    background: var(--card-solid);
     border: 2px solid var(--line-strong);
     transition: border-color .3s ease, background .3s ease;
 }
@@ -1037,13 +1048,13 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     width: 156px; height: 156px; border-radius: 50%;
     display: grid; place-items: center;
     background: conic-gradient(var(--dial) calc(var(--fill) * 1%), var(--line) 0);
-    box-shadow: 0 0 0 1px var(--line), 0 18px 38px -14px var(--dial);
+    box-shadow: 0 0 0 1px var(--line), 0 10px 22px -16px var(--dial);
     animation: dial .9s cubic-bezier(.22, 1, .36, 1) backwards,
         sweep 1.1s ease-out .15s backwards;
 }
 .score-dial::after {
     content: ""; position: absolute; inset: 11px;
-    background: var(--card); border-radius: 50%;
+    background: var(--card-solid); border-radius: 50%;
     box-shadow: inset 0 2px 6px rgba(26, 28, 34, .1);
 }
 .score-dial .grade {
@@ -1259,6 +1270,8 @@ pre.json {
         gap: .15rem;
         padding: .4rem;
         background: var(--card);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
         border: 1px solid var(--line);
         border-radius: var(--radius);
         box-shadow: var(--shadow-lg);
@@ -1299,8 +1312,6 @@ pre.json {
     .form-actions .btn { width: 100%; }
     .field-narrow { flex: 1 1 100%; }
     .export-list .btn { width: 100%; }
-
-    .ticket-head { flex-direction: column; gap: .3rem; align-items: flex-start; }
 
     /* The ledger stacks: the term above the reading, one hairline per row. */
     .score { gap: 1.25rem; }

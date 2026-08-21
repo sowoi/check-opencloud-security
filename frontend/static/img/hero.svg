@@ -12,7 +12,7 @@
     svg {
       --line: #1a1c22; --faint: #717684;
       --brand: #3539c4; --accent: #0c7c6e; --core: #fbfaf4;
-      --shield-top: #4a4ee0; --shield-bottom: #3539c4; --tick: #fbfaf4;
+      --shield-top: #4a4ee0; --shield-bottom: #3539c4;
       --good: #0a7a4d; --fair: #b45309; --info: #1d6fa8; --bad: #c22424;
       --spark: #3539c4;
     }
@@ -20,7 +20,7 @@
       svg {
         --line: #e8e6dc; --faint: #7d8290;
         --brand: #a5b4fc; --accent: #5eead4; --core: #12151f;
-        --shield-top: #c7d2fe; --shield-bottom: #a5b4fc; --tick: #101322;
+        --shield-top: #c7d2fe; --shield-bottom: #a5b4fc;
         --good: #34d399; --fair: #fbbf24; --info: #38bdf8; --bad: #fb7185;
         --spark: #cdd8ff;
       }
@@ -32,7 +32,6 @@
     .hair { stroke: var(--line); }
     .faint { stroke: var(--faint); }
     .core { fill: var(--core); }
-    .tick { stroke: var(--tick); }
     .good { fill: var(--good); }
     .fair { fill: var(--fair); }
     .info { fill: var(--info); }
@@ -95,11 +94,9 @@
   <circle cx="240" cy="150" r="64" class="pulse-ring" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".5"/>
   <path class="sweep" fill="url(#sweep)" d="M240 150 L240 32 A118 118 0 0 1 342 91 Z"/>
 
-  <!-- the verdict at the centre -->
+  <!-- the shield at the centre -->
   <g transform="translate(182.4 96) scale(1.8)">
     <path fill="url(#shield)" d="M32 13l13 4.9v10.6c0 8.8-5.5 15.4-13 18.5-7.5-3.1-13-9.7-13-18.5V17.9L32 13z"/>
-    <path class="tick" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"
-          d="M25.5 31.5l4.6 4.6 8.9-9.9"/>
   </g>
 
   <!-- findings riding the minute ring -->

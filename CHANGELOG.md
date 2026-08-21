@@ -17,12 +17,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 - **The web application has a new frontend design.** The whole design system
   in `frontend/static/css/app.css` was rebuilt as a field report: serif
   display type against warm bone paper, monospace dossier labels with a drawn
-  leading rule, hairline rules instead of filled chrome, and a reticle motif
-  that frames the scan form with registration brackets. The backdrop is a
-  faint engineering grid over a quiet aurora with a grain of baked-in noise,
-  the landing page states its promises as a ruled specification row, and a
-  tiny `reveal.js` arrives blocks as they scroll into view - decoration only,
-  so the page reads complete with scripting blocked. Waiting is theatre now
+  leading rule, hairline rules instead of filled chrome, frosted-glass cards
+  that diffuse the backdrop they float over, and a reticle motif that frames
+  the scan form with registration brackets. The backdrop is a faint
+  engineering grid over a quiet aurora with a grain of baked-in noise, the
+  landing page states its promises as a ruled specification row, and a tiny
+  `reveal.js` arrives blocks as they scroll into view - decoration only, so
+  the page reads complete with scripting blocked. Waiting is theatre now
   too: a beam travels the progress card while a scan runs, and when the
   result is in, the page settles, announces the report and falls away before
   the rendered answer arrives. The automatic light and dark modes stay,
