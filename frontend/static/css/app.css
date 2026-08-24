@@ -1,9 +1,10 @@
 /*
  * check-opencloud-security - design system
  *
- * Hand-written, self-hosted, no framework and no web font. Everything the
- * page needs is in this file and the small scripts next to it, which is what
- * makes `default-src 'self'` an honest header rather than an aspiration.
+ * Hand-written, self-hosted, no framework. Everything the page needs is in
+ * this file, the small scripts next to it and the fonts under
+ * `/static/fonts/`, which is what makes `default-src 'self'` an honest
+ * header rather than an aspiration.
  *
  * The design is a field report. A scan here is a document somebody acts on,
  * so the page is built like one: serif display type set like a title page,
@@ -11,16 +12,18 @@
  * that did the measuring. The warmth is deliberate - paper, not plastic.
  *
  * Two schemes, one instrument. Light is a desk in daylight: warm bone paper,
- * ink that is nearly black, a deep ultramarine signal. Dark is the same desk
+ * ink that is nearly black, a deep ultramarine signal and a warm ember accent
+ * that marks the one thing the page wants done. Dark is the same desk
  * on the night shift: blue-black paper, the ink turned warm white, the signal
- * gone luminous, and a sky of hand-placed stars. Everything is a token here
+ * gone luminous, the ember cooled to a clear teal, and a sky of hand-placed
+ * stars. Everything is a token here
  * and in the `prefers-color-scheme: dark` block below, so a rule further down
  * never names a colour and the whole page turns over by swapping this list.
  *
- * Type comes from the reader's own system stack - ui-serif for display, the
- * system sans for text, the system mono for labels - because it is already on
- * the machine, it renders in the reader's preferred language, and it costs
- * no request.
+ * Body type is Inter, self-hosted under `/static/fonts/` (SIL OFL 1.1): a
+ * modern, quiet sans that stays out of the report's way. Display type is the
+ * reader's own system serif and labels are the system mono - both already on
+ * the machine, and both part of the field-report voice, so they stay.
  *
  * Motion is meant to be felt rather than seen: a short rise when things
  * arrive, a sweep when the dial finds its rating, a breathing marker on the
@@ -61,8 +64,15 @@
     --brand: #3539c4;
     --brand-deep: #2a2da0;
     --brand-soft: #e4e5f6;
-    --accent: #0c7c6e;
-    --accent-ink: #0a6b5f;
+    /*
+     * The ember. The brand carries identity; the accent carries *attention* -
+     * it is warm precisely because everything else on the desk is cool, so the
+     * eye finds the action before it finds the chrome. Reserved for the few
+     * things that matter: the primary action, the live marker, the assurances.
+     */
+    --accent: #c2410c;
+    --accent-ink: #9a3412;
+    --on-accent: #fbfaf4;
     --on-brand: #fbfaf4;
 
     --good: #0a7a4d;
@@ -89,7 +99,7 @@
      */
     --sky:
         radial-gradient(58rem 30rem at 8% -14%, rgba(53, 57, 196, .09), transparent 62%),
-        radial-gradient(50rem 28rem at 94% -8%, rgba(12, 124, 110, .08), transparent 60%),
+        radial-gradient(50rem 28rem at 94% -8%, rgba(194, 65, 12, .07), transparent 60%),
         radial-gradient(72rem 44rem at 50% 118%, rgba(53, 57, 196, .05), transparent 62%);
     --grain:
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
@@ -127,8 +137,8 @@
     --shadow: 0 1px 2px rgba(26, 28, 34, .04), 0 14px 36px rgba(26, 28, 34, .06);
     --shadow-lg: 0 2px 4px rgba(26, 28, 34, .05), 0 28px 64px rgba(26, 28, 34, .1);
 
-    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-        "Noto Sans", Arial, sans-serif;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", "Noto Sans", Arial, sans-serif;
     --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype",
         Palatino, Georgia, "Times New Roman", serif;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
@@ -155,9 +165,14 @@
         --brand: #a5b4fc;
         --brand-deep: #c7d2fe;
         --brand-soft: #1d2242;
-        /* The night-shift signal: mint where daylight had teal. */
+        /*
+         * The night-shift signal: the ember cools back to the clear teal the
+         * accent used to be. Warm belongs to daylight; at night the luminous
+         * cool tones carry attention instead.
+         */
         --accent: #5eead4;
         --accent-ink: #7ef0dd;
+        --on-accent: #101322;
         /*
          * Filled brand surfaces carry dark ink in dark mode: the signal
          * tones are luminous here, so white on them would be the one
@@ -218,6 +233,51 @@
         --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px rgba(0, 0, 0, .42);
         --shadow-lg: 0 2px 4px rgba(0, 0, 0, .45), 0 24px 56px rgba(0, 0, 0, .52);
     }
+}
+
+/* ------------------------------------------------------------------- fonts */
+/*
+ * Inter, self-hosted under `/static/fonts/` (SIL OFL 1.1, license beside the
+ * files). One file per weight actually used; `font-display: swap` keeps the
+ * system sans on screen until the real one arrives, so a slow connection
+ * never holds the text hostage. The display serif and the dossier mono stay
+ * on the reader's system stack - they are the other two voices of the page
+ * and they cost no request.
+ */
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/fonts/Inter-Regular.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Inter";
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/fonts/Inter-Italic.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/static/fonts/Inter-Medium.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/fonts/Inter-Bold.woff2") format("woff2");
 }
 
 /* ------------------------------------------------------------------- reset */
@@ -708,19 +768,21 @@ input[type="url"]:focus, input[type="text"]:focus, select:focus {
 }
 .btn svg { width: 18px; height: 18px; }
 /*
- * Ink, not gradient: the primary action is set like a headline. The signal
- * colour is saved for the hover, where it lands harder for being rare.
+ * The primary action wears the ember, not the ink: it is the one thing every
+ * page wants done, and the warm accent exists so the eye lands on it first.
+ * The hover banks the coals a shade deeper rather than borrowing the brand -
+ * the signal colours stay rare by staying off the button.
  */
 .btn-primary {
-    color: var(--paper);
-    background: var(--ink);
-    border-color: var(--ink);
+    color: var(--on-accent);
+    background: var(--accent);
+    border-color: var(--accent);
     box-shadow: var(--shadow-sm);
 }
 .btn-primary:hover {
-    color: var(--on-brand);
-    background: var(--brand);
-    border-color: var(--brand);
+    color: var(--on-accent);
+    background: var(--accent-ink);
+    border-color: var(--accent-ink);
     transform: translateY(-1px);
     box-shadow: 0 10px 24px var(--brand-glow);
 }

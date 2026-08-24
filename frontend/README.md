@@ -1,7 +1,8 @@
 # The frontend
 
 Everything the browser sees: ten templates, one stylesheet, five small
-scripts and three SVGs drawn for this project. No framework, no build step, no
+scripts, the SVGs drawn for this project and the self-hosted Inter files.
+No framework, no build step, no
 `node_modules`, and nothing loaded from anywhere but `/static`.
 
 The service that renders these is [`webapp/`](../webapp/README.md); the
@@ -42,7 +43,9 @@ frontend/
     ├── js/scan.js   polls the scan until it settles, then reloads once
     ├── js/docs.js   starts Swagger UI, which may not be started inline
     ├── js/reveal.js marks blocks below the fold as they scroll into view
-    ├── img/         logo.svg, hero.svg, expired.svg
+    ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
+    │                og-image.png rendered from it
+    ├── fonts/       Inter (SIL OFL 1.1), self-hosted: the body face
     └── vendor/      Swagger UI and ReDoc, for the optional API docs pages
 ```
 
@@ -54,8 +57,9 @@ These are not style preferences. They are the product: the pitch is that this
 service is quiet, and a page that quietly fetched a font would make it a lie.
 
 - **No third-party anything.** No CDN, no font service, no analytics, no
-  tracking pixel, no embedded video. Type comes from the reader's own system
-  stack.
+  tracking pixel, no embedded video. Body type is Inter, served from
+  `/static/fonts/` like every other byte; the display serif and the dossier
+  mono still come from the reader's own system stack.
 - **Twitter/X, Google and Meta by name, and not only as requests.** No
   `twitter:` cards, no `fb:` properties, no `google-site-verification`, no
   Fonts, Analytics, Tag Manager or reCAPTCHA, no pixel, embed or share
@@ -94,13 +98,13 @@ limit read as a nudge rather than a door: the **trademark notice** and the
     --ink / --ink-soft / --ink-faint     text
     --paper / --card / --card-solid / --line / --line-strong   surfaces and hairlines
     --glass-blur / --glass-hi              the frosted panes
-    --brand / --brand-deep / --brand-soft / --accent
+    --brand / --brand-deep / --brand-soft / --accent / --on-accent
     --good / --fair / --bad / --info     ratings and severities (+ *-soft, *-ink)
     --header-bg / --header-line          the translucent sticky header
     --code-bg / --code-ink / --tint      code blocks, and inline code
     --sky / --grain / --gridline / --stars   the backdrop layers
     --radius-sm / --radius / --radius-lg
-    --font / --font-display / --mono     sans, serif display, dossier mono
+    --font / --font-display / --mono     Inter, serif display, dossier mono
 }
 ```
 

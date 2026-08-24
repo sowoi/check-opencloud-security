@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <!--
+    Source of og-image.png, the OpenGraph share image. Hand-written like the
+    other artwork here, in the light scheme of app.css: bone paper, the
+    ultramarine signal, the ember accent, the squircle mark. Rendered to PNG
+    because most crawlers and chat clients will not draw an SVG share image:
+      rsvg-convert -w 1200 -h 630 og-image.svg -o og-image.png
+    (Inter must be visible to fontconfig; the project keeps it under
+    frontend/static/fonts/.)
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3539c4"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+    <radialGradient id="glow-brand" gradientUnits="userSpaceOnUse"
+                    cx="80" cy="-60" r="720">
+      <stop offset="0" stop-color="#3539c4" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#3539c4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-ember" gradientUnits="userSpaceOnUse"
+                    cx="1180" cy="-20" r="640">
+      <stop offset="0" stop-color="#c2410c" stop-opacity=".09"/>
+      <stop offset="1" stop-color="#c2410c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#f3f1e9"/>
+  <rect width="1200" height="630" fill="url(#glow-brand)"/>
+  <rect width="1200" height="630" fill="url(#glow-ember)"/>
+
+  <!-- The mark: squircle tile in the signal-to-ember gradient, shield, tick. -->
+  <g transform="translate(96 96)">
+    <rect width="120" height="120" rx="30" fill="url(#tile)"/>
+    <circle cx="31" cy="23" r="37" fill="#ffffff" opacity=".12"/>
+    <path fill="#ffffff"
+          d="M60 21l26.8 10.1v21.9c0 18.2-11.4 31.8-26.8 38.2-15.4-6.4-26.8-20-26.8-38.2V31.1L60 21z"/>
+    <path fill="none" stroke="#3539c4" stroke-width="7.4" stroke-linecap="round"
+          stroke-linejoin="round" d="M46.5 59.2l9.5 9.5 18.4-20.4"/>
+  </g>
+
+  <text x="96" y="330" font-family="Inter" font-weight="500" font-size="23"
+        letter-spacing="6" fill="#717684">INDEPENDENT &#183; AIR-GAPPED &#183; NOTHING STORED</text>
+
+  <text x="96" y="424" font-family="Inter" font-weight="700" font-size="72"
+        letter-spacing="-1.5" fill="#1a1c22">OpenCloud Security Scan</text>
+
+  <rect x="96" y="458" width="72" height="7" rx="3.5" fill="#c2410c"/>
+
+  <text x="96" y="520" font-family="Inter" font-weight="400" font-size="31"
+        fill="#494e5b">Check an instance for known vulnerabilities, missing</text>
+  <text x="96" y="564" font-family="Inter" font-weight="400" font-size="31"
+        fill="#494e5b">hardening and weak security headers.</text>
+</svg>

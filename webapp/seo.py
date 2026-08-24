@@ -21,9 +21,12 @@ from pathlib import Path
 SITE_NAME = "OpenCloud Security Scan"
 
 #: Where the crawler is pointed, and the OpenGraph image every page shares.
+#: The image is a PNG on purpose: most crawlers and chat clients will not
+#: draw an SVG, so the hand-written `og-image.svg` next to it is only the
+#: source this one is rendered from.
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
-OG_IMAGE_PATH = "/static/img/logo.svg"
+OG_IMAGE_PATH = "/static/img/og-image.png"
 
 
 @dataclass(frozen=True)

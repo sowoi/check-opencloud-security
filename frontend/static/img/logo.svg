@@ -8,7 +8,7 @@
   -->
   <style>
     svg {
-      --tile-a: #3539c4; --tile-b: #0c7c6e;
+      --tile-a: #3539c4; --tile-b: #c2410c;
       --shield: #ffffff; --tick: #3539c4; --sheen: #ffffff;
     }
     @media (prefers-color-scheme: dark) {
