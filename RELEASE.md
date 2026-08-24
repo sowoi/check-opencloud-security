@@ -1,5 +1,5 @@
 ## check-opencloud-security 1.9.2
 
-### Fixed
+_### Fixed
 
-- **Grid heigtht fixed. **
+- **Grid height fixed. **_

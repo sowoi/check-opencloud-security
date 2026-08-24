@@ -11,7 +11,7 @@
   <style>
     svg {
       --line: #1a1c22; --faint: #717684;
-      --brand: #3539c4; --accent: #0c7c6e; --core: #fbfaf4;
+      --brand: #3539c4; --accent: #c2410c; --core: #fbfaf4;
       --shield-top: #4a4ee0; --shield-bottom: #3539c4;
       --good: #0a7a4d; --fair: #b45309; --info: #1d6fa8; --bad: #c22424;
       --spark: #3539c4;
