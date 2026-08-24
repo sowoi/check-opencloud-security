@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-08-24
+
 ### Added
 
 - **A real OpenGraph share image.** `og:image` now points at a hand-drawn
