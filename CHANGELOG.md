@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-25
+
 ### Added
 
 - **The resolved addresses are part of the result.** Every scan now records
