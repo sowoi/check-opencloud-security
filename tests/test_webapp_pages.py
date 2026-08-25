@@ -9,6 +9,7 @@ is reachable, self-describing and reachable *back* from.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
 
@@ -18,15 +19,28 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     client,
 )
 
-CONTENT_PAGES = ("/how-it-works", "/api", "/ai", "/privacy", "/about")
+CONTENT_PAGES = (
+    "/how-it-works",
+    "/grades",
+    "/documentation",
+    "/api",
+    "/ai",
+    "/cli",
+    "/privacy",
+    "/about",
+)
 
 
 @pytest.mark.parametrize(
     ("path", "heading"),
     [
         ("/how-it-works", "How the scan works"),
+        ("/grades", "What the grades mean"),
+        ("/documentation", "Run the scanner from your terminal"),
+        ("/search", "Search the scanner"),
         ("/api", "Scanning from a script"),
         ("/ai", "For AI agents"),
+        ("/cli", "Run it yourself, in one line"),
         ("/privacy", "What this server keeps"),
         ("/about", "About OpenCloud and this scanner"),
     ],
@@ -67,6 +81,19 @@ def test_the_landing_page_leads_with_the_form_and_delegates_the_prose():
         assert f'href="{path}"' in body
 
 
+def test_the_header_brand_is_short_and_cannot_wrap():
+    """The first line must stay compact even before the menu is enhanced."""
+    body = client().get("/").text
+    css = (
+        Path(__file__).resolve().parent.parent / "frontend/static/css/app.css"
+    ).read_text(encoding="utf-8")
+
+    assert "Security scan for OpenCloud</span>" in body
+    assert "Security scan for OpenCloud instances" not in body
+    assert re.search(r"\.brand\s*\{[^}]*white-space:\s*nowrap", css, re.DOTALL)
+    assert re.search(r"\.site-nav\s*\{[^}]*white-space:\s*nowrap", css, re.DOTALL)
+
+
 def test_a_content_page_links_on_but_never_to_itself():
     """
     A cross-link back to the page you are reading is a dead end dressed as one.
@@ -101,6 +128,7 @@ def test_every_page_is_navigable_from_every_other_one():
         nav = body.split('class="site-nav"', 1)[1].split("</nav>", 1)[0]
         for target in ("/", *CONTENT_PAGES):
             assert f'href="{target}"' in nav
+        assert 'action="/search"' in nav
         assert f'href="{path}" aria-current="page"' in nav
 
 
@@ -244,3 +272,123 @@ def test_a_result_page_stays_quiet_when_the_schedule_knows_the_release():
     page = _finished_page(current)
 
     assert "Release schedule" not in page
+
+
+def test_a_result_page_shows_the_addresses_the_instance_resolved_to():
+    """
+    A grade is about a machine, and the address is which machine it was.
+
+    Somebody looking at an unexpected result needs to know whether the name
+    still points where they think it does - so the overview prints the IPv4
+    and IPv6 the scan actually connected to.
+    """
+    from opencloud_local_scan.versions import load_release_schedule
+
+    page = _finished_page(load_release_schedule().latest_for() or "7.2.3")
+
+    assert "Resolved to" in page
+    assert "127.0.0.1" in page
+
+
+def test_a_result_without_addresses_prints_no_empty_row():
+    """
+    A document from an older scanner still has to render.
+
+    An 'unknown' row on every such result would be furniture; the summary
+    normalises the missing block to empty lists and the template leaves the
+    row out entirely.
+    """
+    from webapp.catalog import summarise
+
+    summary = summarise({"rating": 5, "domain": "opencloud.example.com"})
+
+    assert summary["addresses"] == {"ipv4": [], "ipv6": []}
+    # And the positive half, so this cannot pass by returning empty always.
+    kept = summarise(
+        {"rating": 5, "addresses": {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}}
+    )
+    assert kept["addresses"] == {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}
+
+
+def test_the_one_liner_page_is_a_menu_tab_of_its_own():
+    """
+    The visitor who does not want to use this website should find that out from it.
+
+    The command belongs where the hesitation happens, so it gets a tab in the
+    primary navigation rather than a sentence buried on another page - and the
+    page names the published image and links the full documentation.
+    """
+    test_client = client()
+    page = test_client.get("/cli")
+
+    assert page.status_code == 200
+    assert "okxo/opencloud-scanner" in page.text
+    assert "docs/docker-oneliner.md" in page.text
+
+    for path in ("/", "/api", "/about"):
+        assert 'href="/cli"' in test_client.get(path).text
+
+
+def test_the_grade_page_uses_the_plugins_real_scale():
+    """
+    The explanation must never invent a letter the plugin cannot produce.
+
+    In particular, this scale deliberately has no B; deriving the page from
+    RATE_MAP keeps an innocent-looking copy edit from changing a monitoring
+    contract.
+    """
+    from check_opencloud_security import RATE_MAP
+
+    page = client().get("/grades")
+
+    assert page.status_code == 200
+    for rating, label in RATE_MAP.items():
+        assert f">{label}</span>" in page.text
+        assert f"{rating} out of 5" in page.text
+    assert "there is no <strong>B</strong>" in page.text
+    assert ">B</span>" not in page.text
+
+
+def test_the_grade_page_explains_how_a_result_can_improve():
+    """A grade without a route upward is a scoreboard rather than a tool."""
+    page = client().get("/grades").text
+
+    assert "How this scanner helps you climb" in page
+    assert "A remediation plan, in payoff order" in page
+    assert "The exact release to move to" in page
+    assert "End of life overrides" in page
+
+
+def test_the_docs_tab_is_a_local_cli_reference_and_a_guide_index():
+    """
+    A visitor should not need a third-party renderer to read the common path.
+
+    The page carries working commands and configuration precedence locally,
+    then points at the repository documents for the long operator guides.
+    """
+    page = client().get("/documentation")
+
+    assert page.status_code == 200
+    assert "check-opencloud-security --configure" in page.text
+    assert "check-opencloud-scanner scan" in page.text
+    assert "--ignore-hardening" in page.text
+    assert "CLI flag" in page.text
+    assert "Environment" in page.text
+    assert "/blob/main/" not in page.text
+    for slug in (
+        "reference",
+        "docker",
+        "scheduling",
+        "many-instances",
+        "troubleshooting",
+    ):
+        assert f'href="/documentation/{slug}"' in page.text
+
+
+def test_about_names_the_author_and_the_reason_for_the_project():
+    """The project's origin belongs on About, not hidden in package metadata."""
+    page = client().get("/about").text
+
+    assert "Massoud Ahmed" in page
+    assert "alternative to" in page
+    assert "<code>scan.nextcloud.com</code>" in page

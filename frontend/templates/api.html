@@ -1,84 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Scanning from a script{% endblock %}
-{% block description %}The JSON API behind the form: how to submit a scan, poll it, and what this server refuses to let a caller decide.{% endblock %}
+{% block title %}{{ t('api.title') }}{% endblock %}
+{% block description %}{{ t('api.description') }}{% endblock %}
 
 {% block content %}
 <section class="page-head">
-  <p class="kicker">The API</p>
-  <h1>Scanning from a script</h1>
-  <p class="lede">
-    The form is one of two front doors; the other is JSON, and it is the same
-    handler.
-  </p>
+  <p class="kicker">{{ t('api.kicker') }}</p>
+  <h1>{{ t('api.title') }}</h1>
+  <p class="lede">{{ t('api.lede') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="api" data-reveal>
-  <p class="kicker">Submit &amp; poll</p>
-  <h2 id="api">Submit and poll</h2>
+  <p class="kicker">{{ t('api.submit.kicker') }}</p>
+  <h2 id="api">{{ t('api.submit.heading') }}</h2>
 <pre class="code-block"><code>curl -X POST https://scan.okxo.de/api/scans \
      -H 'Content-Type: application/json' \
      -d '{"target_url": "opencloud.example.com", "release_track": "production"}'
 curl https://scan.okxo.de/api/scans/&lt;uuid&gt;</code></pre>
-  <p class="flush">
-    A submission answers <code>202</code> with the scan's identifier; polling
-    it returns <code>queued</code>, <code>running</code> or the finished
-    result, and <code>404</code> once it has expired. Only four fields are
-    read - the address, the checks to waive, the release track and the output
-    format. Anything else in the body, concurrency and timeouts above all, is
-    rejected: how hard this server probes is not a caller's decision.
-  </p>
+  <p class="flush">{{ t.html('api.submit.body') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="api-limits" data-reveal>
-  <p class="kicker">Fair use</p>
-  <h2 id="api-limits">Fair use</h2>
+  <p class="kicker">{{ t('api.limits.kicker') }}</p>
+  <h2 id="api-limits">{{ t('api.limits.heading') }}</h2>
   <p class="flush">
     {% if limits.client %}
-    Fair use is enforced rather than requested: {{ limits.client }} submissions
-    per {{ limits.window_minutes }} minute(s) from one address, and
-    {% if limits.cooldown %}one scan per target every
-    {{ limits.cooldown_minutes }} minute(s){% else %}no per-target cooldown{% endif %},
-    both answered with <code>429</code> and a <code>Retry-After</code>.
+    {% set cooldown_phrase = t('api.limits.cooldown', minutes=limits.cooldown_minutes) if limits.cooldown else t('api.limits.no_cooldown') %}
+    {{ t.html('api.limits.enforced', client=limits.client, window=limits.window_minutes, cooldown=cooldown_phrase) }}
     {% else %}
-    This deployment sets no rate limit.
+    {{ t('api.limits.none') }}
     {% endif %}
-    If you meet one and would rather not wait, the whole thing runs on your own
-    machine: <a href="{{ project_url }}" rel="noopener noreferrer">the project
-    is on GitHub</a>.
+    {{ t.html('api.limits.self_host', project=project_url) }}
   </p>
 </section>
 
 <section class="card section-gap" aria-labelledby="api-schema" data-reveal>
-  <p class="kicker">The schema</p>
-  <h2 id="api-schema">The schema</h2>
+  <p class="kicker">{{ t('api.schema.kicker') }}</p>
+  <h2 id="api-schema">{{ t('api.schema.heading') }}</h2>
   <p class="flush">
-    The machine-readable documents are always public, on this deployment and
-    on every other: the
-    <a href="/openapi.json">OpenAPI 3.1 description</a> of every operation,
-    and the <a href="/arazzo.json">Arazzo 1.0.1 workflows</a> that say how
-    those operations combine into submitting a scan, waiting for it and
-    taking the result away.
+    {{ t.html('api.schema.body') }}
     {% if docs_enabled %}
-    Both are browsable here as <a href="/docs">Swagger UI</a> and
-    <a href="/redoc">ReDoc</a>, served from this server like everything else -
-    nothing is fetched from anywhere.
+    {{ t.html('api.schema.docs_on') }}
     {% else %}
-    The interactive viewers (Swagger UI at <code>/docs</code>, ReDoc at
-    <code>/redoc</code>) are switched off on this deployment; an operator
-    turns them on with <code>COS_WEB_ENABLE_DOCS=true</code>.
+    {{ t.html('api.schema.docs_off') }}
     {% endif %}
   </p>
 </section>
 
 <section class="card section-gap" aria-labelledby="api-agents" data-reveal>
-  <p class="kicker">Agents</p>
-  <h2 id="api-agents">For AI agents</h2>
-  <p class="flush">
-    Software that was not written for this service has a page of its own:
-    <a href="/ai">for AI agents</a> collects the discovery document, the
-    OpenAPI schema, the Arazzo workflows and the MCP endpoint in one place.
-  </p>
+  <p class="kicker">{{ t('api.agents.kicker') }}</p>
+  <h2 id="api-agents">{{ t('api.agents.heading') }}</h2>
+  <p class="flush">{{ t.html('api.agents.body') }}</p>
 </section>
 
 {% include "_page-nav.html" %}

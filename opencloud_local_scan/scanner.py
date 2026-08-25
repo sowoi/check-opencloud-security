@@ -20,6 +20,7 @@ What is inspected:
   sharing/password policy from the capabilities document.
 * ``extraChecks`` - TLS state, authentication on the protected endpoints,
   exposed configuration or data paths, reachable service debug ports,
+  the documented demo accounts of the built-in identity provider,
   version disclosure and maintenance mode.
 * ``vulnerabilities`` from the local advisory database and ``rating`` (0-5).
 * ``lifecycle`` - which release line the instance runs, whether that line is
@@ -33,7 +34,9 @@ OpenCloud does not report pending updates.
 
 from __future__ import annotations
 
+import base64
 import fnmatch
+import ipaddress
 import logging
 import re
 import socket
@@ -141,6 +144,8 @@ CAPABILITIES_PATH = "/ocs/v1.php/cloud/capabilities"
 OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration"
 APP_LIST_PATH = "/app/list"
 CALDAV_PATH = "/.well-known/caldav"
+WEB_CONFIG_PATH = "/config.json"
+BACKEND_PORT = 9200
 
 # What a path answers when something is actually wired to it: a redirect to
 # the service, or the service asking who is calling. A 200 proves nothing on
@@ -192,6 +197,36 @@ IDP_FINGERPRINTS: tuple[tuple[str, str], ...] = (
     ("accounts.google.com", "Google"),
     ("okta.com", "Okta"),
     ("auth0.com", "Auth0"),
+)
+
+# The accounts OpenCloud's built-in identity management creates when
+# IDM_CREATE_DEMO_USERS is on. Their names and passwords are published in the
+# OpenCloud documentation, which is why probing them is not password guessing:
+# each pair either is the documented default or is not, and the answer is the
+# same for everybody. Dennis is an administrator, so an instance that left
+# these on has handed the internet an admin account with the password 'demo'.
+DEMO_USERS: tuple[tuple[str, str], ...] = (
+    ("dennis", "demo"),
+    ("margaret", "demo"),
+    ("alan", "demo"),
+    ("lynn", "demo"),
+    ("mary", "demo"),
+)
+
+# Asked with the credentials above: it answers with the account behind them,
+# and refuses everybody else. The format parameter makes the answer JSON,
+# which is what tells a real answer apart from a frontend catch-all page.
+DEMO_USER_PATH = "/ocs/v1.php/cloud/user?format=json"
+
+# An administrator account reachable with a documented password is as bad as
+# this scan gets: it is not a weakness that might be exploitable, it is an
+# open door with the key printed in the manual.
+DEMO_USER_SEVERITY = "critical"
+
+# Content types an OCS answer can have. A catch-all single page application
+# answers text/html, so anything else is the service itself replying.
+DEMO_USER_CONTENT_TYPES = frozenset(
+    {"application/json", "text/json", "application/xml", "text/xml"}
 )
 STATUS_PATH = "/status.php"
 WEBFINGER_PATH = "/.well-known/webfinger"
@@ -493,8 +528,16 @@ class _Probe:
         allow_redirects: bool = True,
         method: str = "GET",
         base_url: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> requests.Response | None:
-        """Perform one request, returning None when it fails."""
+        """
+        Perform one request, returning None when it fails.
+
+        ``headers`` are sent with this request only and are deliberately not
+        carried into a redirect: the one caller that uses them sends an
+        Authorization header, and replaying that to wherever a Location
+        points would hand a credential to another host.
+        """
         url = f"{base_url or self.base_url}{path}"
         guard = self.settings.redirect_guard
         follow = allow_redirects and guard is None
@@ -510,6 +553,7 @@ class _Probe:
                     headers={
                         **self._headers(url),
                         "User-Agent": self.settings.user_agent,
+                        **(headers or {}),
                     },
                     stream=self.settings.max_response_bytes > 0,
                 )
@@ -590,34 +634,65 @@ class _Probe:
         return response
 
 
-def _host_and_port(host: str, settings: ScannerSettings) -> tuple[str, int]:
-    """Split an optional ':port' suffix off the host and apply the default."""
-    hostname = host.strip().rstrip("/")
-    for prefix in ("https://", "http://"):
-        hostname = hostname.removeprefix(prefix)
-    hostname = hostname.split("/", 1)[0]
+def _resolved_addresses(hostname: str, settings: ScannerSettings) -> dict[str, list[str]]:
+    """
+    The addresses the instance's name points at, split by family.
 
-    port = settings.port
-    if hostname.startswith("["):  # bracketed IPv6 literal
-        closing = hostname.find("]")
-        if closing != -1 and hostname[closing + 1:].startswith(":"):
-            port = port or int(hostname[closing + 2:])
-            hostname = hostname[: closing + 1]
-    elif hostname.count(":") == 1:
-        hostname, _, raw_port = hostname.partition(":")
-        port = port or int(raw_port)
+    Pinned addresses win when the caller supplied them: the web application
+    resolves the name itself before it lets a scan start and dials exactly
+    those, so a second lookup here could report an address the scan never
+    connected to. A name that does not resolve - or a scan of a bare IP -
+    yields empty lists rather than an error; this is context beside the
+    result, never a finding.
+    """
+    pinned = {name.lower(): values for name, values in settings.pinned_addresses}
+    candidates: tuple[str, ...] | list[str] | None = pinned.get(hostname.lower())
+    if candidates is None:
+        try:
+            infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+        except OSError as exc:
+            LOGGER.debug("Could not resolve %s: %s", hostname, exc)
+            infos = []
+        candidates = [str(info[4][0]) for info in infos]
+
+    addresses: dict[str, list[str]] = {"ipv4": [], "ipv6": []}
+    for candidate in candidates:
+        try:
+            # A link-local answer carries the zone as '%eth0', which is not
+            # part of the address.
+            address = ipaddress.ip_address(str(candidate).split("%")[0].strip("[]"))
+        except ValueError:
+            continue
+        bucket = addresses["ipv6" if address.version == 6 else "ipv4"]
+        if str(address) not in bucket:
+            bucket.append(str(address))
+    return addresses
+
+
+def _host_and_port(host: str, settings: ScannerSettings) -> tuple[str, int, str]:
+    """Split the host, optional port and installation base path."""
+    candidate = host.strip().rstrip("/")
+    parsed = urlsplit(
+        candidate if "://" in candidate else f"//{candidate}",
+        scheme=settings.scheme,
+    )
+    hostname = parsed.hostname or ""
+    if ":" in hostname:
+        hostname = f"[{hostname}]"
+    port = settings.port or parsed.port
+    base_path = parsed.path.rstrip("/")
 
     if port is None:
         port = 443 if settings.scheme == "https" else 80
-    return hostname, port
+    return hostname, port, base_path
 
 
-def _base_url(hostname: str, port: int, scheme: str) -> str:
+def _base_url(hostname: str, port: int, scheme: str, base_path: str = "") -> str:
     """Build the base URL, omitting the port when it is the scheme default."""
     default_port = 443 if scheme == "https" else 80
     if port == default_port:
-        return f"{scheme}://{hostname}"
-    return f"{scheme}://{hostname}:{port}"
+        return f"{scheme}://{hostname}{base_path}"
+    return f"{scheme}://{hostname}:{port}{base_path}"
 
 
 def _dig(data: Any, *path: str) -> Any:
@@ -740,7 +815,8 @@ def _check_https(probe: _Probe, hostname: str) -> dict[str, Any]:
     used = probe.base_url.startswith("https://")
     enforced = False
 
-    plain = probe.derive(f"http://{hostname}")
+    base_path = urlsplit(probe.base_url).path.rstrip("/")
+    plain = probe.derive(_base_url(hostname, 80, "http", base_path))
     response = plain.get("/", allow_redirects=False)
     if response is not None:
         location = response.headers.get("Location", "")
@@ -773,9 +849,9 @@ def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
     Nothing is submitted anywhere: this reads the OpenID Connect discovery
     document the instance publishes and, when that is a redirect, the address
     in the Location header. No login form is filled in and no credential is
-    ever sent - a scan must not attempt to authenticate against somebody's
-    instance, and an identity provider is exactly the place where trying
-    would be worst.
+    ever sent here - working out who signs users in must not become an attempt
+    to sign in. (:func:`_demo_user_finding` does send one, and only one: the
+    published demo password, and only to the instance's own provider.)
 
     An issuer on a different host than the instance means an external provider
     such as Keycloak, Authentik or Authelia is in front of it. That is context
@@ -965,6 +1041,92 @@ def _identity_provider_vendor(issuer: str) -> str:
         if fingerprint in candidate:
             return vendor
     return ""
+
+
+def _demo_user_probe(
+    probe: _Probe, username: str, password: str
+) -> requests.Response | None:
+    """Ask the account endpoint as one documented demo user."""
+    token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+    return probe.get(
+        DEMO_USER_PATH,
+        allow_redirects=False,
+        headers={"Authorization": f"Basic {token}"},
+    )
+
+
+def _demo_login_succeeded(response: requests.Response | None) -> bool:
+    """Decide whether an answer means the credentials were actually accepted."""
+    if response is None or response.status_code != 200:
+        return False
+    content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+    return content_type in DEMO_USER_CONTENT_TYPES and bool(response.content.strip())
+
+
+def _demo_user_finding(
+    probe: _Probe, identity_provider: Mapping[str, Any] | None
+) -> Finding | None:
+    """
+    Check whether the built-in identity management still has its demo users.
+
+    ``IDM_CREATE_DEMO_USERS`` populates a fresh instance with five accounts
+    whose names and passwords are printed in the OpenCloud documentation, one
+    of them an administrator. They exist so that somebody can try the software
+    out; left on, they are an administrator account whose password everybody
+    already knows.
+
+    This is the one place the scan sends a credential, and it does so because
+    there is no other way to see the accounts from outside: nothing OpenCloud
+    exposes unauthenticated lists users. What is sent is not a guess at
+    somebody's password but a published default, and a rejection tells the
+    scan what it came for. Only the built-in provider is asked - with an
+    external identity provider the accounts come from there, and pushing
+    logins at a stranger's Keycloak is not this scan's business.
+    """
+    provider = identity_provider or {}
+    if not provider.get("detected") or provider.get("external"):
+        return None
+
+    control, *responses = _run_all(
+        probe.settings,
+        [partial(probe.get, DEMO_USER_PATH, allow_redirects=False)]
+        + [
+            partial(_demo_user_probe, probe, username, password)
+            for username, password in DEMO_USERS
+        ],
+    )
+    if _demo_login_succeeded(control):
+        # The endpoint answers anybody, so an answer proves nothing about the
+        # credentials that were sent. The missing authentication is reported
+        # by its own check; this one has nothing to say.
+        return Finding(
+            "demoUsersDisabled",
+            DEMO_USER_SEVERITY,
+            True,
+            f"{DEMO_USER_PATH.split('?')[0]} answers without authentication, "
+            "so the demo accounts could not be tested",
+        )
+
+    accepted = [
+        username
+        for (username, _), response in zip(DEMO_USERS, responses)
+        if _demo_login_succeeded(response)
+    ]
+    if accepted:
+        return Finding(
+            "demoUsersDisabled",
+            DEMO_USER_SEVERITY,
+            False,
+            "Documented demo accounts still sign in: "
+            + ", ".join(accepted)
+            + " (IDM_CREATE_DEMO_USERS)",
+        )
+    return Finding(
+        "demoUsersDisabled",
+        DEMO_USER_SEVERITY,
+        True,
+        "No documented demo account was accepted by the built-in identity provider",
+    )
 
 
 def _catch_all_probe(probe: _Probe) -> requests.Response | None:
@@ -1167,10 +1329,16 @@ def _debug_port_findings(hostname: str, settings: ScannerSettings) -> list[Findi
     configured = settings.debug_ports or tuple(port for port, _ in DEFAULT_DEBUG_PORTS)
     names = dict(DEFAULT_DEBUG_PORTS)
 
+    pins = dict(settings.pinned_addresses)
+    connect_host = next(
+        iter(pins.get(hostname.strip("[]").lower().rstrip("."), ())),
+        hostname.strip("[]"),
+    )
+
     def reachable(port: int) -> bool:
         try:
             with socket.create_connection(
-                (hostname, port), timeout=settings.debug_port_timeout
+                (connect_host, port), timeout=settings.debug_port_timeout
             ):
                 return True
         except OSError:
@@ -1191,6 +1359,116 @@ def _debug_port_findings(hostname: str, settings: ScannerSettings) -> list[Findi
             )
         )
     return findings
+
+
+def _backend_port_finding(
+    probe: _Probe,
+    hostname: str,
+    primary_port: int,
+    status: Mapping[str, Any],
+) -> Finding:
+    """Prove whether the origin's direct OpenCloud listener is also public."""
+    if primary_port == BACKEND_PORT:
+        return Finding(
+            "backendPortClosed",
+            "high",
+            True,
+            f"Port {BACKEND_PORT} is the explicitly scanned endpoint",
+        )
+
+    base_path = urlsplit(probe.base_url).path.rstrip("/")
+    short = replace(
+        probe.settings,
+        timeout=probe.settings.debug_port_timeout,
+        verify_tls=False,
+    )
+    candidate: Mapping[str, Any] | None = None
+    exposed_scheme = ""
+    candidate_paths = (base_path, "") if base_path else ("",)
+    for candidate_path in candidate_paths:
+        for scheme in ("http", "https"):
+            direct = _Probe(
+                base_url=_base_url(
+                    hostname, BACKEND_PORT, scheme, candidate_path
+                ),
+                settings=short,
+            )
+            try:
+                candidate = _fetch_status(direct)
+            except ScanError:
+                continue
+            exposed_scheme = scheme
+            break
+        if candidate is not None:
+            break
+
+    same_product = (
+        candidate is not None
+        and str(candidate.get("productname") or candidate.get("product") or "").lower()
+        == str(status.get("productname") or status.get("product") or "").lower()
+    )
+    primary_version = select_version(status)
+    candidate_version = select_version(candidate or {})
+    same_version = not primary_version or not candidate_version or (
+        primary_version == candidate_version
+    )
+    exposed = same_product and same_version
+    return Finding(
+        "backendPortClosed",
+        "high",
+        not exposed,
+        (
+            f"OpenCloud {candidate_version or 'instance'} is reachable directly over "
+            f"{exposed_scheme.upper()} on port {BACKEND_PORT}"
+            if exposed
+            else f"No matching OpenCloud listener found on port {BACKEND_PORT}"
+        ),
+    )
+
+
+def _web_embed_findings(probe: _Probe) -> list[Finding]:
+    """Read the public web configuration and reject unsafe iframe trust."""
+    response = probe.get(WEB_CONFIG_PATH, allow_redirects=False)
+    embed = None
+    if response is not None and response.status_code == 200:
+        try:
+            document = response.json()
+        except ValueError:
+            document = None
+        if isinstance(document, Mapping):
+            candidate = _dig(document, "options", "embed")
+            if isinstance(candidate, Mapping):
+                embed = candidate
+
+    wildcard = embed is not None and embed.get("messagesOrigin") == "*"
+    delegated = embed is not None and embed.get("delegateAuthentication") is True
+    delegated_origin = (
+        str(embed.get("delegateAuthenticationOrigin") or "").strip()
+        if embed is not None
+        else ""
+    )
+    return [
+        Finding(
+            "webEmbedMessageOriginRestricted",
+            "high",
+            not wildcard,
+            (
+                "WEB_OPTION_EMBED_MESSAGES_ORIGIN allows every parent origin"
+                if wildcard
+                else "No wildcard embed message origin published"
+            ),
+        ),
+        Finding(
+            "webEmbedDelegatedAuthenticationRestricted",
+            "critical",
+            not delegated or bool(delegated_origin),
+            (
+                "Delegated iframe authentication is enabled without an origin"
+                if delegated and not delegated_origin
+                else "Delegated iframe authentication is off or origin-restricted"
+            ),
+        ),
+    ]
 
 
 def _disclosure_findings(response: requests.Response | None) -> list[Finding]:
@@ -1306,6 +1584,8 @@ def _capability_hardenings(capabilities: Mapping[str, Any] | None) -> dict[str, 
         minimum = policy.get("min_characters")
         if isinstance(minimum, int):
             hardenings["passwordPolicyEnforced"] = minimum >= 8
+        elif "max_characters" in policy:
+            hardenings["passwordPolicyEnforced"] = False
 
     return hardenings
 
@@ -1596,6 +1876,9 @@ def _collect_extra_findings(
     findings.extend(_authentication_findings(probe))
     findings.append(_basic_auth_finding(challenge, identity_provider))
     findings.append(_identity_provider_finding(identity_provider or {}))
+    demo_users = _demo_user_finding(probe, identity_provider)
+    if demo_users is not None:
+        findings.append(demo_users)
     findings.append(
         _reverse_proxy_finding(
             reverse_proxy if reverse_proxy is not None else _reverse_proxy(root_response)
@@ -1604,8 +1887,10 @@ def _collect_extra_findings(
     findings.extend(_exposed_path_findings(probe))
     findings.append(_directory_listing_finding(probe, root_response))
     findings.extend(_debug_endpoint_findings(probe))
+    findings.extend(_web_embed_findings(probe))
     if settings.check_debug_ports:
         findings.extend(_debug_port_findings(hostname, settings))
+        findings.append(_backend_port_finding(probe, hostname, port, status))
     findings.extend(_disclosure_findings(root_response))
     webfinger = _webfinger_finding(probe)
     if webfinger is not None:
@@ -1625,8 +1910,8 @@ def _open_instance(host: str, settings: ScannerSettings) -> tuple[
     settings actually used, and the reasons why TLS verification or HTTPS as
     a whole had to be given up (None when they were fine).
     """
-    hostname, port = _host_and_port(host, settings)
-    base_url = _base_url(hostname, port, settings.scheme)
+    hostname, port, base_path = _host_and_port(host, settings)
+    base_url = _base_url(hostname, port, settings.scheme, base_path)
     probe = _Probe(base_url=base_url, settings=settings)
 
     https_error: ScanError | None = None
@@ -1663,7 +1948,7 @@ def _open_instance(host: str, settings: ScannerSettings) -> tuple[
     LOGGER.debug("HTTPS scan failed (%s), retrying over HTTP", https_error)
     fallback_port = port if port != 443 else 80
     plain_probe = _Probe(
-        base_url=_base_url(hostname, fallback_port, "http"), settings=settings
+        base_url=_base_url(hostname, fallback_port, "http", base_path), settings=settings
     )
     try:
         status = _fetch_status(plain_probe)
@@ -1756,7 +2041,19 @@ def scan(
     # that the full detail can be published beside them: the findings say what
     # is wrong, the `tls` block says what was actually observed.
     tls_inspection = (
-        inspect_tls(hostname, port, settings.timeout)
+        inspect_tls(
+            hostname,
+            port,
+            settings.timeout,
+            connect_host=next(
+                iter(
+                    dict(settings.pinned_addresses).get(
+                        hostname.strip("[]").lower().rstrip("."), ()
+                    )
+                ),
+                None,
+            ),
+        )
         if settings.extra_checks and probe.base_url.startswith("https://")
         else None
     )
@@ -1806,6 +2103,7 @@ def scan(
     scanned_at = datetime.now(timezone.utc)
     result: dict[str, Any] = {
         "domain": hostname,
+        "addresses": _resolved_addresses(hostname, settings),
         "url": f"{probe.base_url}{STATUS_PATH}",
         "product": product,
         "version": version or "",

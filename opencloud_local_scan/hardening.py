@@ -47,6 +47,7 @@ DOCS_PROXY = "https://docs.opencloud.eu/docs/dev/server/services/proxy/environme
 DOCS_FRONTEND = (
     "https://docs.opencloud.eu/docs/dev/server/services/frontend/environment-variables"
 )
+DOCS_WEB = "https://docs.opencloud.eu/docs/dev/server/services/web/environment-variables"
 DOCS_SHARING = (
     "https://docs.opencloud.eu/docs/dev/server/services/sharing/environment-variables"
 )
@@ -209,15 +210,15 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "passwordPolicyEnforced": Hardening(
         id="passwordPolicyEnforced",
-        title="The password policy allows passwords shorter than 8 characters",
+        title="The password policy is disabled or allows short passwords",
         meaning=(
-            "The minimum password length is below 8 characters. This policy "
-            "governs public link passwords, not account passwords - account "
-            "passwords belong to the identity provider."
+            "The public capabilities show that the policy is disabled or its "
+            "minimum length is below 8 characters. This governs public link "
+            "passwords, not identity-provider account passwords."
         ),
         remediation=(
-            "Set OC_PASSWORD_POLICY_MIN_CHARACTERS to 8 or more (8 is the "
-            "default, so a lower value was configured deliberately). "
+            "Set OC_PASSWORD_POLICY_DISABLED=false and "
+            "OC_PASSWORD_POLICY_MIN_CHARACTERS to 8 or more (8 is the default). "
             "OC_PASSWORD_POLICY_MIN_{LOWERCASE,UPPERCASE,DIGITS,SPECIAL}_"
             "CHARACTERS and a banned-password list tighten it further."
         ),
@@ -268,7 +269,7 @@ HARDENINGS: dict[str, Hardening] = {
             "Redirect every http:// request to https:// in the reverse proxy, or "
             "stop serving plain HTTP entirely."
         ),
-        reference=DOCS_PROXY,
+        reference=DOCS_REVERSE_PROXY,
     ),
     "identityProviderDetected": Hardening(
         id="identityProviderDetected",
@@ -530,6 +531,28 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_PROXY,
     ),
+    "demoUsersDisabled": Hardening(
+        id="demoUsersDisabled",
+        title="The documented demo accounts still sign in",
+        meaning=(
+            "IDM_CREATE_DEMO_USERS populates the built-in identity management "
+            "with five accounts - dennis, margaret, alan, lynn and mary - whose "
+            "passwords are published in the OpenCloud documentation, and dennis "
+            "is an administrator. The scan asked the account endpoint with one "
+            "of those documented pairs and was let in, so anybody who has read "
+            "the manual can sign in as well. Nothing was guessed: only the "
+            "published defaults were sent, and only to the instance's own "
+            "identity provider."
+        ),
+        remediation=(
+            "Turn the demo users off (IDM_CREATE_DEMO_USERS=false) and delete "
+            "the accounts that were already created - switching the setting off "
+            "does not remove them. Treat the instance as compromised until the "
+            "administrator account 'dennis' is gone or has a real password."
+        ),
+        reference="https://docs.opencloud.eu/docs/admin/resources/demo-user/",
+        setting="IDM_CREATE_DEMO_USERS",
+    ),
     "maintenanceMode": Hardening(
         id="maintenanceMode",
         title="The instance is in maintenance mode",
@@ -661,6 +684,51 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
         ),
         reference=DOCS_PROXY,
         setting="OC_DEBUG_ADDR",
+    ),
+    "backendPortClosed": Hardening(
+        id="backendPortClosed",
+        title="The direct OpenCloud backend port is publicly reachable",
+        meaning=(
+            "Port 9200 serves the same OpenCloud instance as the public address. "
+            "When a reverse proxy fronts OpenCloud, publishing that listener "
+            "lets clients bypass the proxy's TLS and security policy."
+        ),
+        remediation=(
+            "Remove the public port mapping for 9200 and bind the backend to "
+            "loopback or the private container network. Let only the reverse "
+            "proxy reach it."
+        ),
+        reference=DOCS_REVERSE_PROXY,
+        setting="PROXY_HTTP_ADDR",
+    ),
+    "webEmbedMessageOriginRestricted": Hardening(
+        id="webEmbedMessageOriginRestricted",
+        title="Embedded web messages trust every parent origin",
+        meaning=(
+            "The public web configuration sets the embed message origin to '*'. "
+            "Any site can then host the web client in a frame and exchange "
+            "messages with it."
+        ),
+        remediation=(
+            "Set WEB_OPTION_EMBED_MESSAGES_ORIGIN to the exact trusted parent "
+            "origin, or disable the embed integration."
+        ),
+        reference=DOCS_WEB,
+        setting="WEB_OPTION_EMBED_MESSAGES_ORIGIN",
+    ),
+    "webEmbedDelegatedAuthenticationRestricted": Hardening(
+        id="webEmbedDelegatedAuthenticationRestricted",
+        title="Delegated iframe authentication accepts an unvalidated origin",
+        meaning=(
+            "Delegated authentication is enabled without naming the parent "
+            "origin allowed to send credentials to the embedded web client."
+        ),
+        remediation=(
+            "Set WEB_OPTION_EMBED_DELEGATE_AUTHENTICATION_ORIGIN to the exact "
+            "trusted parent origin, or disable delegated authentication."
+        ),
+        reference=DOCS_WEB,
+        setting="WEB_OPTION_EMBED_DELEGATE_AUTHENTICATION_ORIGIN",
     ),
     "versionDisclosure": Hardening(
         id="versionDisclosure",

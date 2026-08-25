@@ -60,9 +60,12 @@ from .audit import (
 )
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
+    SEVERITY_TAGS,
+    grade_scale,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
+    severity_caps,
     summarise,
     waiver_options,
 )
@@ -74,8 +77,20 @@ from .discovery import (
     OPENAPI_PATH,
     discovery_document,
 )
+from .documentation import DOCUMENTATION_BY_SLUG, DOCUMENTATION_PAGES
 from .encryption import ensure_encryption_ready
 from .export_signing import SIGNATURE_HEADER, sign_bytes
+from .i18n import (
+    DEFAULT_LOCALE,
+    LANGUAGE_COOKIE,
+    LANGUAGE_COOKIE_MAX_AGE,
+    LANGUAGE_PATH,
+    Translator,
+    locale_for_request,
+    locale_options,
+    normalise_locale,
+    safe_next_path,
+)
 from .mcp_auth import (
     PROTECTED_RESOURCE_PATH,
     auth_required,
@@ -157,6 +172,8 @@ _TARGET_URL_FIELD = Form(default=None)
 _WAIVER_FIELD = Form(default=None)
 _FORMAT_FIELD = Form(default=None)
 _TRACK_FIELD = Form(default=None)
+_LOCALE_FIELD = Form(default="")
+_NEXT_FIELD = Form(default="/", alias="next")
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
@@ -229,6 +246,8 @@ class _Rejected(Exception):
         status: int = 400,
         retry_after: int = 0,
         self_host: bool = False,
+        key: str = "",
+        params: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -236,6 +255,15 @@ class _Rejected(Exception):
         self.retry_after = retry_after
         self.self_host = self_host
         """Whether to point the visitor at running the check themselves."""
+        self.key = key
+        """The catalogue identifier for the same sentence, for the page."""
+        self.params = params or {}
+
+    def translated(self, translate: Translator) -> str:
+        """The message for a browser. The API keeps the English one."""
+        if self.key and translate.has(self.key):
+            return translate(self.key, **self.params)
+        return self.message
 
 
 def client_address(request: Request, settings: WebSettings) -> str:
@@ -275,12 +303,45 @@ def is_safe_link(value: Any) -> bool:
     return candidate.lower().startswith(("https://", "http://"))
 
 
+def _default_locale_context() -> dict[str, Any]:
+    """The English translator every template starts from.
+
+    A page render supplies its own, negotiated for the visitor. These globals
+    exist so a template rendered outside a request - a test, a preview, the
+    search index generator - still has a working ``t``.
+    """
+    translate = Translator(DEFAULT_LOCALE)
+    return {
+        "t": translate,
+        "locale": translate.locale,
+        "locales": locale_options(translate.locale),
+        "language_path": LANGUAGE_PATH,
+        "language_next": "/",
+    }
+
+
+def build_templates(directory: Path | None = None) -> Jinja2Templates:
+    """The Jinja environment the templates are written against.
+
+    One place, so a render outside the application - a test, the search index
+    generator - gets the same tests and the same English fallback the website
+    does rather than a template that only works in one of them.
+    """
+    root = directory or (frontend_dir() / "templates")
+    templates = Jinja2Templates(directory=str(root))
+    templates.env.tests["safe_link"] = is_safe_link
+    # English is what a render falls back to when nobody negotiated a
+    # language, so a template is never one missing context variable away from
+    # an exception.
+    templates.env.globals.update(_default_locale_context())
+    return templates
+
+
 def create_app(settings: WebSettings | None = None) -> FastAPI:
     """Build the application. One call, one set of settings, no globals."""
     settings = settings or WebSettings.from_env()
     root = frontend_dir()
-    templates = Jinja2Templates(directory=str(root / "templates"))
-    templates.env.tests["safe_link"] = is_safe_link
+    templates = build_templates(root / "templates")
     # The MCP extra is optional: a deployment that only wants the website
     # should not be made to install an agent runtime, and one that installed
     # it should not have to remember a second switch.
@@ -446,11 +507,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             response.headers["Content-Security-Policy"] = DOCS_CSP
         return response
 
+    def translator_for(request: Request) -> Translator:
+        """The catalogue this visitor reads, cookie first, then the browser."""
+        return Translator(locale_for_request(request))
+
     def page(request: Request, name: str, context: dict[str, Any], status: int = 200):
         origin = site_origin(str(request.base_url), settings.public_base_url)
         indexable = is_indexable(
             request.url.path, allow_indexing=settings.allow_indexing, status=status
         )
+        translate = context.get("t")
+        if not isinstance(translate, Translator):
+            translate = translator_for(request)
         payload = {
             "version": __version__,
             "project_url": PROJECT_URL,
@@ -472,9 +540,22 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "cooldown_minutes": max(1, settings.target_cooldown // 60),
                 "cooldown": settings.target_cooldown,
             },
+            "t": translate,
+            "locale": translate.locale,
+            "locales": locale_options(translate.locale),
+            "language_path": LANGUAGE_PATH,
+            # Where the switcher returns to. The path only, validated as a
+            # local one: a result page keeps its uuid out of the query string
+            # and therefore out of anybody's referrer.
+            "language_next": safe_next_path(request.url.path),
             **context,
         }
-        return templates.TemplateResponse(request, name, payload, status_code=status)
+        response = templates.TemplateResponse(request, name, payload, status_code=status)
+        # The same URL answers in four languages, chosen from a header and a
+        # cookie. A cache that ignored either would serve one visitor's
+        # language to the next.
+        response.headers["Vary"] = "Accept-Language, Cookie"
+        return response
 
     def not_found(request: Request) -> Response:
         if wants_html(request):
@@ -507,6 +588,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 f"{', '.join(sorted(extra_fields))}. The scan runs with "
                 "server-side settings only.",
                 status=422,
+                key="error.unsupported_fields",
+                params={"fields": ", ".join(sorted(extra_fields))},
             )
 
         client = await limiter.check_client(address)
@@ -522,6 +605,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status=429,
                 retry_after=client.retry_after,
                 self_host=True,
+                key="error.rate_limit.client",
             )
 
         try:
@@ -536,7 +620,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 reason=REASON_TARGET_REJECTED,
                 status=400,
             )
-            raise _Rejected(str(exc), status=400) from exc
+            raise _Rejected(
+                str(exc), status=400, key=getattr(exc, "key", "")
+            ) from exc
 
         waivers = sanitize_waivers(ignore_hardenings)
         chosen_format = output_format if output_format in OUTPUT_FORMATS else "dashboard"
@@ -556,6 +642,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status=429,
                 retry_after=cooldown.retry_after,
                 self_host=True,
+                key="error.rate_limit.target",
             )
 
         identifier = str(uuid_module.uuid4())
@@ -580,12 +667,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> Response:
+        translate = translator_for(request)
         return page(
             request,
             "index.html",
             {
-                "waivers": waiver_options(),
-                "tracks": release_track_options(),
+                "t": translate,
+                "waivers": waiver_options(translate),
+                "tracks": release_track_options(translate),
                 "release_track": DEFAULT_RELEASE_TRACK,
                 "error": None,
                 "error_self_host": False,
@@ -599,6 +688,43 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def how_it_works(request: Request) -> Response:
         return page(request, "how-it-works.html", {})
 
+    @app.get("/grades", response_class=HTMLResponse, include_in_schema=False)
+    async def grades(request: Request) -> Response:
+        translate = translator_for(request)
+        return page(
+            request,
+            "grades.html",
+            {
+                "t": translate,
+                "grades": grade_scale(translate),
+                "caps": severity_caps(),
+                "severity_tags": SEVERITY_TAGS,
+            },
+        )
+
+    @app.get("/documentation", response_class=HTMLResponse, include_in_schema=False)
+    async def documentation(request: Request) -> Response:
+        return page(
+            request,
+            "documentation.html",
+            {"documentation_pages": DOCUMENTATION_PAGES},
+        )
+
+    @app.get(
+        "/documentation/{slug}",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
+    async def documentation_page(request: Request, slug: str) -> Response:
+        selected = DOCUMENTATION_BY_SLUG.get(slug)
+        if selected is None:
+            return not_found(request)
+        return page(request, f"docs/{selected.slug}.html", {})
+
+    @app.get("/search", response_class=HTMLResponse, include_in_schema=False)
+    async def search_page(request: Request) -> Response:
+        return page(request, "search.html", {})
+
     @app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
     async def privacy(request: Request) -> Response:
         return page(request, "privacy.html", {})
@@ -611,9 +737,43 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def ai_page(request: Request) -> Response:
         return page(request, "ai.html", {})
 
+    # For the visitor who would rather not hand an address to a stranger's
+    # server at all. It documents the command instead of running one.
+    @app.get("/cli", response_class=HTMLResponse, include_in_schema=False)
+    async def cli_page(request: Request) -> Response:
+        return page(request, "cli.html", {})
+
     @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
     async def about(request: Request) -> Response:
         return page(request, "about.html", {})
+
+    # The switcher is a form, so it works with JavaScript switched off, and it
+    # is a POST, so no link anywhere can change somebody's language for them.
+    # What comes back is a cookie and a redirect to the page they were on -
+    # the path only, validated as a local one, with the query string dropped.
+    # A scan uuid therefore never travels through here.
+    @app.post(LANGUAGE_PATH, include_in_schema=False)
+    async def choose_language(
+        request: Request,
+        locale: str = _LOCALE_FIELD,
+        next_path: str = _NEXT_FIELD,
+    ) -> Response:
+        chosen = normalise_locale(locale)
+        destination = safe_next_path(next_path)
+        response = RedirectResponse(destination, status_code=303)
+        if chosen is not None:
+            response.set_cookie(
+                LANGUAGE_COOKIE,
+                chosen,
+                max_age=LANGUAGE_COOKIE_MAX_AGE,
+                path="/",
+                httponly=True,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+            )
+        # Which language somebody reads in is not a scan and not evidence:
+        # it is written to their cookie and to nothing else here.
+        return response
 
     # Two files a crawler asks for before anything else. Both are generated:
     # the sitemap from the page list in `seo.py` and the template mtimes, so
@@ -681,14 +841,16 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
         except _Rejected as exc:
             if html:
+                translate = translator_for(request)
                 response = page(
                     request,
                     "index.html",
                     {
-                        "waivers": waiver_options(),
-                        "tracks": release_track_options(),
+                        "t": translate,
+                        "waivers": waiver_options(translate),
+                        "tracks": release_track_options(translate),
                         "release_track": sanitize_release_track(submitted_track),
-                        "error": exc.message,
+                        "error": exc.translated(translate),
                         "error_self_host": exc.self_host,
                         "target_url": str(submitted_url),
                     },
@@ -899,12 +1061,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         record = await app.state.store.get(identifier)
         if record is None:
             return page(request, "404.html", {}, status=404)
+        translate = translator_for(request)
         return page(
             request,
             "scan.html",
             {
+                "t": translate,
                 "scan": record.as_dict(),
-                "summary": summarise(record.result) if record.result else None,
+                # The labels around the evidence are translated; the evidence
+                # itself - versions, identifiers, what the host said - is not.
+                "summary": (
+                    summarise(record.result, translate) if record.result else None
+                ),
             },
         )
 

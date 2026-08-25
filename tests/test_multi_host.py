@@ -191,6 +191,23 @@ def test_single_host_run_reports_its_own_state(scans, capsys):
     assert "OpenCloud 7.2.0 on a.example.com" in message
 
 
+def test_unexpected_worker_errors_cannot_inject_monitoring_framing(monkeypatch):
+    """The last-resort multi-host boundary must flatten hostile exception text."""
+
+    def fail(context):
+        raise RuntimeError("remote\nforged line | forged_metric=1")
+
+    monkeypatch.setattr(plugin, "send_scan_request", fail)
+
+    message, code = plugin._run_single_host_check(
+        ScanContext(host="opencloud.example.com")
+    )
+
+    assert code is NagiosExitCode.UNKNOWN
+    assert "\nforged line" not in message
+    assert "|" not in message
+
+
 def test_multi_host_summary_counts_every_state(scans, capsys):
     """The first line must answer "how bad is it?" on its own."""
     scans["ok.example.com"] = {}

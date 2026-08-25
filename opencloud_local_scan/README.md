@@ -381,13 +381,19 @@ instance actually said:
 | `publicLinkPasswordEnforced` | Capabilities: password required for public links |
 | `publicLinkExpirationEnforced` | Capabilities: enforced expiry on public links |
 | `userEnumerationRestricted` | Capabilities: user search restricted |
-| `passwordPolicyEnforced` | Capabilities: minimum password length >= 8 |
+| `passwordPolicyEnforced` | Capabilities: policy enabled and minimum password length >= 8 |
 
 A key is omitted entirely when the corresponding evidence is unavailable - a
 missing header or an instance whose capabilities endpoint does not report that
 feature. An older release therefore does not accumulate phantom findings, and
 `capabilitiesAvailable` in the result document says whether the second half of
 the table could be evaluated at all.
+
+The additional probes also read the public web configuration: wildcard embed
+message origins fail `webEmbedMessageOriginRestricted`, delegated iframe
+authentication without an explicit origin fails
+`webEmbedDelegatedAuthenticationRestricted`, and a matching OpenCloud listener
+on the direct backend port fails `backendPortClosed`.
 
 Some of these are worth knowing about before you enable `--check-hardening`:
 
@@ -436,9 +442,17 @@ Two questions come up often enough to be worth stating as non-goals:
   provider is registered says nothing about WOPI secrets, share permissions or
   the second service's own configuration, all of which sit behind a login.
 
-Everything the scanner does is a read. It never submits a form, never sends an
-`Authorization` header and never tries a credential, so no result here can be
-taken as evidence that authentication works - only that it is offered.
+Everything else the scanner does is a read. It never submits a form and never
+guesses a password. The one credential it sends is the documented demo one:
+when the instance runs OpenCloud's built-in identity provider,
+`_demo_user_finding` asks `/ocs/v1.php/cloud/user` with each of the accounts
+`IDM_CREATE_DEMO_USERS` creates - `dennis`, `margaret`, `alan`, `lynn` and
+`mary`, all with the password published in OpenCloud's documentation. An
+accepted login is `demoUsersDisabled`, a `critical` finding, because `dennis`
+is an administrator. Nothing is guessed, nothing is sent to an external
+identity provider, and a rejection is the answer the check came for - so no
+result here can be taken as evidence that authentication works, only that
+those particular accounts are gone.
 
 ### Explaining the flags
 
@@ -624,6 +638,19 @@ print(result["rating"], result["version"], result["extraChecks"])
 OpenCloud - an unreachable `/status.php`, a non-JSON response, a JSON document
 without any recognisable version field, or one naming ownCloud or Nextcloud as
 the product.
+
+The document also carries `addresses`, the IPv4 and IPv6 the hostname resolved
+to while the scan ran:
+
+```json
+{"addresses": {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}}
+```
+
+It is context rather than a finding, and never moves the rating. Addresses
+pinned through `ScannerSettings.pinned_addresses` are reported as they are:
+the web application validates a name before it lets a scan start and dials
+exactly those, so resolving a second time here could name an address the scan
+never connected to.
 
 Every setting in `ScannerSettings` and `ReleaseSettings` can also come from a
 configuration file (YAML, or JSON when the name ends in `.json`), an

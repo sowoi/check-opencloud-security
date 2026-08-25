@@ -18,9 +18,25 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _offline_resolver,
     client,
 )
+from webapp.documentation import DOCUMENTATION_PAGES
 from webapp.seo import PUBLIC_PAGES
 
-CONTENT_PAGES = ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+NAV_PAGES = (
+    "/",
+    "/how-it-works",
+    "/grades",
+    "/documentation",
+    "/api",
+    "/ai",
+    "/cli",
+    "/privacy",
+    "/about",
+)
+CONTENT_PAGES = (
+    *NAV_PAGES,
+    "/search",
+    *(f"/documentation/{page.slug}" for page in DOCUMENTATION_PAGES),
+)
 
 
 def _create(test_client, target: str = "https://opencloud.example.com"):
@@ -236,7 +252,7 @@ def test_the_nav_stays_usable_without_javascript():
     css = client().get("/static/css/app.css").text
 
     nav = body.split('class="site-nav"', 1)[1].split("</nav>", 1)[0]
-    for path in CONTENT_PAGES:
+    for path in NAV_PAGES:
         assert f'href="{path}"' in nav
     assert '[data-nav="enhanced"] .site-nav { display: none; }' in css
     assert 'document.documentElement.setAttribute("data-nav", "enhanced")' in (

@@ -267,6 +267,15 @@ def _fail(message: str, exit_code: NagiosExitCode = NagiosExitCode.UNKNOWN) -> N
     sys.exit(int(exit_code))
 
 
+def _safe_monitoring_text(value: object, limit: int = 1024) -> str:
+    """Flatten untrusted text before it reaches Nagios line delimiters."""
+    flattened = " ".join(str(value).split())
+    printable = "".join(
+        character for character in flattened if character.isprintable() and character != "|"
+    )
+    return printable[:limit]
+
+
 def _proxies(context: ScanContext) -> dict[str, str] | None:
     """requests-style proxy mapping for the configured proxy, if any."""
     return {"http": context.proxy, "https": context.proxy} if context.proxy else None
@@ -499,7 +508,12 @@ def check_vulnerabilities(
         if not _send_webhook(context, payload):
             detail_lines.append("Webhook delivery failed (see debug log)")
 
-    _fail(f"{msg}\n" + "\n".join(detail_lines) + f" | {perfdata}", exit_code)
+    safe_message = _safe_monitoring_text(msg)
+    safe_details = [_safe_monitoring_text(line) for line in detail_lines]
+    _fail(
+        f"{safe_message}\n" + "\n".join(safe_details) + f" | {perfdata}",
+        exit_code,
+    )
 
 
 def _apply_baseline(
@@ -833,8 +847,12 @@ def _notify_and_fail(
     if _webhook_should_fire(context, exit_code):
         payload = _build_base_payload(context, message, exit_code)
         if not _send_webhook(context, payload):
-            message = f"{message}\nWebhook delivery failed (see debug log)"
-    _fail(message, exit_code)
+            _fail(
+                _safe_monitoring_text(message)
+                + "\nWebhook delivery failed (see debug log)",
+                exit_code,
+            )
+    _fail(_safe_monitoring_text(message), exit_code)
 
 
 def _evaluate_rating(
@@ -1844,7 +1862,12 @@ def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
             exit_code = NagiosExitCode(exc.code)
     except Exception as exc:
         LOGGER.exception("Unhandled scan failure for host %s", context.host)
-        print(f"UNKNOWN: {context.host} Scan failed: {exc}", file=buffer)
+        print(
+            _safe_monitoring_text(
+                f"UNKNOWN: {context.host} Scan failed: {exc}"
+            ),
+            file=buffer,
+        )
     finally:
         _RESULT_BUFFER.reset(token)
     return buffer.getvalue().rstrip("\n"), exit_code

@@ -4,9 +4,6 @@
 
 # Secrets and local configuration
 secrets/
-config/*.yml
-config/*.yaml
-!config/*.example.yml
 check-opencloud-security.yml
 *.env
 .env
@@ -51,16 +48,28 @@ htmlcov/
 # Tests, deployment helpers and docs the image does not need
 tests/
 scripts/
+adr/
+docs/
+img/
 ansible/
 contrib/
+authentik/
+config/
 noxfile.py
 mypy.ini
 docker-compose.yml
 Dockerfile
 .dockerignore
+AGENTS.md
+ARCHITECTURE.md
+DESIGN.md
 CONTRIBUTING.md
 CHANGELOG.md
 RELEASE.md
+SECURITY.md
+opencloud_local_scan/README.md
+webapp/README.md
+docker/README.md
 
 # Editor and OS noise
 .idea/

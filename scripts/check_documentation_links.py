@@ -97,6 +97,10 @@ SKIPPED_DIRECTORIES: frozenset[str] = frozenset(
         "tests",
     }
 )
+SKIPPED_PATHS: tuple[Path, ...] = (
+    Path("frontend/templates/docs"),
+    Path("frontend/static/search-index.json"),
+)
 
 # Sites that answer every address with 200 and sort it out in the browser, and
 # the list of addresses they admit to having. Checked in addition to the HTTP
@@ -182,7 +186,10 @@ def _files(root: Path) -> Iterator[Path]:
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in SEARCHED_SUFFIXES:
             continue
-        if any(part in SKIPPED_DIRECTORIES for part in path.relative_to(root).parts):
+        relative = path.relative_to(root)
+        if any(part in SKIPPED_DIRECTORIES for part in relative.parts):
+            continue
+        if any(relative.is_relative_to(skipped) for skipped in SKIPPED_PATHS):
             continue
         yield path
 

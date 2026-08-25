@@ -16,6 +16,7 @@ places this check tends to end up.
 |:-----|:---------------|
 | [Icinga Director](icinga-director.md) | Creating the `CheckCommand`, data fields, service template and apply rule through the web UI |
 | [Automated deployment with Ansible](ansible.md) | The native and Docker roles, the variables, and deploying the Icinga2 objects without clicking |
+| [Scanning from the command line, in one line](docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the website: JSON output, private networks, waivers and a shell function |
 | [Scheduling](scheduling.md) | systemd timer and cron, for hosts with no Icinga2 or Nagios |
 | [Kubernetes](kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on a field of the result document |

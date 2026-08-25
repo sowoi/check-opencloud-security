@@ -695,6 +695,9 @@ async def export_scan(
                 "url": path,
                 "untrusted": {"fields": ["content"], "note": EXPORT_NOTE},
             }
+            signature = response.headers.get("x-cos-signature")
+            if signature:
+                answer["signature"] = signature
             if truncated:
                 answer["truncated"] = True
                 answer["note"] = (

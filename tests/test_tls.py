@@ -137,6 +137,25 @@ def test_a_self_signed_certificate_is_untrusted_but_still_read(tmp_path):
     assert _ids(inspection)["tlsTrusted"] is False
 
 
+def test_tls_connections_can_be_pinned_without_changing_sni(tmp_path):
+    """A web scan must dial the validated IP while verifying the submitted name."""
+    certificate = _certificate(tmp_path, alt_names=("opencloud.example.com",))
+
+    with _server(*certificate) as port:
+        inspection = tls.inspect(
+            "opencloud.example.com",
+            port,
+            TIMEOUT,
+            probe_deprecated=False,
+            check_stapling=False,
+            connect_host="127.0.0.1",
+        )
+
+    assert inspection.reachable is True
+    assert inspection.hostname_match is True
+    assert inspection.certificate is not None
+
+
 def test_a_certificate_for_another_name_fails_the_hostname_check(tmp_path):
     """A certificate that does not cover the host is an interception to a client."""
     (tmp_path / "match").mkdir()
@@ -238,6 +257,24 @@ def test_trust_that_was_never_established_is_not_reported_as_untrusted():
 
     refused = tls.TlsInspection(host="opencloud.example.com", port=443, reachable=True)
     assert refused.checks(min_days=14) and _ids(refused)["tlsTrusted"] is False
+
+
+def test_a_staging_certificate_names_the_production_certificate_fix():
+    """A known staging issuer has a precise remedy, not an unknown-CA guess."""
+    inspection = tls.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        trusted=False,
+        certificate=tls.Certificate(issuer="CN=(STAGING) Pretend Pear X1"),
+    )
+
+    trusted = next(
+        check for check in inspection.checks(min_days=14) if check[0] == "tlsTrusted"
+    )
+    assert trusted[2] is False
+    assert "TRAEFIK_ACME_CASERVER" in trusted[3]
+    assert "unknown CA" not in trusted[3]
 
 
 def test_an_unreachable_endpoint_reports_the_handshake_and_nothing_else():

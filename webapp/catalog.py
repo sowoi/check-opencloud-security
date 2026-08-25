@@ -23,7 +23,10 @@ from typing import Any
 from check_opencloud_security import RATE_MAP
 from opencloud_local_scan import HARDENINGS, describe_hardening, failed_extra_checks
 from opencloud_local_scan.hardening import is_actionable
+from opencloud_local_scan.remediation import SEVERITY_RATING_CAP
 from opencloud_local_scan.versions import RELEASE_TRACK_CHOICES, TRACK_AUTO
+
+from .i18n import Translator
 
 # Header names the scanner reports under setup.headers. They are waivable in
 # the same namespace as the hardening flags.
@@ -76,30 +79,57 @@ class WaiverOption:
     group: str
 
 
-def waiver_options() -> list[WaiverOption]:
+# The three headings the tick boxes are gathered under. The heading is this
+# layer's word for a group and is translated; the title and the explanation
+# inside it are the scanner's description of a check, quoted as measured.
+_WAIVER_GROUPS: tuple[tuple[str, str], ...] = (
+    ("hardening", "waivers.group.hardening"),
+    ("headers", "waivers.group.headers"),
+    ("checks", "waivers.group.checks"),
+)
+
+
+def waiver_options(translate: Translator | None = None) -> list[WaiverOption]:
     """
     The complete allow-list, in the order the landing page shows it.
 
     Flags OpenCloud hardcodes are left out: waiving a finding nobody can fix
     would suggest it could be fixed.
     """
+    t = translate or Translator()
+    groups = {name: t(key) for name, key in _WAIVER_GROUPS}
     options: list[WaiverOption] = []
     for name in HARDENINGS:
         if not is_actionable(name):
             continue
         entry = describe_hardening(name)
         options.append(
-            WaiverOption(id=name, title=entry.title, meaning=entry.meaning, group="Hardening")
+            WaiverOption(
+                id=name,
+                title=entry.title,
+                meaning=entry.meaning,
+                group=groups["hardening"],
+            )
         )
     for name in HEADER_IDS:
         entry = describe_hardening(name)
         options.append(
-            WaiverOption(id=name, title=entry.title, meaning=entry.meaning, group="Headers")
+            WaiverOption(
+                id=name,
+                title=entry.title,
+                meaning=entry.meaning,
+                group=groups["headers"],
+            )
         )
     for name in CHECK_IDS:
         entry = describe_hardening(name)
         options.append(
-            WaiverOption(id=name, title=entry.title, meaning=entry.meaning, group="Checks")
+            WaiverOption(
+                id=name,
+                title=entry.title,
+                meaning=entry.meaning,
+                group=groups["checks"],
+            )
         )
     return options
 
@@ -117,18 +147,14 @@ def allowed_waivers() -> frozenset[str]:
 # life. Asking the schedule does neither.
 DEFAULT_RELEASE_TRACK = TRACK_AUTO
 
-TRACK_LABELS: dict[str, str] = {
-    TRACK_AUTO: "Detect automatically",
-    "rolling": "Rolling",
-    "production": "Production",
-    "lts": "LTS",
-}
-
-TRACK_DESCRIPTIONS: dict[str, str] = {
-    TRACK_AUTO: "Work the track out from the release the instance reports.",
-    "rolling": "A new release roughly every three weeks.",
-    "production": "Supported for about six months. The usual choice.",
-    "lts": "Supported for two years.",
+# The tracks are OpenCloud's names and stay as they are; how each one is
+# introduced on the form is this layer's sentence, and lives in the
+# catalogues under `track.<id>.label` and `track.<id>.description`.
+TRACK_KEYS: dict[str, str] = {
+    TRACK_AUTO: "auto",
+    "rolling": "rolling",
+    "production": "production",
+    "lts": "lts",
 }
 
 
@@ -142,8 +168,9 @@ class TrackOption:
     default: bool
 
 
-def release_track_options() -> tuple[TrackOption, ...]:
+def release_track_options(translate: Translator | None = None) -> tuple[TrackOption, ...]:
     """The tracks a visitor may pick, with the default one offered first."""
+    t = translate or Translator()
     ordered = (
         DEFAULT_RELEASE_TRACK,
         *(track for track in RELEASE_TRACK_CHOICES if track != DEFAULT_RELEASE_TRACK),
@@ -151,8 +178,8 @@ def release_track_options() -> tuple[TrackOption, ...]:
     return tuple(
         TrackOption(
             id=track,
-            label=TRACK_LABELS.get(track, track),
-            description=TRACK_DESCRIPTIONS.get(track, ""),
+            label=t(f"track.{TRACK_KEYS.get(track, track)}.label"),
+            description=t(f"track.{TRACK_KEYS.get(track, track)}.description"),
             default=track == DEFAULT_RELEASE_TRACK,
         )
         for track in ordered
@@ -223,13 +250,73 @@ def rating_tone(rating: object) -> str:
     return "bad"
 
 
-def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
+# What each number on the scale actually says about an instance, and what
+# clears it. The letters and the numbers are not restated here: they come from
+# the plugin's RATE_MAP and the scanner's own severity caps, so a change to
+# either shows up on the page that explains them rather than drifting away
+# from it. The prose is this layer's, because explaining a grade to a visitor
+# is presentation - the judgement was made before the page was rendered - and
+# it therefore lives in the string catalogues, under `grade.<rating>.*`.
+GRADE_RATINGS: tuple[int, ...] = (5, 4, 3, 2, 1, 0)
+
+
+@dataclass(frozen=True)
+class Grade:
+    """One step of the scale, as the page that explains it needs it."""
+
+    rating: int
+    label: str
+    tone: str
+    headline: str
+    meaning: str
+    improve: str
+
+
+def grade_scale(translate: Translator | None = None) -> tuple[Grade, ...]:
+    """The whole scale, best first, built from the plugin's own map."""
+    t = translate or Translator()
+    return tuple(
+        Grade(
+            rating=rating,
+            label=rating_label(rating),
+            tone=rating_tone(rating),
+            headline=t(f"grade.{rating}.headline"),
+            meaning=t(f"grade.{rating}.meaning"),
+            improve=t(f"grade.{rating}.improve"),
+        )
+        for rating in GRADE_RATINGS
+    )
+
+
+def severity_caps() -> tuple[tuple[str, int, str], ...]:
+    """
+    What a failed check can do to a grade, worst first.
+
+    The ceilings are the scanner's, imported rather than repeated: a page
+    promising that a critical finding caps the grade at D has to be wrong the
+    moment the library says otherwise, and this way it cannot be.
+    """
+    order = ("critical", "high", "medium", "low")
+    return tuple(
+        (severity, SEVERITY_RATING_CAP[severity], rating_label(SEVERITY_RATING_CAP[severity]))
+        for severity in order
+        if severity in SEVERITY_RATING_CAP
+    )
+
+
+def summarise(
+    result: Mapping[str, Any], translate: Translator | None = None
+) -> dict[str, Any]:
     """
     Regroup a result document for the dashboard.
 
     Everything returned is a rearrangement of what the scanner reported. No
     threshold is applied here; the letters and tones are labels for a number
     the scanner already decided.
+
+    ``translate`` only reaches the handful of labels this layer writes itself,
+    and defaults to English. Every export and the JSON API leave it unset, so
+    what a machine reads is the same document in every language.
     """
     rating = result.get("rating")
     checks = [entry for entry in result.get("extraChecks", []) if isinstance(entry, dict)]
@@ -301,6 +388,7 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
         "remediation": _remediation(result),
         "eol": bool(result.get("EOL")),
         "domain": result.get("domain"),
+        "addresses": _addresses(result),
         "product": result.get("product"),
         "version": result.get("version"),
         "releaseType": result.get("releaseType"),
@@ -316,7 +404,7 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
         "passedCount": passed_count,
         "https": https,
         "tls": result.get("tls") or {},
-        "tlsOverview": _tls_overview(result),
+        "tlsOverview": _tls_overview(result, translate),
         "identityProvider": result.get("identityProvider") or {},
         "reverseProxy": result.get("reverseProxy") or {},
         "integrations": result.get("integrations") or {},
@@ -329,6 +417,24 @@ def summarise(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _addresses(result: Mapping[str, Any]) -> dict[str, list[str]]:
+    """
+    The resolved addresses, as strings the template can print unchanged.
+
+    A document from an older scanner has no ``addresses`` block at all, and a
+    name that resolves to one family has an empty list for the other; both
+    end up as an empty list rather than a missing key, so the template asks
+    one question instead of three.
+    """
+    reported = result.get("addresses")
+    if not isinstance(reported, Mapping):
+        return {"ipv4": [], "ipv6": []}
+    return {
+        family: [str(entry) for entry in (reported.get(family) or [])]
+        for family in ("ipv4", "ipv6")
+    }
+
+
 def _tls_outcomes(result: Mapping[str, Any]) -> dict[str, bool]:
     """Whether each TLS check passed, as the scanner decided it."""
     outcomes: dict[str, bool] = {}
@@ -338,7 +444,9 @@ def _tls_outcomes(result: Mapping[str, Any]) -> dict[str, bool]:
     return outcomes
 
 
-def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _tls_overview(
+    result: Mapping[str, Any], translate: Translator | None = None
+) -> list[dict[str, Any]]:
     """
     The few transport facts that belong beside the grade rather than below it.
 
@@ -357,6 +465,7 @@ def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(tls, Mapping) or not tls.get("reachable"):
         return []
 
+    t = translate or Translator()
     outcomes = _tls_outcomes(result)
     certificate = tls.get("certificate") or {}
     if not isinstance(certificate, Mapping):
@@ -367,14 +476,17 @@ def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
     if protocol:
         accepted = tls.get("deprecatedProtocolsAccepted") or []
         detail = (
-            "also accepts " + ", ".join(str(name) for name in accepted)
+            t(
+                "tls.fact.protocol.detail",
+                list=", ".join(str(name) for name in accepted),
+            )
             if accepted
             else ""
         )
         facts.append(
             {
                 "id": "protocol",
-                "label": "TLS version",
+                "label": t("tls.fact.protocol"),
                 "value": str(protocol),
                 "detail": detail,
                 "tone": _tone(
@@ -389,16 +501,16 @@ def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not_after:
         if isinstance(days, int):
             detail = (
-                f"expired {abs(days)} day(s) ago"
+                t("tls.fact.expiry.expired", days=abs(days))
                 if days < 0
-                else f"{days} day(s) left"
+                else t("tls.fact.expiry.remaining", days=days)
             )
         else:
             detail = ""
         facts.append(
             {
                 "id": "expiry",
-                "label": "Certificate expires",
+                "label": t("tls.fact.expiry"),
                 "value": str(not_after),
                 "detail": detail,
                 "tone": _tone(outcomes.get("tlsCertificate", True)),
@@ -409,21 +521,21 @@ def _tls_overview(result: Mapping[str, Any]) -> list[dict[str, Any]]:
     trusted = tls.get("trusted")
     if complete is not None or trusted is not None:
         if complete is False:
-            value = "Incomplete"
-            detail = "no path to a public root"
+            value = t("tls.fact.chain.incomplete")
+            detail = t("tls.fact.chain.incomplete.detail")
         elif trusted is False:
-            value = "Not trusted"
-            detail = "self-signed, or an unknown authority"
+            value = t("tls.fact.chain.untrusted")
+            detail = t("tls.fact.chain.untrusted.detail")
         elif trusted is None:
-            value = "Not established"
-            detail = "the handshake never reached the certificate"
+            value = t("tls.fact.chain.unknown")
+            detail = t("tls.fact.chain.unknown.detail")
         else:
-            value = "Complete and trusted"
+            value = t("tls.fact.chain.ok")
             detail = ""
         facts.append(
             {
                 "id": "chain",
-                "label": "Chain",
+                "label": t("tls.fact.chain"),
                 "value": value,
                 "detail": detail,
                 "tone": _tone(

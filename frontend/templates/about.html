@@ -1,48 +1,28 @@
 {% extends "base.html" %}
 
-{% block title %}About OpenCloud and this scanner{% endblock %}
-{% block description %}What OpenCloud is, who makes it, and why this scanner is an independent community project.{% endblock %}
+{% block title %}{{ t('about.title') }}{% endblock %}
+{% block description %}{{ t('about.description') }}{% endblock %}
 
 {% block content %}
 <section class="page-head">
-  <p class="kicker">About</p>
-  <h1>About OpenCloud and this scanner</h1>
-  <p class="lede">
-    One is a file, sync and share platform. The other is a community check that
-    looks at it from the outside.
-  </p>
+  <p class="kicker">{{ t('about.kicker') }}</p>
+  <h1>{{ t('about.title') }}</h1>
+  <p class="lede">{{ t('about.lede') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="about-opencloud" data-reveal>
-  <p class="kicker">The platform</p>
-  <h2 id="about-opencloud">About OpenCloud</h2>
-  <p>
-    <a href="https://opencloud.eu/" rel="noopener noreferrer">OpenCloud</a> is
-    the file, sync and share platform this tool checks - open source, built in
-    Germany, and documented at
-    <a href="https://docs.opencloud.eu/" rel="noopener noreferrer">docs.opencloud.eu</a>,
-    which is where every fix this scanner suggests is written up properly.
-    Thanks to the people who make it.
-  </p>
-  <p class="flush">
-    This scanner is an independent community project. It is not affiliated with
-    OpenCloud GmbH and is neither recommended nor supported by the company.
-    &ldquo;OpenCloud&rdquo;, the OpenCloud logo and all associated trademarks
-    are the property of their respective owners.
-  </p>
+  <p class="kicker">{{ t('about.platform.kicker') }}</p>
+  <h2 id="about-opencloud">{{ t('about.platform.heading') }}</h2>
+  <p>{{ t.html('about.platform.body') }}</p>
+  {# The trademark notice again, in the words this page uses for it. #}
+  <p class="flush">{{ t.html('about.platform.independent') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="about-scanner" data-reveal>
-  <p class="kicker">The project</p>
-  <h2 id="about-scanner">About this scanner</h2>
-  <p class="flush">
-    Everything you see here is produced by
-    <code>check-opencloud-security</code>, a Nagios and Icinga plugin with a
-    scanner library behind it. This page is one way to use it; a command on
-    your own machine, with no rate limit and no queue, is the other.
-    <a href="{{ project_url }}" rel="noopener noreferrer">The project is on
-    GitHub</a>.
-  </p>
+  <p class="kicker">{{ t('about.project.kicker') }}</p>
+  <h2 id="about-scanner">{{ t('about.project.heading') }}</h2>
+  <p>{{ t.html('about.project.body') }}</p>
+  <p class="flush">{{ t.html('about.project.origin', project=project_url) }}</p>
 </section>
 
 {% include "_page-nav.html" %}

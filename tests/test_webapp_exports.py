@@ -152,10 +152,11 @@ def test_every_export_format_downloads_with_the_scans_own_name(finished_scan):
     )["runs"]
 
 
-def test_a_configured_export_key_signs_the_exact_downloaded_bytes(finished_scan):
+@pytest.mark.parametrize("fmt", ["json", "sarif", "pdf"])
+def test_a_configured_export_key_signs_the_exact_downloaded_bytes(finished_scan, fmt):
     """CI can verify an export without trusting an intermediate proxy."""
     test_client = client(export_signing_key="test-export-signing-key")
-    response = test_client.get(f"/api/scans/{IDENTIFIER}/export/json")
+    response = test_client.get(f"/api/scans/{IDENTIFIER}/export/{fmt}")
 
     signature = response.headers["x-cos-signature"]
     assert verify_bytes(response.content, signature, "test-export-signing-key")
@@ -297,12 +298,9 @@ def test_the_dashboard_shows_the_plan_with_the_grade_each_step_reaches(
     finished_scan,
 ):
     """A page listing findings without an order leaves the triage to the reader."""
-    from fastapi.templating import Jinja2Templates
+    from webapp.app import build_templates
 
-    from webapp.app import frontend_dir, is_safe_link
-
-    templates = Jinja2Templates(directory=str(frontend_dir() / "templates"))
-    templates.env.tests["safe_link"] = is_safe_link
+    templates = build_templates()
     summary = summarise(finished_scan)
     assert summary["remediation"]["steps"], "the fake instance fails a check"
 

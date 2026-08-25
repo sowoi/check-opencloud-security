@@ -1,34 +1,45 @@
 /*
- * check-opencloud-security - design system
+ * check-opencloud-security - the "Halo" design system
  *
  * Hand-written, self-hosted, no framework. Everything the page needs is in
  * this file, the small scripts next to it and the fonts under
  * `/static/fonts/`, which is what makes `default-src 'self'` an honest
- * header rather than an aspiration.
+ * header rather than an aspiration. DESIGN.md in the repository root is the
+ * long form of everything below.
  *
- * The design is a field report. A scan here is a document somebody acts on,
- * so the page is built like one: serif display type set like a title page,
- * monospace dossier labels, hairline rules, and the reticle of the instrument
- * that did the measuring. The warmth is deliberate - paper, not plastic.
+ * The idea: a lens, not a page. A scan looks *through* this interface at
+ * somebody else's server, so the interface behaves like optical glass -
+ * panes of frost floating a few millimetres above a slow aurora, hairline
+ * edges catching the light along one side, and nothing painted that does not
+ * carry a fact. Where the old design was warm paper, this one is cold glass:
+ * fewer lines, more air, one hue.
  *
- * Two schemes, one instrument. Light is a desk in daylight: warm bone paper,
- * ink that is nearly black, a deep ultramarine signal and a warm ember accent
- * that marks the one thing the page wants done. Dark is the same desk
- * on the night shift: blue-black paper, the ink turned warm white, the signal
- * gone luminous, the ember cooled to a clear teal, and a sky of hand-placed
- * stars. Everything is a token here
- * and in the `prefers-color-scheme: dark` block below, so a rule further down
- * never names a colour and the whole page turns over by swapping this list.
+ * One hue, and it earns its place. The page is otherwise achromatic, so iris
+ * means *interaction* everywhere it appears - the focused field, the primary
+ * action, the current tab, the running step. Status colour appears only
+ * inside a chip or a dial, where it is a reading rather than decoration.
  *
- * Body type is Inter, self-hosted under `/static/fonts/` (SIL OFL 1.1): a
- * modern, quiet sans that stays out of the report's way. Display type is the
- * reader's own system serif and labels are the system mono - both already on
- * the machine, and both part of the field-report voice, so they stay.
+ * Two schemes, one instrument, and neither is the other dimmed. Light is
+ * porcelain: cool white panes over a pale iris haze, near-black ink. Dark is
+ * obsidian: the haze deepens to a nebula, the panes become smoked glass, the
+ * iris turns luminous and takes dark ink on top of it, because a glowing
+ * violet under white text is the one unreadable thing a dark page can do.
+ * Every colour is a token here and in the `prefers-color-scheme: dark` block,
+ * so no rule further down ever names one.
  *
- * Motion is meant to be felt rather than seen: a short rise when things
- * arrive, a sweep when the dial finds its rating, a breathing marker on the
- * step that is running. All of it dies with `prefers-reduced-motion`, which
- * the reset below enforces on every animation and transition in this file.
+ * Three voices, all self-hosted (SIL OFL 1.1, licenses beside the files):
+ * Space Grotesk sets the display type - a geometric grotesque with enough
+ * character in its g, k and question mark that a headline is recognisably
+ * this project and not a template; Inter carries body text, because it
+ * disappears; JetBrains Mono carries everything that is *data* - labels,
+ * counters, addresses, findings, code - so that a machine-read fact never
+ * wears the same face as a sentence a person wrote.
+ *
+ * Motion is meant to be felt rather than seen: the aurora drifts on a
+ * half-minute cycle, blocks arrive with a short rise out of a blur, the
+ * focused command bar lights a halo, the dial sweeps to its rating. All of
+ * it dies with `prefers-reduced-motion`, which the reset below enforces on
+ * every animation and transition in this file.
  */
 
 /* ------------------------------------------------------------------ tokens */
@@ -43,206 +54,222 @@
      * tint. Every `--x-ink` on its `--x-soft` clears WCAG AA (4.5:1).
      */
 
-    --ink: #1a1c22;
-    --ink-soft: #494e5b;
-    --ink-faint: #717684;
-    --paper: #f3f1e9;
-    --card: rgba(251, 250, 244, .78);
-    --card-solid: #fbfaf4;
-    --line: rgba(26, 28, 34, .14);
-    --line-strong: rgba(26, 28, 34, .32);
+    --ink: #0d0f17;
+    --ink-soft: #474e61;
+    --ink-faint: #61687b;
+    --paper: #eceff7;
+    --card: rgba(255, 255, 255, .62);
+    --card-solid: #ffffff;
+    --line: rgba(13, 15, 23, .1);
+    --line-strong: rgba(13, 15, 23, .26);
 
     /*
-     * The frost. Cards are panes, not slabs: they let the aurora and the
-     * grid through, diffuse them, and carry a single top-light. `--card-solid`
-     * is the same surface without the glass, for the few places something
-     * must be opaque - the dial's centre, a focused field, a stepped node.
+     * The glass. A pane is not a slab: it blurs and over-saturates whatever
+     * drifts behind it, carries a lit edge along its top-left and fades that
+     * edge out before the opposite corner, the way a real bevel catches one
+     * light source. `--card-solid` is the same surface with the frost turned
+     * off, for the few places something must be opaque - the dial's centre,
+     * a focused field, a floating menu.
      */
-    --glass-blur: blur(18px) saturate(1.5);
-    --glass-hi: rgba(255, 255, 255, .55);
+    --glass-blur: blur(22px) saturate(1.7);
+    --glass-hi: rgba(255, 255, 255, .8);
+    --glass-edge: linear-gradient(145deg,
+        rgba(255, 255, 255, .95),
+        rgba(255, 255, 255, .25) 34%,
+        rgba(91, 75, 255, .16) 68%,
+        rgba(177, 58, 212, .12));
 
-    --brand: #3539c4;
-    --brand-deep: #2a2da0;
-    --brand-soft: #e4e5f6;
+    --brand: #5b4bff;
+    --brand-deep: #4132d6;
+    --brand-soft: #e6e3ff;
     /*
-     * The ember. The brand carries identity; the accent carries *attention* -
-     * it is warm precisely because everything else on the desk is cool, so the
-     * eye finds the action before it finds the chrome. Reserved for the few
-     * things that matter: the primary action, the live marker, the assurances.
+     * The action. The primary button is the one place the hue is allowed to
+     * become a gradient: iris through violet, with the nebula's magenta
+     * arriving past the button's own edge so it is felt as heat rather than
+     * seen as a second colour. `--accent` is that gradient's midpoint, used
+     * anywhere a flat fill has to agree with it.
      */
-    --accent: #c2410c;
-    --accent-ink: #9a3412;
-    --on-accent: #fbfaf4;
-    --on-brand: #fbfaf4;
+    --accent: #6b3bf0;
+    --accent-ink: #55299f;
+    --cta: linear-gradient(135deg, #5b4bff 0%, #6f3bf1 52%, #b13ad4 128%);
+    --cta-hover: linear-gradient(135deg, #4a39f5 0%, #5f2ce2 52%, #9d2cc0 128%);
+    --on-accent: #ffffff;
+    --on-brand: #ffffff;
 
-    --good: #0a7a4d;
-    --good-soft: #def0e3;
-    --good-ink: #075e3c;
-    --fair: #b45309;
-    --fair-soft: #f4e6cf;
-    --fair-ink: #7c3f06;
-    --bad: #c22424;
-    --bad-soft: #f5ddd8;
-    --bad-ink: #8f1d1d;
-    --info: #1d6fa8;
-    --info-soft: #dde9f2;
-    --info-ink: #155a87;
+    --good: #0f7a53;
+    --good-soft: #d8f1e5;
+    --good-ink: #075f3e;
+    --fair: #a75a00;
+    --fair-soft: #fbe9cd;
+    --fair-ink: #7a4100;
+    --bad: #cc2b3d;
+    --bad-soft: #fbdfe3;
+    --bad-ink: #971f2e;
+    --info: #1e6fd9;
+    --info-soft: #dfe9fd;
+    --info-ink: #17539f;
 
-    --brand-glow: rgba(53, 57, 196, .22);
-    --brand-glow-strong: rgba(53, 57, 196, .36);
+    --brand-glow: rgba(91, 75, 255, .22);
+    --brand-glow-strong: rgba(91, 75, 255, .4);
 
     /*
-     * The backdrop behind everything: a quiet aurora in the top corners,
-     * fading long before the content starts, plus a grain of monochrome
-     * noise baked into an SVG tile so the paper has a texture and not a
-     * flat fill. Dark adds the star field the light scheme keeps off.
+     * The aurora: three soft masses of the one hue, sitting far behind
+     * everything and drifting on a half-minute cycle. It is the only thing
+     * on the page allowed to be purely decorative, which is why it is also
+     * the faintest. The grain is a monochrome noise tile baked into an SVG,
+     * so a large flat surface has a texture rather than a banded gradient.
      */
     --sky:
-        radial-gradient(58rem 30rem at 8% -14%, rgba(53, 57, 196, .09), transparent 62%),
-        radial-gradient(50rem 28rem at 94% -8%, rgba(194, 65, 12, .07), transparent 60%),
-        radial-gradient(72rem 44rem at 50% 118%, rgba(53, 57, 196, .05), transparent 62%);
+        radial-gradient(52rem 34rem at 14% 4%, rgba(91, 75, 255, .26), transparent 62%),
+        radial-gradient(44rem 30rem at 88% 10%, rgba(177, 58, 212, .18), transparent 60%),
+        radial-gradient(60rem 40rem at 50% 104%, rgba(23, 195, 178, .12), transparent 64%);
     --grain:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
-    --gridline: rgba(26, 28, 34, .055);
-    --stars: none;
-    --star-opacity: 0;
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+    /* The horizon: one hairline of the hue where the aurora meets the fold,
+       drawn across the top of the document under the header. */
+    --horizon: linear-gradient(90deg, transparent, rgba(91, 75, 255, .5), rgba(177, 58, 212, .35), transparent);
 
     /*
-     * The sticky header is translucent and blurs whatever scrolls under it,
-     * so it needs colours of its own rather than the opaque surface tokens.
+     * The sticky header is a pane in its own right - translucent, blurring
+     * whatever scrolls under it - so it needs colours of its own rather than
+     * the opaque surface tokens.
      */
-    --header-bg: rgba(243, 241, 233, .72);
-    --header-line: rgba(26, 28, 34, .12);
+    --header-bg: rgba(236, 239, 247, .66);
+    --header-line: rgba(13, 15, 23, .09);
 
     /*
-     * A field sits *inside* a card, so copying the card's own colour made it
-     * invisible - worst of all in dark mode, where card and field blurred
+     * A field sits *inside* a pane, so copying the pane's own colour made it
+     * invisible - worst of all in dark mode, where field and card blurred
      * into one slab. Fields get an inset tint of their own and a border a
-     * step stronger than the card's hairline.
+     * step stronger than the hairline around them.
      */
-    --field-bg: rgba(240, 238, 229, .85);
-    --field-border: rgba(26, 28, 34, .3);
+    --field-bg: rgba(255, 255, 255, .72);
+    --field-border: rgba(13, 15, 23, .28);
 
     /* Code blocks are a terminal: dark in both schemes, always. Inline code
        only borrows a tint of the surrounding surface. */
-    --code-bg: #14161d;
-    --code-ink: #e4e6ee;
-    --tint: #e9e7dc;
+    --code-bg: #101320;
+    --code-ink: #dfe3f2;
+    --tint: rgba(13, 15, 23, .06);
 
-    --radius-sm: 6px;
-    --radius: 10px;
-    --radius-lg: 14px;
+    /* Minimalism with corners this soft needs the scale to be obvious: a
+       control, a pane, a stage. */
+    --radius-sm: 10px;
+    --radius: 16px;
+    --radius-lg: 22px;
+    --radius-xl: 28px;
 
-    --shadow-sm: 0 1px 2px rgba(26, 28, 34, .04);
-    --shadow: 0 1px 2px rgba(26, 28, 34, .04), 0 14px 36px rgba(26, 28, 34, .06);
-    --shadow-lg: 0 2px 4px rgba(26, 28, 34, .05), 0 28px 64px rgba(26, 28, 34, .1);
+    --shadow-sm: 0 1px 2px rgba(13, 15, 23, .05);
+    --shadow: 0 1px 2px rgba(13, 15, 23, .04), 0 18px 40px -24px rgba(13, 15, 23, .35);
+    --shadow-lg: 0 2px 4px rgba(13, 15, 23, .05), 0 40px 80px -40px rgba(13, 15, 23, .45);
 
     --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
         "Helvetica Neue", "Noto Sans", Arial, sans-serif;
-    --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype",
-        Palatino, Georgia, "Times New Roman", serif;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-        "Liberation Mono", monospace;
+    --font-display: "Space Grotesk", "Inter", system-ui, -apple-system,
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+        Consolas, "Liberation Mono", monospace;
+
+    /* One easing for everything that moves under a pointer, and one for
+       everything that arrives on its own. */
+    --ease: cubic-bezier(.32, .72, 0, 1);
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
 
     --measure: 66ch;
-    --page: 1140px;
+    --page: 1180px;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --ink: #e8e6dc;
-        --ink-soft: #a3a8b6;
-        --ink-faint: #7d8290;
-        --paper: #0b0d14;
-        --card: rgba(18, 21, 31, .72);
-        --card-solid: #12151f;
-        --line: rgba(232, 230, 220, .13);
-        --line-strong: rgba(232, 230, 220, .3);
+        --ink: #eaedf7;
+        --ink-soft: #a6aec5;
+        --ink-faint: #7b839a;
+        --paper: #07080e;
+        --card: rgba(22, 25, 36, .6);
+        --card-solid: #141722;
+        --line: rgba(234, 237, 247, .11);
+        --line-strong: rgba(234, 237, 247, .26);
 
-        --glass-blur: blur(18px) saturate(1.4);
-        --glass-hi: rgba(255, 255, 255, .06);
+        --glass-blur: blur(24px) saturate(1.5);
+        --glass-hi: rgba(255, 255, 255, .1);
+        --glass-edge: linear-gradient(145deg,
+            rgba(255, 255, 255, .22),
+            rgba(255, 255, 255, .04) 34%,
+            rgba(168, 157, 255, .16) 68%,
+            rgba(226, 133, 255, .1));
 
-        --brand: #a5b4fc;
-        --brand-deep: #c7d2fe;
-        --brand-soft: #1d2242;
+        --brand: #a89dff;
+        --brand-deep: #c8c1ff;
+        --brand-soft: #201c46;
         /*
-         * The night-shift signal: the ember cools back to the clear teal the
-         * accent used to be. Warm belongs to daylight; at night the luminous
-         * cool tones carry attention instead.
+         * At night the hue is the light source rather than the ink, so the
+         * action reverses: a luminous violet field carrying near-black text.
+         * White on this gradient is the one unreadable thing a dark page can
+         * put in front of somebody.
          */
-        --accent: #5eead4;
-        --accent-ink: #7ef0dd;
-        --on-accent: #101322;
-        /*
-         * Filled brand surfaces carry dark ink in dark mode: the signal
-         * tones are luminous here, so white on them would be the one
-         * unreadable thing on the page.
-         */
-        --on-brand: #101322;
+        --accent: #b3a6ff;
+        --accent-ink: #cfc7ff;
+        --cta: linear-gradient(135deg, #a89dff 0%, #bb9bff 52%, #e58ff0 128%);
+        --cta-hover: linear-gradient(135deg, #bcb2ff 0%, #cbb0ff 52%, #f0a5f8 128%);
+        --on-accent: #0a0b14;
+        --on-brand: #0a0b14;
 
         --good: #34d399;
-        --good-soft: #0d281e;
+        --good-soft: #0c2a20;
         --good-ink: #6ee7b7;
         --fair: #fbbf24;
-        --fair-soft: #2a200e;
+        --fair-soft: #2b2110;
         --fair-ink: #fcd34d;
         --bad: #fb7185;
-        --bad-soft: #2e1218;
+        --bad-soft: #2f131a;
         --bad-ink: #fda4af;
         --info: #38bdf8;
-        --info-soft: #0e2434;
+        --info-soft: #0d2436;
         --info-ink: #7dd3fc;
 
-        --brand-glow: rgba(99, 102, 241, .28);
-        --brand-glow-strong: rgba(99, 102, 241, .44);
+        --brand-glow: rgba(168, 157, 255, .26);
+        --brand-glow-strong: rgba(168, 157, 255, .45);
 
-        /*
-         * Night: the aurora stays, joined by one tile of hand-placed stars,
-         * repeated - small enough to read as a sky and regular enough to
-         * cost nothing.
-         */
+        /* Night: the same three masses, deeper and further apart, so the
+           panes have something worth blurring. */
         --sky:
-            radial-gradient(54rem 30rem at 88% -12%, rgba(99, 102, 241, .15), transparent 64%),
-            radial-gradient(46rem 26rem at 6% -6%, rgba(45, 212, 191, .08), transparent 60%),
-            radial-gradient(80rem 48rem at 50% 124%, rgba(99, 102, 241, .07), transparent 66%);
-        --gridline: rgba(232, 230, 220, .04);
-        --stars:
-            radial-gradient(1.6px 1.6px at 12% 18%, #ffffff, transparent 60%),
-            radial-gradient(1.2px 1.2px at 47% 8%, #dfe6ff, transparent 60%),
-            radial-gradient(1px 1px at 73% 26%, #ffffff, transparent 60%),
-            radial-gradient(1.4px 1.4px at 88% 62%, #d6f7ee, transparent 60%),
-            radial-gradient(1px 1px at 28% 71%, #dfe6ff, transparent 60%),
-            radial-gradient(1.5px 1.5px at 61% 88%, #ffffff, transparent 60%),
-            radial-gradient(1px 1px at 4% 52%, #cdd8ff, transparent 60%),
-            radial-gradient(1.2px 1.2px at 36% 41%, #ffffff, transparent 60%);
-        --star-opacity: .5;
+            radial-gradient(54rem 36rem at 12% 2%, rgba(109, 92, 255, .46), transparent 62%),
+            radial-gradient(46rem 32rem at 90% 8%, rgba(196, 74, 232, .3), transparent 60%),
+            radial-gradient(64rem 44rem at 52% 108%, rgba(23, 195, 178, .18), transparent 64%);
+        --horizon: linear-gradient(90deg, transparent, rgba(168, 157, 255, .55), rgba(226, 133, 255, .4), transparent);
 
-        --header-bg: rgba(11, 13, 20, .7);
-        --header-line: rgba(232, 230, 220, .1);
+        --header-bg: rgba(7, 8, 14, .62);
+        --header-line: rgba(234, 237, 247, .09);
 
-        /* Darker than the card around them, and with a border that actually
+        /* Darker than the pane around them, and with a border that actually
            shows against it - the unreadable dark-mode field was both. */
-        --field-bg: rgba(12, 15, 24, .8);
-        --field-border: rgba(232, 230, 220, .32);
+        --field-bg: rgba(9, 10, 18, .72);
+        --field-border: rgba(234, 237, 247, .3);
 
-        --code-bg: #0c0e16;
-        --code-ink: #dde2ef;
-        --tint: rgba(232, 230, 220, .12);
+        --code-bg: #0a0c14;
+        --code-ink: #dde2f2;
+        --tint: rgba(234, 237, 247, .1);
 
-        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-        --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px rgba(0, 0, 0, .42);
-        --shadow-lg: 0 2px 4px rgba(0, 0, 0, .45), 0 24px 56px rgba(0, 0, 0, .52);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+        --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 20px 44px -26px rgba(0, 0, 0, .9);
+        --shadow-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 44px 90px -44px rgba(0, 0, 0, .95);
     }
 }
 
 /* ------------------------------------------------------------------- fonts */
 /*
- * Inter, self-hosted under `/static/fonts/` (SIL OFL 1.1, license beside the
- * files). One file per weight actually used; `font-display: swap` keeps the
- * system sans on screen until the real one arrives, so a slow connection
- * never holds the text hostage. The display serif and the dossier mono stay
- * on the reader's system stack - they are the other two voices of the page
- * and they cost no request.
+ * All three faces are served from `/static/fonts/` (SIL OFL 1.1, licenses
+ * beside the files) and none of them is fetched from anywhere else - there
+ * is no font service in this design and there never will be, because a font
+ * request is a request, and this page is handed the address of somebody's
+ * server.
+ *
+ * Space Grotesk and JetBrains Mono are subset to the Latin range the
+ * interface actually speaks, which is what keeps three families lighter than
+ * the two that came before. `font-display: swap` keeps the system stack on
+ * screen until the real face lands, so a slow connection never holds the
+ * text hostage, and the fallback stacks are metric-close enough that the
+ * swap does not throw the layout.
  */
 @font-face {
     font-family: "Inter";
@@ -279,6 +306,41 @@
     font-display: swap;
     src: url("/static/fonts/Inter-Bold.woff2") format("woff2");
 }
+@font-face {
+    font-family: "Space Grotesk";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/static/fonts/SpaceGrotesk-Medium.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Space Grotesk";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/fonts/SpaceGrotesk-Bold.woff2") format("woff2");
+}
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/static/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+}
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("/static/fonts/JetBrainsMono-Medium.woff2") format("woff2");
+}
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/static/fonts/JetBrainsMono-Bold.woff2") format("woff2");
+}
 
 /* ------------------------------------------------------------------- reset */
 *, *::before, *::after { box-sizing: border-box; }
@@ -301,9 +363,9 @@ body {
     line-height: 1.65;
     color: var(--ink);
     background: var(--paper);
-    background-image: var(--sky), var(--grain);
-    background-repeat: no-repeat, repeat;
-    background-attachment: fixed, fixed;
+    background-image: var(--grain);
+    background-repeat: repeat;
+    background-attachment: fixed;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -316,29 +378,34 @@ body {
 img, svg { max-width: 100%; }
 
 /*
- * The graph paper. One fixed layer of faint engineering grid behind the
- * document, masked so it dissolves before the fold ends - an instrument
- * panel's backdrop, not a wallpaper. It is decorative, so it is inert to the
- * pointer and invisible to a screen reader by having no content to read.
+ * The aurora. One fixed layer behind the document, over-sized so that its
+ * slow drift never uncovers an edge, and inert to both the pointer and the
+ * screen reader because it has nothing to say. It is the only thing here
+ * that moves without being asked, and it is the first thing reduced motion
+ * takes away.
  */
 body::before {
     content: "";
     position: fixed;
-    inset: 0;
+    inset: -20vmax;
     z-index: -2;
     pointer-events: none;
-    background-image:
-        linear-gradient(to right, var(--gridline) 1px, transparent 1px),
-        linear-gradient(to bottom, var(--gridline) 1px, transparent 1px);
-    background-size: 56px 56px;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 82vh);
-    mask-image: linear-gradient(to bottom, #000 0%, transparent 82vh);
+    background-image: var(--sky);
+    background-repeat: no-repeat;
+    animation: aurora 42s var(--ease) infinite alternate;
+}
+@keyframes aurora {
+    from { transform: translate3d(-2%, -1%, 0) scale(1); }
+    to { transform: translate3d(2%, 2%, 0) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+    body::before { animation: none; }
 }
 
 /*
- * The stars. One fixed tile behind the whole document, drawn only when the
- * scheme asks for it: in light mode `--stars` is `none` and the element
- * paints nothing at all.
+ * The lattice. A faint grid, fixed behind the panes and masked so it
+ * dissolves before the first fold ends: enough structure for the glass to
+ * refract, not enough to read as wallpaper.
  */
 body::after {
     content: "";
@@ -346,42 +413,57 @@ body::after {
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-image: var(--stars);
-    /*
-     * One size per star, all mutually prime enough that the tiles do not line
-     * up into a visible grid the way a single repeating pattern does.
-     */
-    background-size:
-        420px 340px, 610px 470px, 380px 520px, 700px 390px,
-        520px 610px, 330px 440px, 640px 300px, 480px 560px;
-    background-repeat: repeat;
-    opacity: var(--star-opacity);
+    background-image:
+        linear-gradient(to right, var(--line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    background-size: 72px 72px;
+    opacity: .38;
+    -webkit-mask-image: radial-gradient(48rem 36rem at 50% -6rem, #000, transparent 78%);
+    mask-image: radial-gradient(48rem 36rem at 50% -6rem, #000, transparent 78%);
 }
 
 /* -------------------------------------------------------------- typography */
+/*
+ * Display type is set the way a title card is: large, tight and optically
+ * corrected. Space Grotesk has generous sidebearings, so headlines get
+ * negative tracking that grows with the size - without it a 3.8rem headline
+ * reads as a row of separate words rather than one line.
+ */
 h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-weight: 560;
-    line-height: 1.12;
-    letter-spacing: -.015em;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -.022em;
     margin: 0 0 .5em;
     text-wrap: balance;
 }
-h1 { font-size: clamp(2.3rem, 1.6rem + 3vw, 3.6rem); line-height: 1.04; letter-spacing: -.02em; }
-h2 { font-size: clamp(1.4rem, 1.15rem + 1.1vw, 1.8rem); }
-h3 { font-size: 1.08rem; }
+h1 { font-size: clamp(2.45rem, 1.6rem + 3.4vw, 4rem); line-height: 1; letter-spacing: -.038em; }
+h2 { font-size: clamp(1.45rem, 1.15rem + 1.2vw, 1.95rem); letter-spacing: -.028em; }
+h3 { font-size: 1.1rem; letter-spacing: -.018em; }
 p { margin: 0 0 1em; }
-a { color: var(--brand-deep); text-underline-offset: 3px; text-decoration-thickness: 1px; }
-a:hover { color: var(--brand); }
+/*
+ * A link is underlined by an animated rule rather than by the browser's:
+ * it grows from the left on hover, which is the same gesture the navigation
+ * makes, so the whole page agrees about what "this is interactive" looks
+ * like. Underline-offset keeps the rule clear of the descenders.
+ */
+a {
+    color: var(--brand-deep);
+    text-decoration-color: color-mix(in srgb, var(--brand) 40%, transparent);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+    transition: color .16s var(--ease), text-decoration-color .16s var(--ease);
+}
+a:hover { color: var(--brand); text-decoration-color: var(--brand); }
 
-code, kbd, samp { font-family: var(--mono); font-size: .92em; }
+code, kbd, samp { font-family: var(--mono); font-size: .92em; font-feature-settings: "liga" 0; }
 /* Inline code gets a tint of the surface it sits on; a block of code is a
    terminal and undoes this below. */
 code {
     background: var(--tint);
-    border-radius: 4px;
-    padding: .08em .38em;
-    font-size: .86em;
+    border-radius: 5px;
+    padding: .1em .4em;
+    font-size: .84em;
 }
 pre code { background: transparent; padding: 0; border-radius: 0; font-size: inherit; }
 
@@ -389,10 +471,16 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 
 ::placeholder { color: var(--ink-faint); opacity: 1; }
 
+/*
+ * One focus ring for the whole page, and it is the hue: a solid stroke plus
+ * a soft halo, so it survives on glass, on a tint and on the dark code
+ * blocks alike. Nothing here ever removes an outline without putting a
+ * stronger signal in its place.
+ */
 :focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 3px;
-    border-radius: 2px;
+    border-radius: 4px;
 }
 
 .visually-hidden {
@@ -414,40 +502,54 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 [id] { scroll-margin-top: 5.5rem; }
 
 /*
- * The dossier voice. A kicker is the small monospace line that names a
- * section before the serif headline speaks - the leading rule is the
- * signature of the whole design, and it is drawn, not typed.
+ * The machine voice. A kicker is the small monospace line that names a
+ * section before the display headline speaks; its leading rule is drawn in
+ * the hue and is the signature this design repeats - on a section head, on
+ * the command bar, on a card that carries a reading.
  */
 .kicker {
     display: flex; align-items: center; gap: .7rem;
     margin: 0 0 .85rem;
     font-family: var(--mono);
-    font-size: .72rem;
+    font-size: .7rem;
     font-weight: 500;
-    letter-spacing: .18em;
+    letter-spacing: .2em;
     text-transform: uppercase;
     color: var(--ink-faint);
 }
 .kicker::before {
     content: "";
-    width: 1.75rem; height: 1px;
-    background: var(--brand);
+    width: 1.75rem; height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--brand), transparent);
 }
 
-/* The serif's italic carries the one phrase of a headline that matters. */
-.swash { font-style: italic; color: var(--brand); }
+/*
+ * The display face has no italic, so the phrase a headline turns on is
+ * marked in the hue and lifted out of the ink instead - a gradient that runs
+ * warm across the words, upright, at the same weight.
+ */
+.swash {
+    font-style: normal;
+    background: var(--cta);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: var(--brand-deep);
+}
+@supports (-webkit-text-fill-color: transparent) {
+    .swash { -webkit-text-fill-color: transparent; }
+}
 
 /* -------------------------------------------------------------- the motion */
 /*
- * One arrival, used everywhere: a short rise from a few pixels down. The
- * hero's copy gets it line by line and the mobile menu reuses it for its
- * links. `backwards` fill so the element is visible before the delay, and no
- * fill after, so a hover transform is never fighting a finished animation
- * for the same property.
+ * One arrival, used everywhere: a short rise out of a blur, as if the pane
+ * were settling into focus. The hero's copy gets it line by line and the
+ * mobile menu reuses it for its links. `backwards` fill so the element is
+ * visible before the delay, and no fill after, so a hover transform is never
+ * fighting a finished animation for the same property.
  */
 @keyframes rise {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: none; }
+    from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+    to { opacity: 1; transform: none; filter: blur(0); }
 }
 
 /*
@@ -458,12 +560,15 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
  */
 [data-reveal-root="on"] [data-reveal] {
     opacity: 0;
-    transform: translateY(14px);
-    transition: opacity .55s ease, transform .55s cubic-bezier(.22, 1, .36, 1);
+    transform: translateY(18px);
+    filter: blur(6px);
+    transition: opacity .6s var(--ease-out), transform .6s var(--ease-out),
+        filter .6s var(--ease-out);
 }
 [data-reveal-root="on"] [data-reveal][data-revealed="true"] {
     opacity: 1;
     transform: none;
+    filter: blur(0);
 }
 [data-reveal-root="on"] [data-reveal="2"] { transition-delay: .07s; }
 [data-reveal-root="on"] [data-reveal="3"] { transition-delay: .14s; }
@@ -472,61 +577,199 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 /*
  * The hand-off from waiting to reading. scan.js marks the document a beat
  * before it reloads, and the page leaves the way its blocks arrive - a
- * short fall instead of a hard cut. Reduced-motion readers never get the
- * attribute, so for them the reload stays as immediate as it always was.
+ * short fall into blur instead of a hard cut. Reduced-motion readers never
+ * get the attribute, so for them the reload stays as immediate as it always
+ * was.
  */
 [data-exit="true"] main {
     opacity: 0;
     transform: translateY(10px);
-    transition: opacity .28s ease, transform .28s ease;
+    filter: blur(4px);
+    transition: opacity .28s ease, transform .28s ease, filter .28s ease;
 }
 
 /* ------------------------------------------------------------------ layout */
 .shell { width: min(100% - 2.5rem, var(--page)); margin-inline: auto; }
 
 /*
- * The header rides along while scrolling, translucent, blurring whatever
- * passes beneath it. The blur is why it has its own background token: the
- * opaque surfaces would hide the page instead of shading it.
+ * The header is the first pane: it rides along while scrolling, blurring
+ * whatever passes beneath it, and carries the horizon - one hairline of the
+ * hue along its bottom edge, brightest in the middle, which is the only
+ * ornament above the fold.
  */
 .site-header {
     position: sticky;
     top: 0;
     z-index: 30;
-    padding: .8rem 0;
+    padding: .75rem 0;
     background: var(--header-bg);
-    -webkit-backdrop-filter: blur(20px) saturate(1.6);
-    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(22px) saturate(1.7);
+    backdrop-filter: blur(22px) saturate(1.7);
     border-bottom: 1px solid var(--header-line);
 }
+.site-header::after {
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 1px;
+    background: var(--horizon);
+    opacity: .7;
+    pointer-events: none;
+}
 .site-header .shell {
+    width: min(100% - 2.5rem, 1440px);
     display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
 .brand {
-    display: inline-flex; align-items: center; gap: .65rem;
+    display: inline-flex; align-items: center; gap: .7rem;
     font-family: var(--font-display);
-    font-weight: 600; font-size: 1.08rem; letter-spacing: -.01em;
+    font-weight: 500; font-size: 1.05rem; letter-spacing: -.028em;
     text-decoration: none; color: var(--ink);
+    white-space: nowrap;
 }
-.brand img { width: 32px; height: 32px; }
+.brand:hover { color: var(--ink); }
+/* The mark sits in its own lit disc, and the disc lights up on hover - the
+   only thing in the header that is not type. */
+.brand img {
+    width: 34px; height: 34px;
+    padding: 3px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    box-shadow: inset 0 1px 0 var(--glass-hi);
+    transition: box-shadow .2s var(--ease), border-color .2s var(--ease),
+        transform .2s var(--ease);
+}
+.brand:hover img {
+    border-color: color-mix(in srgb, var(--brand) 45%, transparent);
+    box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 0 4px var(--brand-glow);
+    transform: translateY(-1px);
+}
 
-.site-nav { display: flex; gap: .1rem; align-items: center; font-size: .92rem; }
+/*
+ * A tab is a pill that fills with the hue's faintest tint on hover and
+ * carries a short rule under the current page. Two signals for one state:
+ * the tint for the pointer, the rule for the eye scanning the row.
+ */
+.site-nav {
+    display: flex;
+    gap: .1rem;
+    align-items: center;
+    min-width: 0;
+    font-size: .93rem;
+    white-space: nowrap;
+}
+.visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.header-search {
+    position: relative;
+    width: 8rem;
+    flex: 0 0 auto;
+}
+.header-search svg {
+    position: absolute;
+    left: .65rem; top: 50%;
+    width: 15px; height: 15px;
+    color: var(--ink-faint);
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+.header-search input {
+    width: 100%;
+    min-height: 2.15rem;
+    padding: .42rem .65rem .42rem 2rem;
+    border: 1px solid var(--field-border);
+    border-radius: 999px;
+    background: var(--field-bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: .86rem;
+    transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.header-search input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-glow);
+}
+/*
+ * The language switcher. A select and a button, because it has to work with
+ * scripting blocked; lang.js marks the document and the button then steps
+ * out of the way, since changing the select already submits the form.
+ */
+.language-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    flex: 0 0 auto;
+}
+.language-switcher > svg {
+    width: 15px; height: 15px;
+    color: var(--ink-faint);
+    flex: 0 0 auto;
+}
+.language-switcher select {
+    min-height: 2.15rem;
+    padding: .3rem 1.6rem .3rem .6rem;
+    border: 1px solid var(--field-border);
+    border-radius: 999px;
+    background: var(--field-bg);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: .86rem;
+    cursor: pointer;
+    /* The arrow is drawn here rather than fetched: one less request, and a
+       data: URL is all the CSP allows for an image anyway. */
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808697' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .45rem center;
+    background-size: 13px 13px;
+    transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.language-switcher select:hover { color: var(--ink); }
+.language-switcher select:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-glow);
+}
+.language-apply {
+    min-height: 2.15rem;
+    padding: .3rem .7rem;
+    border: 1px solid var(--field-border);
+    border-radius: 999px;
+    background: var(--field-bg);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: .82rem;
+    cursor: pointer;
+}
+.language-apply:hover { color: var(--ink); border-color: var(--brand); }
+[data-language="enhanced"] .language-apply { display: none; }
+
 .site-nav a {
     position: relative;
     color: var(--ink-soft); text-decoration: none;
-    padding: .45rem .55rem;
-    transition: color .15s ease;
+    padding: .45rem .7rem;
+    border-radius: 999px;
+    transition: color .16s var(--ease), background .16s var(--ease);
 }
 .site-nav a::after {
     content: "";
-    position: absolute; left: .55rem; right: .55rem; bottom: .15rem;
-    height: 2px;
+    position: absolute; left: .7rem; right: .7rem; bottom: .1rem;
+    height: 2px; border-radius: 2px;
     background: var(--brand);
     transform: scaleX(0);
     transform-origin: left;
-    transition: transform .18s ease;
+    transition: transform .22s var(--ease);
 }
-.site-nav a:hover { color: var(--ink); }
+.site-nav a:hover { color: var(--ink); background: var(--tint); }
 .site-nav a:hover::after { transform: scaleX(1); }
 .site-nav a[aria-current="page"] { color: var(--ink); font-weight: 600; }
 .site-nav a[aria-current="page"]::after { transform: scaleX(1); }
@@ -567,6 +810,60 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 .nav-toggle[aria-expanded="true"] .icon-close { opacity: 1; transform: none; }
 
 main { flex: 1 0 auto; padding-bottom: 4.5rem; }
+
+.search-panel {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: clamp(1.4rem, 3vw, 2.2rem);
+}
+.search-page-form label {
+    display: block;
+    margin-bottom: .65rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+.search-page-field {
+    display: flex;
+    gap: .7rem;
+}
+.search-page-field input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: .9rem 1rem;
+    border: 1px solid var(--field-border);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--ink);
+    font: inherit;
+}
+.search-page-field input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px var(--brand-glow);
+}
+.search-results {
+    display: grid;
+    gap: .65rem;
+    margin: 1.35rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+.search-results a {
+    display: grid;
+    gap: .3rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--tint);
+    color: var(--ink);
+    text-decoration: none;
+    transition: border-color .18s var(--ease), transform .18s var(--ease);
+}
+.search-results a:hover {
+    border-color: var(--brand);
+    transform: translateY(-1px);
+}
+.search-results span { color: var(--ink-soft); }
 
 /* ------------------------------------------------------------------ footer */
 .site-footer {
@@ -622,36 +919,57 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 }
 
 /* ------------------------------------------------------------------- cards */
+/*
+ * The pane. Frosted glass with a lit edge: the border is a gradient rather
+ * than a colour, painted into the border box while the surface itself is
+ * painted into the padding box, so one hairline can be bright at the top
+ * left and gone by the bottom right. That single trick is what makes the
+ * page read as glass instead of as rounded rectangles.
+ */
 .card {
-    background: var(--card);
+    position: relative;
+    background:
+        linear-gradient(var(--card), var(--card)) padding-box,
+        var(--glass-edge) border-box;
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--line);
+    border: 1px solid transparent;
     border-radius: var(--radius-lg);
     box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
-    padding: 1.75rem;
+    padding: 1.85rem;
 }
 .card + .card { margin-top: 1.25rem; }
 .card h2 { margin-bottom: .35rem; }
 .card > .lede { color: var(--ink-soft); margin-bottom: 1.2rem; }
 
 /*
- * Registration marks. Two diagonal corner brackets, drawn outside the card
- * they frame - the reticle of the instrument, and the one ornament the
- * design repeats. They sit on the form that starts a scan and on the dial
- * that ends one.
+ * The halo. A pane that carries the page's one action - the scan form, the
+ * verdict - is lit from behind by a soft field of the hue rather than framed
+ * by a border. It is drawn as a shadow, not as an element, because a pane
+ * that frosts what is behind it also frosts anything it would have stacked
+ * underneath itself; a shadow paints outside the box and stays out of the
+ * blur. It breathes on a nine-second cycle, which is slow enough to notice
+ * only if you look for it.
  */
-.brackets { position: relative; }
-.brackets::before,
-.brackets::after {
-    content: "";
-    position: absolute;
-    width: 16px; height: 16px;
-    border: 0 solid var(--brand);
-    pointer-events: none;
+.brackets {
+    position: relative;
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-lg),
+        0 0 0 1px var(--brand-glow), 0 24px 70px -34px var(--brand-glow-strong);
+    animation: halo 9s var(--ease) infinite alternate;
 }
-.brackets::before { top: -7px; left: -7px; border-top-width: 2px; border-left-width: 2px; }
-.brackets::after { bottom: -7px; right: -7px; border-bottom-width: 2px; border-right-width: 2px; }
+@keyframes halo {
+    from {
+        box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-lg),
+            0 0 0 1px var(--brand-glow), 0 18px 50px -34px var(--brand-glow);
+    }
+    to {
+        box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-lg),
+            0 0 0 1px var(--brand-glow-strong), 0 34px 90px -30px var(--brand-glow-strong);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .brackets { animation: none; }
+}
 
 .grid { display: grid; gap: 1.25rem; }
 /* The gap already separates the cards: without this, the stacked-card
@@ -665,25 +983,29 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 
 /* -------------------------------------------------------------------- hero */
 /*
- * The pitch on the left, the requisition on the right. Below the breakpoint
- * the grid collapses to one column and the form simply follows the copy.
+ * The hero is one gesture: a headline that states the question, the
+ * instrument beside it, and then the whole width of the page given over to
+ * the single field this service exists for. Nothing competes with the bar -
+ * the track and format selects sit below it, quieter and smaller, because
+ * they are refinements of an answer nobody has typed yet.
  */
-.hero { padding: 3.25rem 0 1rem; }
-.hero-grid { display: grid; gap: 2.5rem; align-items: start; }
+.hero { padding: 3.5rem 0 1rem; }
+.hero-grid { display: grid; gap: 2rem 3rem; align-items: center; }
 @media (min-width: 1000px) {
-    .hero-grid { grid-template-columns: 1.04fr .96fr; gap: 3.25rem; }
+    .hero-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
 }
 
 /* The copy arrives line by line; the artwork follows last and then stays
    still - the emblem inside it moves on its own. */
-.hero-copy > * { animation: rise .55s ease backwards; }
+.hero-copy > * { animation: rise .6s var(--ease-out) backwards; }
 .hero-copy > *:nth-child(2) { animation-delay: .07s; }
 .hero-copy > *:nth-child(3) { animation-delay: .14s; }
 .hero-copy > *:nth-child(4) { animation-delay: .21s; }
 
 .hero .lede {
-    font-size: 1.13rem; color: var(--ink-soft);
+    font-size: 1.16rem; color: var(--ink-soft);
     max-width: var(--measure);
+    margin-bottom: 0;
 }
 
 .hero .eyebrow {
@@ -692,47 +1014,149 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
     border: 1px solid var(--line);
-    border-radius: 999px; padding: .38rem .9rem;
+    border-radius: 999px; padding: .4rem .95rem;
     font-family: var(--mono);
-    font-size: .72rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    font-size: .7rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
     color: var(--ink-soft);
-    margin-bottom: 1.35rem;
+    margin-bottom: 1.4rem;
 }
 /* The live dot: the service is up, and it says so once a second. */
 .hero .eyebrow::before {
     content: "";
     width: .5rem; height: .5rem; border-radius: 50%;
-    background: var(--accent);
+    background: var(--brand);
     box-shadow: 0 0 0 0 var(--brand-glow);
     animation: pulse 2.4s ease-in-out infinite;
 }
 
-.hero h1 { margin-bottom: .9rem; }
+.hero h1 { margin-bottom: 1rem; }
 
 .hero-art {
-    display: block; width: min(100%, 460px); margin-top: 1.9rem;
-    animation: rise .55s ease .28s backwards;
+    display: block; width: min(100%, 440px); margin: 0 0 0 auto;
+    animation: rise .6s var(--ease-out) .28s backwards;
 }
+@media (max-width: 999px) {
+    .hero-art { margin-inline: 0; width: min(100%, 380px); }
+}
+
+/* The form is the third beat of the hero and arrives after the artwork. */
+.hero .scan-form { margin-top: 2.4rem; animation: rise .6s var(--ease-out) .35s backwards; }
 
 /* -------------------------------------------------------------------- form */
 .scan-form { margin: 0; }
 
 /*
- * The form is a requisition: a head that says what it is, a dashed tear
- * line, and fields underneath.
+ * The head of the form: what it is on the left, what it costs on the right.
+ * A hairline rather than the old tear line - this is glass now, and glass
+ * does not perforate.
  */
 .ticket-head {
     display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
-    margin: 0 0 1.3rem;
-    padding-bottom: .9rem;
-    border-bottom: 1px dashed var(--line-strong);
+    margin: 0 0 1.15rem;
+    padding-bottom: .85rem;
+    border-bottom: 1px solid var(--line);
 }
 .ticket-head .kicker { margin: 0; }
+.ticket-head .hint { margin: 0; font-family: var(--mono); font-size: .74rem; letter-spacing: .04em; }
+
+/*
+ * The command bar. One field, the width of the page, tall enough to be the
+ * first thing a pointer finds and set in the mono face because what goes in
+ * it is an address rather than a sentence. The mark on the left is the
+ * instrument's reticle; the button is welded to the right so that the
+ * gesture is a single object - type, then commit - instead of a field and a
+ * distant control. Focus lights the whole bar rather than drawing a ring
+ * around it.
+ */
+.command {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .55rem .55rem .55rem 1.15rem;
+    border-radius: var(--radius);
+    background:
+        linear-gradient(var(--field-bg), var(--field-bg)) padding-box,
+        var(--glass-edge) border-box;
+    border: 1px solid transparent;
+    box-shadow: inset 0 1px 3px rgba(13, 15, 23, .07), 0 1px 0 var(--glass-hi);
+    transition: box-shadow .22s var(--ease), transform .22s var(--ease),
+        background .22s var(--ease);
+}
+.command:hover { box-shadow: inset 0 1px 3px rgba(13, 15, 23, .07), 0 0 0 4px var(--brand-glow); }
+/* `:focus-within` on the bar, `outline: none` on the field: the ring moves
+   out to the object the eye actually sees, and it is stronger than the one
+   it replaces. */
+.command:focus-within {
+    background:
+        linear-gradient(var(--card-solid), var(--card-solid)) padding-box,
+        var(--cta) border-box;
+    box-shadow: 0 0 0 5px var(--brand-glow), 0 22px 50px -30px var(--brand-glow-strong);
+    transform: translateY(-1px);
+}
+.command-mark {
+    flex: none;
+    display: grid; place-items: center;
+    width: 26px; height: 26px;
+    color: var(--ink-faint);
+    transition: color .22s var(--ease), transform .5s var(--ease);
+}
+.command-mark svg { width: 24px; height: 24px; }
+.command:focus-within .command-mark { color: var(--brand); transform: rotate(90deg); }
+
+/*
+ * An address the browser can already tell is not one. `:user-invalid` fires
+ * only after the visitor has typed and left, never on a field they have not
+ * reached yet, so the bar cannot greet anybody in red. A browser without it
+ * loses nothing: the server refuses the same submission with a sentence.
+ */
+.command:has(.command-input:user-invalid) {
+    background:
+        linear-gradient(var(--card-solid), var(--card-solid)) padding-box,
+        linear-gradient(145deg, var(--bad), var(--bad)) border-box;
+    box-shadow: 0 0 0 4px var(--bad-soft);
+}
+.command:has(.command-input:user-invalid) .command-mark { color: var(--bad); }
+
+/* The field itself is stripped bare - the bar around it is the control. */
+input[type="text"].command-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: .75rem 0;
+    font-family: var(--mono);
+    font-size: clamp(1rem, .92rem + .4vw, 1.2rem);
+    letter-spacing: -.01em;
+}
+input[type="text"].command-input:hover,
+input[type="text"].command-input:focus {
+    border: 0; background: transparent; box-shadow: none; outline: none;
+}
+.command .btn { flex: none; }
+@media (max-width: 620px) {
+    /* On a phone the bar becomes a stack: the field on its row, the button
+       the full width of the thumb that reaches it. */
+    .command { flex-wrap: wrap; padding: .85rem; gap: .5rem; }
+    .command-mark { order: 1; }
+    .command-input { order: 2; flex: 1 1 auto; }
+    .command .btn { order: 3; width: 100%; margin-top: .35rem; }
+}
 
 .field-row { display: flex; gap: .95rem; flex-wrap: wrap; }
 .field-row .field { flex: 1 1 22rem; }
 
-label { display: block; font-weight: 600; font-size: .95rem; margin-bottom: .35rem; }
+/* Every label is machine voice: small, tracked, upper case - so a field
+   reads as an instrument setting and never as prose. */
+label {
+    display: block;
+    font-family: var(--mono);
+    font-weight: 500; font-size: .72rem;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: .45rem;
+}
 .hint { color: var(--ink-faint); font-size: .87rem; margin: .4rem 0 0; }
 
 input[type="url"], input[type="text"], select {
@@ -742,57 +1166,105 @@ input[type="url"], input[type="text"], select {
     background: var(--field-bg);
     border: 1px solid var(--field-border);
     border-radius: var(--radius-sm);
-    padding: .8rem .95rem;
-    box-shadow: inset 0 1px 3px rgba(26, 28, 34, .05);
-    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    padding: .75rem .9rem;
+    box-shadow: inset 0 1px 3px rgba(13, 15, 23, .05);
+    transition: border-color .18s var(--ease), box-shadow .18s var(--ease),
+        background .18s var(--ease);
 }
-input[type="text"]#target_url { font-family: var(--mono); font-size: .95rem; }
-select { cursor: pointer; }
+/* A select carries its own mark rather than the platform's grey wedge - the
+   chevron is drawn in the hairline colour and the native arrow is dropped. */
+select {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.4rem;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9' fill='none' stroke='%23666d80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .95rem center;
+}
 input[type="url"]:hover, input[type="text"]:hover, select:hover { border-color: var(--brand); }
+/* The chevron is an image, so it cannot read a token: the night version is
+   the same drawing in the night's faint ink. */
+@media (prefers-color-scheme: dark) {
+    select {
+        background-image:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9' fill='none' stroke='%237b839a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
+    }
+}
 input[type="url"]:focus, input[type="text"]:focus, select:focus {
     border-color: var(--brand);
-    background: var(--card-solid);
-    box-shadow: 0 0 0 3px var(--brand-soft);
+    background-color: var(--card-solid);
+    box-shadow: 0 0 0 4px var(--brand-glow);
     outline: none;
 }
 
+/*
+ * A control is a small pane: soft corners, a lit top edge, and a lift under
+ * the pointer. Every button on the page shares this shell and differs only
+ * in what fills it.
+ */
 .btn {
+    position: relative;
     display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
     font: inherit; font-weight: 600; font-size: .98rem;
+    letter-spacing: -.005em;
     border: 1px solid transparent; border-radius: var(--radius-sm);
-    padding: .8rem 1.4rem;
+    padding: .85rem 1.5rem;
     cursor: pointer;
     text-decoration: none;
-    transition: transform .16s ease, box-shadow .16s ease, background .16s ease,
-        border-color .16s ease, color .16s ease;
+    overflow: hidden;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease),
+        background .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease);
 }
 .btn svg { width: 18px; height: 18px; }
 /*
- * The primary action wears the ember, not the ink: it is the one thing every
- * page wants done, and the warm accent exists so the eye lands on it first.
- * The hover banks the coals a shade deeper rather than borrowing the brand -
- * the signal colours stay rare by staying off the button.
+ * The primary action is the only gradient on the page: iris through violet,
+ * with the nebula's magenta arriving past the button's own right edge, so
+ * the fill has a direction without ever becoming a second colour. The
+ * sheen - one soft highlight that crosses on hover - is why it reads as
+ * glass rather than as a coloured rectangle.
  */
 .btn-primary {
     color: var(--on-accent);
-    background: var(--accent);
-    border-color: var(--accent);
-    box-shadow: var(--shadow-sm);
+    background: var(--cta);
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .28);
+}
+.btn-primary::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .34) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform .7s var(--ease);
+    pointer-events: none;
 }
 .btn-primary:hover {
     color: var(--on-accent);
-    background: var(--accent-ink);
-    border-color: var(--accent-ink);
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px var(--brand-glow);
+    background: var(--cta-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px -12px var(--brand-glow-strong), inset 0 1px 0 rgba(255, 255, 255, .3);
 }
+.btn-primary:hover::after { transform: translateX(120%); }
 .btn-primary:active { transform: translateY(0); }
-.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+.btn:disabled::after { display: none; }
 .btn-quiet {
-    background: transparent; color: var(--ink-soft);
+    background: var(--card);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    color: var(--ink-soft);
     border-color: var(--line-strong);
 }
-.btn-quiet:hover { color: var(--brand-deep); border-color: var(--brand); }
+.btn-quiet:hover {
+    color: var(--brand-deep);
+    border-color: var(--brand);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px -16px var(--brand-glow-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+    .btn, .btn:hover { transform: none; }
+    .btn-primary::after { display: none; }
+}
 
 /* waivers */
 details.waivers {
@@ -803,11 +1275,11 @@ details.waivers {
     overflow: hidden;
 }
 details.waivers > summary {
-    cursor: pointer; padding: .85rem 1.05rem; font-weight: 600; font-size: .95rem;
+    cursor: pointer; padding: .9rem 1.15rem; font-weight: 600; font-size: .95rem;
     list-style: none; display: flex; align-items: center; gap: .6rem;
-    transition: color .15s ease;
+    transition: color .16s var(--ease), background .16s var(--ease);
 }
-details.waivers > summary:hover { color: var(--brand-deep); }
+details.waivers > summary:hover { color: var(--brand-deep); background: var(--tint); }
 details.waivers > summary::-webkit-details-marker { display: none; }
 details.waivers > summary::after {
     content: ""; margin-left: auto;
@@ -830,10 +1302,12 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .toggle {
     display: flex; gap: .7rem; align-items: flex-start;
     border: 1px solid var(--line); border-radius: var(--radius-sm);
-    padding: .65rem .8rem; cursor: pointer;
-    transition: border-color .16s ease, background .16s ease;
+    padding: .7rem .85rem; cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease),
+        transform .16s var(--ease);
 }
-.toggle:hover { border-color: var(--brand); }
+.toggle:hover { border-color: var(--brand); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .toggle:hover { transform: none; } }
 .toggle input { margin-top: .3rem; accent-color: var(--brand); width: 1.05rem; height: 1.05rem; }
 .toggle strong { display: block; font-family: var(--mono); font-weight: 600; font-size: .85rem; }
 .toggle span { display: block; color: var(--ink-faint); font-size: .82rem; line-height: 1.45; }
@@ -857,8 +1331,8 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     border-top: 1px solid var(--line);
 }
 .assurance li:first-child { border-top: 0; }
-.assurance svg { width: 19px; height: 19px; flex: none; margin-top: .15rem; color: var(--accent); }
-.assurance strong { display: block; font-size: .92rem; font-weight: 650; }
+.assurance svg { width: 19px; height: 19px; flex: none; margin-top: .15rem; color: var(--brand); }
+.assurance strong { display: block; font-size: .92rem; font-weight: 600; letter-spacing: -.01em; }
 .assurance span { display: block; color: var(--ink-faint); font-size: .82rem; line-height: 1.5; }
 @media (min-width: 720px) {
     .assurance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -874,9 +1348,9 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 /* ------------------------------------------------------------------ badges */
 .tag {
     display: inline-flex; align-items: center; gap: .35rem;
-    border-radius: 4px; padding: .14rem .55rem;
+    border-radius: 6px; padding: .16rem .6rem;
     font-family: var(--mono);
-    font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+    font-size: .7rem; font-weight: 500; text-transform: uppercase; letter-spacing: .1em;
 }
 .tag-critical { background: var(--bad-soft); color: var(--bad-ink); }
 .tag-warning { background: var(--fair-soft); color: var(--fair-ink); }
@@ -894,15 +1368,19 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .alert svg { width: 20px; height: 20px; flex: none; margin-top: .1rem; }
 
 /* --------------------------------------------------------------- features */
-.feature { transition: transform .18s ease, box-shadow .18s ease; }
-.feature:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+/* A pane rises towards the pointer and its mark lights up with it - the
+   whole card is the affordance, so nothing inside it needs a border. */
+.feature { transition: transform .22s var(--ease), box-shadow .22s var(--ease); }
+.feature:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg), 0 0 0 1px var(--brand-glow); }
 .feature .icon {
-    width: 44px; height: 44px; border-radius: var(--radius-sm);
-    display: grid; place-items: center; margin-bottom: .95rem;
+    width: 46px; height: 46px; border-radius: 14px;
+    display: grid; place-items: center; margin-bottom: 1rem;
     background: var(--brand-soft);
     color: var(--brand-deep);
     border: 1px solid var(--line);
+    transition: transform .22s var(--ease), box-shadow .22s var(--ease);
 }
+.feature:hover .icon { transform: scale(1.06); box-shadow: 0 0 0 5px var(--brand-glow); }
 .feature .icon svg { width: 22px; height: 22px; }
 .feature p { color: var(--ink-soft); margin: 0; font-size: .95rem; }
 @media (prefers-reduced-motion: reduce) {
@@ -913,11 +1391,12 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .steps li { display: flex; gap: .95rem; align-items: flex-start; }
 .steps li::before {
     counter-increment: step; content: counter(step, decimal-leading-zero);
-    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    flex: none; width: 36px; height: 36px; border-radius: 12px;
     display: grid; place-items: center;
-    border: 1.5px solid var(--line-strong);
+    border: 1px solid var(--line);
+    background: var(--brand-soft);
     color: var(--brand-deep);
-    font-family: var(--mono); font-weight: 600; font-size: .8rem;
+    font-family: var(--mono); font-weight: 500; font-size: .8rem;
 }
 
 /* --------------------------------------------------- content sub-pages */
@@ -938,11 +1417,12 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .page-nav-card {
     position: relative;
     display: grid; gap: .3rem; height: 100%;
-    padding: 1.1rem 2.6rem 1.1rem 1.25rem;
+    padding: 1.2rem 2.8rem 1.2rem 1.35rem;
     text-decoration: none; color: var(--ink);
-    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease);
 }
-.page-nav-card strong { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
+.page-nav-card:hover { color: var(--ink); }
+.page-nav-card strong { font-family: var(--font-display); font-size: 1.06rem; font-weight: 500; letter-spacing: -.028em; }
 .page-nav-card span { color: var(--ink-soft); font-size: .92rem; }
 /* The arrow is drawn, not typed, and it slides on hover. */
 .page-nav-card::after {
@@ -955,9 +1435,8 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     transition: transform .18s ease, border-color .18s ease;
 }
 .page-nav-card:hover {
-    border-color: var(--brand);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 0 0 1px var(--brand-glow);
 }
 .page-nav-card:hover::after { border-color: var(--brand); transform: rotate(45deg) translate(2px, -2px); }
 .page-nav-cta { border-color: var(--brand); }
@@ -971,10 +1450,14 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 /* -------------------------------------------------------------- scan page */
 .scan-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
 .scan-head h1 { margin-bottom: .3rem; }
+/* The address that was scanned, set as a chip of the hue: it is the one
+   fact the whole page hangs from, and it is a machine's word, not a
+   person's. */
 .scan-target {
-    font-family: var(--mono); font-size: .98rem;
+    font-family: var(--mono); font-size: .95rem;
     background: var(--brand-soft); color: var(--brand-deep);
-    border-radius: var(--radius-sm); padding: .28rem .6rem;
+    border: 1px solid var(--brand-glow);
+    border-radius: var(--radius-sm); padding: .3rem .65rem;
     word-break: break-all;
 }
 /* Which track the result was rated against. It changes what "end of life"
@@ -1102,30 +1585,31 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     initial-value: 0;
 }
 /*
- * The dial: the rating as one clean arc in the verdict's colour, sweeping in
- * from zero, with the grade set heavy at the centre. The only ornament is a
- * soft glow in the same tone, so the instrument reads as lit rather than
- * decorated.
+ * The dial: the rating as one arc in the verdict's colour, sweeping in from
+ * zero, with the grade set large at the centre in the display face. The
+ * verdict is the one place a status colour is allowed to glow - everywhere
+ * else it stays inside a chip.
  */
 .score-dial {
     --dial: var(--good);
     --dial-ink: var(--good-ink);
     position: relative; flex: none;
-    width: 156px; height: 156px; border-radius: 50%;
+    width: 168px; height: 168px; border-radius: 50%;
     display: grid; place-items: center;
     background: conic-gradient(var(--dial) calc(var(--fill) * 1%), var(--line) 0);
-    box-shadow: 0 0 0 1px var(--line), 0 10px 22px -16px var(--dial);
-    animation: dial .9s cubic-bezier(.22, 1, .36, 1) backwards,
-        sweep 1.1s ease-out .15s backwards;
+    box-shadow: 0 0 0 1px var(--line), 0 26px 60px -34px var(--dial);
+    animation: dial .9s var(--ease-out) backwards,
+        sweep 1.2s var(--ease-out) .15s backwards;
 }
 .score-dial::after {
-    content: ""; position: absolute; inset: 11px;
+    content: ""; position: absolute; inset: 12px;
     background: var(--card-solid); border-radius: 50%;
-    box-shadow: inset 0 2px 6px rgba(26, 28, 34, .1);
+    box-shadow: inset 0 2px 10px rgba(13, 15, 23, .12);
 }
 .score-dial .grade {
     position: relative; z-index: 1;
-    font-size: 2.9rem; font-weight: 800; letter-spacing: -.04em; color: var(--dial-ink);
+    font-family: var(--font-display);
+    font-size: 3.1rem; font-weight: 700; letter-spacing: -.05em; color: var(--dial-ink);
 }
 .score-dial[data-tone="good"] { --dial: var(--good); --dial-ink: var(--good-ink); }
 .score-dial[data-tone="fair"] { --dial: var(--fair); --dial-ink: var(--fair-ink); }
@@ -1143,13 +1627,15 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .score-facts dt, .score-facts dd { padding: .42rem 0; }
 .score-facts dt {
     color: var(--ink-faint);
-    font-size: .76rem;
-    font-weight: 600;
+    font-family: var(--mono);
+    font-size: .7rem;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: .09em;
+    letter-spacing: .13em;
     padding-right: 1rem;
+    padding-top: .55rem;
 }
-.score-facts dd { margin: 0; font-weight: 550; font-size: .95rem; }
+.score-facts dd { margin: 0; font-weight: 500; font-size: .95rem; }
 .score-facts dt:not(:first-of-type),
 .score-facts dt:not(:first-of-type) + dd { border-top: 1px solid var(--line); }
 
@@ -1166,14 +1652,20 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .hint-inline { color: var(--ink-faint); font-weight: 400; font-size: .85rem; }
 
 .counters { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.15rem; }
+/* A reading, boxed: the number large in the mono face, its name beneath in
+   the same voice, and a hairline that lifts towards the pointer. */
 .counter {
     border-radius: var(--radius-sm); border: 1px solid var(--line);
-    padding: .5rem .85rem; text-align: center; min-width: 5.25rem;
+    background: var(--tint);
+    padding: .6rem .95rem; text-align: center; min-width: 5.5rem;
+    transition: border-color .18s var(--ease), transform .18s var(--ease);
 }
+.counter:hover { border-color: var(--brand); transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { .counter:hover { transform: none; } }
 .counter strong {
     display: block;
-    font-family: var(--mono); font-weight: 600;
-    font-size: 1.3rem; font-variant-numeric: tabular-nums;
+    font-family: var(--mono); font-weight: 500;
+    font-size: 1.35rem; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
 }
 .counter span {
     font-family: var(--mono);
@@ -1243,6 +1735,222 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .plain-list li { margin-bottom: .5rem; line-height: 1.6; }
 .plain-list strong { color: var(--ink); }
 
+/* -------------------------------------------------------------- grade guide */
+.grade-list {
+    list-style: none;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    display: grid;
+}
+.grade-row {
+    --grade: var(--bad);
+    --grade-ink: var(--bad-ink);
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 1.35rem;
+    align-items: start;
+    padding: 1.35rem 0;
+    border-top: 1px solid var(--line);
+}
+.grade-row:first-child { border-top: 0; padding-top: .35rem; }
+.grade-row[data-tone="good"] { --grade: var(--good); --grade-ink: var(--good-ink); }
+.grade-row[data-tone="fair"] { --grade: var(--fair); --grade-ink: var(--fair-ink); }
+.grade-mark {
+    display: grid;
+    place-items: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    border: 1px solid var(--grade);
+    border-radius: 50%;
+    color: var(--grade-ink);
+    background: var(--card-solid);
+    box-shadow: 0 18px 34px -24px var(--grade);
+    font-family: var(--font-display);
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -.05em;
+}
+.grade-body h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .35rem 1rem;
+    margin-bottom: .35rem;
+    font-size: 1.25rem;
+}
+.grade-score {
+    color: var(--ink-faint);
+    font-family: var(--mono);
+    font-size: .68rem;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+.grade-fix { margin: .55rem 0 0; color: var(--ink-soft); }
+.grade-fix strong { color: var(--ink); }
+.cap-list {
+    list-style: none;
+    margin: 1.25rem 0 1.4rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem;
+}
+.cap-list li {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    min-width: 0;
+    padding: .75rem .85rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--tint);
+}
+.cap-arrow { color: var(--ink-faint); }
+.cap-grade { white-space: nowrap; }
+.cap-list .hint { margin: 0 0 0 auto; white-space: nowrap; }
+@media (max-width: 720px) {
+    .grade-row { grid-template-columns: 3.75rem minmax(0, 1fr); gap: .9rem; }
+    .grade-mark { width: 3.5rem; height: 3.5rem; font-size: 1.35rem; }
+    .cap-list { grid-template-columns: 1fr; }
+}
+
+/* --------------------------------------------------------------- CLI docs */
+.docs-toc {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.15rem;
+}
+.docs-toc .kicker { margin: 0 auto 0 0; }
+.docs-toc a {
+    padding: .35rem .65rem;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: .86rem;
+}
+.docs-toc a:hover { color: var(--ink); background: var(--tint); }
+.docs-command-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+.docs-command-grid > div {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--tint);
+}
+.docs-command-grid .code-block { margin-bottom: 0; }
+.option-list dl { margin: 1.2rem 0; }
+.option-list dl > div {
+    display: grid;
+    grid-template-columns: minmax(12rem, .7fr) 1.3fr;
+    gap: 1rem;
+    padding: .65rem 0;
+    border-top: 1px solid var(--line);
+}
+.option-list dt, .option-list dd { margin: 0; }
+.option-list dd { color: var(--ink-soft); }
+.precedence {
+    list-style: none;
+    margin: 1.25rem 0;
+    padding: 0;
+    counter-reset: precedence;
+}
+.precedence li {
+    counter-increment: precedence;
+    display: grid;
+    grid-template-columns: 2rem minmax(9rem, .35fr) 1fr;
+    gap: .75rem;
+    align-items: baseline;
+    padding: .65rem 0;
+    border-top: 1px solid var(--line);
+}
+.precedence li::before {
+    content: counter(precedence);
+    color: var(--brand-deep);
+    font-family: var(--mono);
+    font-size: .75rem;
+}
+.precedence span { color: var(--ink-soft); }
+.docs-guide-grid {
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+.docs-guide-grid .page-nav-card { margin: 0; }
+.docs-article { overflow: hidden; }
+.docs-article h2 {
+    margin-top: 2.25rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+}
+.docs-article h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.docs-article h3 { margin-top: 1.6rem; }
+.docs-article h4 { margin-top: 1.25rem; }
+.docs-article pre {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 1rem 0;
+    padding: 1rem 1.15rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--code-bg);
+    color: var(--code-ink);
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.65;
+    white-space: pre;
+}
+.docs-article table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: .88rem;
+}
+.docs-article th, .docs-article td {
+    min-width: 9rem;
+    padding: .65rem .75rem;
+    border: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+.docs-article th {
+    background: var(--tint);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.docs-article blockquote {
+    margin: 1.25rem 0;
+    padding: .8rem 1rem;
+    border-left: 3px solid var(--brand);
+    background: var(--brand-soft);
+    color: var(--ink-soft);
+}
+.docs-article blockquote > :last-child { margin-bottom: 0; }
+.docs-article li { margin-bottom: .35rem; }
+.docs-article hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+@media (max-width: 720px) {
+    .docs-command-grid, .docs-guide-grid { grid-template-columns: 1fr; }
+    .option-list dl > div { grid-template-columns: 1fr; gap: .25rem; }
+    .precedence li { grid-template-columns: 1.5rem 1fr; }
+    .precedence span { grid-column: 2; }
+}
+
 .export-list { margin: .6rem 0 0; padding: 0; list-style: none; }
 .export-list li {
     display: flex; flex-wrap: wrap; align-items: center; gap: .7rem;
@@ -1291,10 +1999,6 @@ pre.json {
 .hint-flush { margin: 0; }
 .hint-lead { margin-top: .9rem; }
 .field-narrow { flex: 0 1 12rem; }
-.form-actions {
-    margin-top: 1.4rem;
-    display: flex; gap: .8rem; align-items: center; flex-wrap: wrap;
-}
 
 /*
  * The dial is drawn with a conic gradient whose sweep is the rating. The
@@ -1317,15 +2021,20 @@ pre.json {
  * across 390px used to run off the side of the screen, and the only way to
  * reach "About" was to scroll the page sideways.
  */
-@media (max-width: 900px) {
+@media (max-width: 1360px) {
     .site-header .shell { flex-wrap: wrap; row-gap: .8rem; }
     /* A basis rather than `auto`: flex breaks a line before it shrinks an
        item, so a brand asking for its full width would push the button onto
        a row of its own instead of wrapping its own second line. */
     .brand { flex: 1 1 55%; min-width: 0; }
-    .brand span { font-size: .95rem; }
+    .brand span {
+        overflow: hidden;
+        font-size: .95rem;
+        text-overflow: ellipsis;
+    }
     /* Without JavaScript: a second row that wraps, never a sideways scroll. */
     .site-nav { width: 100%; flex-wrap: wrap; gap: .2rem .5rem; }
+    .header-search { width: 100%; margin-bottom: .35rem; }
 
     [data-nav="enhanced"] .nav-toggle { display: inline-flex; }
     [data-nav="enhanced"] .site-nav { display: none; }
@@ -1356,6 +2065,18 @@ pre.json {
         border-radius: var(--radius-sm);
         animation: rise .3s ease backwards;
     }
+    [data-nav="enhanced"] .site-nav[data-open="true"] .header-search {
+        display: block;
+        width: 100%;
+    }
+    [data-nav="enhanced"] .site-nav[data-open="true"] .language-switcher {
+        display: flex;
+        width: 100%;
+        margin-top: .35rem;
+    }
+    [data-nav="enhanced"] .site-nav[data-open="true"] .language-switcher select {
+        flex: 1 1 auto;
+    }
     [data-nav="enhanced"] .site-nav[data-open="true"] a::after { display: none; }
     [data-nav="enhanced"] .site-nav[data-open="true"] a:nth-child(2) { animation-delay: .04s; }
     [data-nav="enhanced"] .site-nav[data-open="true"] a:nth-child(3) { animation-delay: .08s; }
@@ -1374,8 +2095,6 @@ pre.json {
     main { padding-bottom: 2.5rem; }
 
     /* A submit button the width of the thumb that reaches it. */
-    .form-actions { flex-direction: column; align-items: stretch; }
-    .form-actions .btn { width: 100%; }
     .field-narrow { flex: 1 1 100%; }
     .export-list .btn { width: 100%; }
 

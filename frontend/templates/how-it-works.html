@@ -1,21 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}How the scan works{% endblock %}
-{% block description %}What this scanner tests on an OpenCloud instance, and what happens between pressing the button and reading the grade.{% endblock %}
+{% block title %}{{ t('how.title') }}{% endblock %}
+{% block description %}{{ t('how.description') }}{% endblock %}
 
 {% block content %}
 <section class="page-head">
-  <p class="kicker">The method</p>
-  <h1>How the scan works</h1>
-  <p class="lede">
-    Everything this service reports it works out itself, by talking to the
-    address you enter over HTTPS the way any visitor would. Nothing is asked of
-    a third party, and nothing is logged in.
-  </p>
+  <p class="kicker">{{ t('how.kicker') }}</p>
+  <h1>{{ t('how.title') }}</h1>
+  <p class="lede">{{ t('how.lede') }}</p>
 </section>
 
 <section class="grid three section-gap-lg" aria-labelledby="what-we-test">
-  <h2 id="what-we-test" class="visually-hidden">What gets tested</h2>
+  <h2 id="what-we-test" class="visually-hidden">{{ t('how.tests.heading') }}</h2>
 
   <article class="card feature" data-reveal>
     <div class="icon" aria-hidden="true">
@@ -24,12 +20,8 @@
         <path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="m17 15 3 3-3 3"/>
       </svg>
     </div>
-    <h3>Version and lifecycle</h3>
-    <p>
-      Which release is running, whether it still receives security fixes, and
-      whether any published advisory matches it. A release past its end of
-      life is an F, whatever else is right.
-    </p>
+    <h3>{{ t('how.tests.version.title') }}</h3>
+    <p>{{ t('how.tests.version.body') }}</p>
   </article>
 
   <article class="card feature" data-reveal="2">
@@ -39,12 +31,8 @@
         <rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
       </svg>
     </div>
-    <h3>Transport and headers</h3>
-    <p>
-      HTTPS reachability, the certificate and its remaining life, the TLS
-      versions on offer, and the security headers a browser is actually sent -
-      HSTS, CSP, frame and content-type protection.
-    </p>
+    <h3>{{ t('how.tests.transport.title') }}</h3>
+    <p>{{ t('how.tests.transport.body') }}</p>
   </article>
 
   <article class="card feature" data-reveal="3">
@@ -55,31 +43,20 @@
         <path d="M12 8v5"/><path d="M12 16v.5"/>
       </svg>
     </div>
-    <h3>Hardening and exposure</h3>
-    <p>
-      Basic authentication, public link password and expiry policy, password
-      rules, directory listing, exposed endpoints and anything announcing the
-      version to the world.
-    </p>
+    <h3>{{ t('how.tests.hardening.title') }}</h3>
+    <p>{{ t('how.tests.hardening.body') }}</p>
   </article>
 </section>
 
 <section class="card section-gap" aria-labelledby="how-it-works" data-reveal>
-  <p class="kicker">The pipeline</p>
-  <h2 id="how-it-works">What happens when you press the button</h2>
-  <p class="lede">Four steps, and the third one is where the queue comes in.</p>
+  <p class="kicker">{{ t('how.pipeline.kicker') }}</p>
+  <h2 id="how-it-works">{{ t('how.pipeline.heading') }}</h2>
+  <p class="lede">{{ t('how.pipeline.lede') }}</p>
   <ol class="steps">
-    <li><span><strong>Your address is checked.</strong> Private, loopback and
-      cloud metadata addresses are refused before anything connects.</span></li>
-    <li><span><strong>A scan gets a random identifier.</strong> That identifier
-      is the only way to reach the result. There is no list of scans, and no
-      way to guess one.</span></li>
-    <li><span><strong>It waits its turn.</strong> A fixed number of scans run at
-      once. If they are all busy yours queues and you are told where you are in
-      line - nothing is rejected because the service is popular.</span></li>
-    <li><span><strong>The result expires.</strong> After
-      {{ result_ttl_minutes }} minutes the identifier stops working and the
-      result is gone, with nothing written to disk.</span></li>
+    <li><span>{{ t.html('how.pipeline.step1') }}</span></li>
+    <li><span>{{ t.html('how.pipeline.step2') }}</span></li>
+    <li><span>{{ t.html('how.pipeline.step3') }}</span></li>
+    <li><span>{{ t.html('how.pipeline.step4', minutes=result_ttl_minutes) }}</span></li>
   </ol>
 </section>
 

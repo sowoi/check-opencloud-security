@@ -10,19 +10,19 @@
   -->
   <style>
     svg {
-      --line: #1a1c22; --faint: #717684;
-      --brand: #3539c4; --accent: #c2410c; --core: #fbfaf4;
-      --shield-top: #4a4ee0; --shield-bottom: #3539c4;
-      --good: #0a7a4d; --fair: #b45309; --info: #1d6fa8; --bad: #c22424;
-      --spark: #3539c4;
+      --line: #0d0f17; --faint: #666d80;
+      --brand: #5b4bff; --accent: #b13ad4; --core: #ffffff;
+      --shield-top: #7a6bff; --shield-bottom: #5b4bff;
+      --good: #0f7a53; --fair: #a75a00; --info: #1e6fd9; --bad: #cc2b3d;
+      --spark: #5b4bff;
     }
     @media (prefers-color-scheme: dark) {
       svg {
-        --line: #e8e6dc; --faint: #7d8290;
-        --brand: #a5b4fc; --accent: #5eead4; --core: #12151f;
-        --shield-top: #c7d2fe; --shield-bottom: #a5b4fc;
+        --line: #eaedf7; --faint: #7b839a;
+        --brand: #a89dff; --accent: #e58ff0; --core: #141722;
+        --shield-top: #cfc7ff; --shield-bottom: #a89dff;
         --good: #34d399; --fair: #fbbf24; --info: #38bdf8; --bad: #fb7185;
-        --spark: #cdd8ff;
+        --spark: #cfc7ff;
       }
     }
     .brand { stop-color: var(--brand); }

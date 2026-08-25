@@ -46,14 +46,14 @@ def test_scan_result_is_rendered_as_prometheus_gauges():
 def test_prometheus_labels_escape_scan_metadata():
     """Untrusted response metadata must not escape or corrupt a metric label."""
     metrics = render(
-        'opencloud.example.com"\\\n',
-        {**RESULT, "domain": 'cloud.example.com"\n', "version": '7.2"0'},
+        'opencloud.example.com"\\\r\n',
+        {**RESULT, "domain": 'cloud.example.com"\r\n', "version": '7.2"0'},
         duration_seconds=1,
         success=True,
     )
 
-    assert 'host="opencloud.example.com\\"\\\\\\n"' in metrics
-    assert 'domain="cloud.example.com\\"\\n"' in metrics
+    assert 'host="opencloud.example.com\\"\\\\\\r\\n"' in metrics
+    assert 'domain="cloud.example.com\\"\\r\\n"' in metrics
     assert 'version="7.2\\"0"' in metrics
 
 

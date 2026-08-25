@@ -79,6 +79,22 @@ def test_healthy_instance_is_ok(healthy):
     assert "| rating=5" in result.stdout
 
 
+def test_instance_strings_cannot_inject_plugin_lines_or_perfdata():
+    """A monitored host may supply text, but not Nagios framing characters."""
+    behaviour = InstanceBehaviour()
+    behaviour.status_payload["productname"] = "OpenCloud\nforged status"
+    behaviour.status_payload["productversion"] = "7.2.3 | forged_metric=999"
+
+    with FakeOpenCloud(behaviour) as instance:
+        result = run_plugin("-H", instance.host)
+
+    assert result.returncode == OK
+    assert "\nforged status" not in result.stdout
+    assert " | forged_metric=999" not in result.stdout
+    assert result.stdout.count(" | ") == 1
+    assert "| rating=5" in result.stdout
+
+
 def test_exposed_configuration_caps_the_rating():
     """
     A published opencloud.yaml caps the rating at D.

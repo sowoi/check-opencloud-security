@@ -178,12 +178,20 @@ def test_an_export_waits_out_a_409_but_stops_on_a_404():
     """The two look alike and mean opposites: not yet, versus never again."""
     waiting = ScriptedApi(
         wf.ApiResponse(status=409, body={"detail": "no result yet", "state": "running"}),
-        wf.ApiResponse(status=200, headers={"content-type": "text/csv"}, body="a,b\n"),
+        wf.ApiResponse(
+            status=200,
+            headers={
+                "content-type": "text/csv",
+                "x-cos-signature": "HMAC-SHA256=abc",
+            },
+            body="a,b\n",
+        ),
     )
 
     ready = asyncio.run(wf.export_scan(waiting, UUID, "csv", sleep=_instant))
     assert ready["ok"] is True
     assert ready["content"] == "a,b\n"
+    assert ready["signature"] == "HMAC-SHA256=abc"
 
     gone = ScriptedApi(wf.ApiResponse(status=404, body={"detail": "Not found."}))
     with pytest.raises(wf.WorkflowError) as caught:

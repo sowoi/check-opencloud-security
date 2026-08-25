@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('grades.title') }}{% endblock %}
+{% block description %}{{ t('grades.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <p class="kicker">{{ t('grades.kicker') }}</p>
+  <h1>{{ t('grades.title') }}</h1>
+  <p class="lede">{{ t('grades.lede') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="scale" data-reveal>
+  <p class="kicker">{{ t('grades.scale.kicker') }}</p>
+  <h2 id="scale">{{ t('grades.scale.heading') }}</h2>
+  <p>{{ t.html('grades.scale.intro') }}</p>
+  <ul class="grade-list">
+    {% for grade in grades %}
+    <li class="grade-row" data-tone="{{ grade.tone }}">
+      <span class="grade-mark" data-tone="{{ grade.tone }}" aria-hidden="true">{{ grade.label }}</span>
+      <div class="grade-body">
+        <h3>
+          <span class="visually-hidden">{{ t('grades.row.prefix', label=grade.label) }}</span>{{ grade.headline }}
+          <span class="grade-score">{{ t('grades.row.score', rating=grade.rating) }}</span>
+        </h3>
+        <p class="flush">{{ grade.meaning }}</p>
+        <p class="grade-fix"><strong>{{ t('grades.row.improve') }}</strong> {{ grade.improve }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card section-gap" aria-labelledby="caps" data-reveal>
+  <p class="kicker">{{ t('grades.caps.kicker') }}</p>
+  <h2 id="caps">{{ t('grades.caps.heading') }}</h2>
+  <p>{{ t('grades.caps.intro') }}</p>
+  <ul class="cap-list">
+    {% for severity, cap, label in caps %}
+    <li>
+      <span class="tag tag-{{ severity_tags[severity] }}">{{ t('severity.' ~ severity) }}</span>
+      <span class="cap-arrow" aria-hidden="true">&rarr;</span>
+      <span class="cap-grade">{{ t('grades.caps.at_best') }} <strong>{{ label }}</strong></span>
+      <span class="hint hint-inline">{{ t('grades.row.score', rating=cap) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p>{{ t('grades.caps.shared') }}</p>
+  <p class="flush">{{ t.html('grades.caps.rules') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="improve" data-reveal>
+  <p class="kicker">{{ t('grades.improve.kicker') }}</p>
+  <h2 id="improve">{{ t('grades.improve.heading') }}</h2>
+  <p>{{ t('grades.improve.intro') }}</p>
+  <ul class="plain-list">
+    <li>{{ t.html('grades.improve.plan') }}</li>
+    <li>{{ t.html('grades.improve.release') }}</li>
+    <li>{{ t.html('grades.improve.explained') }}</li>
+    <li>{{ t.html('grades.improve.waiver') }}</li>
+  </ul>
+  <p class="flush">{{ t('grades.improve.rerun') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="limits" data-reveal>
+  <p class="kicker">{{ t('grades.limits.kicker') }}</p>
+  <h2 id="limits">{{ t('grades.limits.heading') }}</h2>
+  <p class="flush">{{ t.html('grades.limits.body') }}</p>
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

@@ -8,7 +8,13 @@ from typing import Any
 
 def _escape_label(value: object) -> str:
     """Escape arbitrary scan values for a Prometheus label string."""
-    return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace('"', '\\"')
+    )
 
 
 def _labels(**values: object) -> str:
