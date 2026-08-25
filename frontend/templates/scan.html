@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Scan results{% endblock %}
+{% macro severity_label(value) -%}
+  {%- if value and t.has('severity.' ~ value) -%}
+    {{ t('severity.' ~ value) }}
+  {%- else -%}
+    {{ value }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block title %}{{ t('result.title') }}{% endblock %}
+{% block description %}{{ t('result.description') }}{% endblock %}
 
 {% block body_attrs %}data-scan-uuid="{{ scan.uuid }}" data-scan-state="{{ scan.state }}" data-expires-in="{{ scan.expiresIn }}"{% endblock %}
 
@@ -8,54 +17,69 @@
 <section class="card" data-reveal>
   <div class="scan-head">
     <div>
-      <p class="kicker">Field report</p>
-      <h1>Scan result</h1>
+      <p class="kicker">{{ t('result.kicker') }}</p>
+      <h1>{{ t('result.heading') }}</h1>
       <p class="flush">
         <span class="scan-target">{{ scan.target }}</span>
         {% if scan.releaseTrack %}
-        <span class="scan-track" title="The release track this scan was rated against">
-          {{ scan.releaseTrack }} track
+        <span class="scan-track" title="{{ t('result.track.title') }}">
+          {{ t('result.track.label', track=scan.releaseTrack) }}
         </span>
         {% endif %}
       </p>
     </div>
-    <a class="btn btn-quiet" href="/">Scan another instance</a>
+    <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
   </div>
 </section>
 
 {# --------------------------------------------------------------- progress #}
+{#
+  Every sentence the poller writes is rendered here first, so the translation
+  stays on the server and the script keeps working under a CSP with no inline
+  script.
+#}
 <section class="card" id="progress-card" aria-live="polite"
-         {% if scan.state in ("completed", "failed") %}hidden{% endif %}>
-  <p class="kicker">In progress</p>
+         {% if scan.state in ("completed", "failed") %}hidden{% endif %}
+         data-queued-title="{{ t('result.progress.queued.title') }}"
+         data-queued-detail="{{ t('result.progress.queued.detail') }}"
+         data-running-title="{{ t('result.progress.running.title') }}"
+         data-running-detail="{{ t('result.progress.running.detail') }}"
+         data-done-title="{{ t('result.progress.done.title') }}"
+         data-done-detail="{{ t('result.progress.done.detail') }}"
+         data-failed-title="{{ t('result.progress.failed.title') }}"
+         data-failed-detail="{{ t('result.progress.failed.detail') }}"
+         data-queue-position="{{ t.raw('result.progress.queue.position') }}"
+         data-queue-next="{{ t('result.progress.queue.next') }}"
+         data-queue-waiting="{{ t('result.progress.queue.waiting') }}">
+  <p class="kicker">{{ t('result.progress.kicker') }}</p>
   <h2 id="progress-heading">
     <span class="pulse" aria-hidden="true"></span>
     <span id="progress-title">
-      {% if scan.state == "queued" %}Waiting for a scanner worker{% else %}Scanning the instance{% endif %}
+      {%- if scan.state == "queued" -%}
+        {{ t('result.progress.queued.title') }}
+      {%- else -%}
+        {{ t('result.progress.running.title') }}
+      {%- endif -%}
     </span>
   </h2>
   <p class="lede" id="progress-detail">
-    {% if scan.state == "queued" %}
-      Every worker is busy right now. Your scan keeps its place in line and
-      starts as soon as one is free.
-    {% else %}
-      Reading what the instance publishes: version, capabilities, certificate,
-      headers and the endpoints it exposes without a login.
-    {% endif %}
+    {%- if scan.state == "queued" -%}
+      {{ t('result.progress.queued.detail') }}
+    {%- else -%}
+      {{ t('result.progress.running.detail') }}
+    {%- endif -%}
   </p>
 
   <div class="progress">
     <div class="progress-track" role="img" aria-labelledby="progress-heading">
-      <div class="step" id="step-queued" data-state="active">Queued</div>
-      <div class="step" id="step-running">Running</div>
-      <div class="step" id="step-done">Result</div>
+      <div class="step" id="step-queued" data-state="active">{{ t('result.progress.step.queued') }}</div>
+      <div class="step" id="step-running">{{ t('result.progress.step.running') }}</div>
+      <div class="step" id="step-done">{{ t('result.progress.step.done') }}</div>
     </div>
     <div class="progress-beam" aria-hidden="true"><span></span></div>
     <p class="queue-note" id="queue-note" hidden></p>
     <noscript>
-      <p class="hint flush">
-        This page updates itself with JavaScript. Without it, reload the page
-        in a few seconds to see the result.
-      </p>
+      <p class="hint flush">{{ t('result.progress.noscript') }}</p>
     </noscript>
   </div>
 </section>
@@ -68,13 +92,9 @@
          stroke-linecap="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/>
     </svg>
-    <span>{{ scan.error or "The scan could not be completed." }}</span>
+    <span>{{ scan.error or t('result.failed.fallback') }}</span>
   </p>
-  <p class="flush">
-    Nothing was graded, because nothing usable came back. Check that the
-    address is right, that the instance is reachable from the public internet,
-    and that it is an OpenCloud instance.
-  </p>
+  <p class="flush">{{ t('result.failed.body') }}</p>
 </section>
 {% endif %}
 
@@ -82,72 +102,82 @@
 {% if summary %}
 {% if scan.outputFormat == "json" %}
 <section class="card" data-reveal>
-  <p class="kicker">Result document</p>
-  <h2>Result document</h2>
-  <p class="lede">
-    The same document the command line check and the Nagios plugin evaluate.
-  </p>
+  <p class="kicker">{{ t('result.document.kicker') }}</p>
+  <h2>{{ t('result.document.heading') }}</h2>
+  <p class="lede">{{ t('result.document.lede') }}</p>
   <pre class="json"><code>{{ scan.result | tojson(indent=2) }}</code></pre>
 </section>
 {% else %}
 
 <section class="card" data-reveal="2">
-  <p class="kicker">Verdict</p>
-  <h2 class="visually-hidden">Overall rating</h2>
+  <p class="kicker">{{ t('result.verdict.kicker') }}</p>
+  <h2 class="visually-hidden">{{ t('result.verdict.heading') }}</h2>
   <div class="score">
     <div class="score-dial" data-tone="{{ summary.tone }}" data-rating="{{ summary.rating }}"
-         role="img" aria-label="Rating {{ summary.label }}, {{ summary.rating }} out of 5">
+         role="img" aria-label="{{ t('result.verdict.dial', label=summary.label, rating=summary.rating) }}">
       <span class="grade">{{ summary.label }}</span>
     </div>
     <div class="score-facts">
       <dl>
-        <dt>Instance</dt><dd>{{ summary.domain }}</dd>
-        <dt>Product</dt><dd>{{ summary.product }} {{ summary.version }}</dd>
-        <dt>Release track</dt>
+        <dt>{{ t('result.facts.instance') }}</dt><dd>{{ summary.domain }}</dd>
+        {% if summary.addresses.ipv4 or summary.addresses.ipv6 %}
+        <dt>{{ t('result.facts.resolved') }}</dt>
         <dd>
-          {{ summary.releaseType or "unknown" }}
-          {% if summary.eol %}<span class="tag tag-critical">End of life</span>{% endif %}
-        </dd>
-        {% if summary.lifecycle.scheduleStale %}
-        <dt>Release schedule</dt>
-        <dd>
-          {{ summary.version }} is newer than this copy of the OpenCloud
-          release schedule{% if summary.lifecycle.scheduleUpdated %},
-          generated {{ summary.lifecycle.scheduleUpdated }}{% endif %}, so the
-          schedule is probably out of date. It is not counted against the
-          instance -
-          <a href="{{ summary.lifecycle.scheduleSource }}" rel="noopener noreferrer">check
-          the published lifecycle page</a>.
+          {% for address in summary.addresses.ipv4 %}
+          <span class="tag tag-info">IPv4</span> <code>{{ address }}</code>{% if not loop.last or summary.addresses.ipv6 %}<br>{% endif %}
+          {% endfor %}
+          {% for address in summary.addresses.ipv6 %}
+          <span class="tag tag-info">IPv6</span> <code>{{ address }}</code>{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
         </dd>
         {% endif %}
-        <dt>Sign-in</dt>
+        <dt>{{ t('result.facts.product') }}</dt><dd>{{ summary.product }} {{ summary.version }}</dd>
+        <dt>{{ t('result.facts.track') }}</dt>
+        <dd>
+          {{ summary.releaseType or t('result.facts.track.unknown') }}
+          {% if summary.eol %}<span class="tag tag-critical">{{ t('result.facts.eol_tag') }}</span>{% endif %}
+        </dd>
+        {% if summary.lifecycle.scheduleStale %}
+        <dt>{{ t('result.facts.schedule') }}</dt>
+        <dd>
+          {% if summary.lifecycle.scheduleUpdated %}
+          {{ t('result.facts.schedule.stale_generated', version=summary.version,
+                generated=summary.lifecycle.scheduleUpdated) }}
+          {% else %}
+          {{ t('result.facts.schedule.stale', version=summary.version) }}
+          {% endif %}
+          <a href="{{ summary.lifecycle.scheduleSource }}"
+             rel="noopener noreferrer">{{ t('result.facts.schedule.link') }}</a>.
+        </dd>
+        {% endif %}
+        <dt>{{ t('result.facts.signin') }}</dt>
         <dd>
           {% if summary.identityProvider.detected %}
             {% if summary.identityProvider.external %}
-            {{ summary.identityProvider.vendor or "External provider" }}
-            <span class="tag tag-info">upstream</span>
+            {{ summary.identityProvider.vendor or t('result.facts.signin.external') }}
+            <span class="tag tag-info">{{ t('result.facts.signin.upstream_tag') }}</span>
             {% else %}
-            Built-in identity provider
+            {{ t('result.facts.signin.builtin') }}
             {% endif %}
           {% else %}
-          Not detected -
+          {{ t('result.facts.signin.none') }}
           <a href="https://docs.opencloud.eu/docs/admin/configuration/authentication-and-user-management/external-idp"
-             rel="noopener noreferrer">how OpenCloud sign-in is set up</a>
+             rel="noopener noreferrer">{{ t('result.facts.signin.link') }}</a>
           {% endif %}
         </dd>
         {% if summary.reverseProxy.detected %}
-        <dt>Reverse proxy</dt>
-        <dd>{{ summary.reverseProxy.vendor or "Detected" }}</dd>
+        <dt>{{ t('result.facts.proxy') }}</dt>
+        <dd>{{ summary.reverseProxy.vendor or t('result.facts.proxy.detected') }}</dd>
         {% endif %}
         {% if summary.integrations.office and summary.integrations.office.detected %}
-        <dt>Office</dt>
+        <dt>{{ t('result.facts.office') }}</dt>
         <dd>{{ summary.integrations.office.apps | join(", ") }}</dd>
         {% endif %}
         {% if summary.integrations.calendar and summary.integrations.calendar.detected %}
-        <dt>Calendar</dt><dd>Something answers the CalDAV path</dd>
+        <dt>{{ t('result.facts.calendar') }}</dt><dd>{{ t('result.facts.calendar.detected') }}</dd>
         {% endif %}
         {% if summary.updates.available_version %}
-        <dt>Newest release</dt><dd>{{ summary.updates.available_version }}</dd>
+        <dt>{{ t('result.facts.newest') }}</dt><dd>{{ summary.updates.available_version }}</dd>
         {% endif %}
         {% for fact in summary.tlsOverview %}
         <dt>{{ fact.label }}</dt>
@@ -156,44 +186,39 @@
           {% if fact.detail %}<span class="hint-inline">{{ fact.detail }}</span>{% endif %}
         </dd>
         {% endfor %}
-        <dt>Score</dt><dd>{{ summary.rating }} out of 5</dd>
+        <dt>{{ t('result.facts.score') }}</dt><dd>{{ t('result.facts.score.value', rating=summary.rating) }}</dd>
       </dl>
 
       <div class="counters">
         <div class="counter">
-          <strong>{{ summary.counts.critical }}</strong><span>Critical</span>
+          <strong>{{ summary.counts.critical }}</strong><span>{{ t('result.counter.critical') }}</span>
         </div>
         <div class="counter">
-          <strong>{{ summary.counts.warning }}</strong><span>Warning</span>
+          <strong>{{ summary.counts.warning }}</strong><span>{{ t('result.counter.warning') }}</span>
         </div>
         <div class="counter">
-          <strong>{{ summary.counts.info }}</strong><span>Info</span>
+          <strong>{{ summary.counts.info }}</strong><span>{{ t('result.counter.info') }}</span>
         </div>
         <div class="counter">
-          <strong>{{ summary.counts.vulnerabilities }}</strong><span>Advisories</span>
+          <strong>{{ summary.counts.vulnerabilities }}</strong><span>{{ t('result.counter.advisories') }}</span>
         </div>
         <div class="counter">
-          <strong>{{ summary.passedCount }}</strong><span>Passed</span>
+          <strong>{{ summary.passedCount }}</strong><span>{{ t('result.counter.passed') }}</span>
         </div>
       </div>
     </div>
   </div>
 
   {% if summary.explanation.reason %}
-  <p class="hint section-gap">Why this grade: {{ summary.explanation.reason }}</p>
+  <p class="hint section-gap">{{ t('result.verdict.why') }} {{ summary.explanation.reason }}</p>
   {% endif %}
-  <p class="hint">
-    A grade says the checks below passed, not that the instance is secure.
-    This scan is not exhaustive: it sees only what the instance shows an
-    anonymous visitor.
-    <a href="#scan-limits">What it cannot see</a>.
-  </p>
+  <p class="hint">{{ t.html('result.verdict.caveat') }}</p>
 </section>
 
 {% if summary.remediation.steps %}
 <section class="card" data-reveal="3">
-  <p class="kicker">Remediation plan</p>
-  <h2 id="remediation">What gets you to {{ summary.remediation.achievableLabel }}</h2>
+  <p class="kicker">{{ t('result.plan.kicker') }}</p>
+  <h2 id="remediation">{{ t('result.plan.heading', label=summary.remediation.achievableLabel) }}</h2>
   <p class="lede">{{ summary.remediation.summary }}</p>
   <ol class="findings plan">
     {% for step in summary.remediation.steps %}
@@ -202,32 +227,27 @@
       <div class="finding-head">
         <span class="plan-order" aria-hidden="true">{{ step.order }}</span>
         <code>{{ step.id }}</code>
-        <span class="tag tag-{{ step.tag }}">{{ step.severity }}</span>
+        <span class="tag tag-{{ step.tag }}">{{ severity_label(step.severity) }}</span>
         <span class="plan-grade">
-          {%- if step.ratingGain > 0 %}then {{ step.label }}{% else %}still {{ step.label }}{% endif -%}
+          {%- if step.ratingGain > 0 -%}
+            {{ t('result.plan.then', label=step.label) }}
+          {%- else -%}
+            {{ t('result.plan.still', label=step.label) }}
+          {%- endif -%}
         </span>
       </div>
       <p>{{ step.title }}</p>
       {% if step.detail %}<p class="hint">{{ step.detail }}</p>{% endif %}
-      <p class="fix"><strong>Fix:</strong> {{ step.action }}
-        {% if step.reference %}<a href="{{ step.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ step.action }}
+        {% if step.reference %}<a href="{{ step.reference }}" rel="noopener noreferrer">{{ t('result.documentation') }}</a>{% endif %}
       </p>
     </li>
     {% endfor %}
   </ol>
-  <p class="hint section-gap">
-    The order is the one that pays off soonest, and the grade beside a step is
-    what the rating would be once that step and everything above it is done.
-    Findings of the same severity share one cap, so the grade moves only when
-    the last of them is gone - which is why a step can be necessary and still
-    promise nothing on its own.
-  </p>
+  <p class="hint section-gap">{{ t('result.plan.note') }}</p>
   {% if summary.remediation.blocked %}
-  <h3 class="section-gap">Holding the grade down, and not fixable</h3>
-  <p class="hint">
-    OpenCloud hardcodes these, so no setting reaches them. They are the reason
-    the plan above stops where it does.
-  </p>
+  <h3 class="section-gap">{{ t('result.plan.blocked.heading') }}</h3>
+  <p class="hint">{{ t('result.plan.blocked.note') }}</p>
   <ul class="pill-list">
     {% for step in summary.remediation.blocked %}<li>{{ step.id }}</li>{% endfor %}
   </ul>
@@ -242,28 +262,31 @@
          stroke-linecap="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/>
     </svg>
-    <span>
-      This release no longer receives security fixes. Nothing else on this page
-      can lift the grade until it is upgraded.
-    </span>
+    <span>{{ t('result.eol.alert') }}</span>
   </p>
 </section>
 {% endif %}
 
 {% if summary.vulnerabilities %}
 <section class="card" data-reveal>
-  <p class="kicker">Advisories</p>
-  <h2>Known advisories for this version</h2>
-  <p class="lede">Published advisories whose affected range includes {{ summary.version }}.</p>
+  <p class="kicker">{{ t('result.advisories.kicker') }}</p>
+  <h2>{{ t('result.advisories.heading') }}</h2>
+  <p class="lede">{{ t('result.advisories.lede', version=summary.version) }}</p>
   <ul class="findings">
     {% for advisory in summary.vulnerabilities %}
     <li class="finding" data-tag="critical">
       <div class="finding-head">
-        <code>{{ advisory.id or advisory.cve or "advisory" }}</code>
-        <span class="tag tag-critical">{{ advisory.severity or "unrated" }}</span>
+        <code>{{ advisory.id or advisory.cve or t('result.advisories.fallback_id') }}</code>
+        <span class="tag tag-critical">
+          {%- if advisory.severity -%}
+            {{ severity_label(advisory.severity) }}
+          {%- else -%}
+            {{ t('result.advisories.unrated') }}
+          {%- endif -%}
+        </span>
       </div>
-      <p>{{ advisory.summary or advisory.description or "No summary published." }}</p>
-      {% if advisory.url is safe_link %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">Read the advisory</a></p>{% endif %}
+      <p>{{ advisory.summary or advisory.description or t('result.advisories.no_summary') }}</p>
+      {% if advisory.url is safe_link %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">{{ t('result.advisories.read') }}</a></p>{% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -271,52 +294,46 @@
 {% endif %}
 
 <section class="card" data-reveal>
-  <p class="kicker">Findings</p>
-  <h2>Checks that failed</h2>
-  <p class="lede">
-    Each one caps the grade at the level its severity allows. Fix the critical
-    ones first: they are the ones holding the score down hardest.
-  </p>
+  <p class="kicker">{{ t('result.findings.kicker') }}</p>
+  <h2>{{ t('result.findings.heading') }}</h2>
+  <p class="lede">{{ t('result.findings.lede') }}</p>
   {% if summary.issues %}
   <ul class="findings">
     {% for issue in summary.issues %}
     <li class="finding" data-tag="{{ issue.tag }}">
       <div class="finding-head">
         <code>{{ issue.id }}</code>
-        <span class="tag tag-{{ issue.tag }}">{{ issue.severity }}</span>
+        <span class="tag tag-{{ issue.tag }}">{{ severity_label(issue.severity) }}</span>
       </div>
       {% if issue.detail %}<p>{{ issue.detail }}</p>{% endif %}
       <p>{{ issue.explanation }}</p>
-      <p class="fix"><strong>Fix:</strong> {{ issue.remediation }}
-        {% if issue.reference %}<a href="{{ issue.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ issue.remediation }}
+        {% if issue.reference %}<a href="{{ issue.reference }}" rel="noopener noreferrer">{{ t('result.documentation') }}</a>{% endif %}
       </p>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="flush"><span class="tag tag-good">All clear</span> Every check this
-    scanner runs passed on this instance.</p>
+  <p class="flush"><span class="tag tag-good">{{ t('result.findings.allclear.tag') }}</span>
+    {{ t('result.findings.allclear.body') }}</p>
   {% endif %}
 </section>
 
 {% if summary.missingHardenings or summary.missingHeaders %}
 <section class="card" data-reveal>
-  <p class="kicker">Hardening</p>
-  <h2>Hardening worth adding</h2>
-  <p class="lede">
-    Settings that are not switched on. None of these is an active
-    vulnerability; each one removes a way in.
-  </p>
+  <p class="kicker">{{ t('result.hardening.kicker') }}</p>
+  <h2>{{ t('result.hardening.heading') }}</h2>
+  <p class="lede">{{ t('result.hardening.lede') }}</p>
   <ul class="findings">
     {% for item in summary.missingHardenings %}
     <li class="finding" data-tag="warning">
       <div class="finding-head">
         <code>{{ item.id }}</code>
-        <span class="tag tag-warning">hardening</span>
+        <span class="tag tag-warning">{{ t('result.hardening.tag') }}</span>
       </div>
       <p>{{ item.title }}</p>
-      <p class="fix"><strong>Fix:</strong> {{ item.remediation }}
-        {% if item.reference %}<a href="{{ item.reference }}" rel="noopener noreferrer">Documentation</a>{% endif %}
+      <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ item.remediation }}
+        {% if item.reference %}<a href="{{ item.reference }}" rel="noopener noreferrer">{{ t('result.documentation') }}</a>{% endif %}
       </p>
     </li>
     {% endfor %}
@@ -324,10 +341,10 @@
     <li class="finding" data-tag="info">
       <div class="finding-head">
         <code>{{ item.id }}</code>
-        <span class="tag tag-info">header</span>
+        <span class="tag tag-info">{{ t('result.header.tag') }}</span>
       </div>
       <p>{{ item.title }}</p>
-      <p class="fix"><strong>Fix:</strong> {{ item.remediation }}</p>
+      <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ item.remediation }}</p>
     </li>
     {% endfor %}
   </ul>
@@ -336,21 +353,18 @@
 
 {% if summary.waived or summary.unfixable %}
 <section class="card" data-reveal>
-  <p class="kicker">Excluded</p>
-  <h2>Reported, but not counted</h2>
+  <p class="kicker">{{ t('result.excluded.kicker') }}</p>
+  <h2>{{ t('result.excluded.heading') }}</h2>
   {% if summary.waived %}
-  <h3>You asked to ignore these</h3>
-  <p class="hint">They still failed. They just did not hold the grade down.</p>
+  <h3>{{ t('result.excluded.waived.heading') }}</h3>
+  <p class="hint">{{ t('result.excluded.waived.note') }}</p>
   <ul class="pill-list">
     {% for item in summary.waived %}<li>{{ item.id }}</li>{% endfor %}
   </ul>
   {% endif %}
   {% if summary.unfixable %}
-  <h3 class="section-gap">Nobody can change these</h3>
-  <p class="hint">
-    OpenCloud hardcodes these flags, so they read the same on every instance in
-    existence. They are shown for completeness and excluded from the grade.
-  </p>
+  <h3 class="section-gap">{{ t('result.excluded.unfixable.heading') }}</h3>
+  <p class="hint">{{ t('result.excluded.unfixable.note') }}</p>
   <ul class="pill-list">
     {% for name in summary.unfixable %}<li>{{ name }}</li>{% endfor %}
   </ul>
@@ -359,156 +373,132 @@
 {% endif %}
 
 <section class="card" data-reveal>
-  <p class="kicker">Scope</p>
-  <h2 id="scan-limits">What this scan cannot see</h2>
-  <p>
-    Everything above was read without logging in, which is the point and also
-    the limit. <strong>The absence of a finding is not evidence of
-    safety</strong>, and the highest grade this page can give is not a
-    statement that the instance is secure - only that nothing checked here
-    went wrong. Whole categories are outside an unauthenticated scan
-    altogether: the operating system and its packages, the container runtime,
-    the reverse proxy's own configuration, backups and their restores, the
-    storage behind the instance, secrets and key handling, accounts,
-    passwords and multi-factor sign-in, the permissions on existing shares,
-    the software supply chain, and anything that only shows itself to a
-    logged-in user. So are these two, which look like they should be
-    visible and are not:
-  </p>
+  <p class="kicker">{{ t('result.scope.kicker') }}</p>
+  <h2 id="scan-limits">{{ t('result.scope.heading') }}</h2>
+  <p>{{ t.html('result.scope.body') }}</p>
   <ul class="plain-list">
-    <li>
-      <strong>Audit logging.</strong> OpenCloud's audit service only consumes
-      the internal event bus - it publishes no endpoint and appears in no
-      unauthenticated document - so whether it runs cannot be established from
-      outside at all. It is not checked.
-    </li>
-    <li>
-      <strong>Whether an office or calendar integration is set up
-      <em>correctly</em>.</strong> This page reports only that an app provider
-      is registered, or that something answers the CalDAV path. Sharing rules,
-      WOPI secrets and the second service's own configuration all live behind a
-      login and are not checked.
-    </li>
+    <li>{{ t.html('result.scope.audit') }}</li>
+    <li>{{ t.html('result.scope.integrations') }}</li>
   </ul>
 </section>
 
 {% if summary.tls and summary.tls.reachable %}
 <section class="card" data-reveal>
-  <p class="kicker">Transport</p>
-  <h2>Transport security</h2>
-  <p class="lede">
-    What the TLS layer said before a single byte of HTTP was exchanged. The
-    findings above already judge these; this is the measurement behind them.
-  </p>
+  <p class="kicker">{{ t('result.tls.kicker') }}</p>
+  <h2>{{ t('result.tls.heading') }}</h2>
+  <p class="lede">{{ t('result.tls.lede') }}</p>
   <dl class="facts">
-    <dt>Protocol</dt>
+    <dt>{{ t('result.tls.protocol') }}</dt>
     <dd>
       {{ summary.tls.protocol }}{% if summary.tls.cipher %}, {{ summary.tls.cipher }}{% endif %}
-      {% if summary.tls.cipherBits %}({{ summary.tls.cipherBits }} bit){% endif %}
+      {% if summary.tls.cipherBits %}{{ t('result.tls.bits', bits=summary.tls.cipherBits) }}{% endif %}
     </dd>
     {% if summary.tls.deprecatedProtocolsProbed %}
-    <dt>Deprecated versions</dt>
+    <dt>{{ t('result.tls.deprecated') }}</dt>
     <dd>
       {% if summary.tls.deprecatedProtocolsAccepted %}
-      Still accepted: {{ summary.tls.deprecatedProtocolsAccepted | join(", ") }}
+      {{ t('result.tls.deprecated.accepted', list=summary.tls.deprecatedProtocolsAccepted | join(", ")) }}
       {% else %}
-      Refused: {{ summary.tls.deprecatedProtocolsProbed | join(", ") }}
+      {{ t('result.tls.deprecated.refused', list=summary.tls.deprecatedProtocolsProbed | join(", ")) }}
       {% endif %}
     </dd>
     {% endif %}
-    <dt>Chain</dt>
+    <dt>{{ t('result.tls.chain') }}</dt>
     <dd>
-      {% if summary.tls.trusted %}Trusted
-      {% elif summary.tls.trusted is none %}Not established
-      {% else %}Not trusted{% endif %}
-      {% if summary.tls.chainComplete is false %}- no path to a public root{% endif %}
+      {% if summary.tls.trusted %}{{ t('result.tls.chain.trusted') }}
+      {% elif summary.tls.trusted is none %}{{ t('result.tls.chain.not_established') }}
+      {% else %}{{ t('result.tls.chain.not_trusted') }}{% endif %}
+      {% if summary.tls.chainComplete is false %}{{ t('result.tls.chain.incomplete_note') }}{% endif %}
     </dd>
     {% if summary.tls.certificate %}
-    <dt>Issued to</dt>
-    <dd>{{ summary.tls.certificate.subject or "unnamed" }}</dd>
-    <dt>Issued by</dt>
-    <dd>{{ summary.tls.certificate.issuer or "unknown" }}</dd>
+    <dt>{{ t('result.tls.issued_to') }}</dt>
+    <dd>{{ summary.tls.certificate.subject or t('result.tls.unnamed') }}</dd>
+    <dt>{{ t('result.tls.issued_by') }}</dt>
+    <dd>{{ summary.tls.certificate.issuer or t('result.tls.unknown') }}</dd>
     {% if summary.tls.certificate.altNames %}
-    <dt>Valid for</dt>
+    <dt>{{ t('result.tls.valid_for') }}</dt>
     <dd>{{ summary.tls.certificate.altNames | join(", ") }}</dd>
     {% endif %}
-    <dt>Validity</dt>
+    <dt>{{ t('result.tls.validity') }}</dt>
     <dd>
-      {{ summary.tls.certificate.notBefore }} to {{ summary.tls.certificate.notAfter }}
+      {{ t('result.tls.validity.range', start=summary.tls.certificate.notBefore,
+            end=summary.tls.certificate.notAfter) }}
       {% if summary.tls.certificate.daysRemaining is not none %}
         {% if summary.tls.certificate.daysRemaining < 0 %}
-        - expired {{ -summary.tls.certificate.daysRemaining }} day(s) ago
+        {{ t('result.tls.validity.expired', days=-summary.tls.certificate.daysRemaining) }}
         {% else %}
-        - {{ summary.tls.certificate.daysRemaining }} day(s) left
+        {{ t('result.tls.validity.remaining', days=summary.tls.certificate.daysRemaining) }}
         {% endif %}
       {% endif %}
     </dd>
     {% if summary.tls.certificate.lifetimeDays is not none %}
-    <dt>Issued for</dt>
-    <dd>{{ summary.tls.certificate.lifetimeDays }} day(s)</dd>
+    <dt>{{ t('result.tls.lifetime') }}</dt>
+    <dd>{{ t('result.tls.lifetime.days', days=summary.tls.certificate.lifetimeDays) }}</dd>
     {% endif %}
     {% endif %}
-    <dt>OCSP stapling</dt>
+    <dt>{{ t('result.tls.ocsp') }}</dt>
     <dd>
-      {% if summary.tls.ocspStapled %}A revocation answer is stapled
-      {% elif summary.tls.ocspStapled is false %}Not stapled
-      {% else %}{{ summary.tls.ocspNote or "Not determined" }}{% endif %}
+      {% if summary.tls.ocspStapled %}{{ t('result.tls.ocsp.stapled') }}
+      {% elif summary.tls.ocspStapled is false %}{{ t('result.tls.ocsp.not_stapled') }}
+      {% else %}{{ summary.tls.ocspNote or t('result.tls.ocsp.undetermined') }}{% endif %}
     </dd>
   </dl>
 </section>
 {% endif %}
 
 <section class="card" data-reveal>
-  <p class="kicker">Raw data</p>
-  <h2>Technical details</h2>
-  <p class="lede">The full result document, exactly as the plugin sees it.</p>
+  <p class="kicker">{{ t('result.raw.kicker') }}</p>
+  <h2>{{ t('result.raw.heading') }}</h2>
+  <p class="lede">{{ t('result.raw.lede') }}</p>
   <details>
-    <summary>Show the raw JSON</summary>
+    <summary>{{ t('result.raw.summary') }}</summary>
     <pre class="json"><code>{{ scan.result | tojson(indent=2) }}</code></pre>
   </details>
 </section>
 {% endif %}
 
 <section class="card" data-reveal>
-  <p class="kicker">Export</p>
-  <h2>Take this result with you</h2>
-  <p class="lede">
-    The same scan, rendered four ways. Each one is generated when you ask for
-    it and disappears with the scan itself.
-  </p>
+  <p class="kicker">{{ t('result.export.kicker') }}</p>
+  <h2>{{ t('result.export.heading') }}</h2>
+  <p class="lede">{{ t('result.export.lede') }}</p>
   <ul class="export-list">
     <li>
       <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/pdf"
-         download>PDF report</a>
-      <span class="hint">For a ticket, a review or a printout.</span>
+         download>{{ t('result.export.pdf') }}</a>
+      <span class="hint">{{ t('result.export.pdf.hint') }}</span>
     </li>
     <li>
       <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/csv"
-         download>CSV</a>
-      <span class="hint">One row per finding, for a spreadsheet.</span>
+         download>{{ t('result.export.csv') }}</a>
+      <span class="hint">{{ t('result.export.csv.hint') }}</span>
     </li>
     <li>
       <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/sarif"
-         download>SARIF</a>
-      <span class="hint">For a code-scanning dashboard.</span>
+         download>{{ t('result.export.sarif') }}</a>
+      <span class="hint">{{ t('result.export.sarif.hint') }}</span>
     </li>
     <li>
       <a class="btn btn-quiet" href="/api/scans/{{ scan.uuid }}/export/json"
-         download>JSON</a>
-      <span class="hint">The raw document the plugin evaluates.</span>
+         download>{{ t('result.export.json') }}</a>
+      <span class="hint">{{ t('result.export.json.hint') }}</span>
     </li>
   </ul>
 </section>
 {% endif %}
 
-<p class="expiry">
+{% set expiry_minutes = (scan.expiresIn // 60) or 1 %}
+<p class="expiry" data-expiry-one="{{ t('result.expiry.one') }}"
+   data-expiry-many="{{ t.raw('result.expiry.many') }}">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
        stroke-linecap="round" aria-hidden="true">
     <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
   </svg>
   <span id="expiry-note" aria-live="polite">
-    This page expires in about {{ (scan.expiresIn // 60) or 1 }} minutes, after
-    which the link stops working and the result is gone.
+    {%- if expiry_minutes == 1 -%}
+      {{ t('result.expiry.one') }}
+    {%- else -%}
+      {{ t('result.expiry.many', minutes=expiry_minutes) }}
+    {%- endif -%}
   </span>
 </p>
 {% endblock %}

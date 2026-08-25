@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ locale|default('en', true) }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,8 +7,8 @@
   {# A result page is reachable only with its uuid, so only the pages that
      exist before anybody scans anything are ever offered to a crawler. #}
   <meta name="robots" content="{{ robots|default('noindex, nofollow', true) }}">
-  <title>{% block title %}Scan an OpenCloud instance{% endblock %} &middot; {{ site_name|default('OpenCloud Security Scan', true) }}</title>
-  <meta name="description" content="{% block description %}Check an OpenCloud instance for known vulnerabilities, missing hardening and weak security headers. Free, independent and nothing is stored.{% endblock %}">
+  <title>{% block title %}{{ t('index.title') }}{% endblock %} &middot; {{ site_name|default('OpenCloud Security Scan', true) }}</title>
+  <meta name="description" content="{% block description %}{{ t('index.description') }}{% endblock %}">
   {% if canonical_url %}
   <link rel="canonical" href="{{ canonical_url }}">
   {% endif %}
@@ -24,15 +24,20 @@
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="OpenCloud Security Scan - check an instance for known vulnerabilities, missing hardening and weak security headers">
+  <meta property="og:image:alt" content="{{ t('site.og_image_alt') }}">
   {% endif %}
-  <meta name="theme-color" content="#f3f1e9" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0b0d14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eceff7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07080e" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
-  {# The body face, fetched before the stylesheet asks for it. The other
-     weights arrive on demand; preloading all five would cost more than it
-     saves. #}
+  {# The three faces the first screen actually uses, fetched before the
+     stylesheet asks for them: body text, the headline and the machine voice
+     that labels every field. The remaining weights arrive on demand -
+     preloading all of them would cost more than it saves. #}
   <link rel="preload" href="/static/fonts/Inter-Regular.woff2" as="font"
+        type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/SpaceGrotesk-Medium.woff2" as="font"
+        type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/JetBrainsMono-Regular.woff2" as="font"
         type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/app.css">
   {# Discovery hints for anything reading the markup rather than the page.
@@ -46,13 +51,13 @@
   {% block head %}{% endblock %}
 </head>
 <body {% block body_attrs %}{% endblock %}>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main">{{ t('chrome.skip_to_content') }}</a>
 
   <header class="site-header">
     <div class="shell">
       <a class="brand" href="/">
         <img src="/static/img/logo.svg" alt="" width="32" height="32">
-        <span>Security scan for OpenCloud instances</span>
+        <span>{{ t('chrome.brand') }}</span>
       </a>
       {#
         The menu button only becomes visible once nav.js has marked the
@@ -69,16 +74,54 @@
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="m6 6 12 12"/><path d="M18 6 6 18"/>
         </svg>
-        <span>Menu</span>
+        <span>{{ t('chrome.menu') }}</span>
       </button>
-      <nav class="site-nav" id="site-nav" aria-label="Primary">
-        <a href="/"{% if request.url.path == "/" %} aria-current="page"{% endif %}>New scan</a>
-        <a href="/how-it-works"{% if request.url.path == "/how-it-works" %} aria-current="page"{% endif %}>How it works</a>
-        <a href="/api"{% if request.url.path == "/api" %} aria-current="page"{% endif %}>API</a>
-        <a href="/ai"{% if request.url.path == "/ai" %} aria-current="page"{% endif %}>AI</a>
-        <a href="/privacy"{% if request.url.path == "/privacy" %} aria-current="page"{% endif %}>Privacy</a>
-        <a href="/about"{% if request.url.path == "/about" %} aria-current="page"{% endif %}>About</a>
-        <a href="https://github.com/sowoi/check-opencloud-security" rel="noopener noreferrer">Source</a>
+      <nav class="site-nav" id="site-nav" aria-label="{{ t('chrome.nav.primary') }}">
+        <form class="header-search" action="/search" method="get" role="search">
+          <label class="visually-hidden" for="header-search-query">{{ t('chrome.search.label') }}</label>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+          </svg>
+          <input id="header-search-query" name="q" type="search"
+                 placeholder="{{ t('chrome.search.placeholder') }}" maxlength="120" autocomplete="off">
+        </form>
+        <a href="/"{% if request.url.path == "/" %} aria-current="page"{% endif %}>{{ t('nav.new_scan') }}</a>
+        <a href="/how-it-works"{% if request.url.path == "/how-it-works" %} aria-current="page"{% endif %}>{{ t('nav.how_it_works') }}</a>
+        <a href="/grades"{% if request.url.path == "/grades" %} aria-current="page"{% endif %}>{{ t('nav.grades') }}</a>
+        <a href="/documentation"{% if request.url.path == "/documentation" %} aria-current="page"{% endif %}>{{ t('nav.docs') }}</a>
+        <a href="/api"{% if request.url.path == "/api" %} aria-current="page"{% endif %}>{{ t('nav.api') }}</a>
+        <a href="/ai"{% if request.url.path == "/ai" %} aria-current="page"{% endif %}>{{ t('nav.ai') }}</a>
+        <a href="/cli"{% if request.url.path == "/cli" %} aria-current="page"{% endif %}>{{ t('nav.docker') }}</a>
+        <a href="/privacy"{% if request.url.path == "/privacy" %} aria-current="page"{% endif %}>{{ t('nav.privacy') }}</a>
+        <a href="/about"{% if request.url.path == "/about" %} aria-current="page"{% endif %}>{{ t('nav.about') }}</a>
+        {#
+          A form rather than a row of links: a language is a choice somebody
+          makes, not a page somebody visits, and a POST cannot be triggered by
+          a link on somebody else's site. It carries the current path so the
+          answer comes back where the reader was - the path only, validated
+          server side, with the query string dropped.
+
+          Without scripting the button submits it. With scripting, lang.js
+          submits on change and the button is hidden by CSS, so nothing here
+          depends on an inline handler.
+        #}
+        <form class="language-switcher" action="{{ language_path|default('/language', true) }}"
+              method="post" aria-label="{{ t('lang.region') }}" data-language-form>
+          <label class="visually-hidden" for="language-choice">{{ t('lang.label') }}</label>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>
+            <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/>
+          </svg>
+          <select id="language-choice" name="locale">
+            {% for option in locales %}
+            <option value="{{ option.code }}"{% if option.current %} selected{% endif %}>{{ option.native_name }}</option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="next" value="{{ language_next|default('/', true) }}">
+          <button class="language-apply" type="submit">{{ t('lang.apply') }}</button>
+        </form>
       </nav>
     </div>
   </header>
@@ -93,57 +136,43 @@
     <div class="shell">
       <div class="footer-grid">
         <p class="footer-note">
-          <strong>A quiet service, by design.</strong><br>
-          Scans run from this server against the address you enter.
-          Results live in memory for {{ result_ttl_minutes }} minutes and are then gone.
-          Built on the <code>check-opencloud-security</code> scanner -
-          no trackers, no accounts, no analytics.
-          <a href="{{ project_url }}" rel="noopener noreferrer">Run it yourself</a>.
+          <strong>{{ t('footer.note.title') }}</strong><br>
+          {{ t.html('footer.note.body', minutes=result_ttl_minutes) }}
+          <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('footer.note.run_yourself') }}</a>.
         </p>
-        <nav class="footer-nav" aria-label="Secondary">
-          <a href="/how-it-works">How it works</a>
-          <a href="/api">API</a>
-          <a href="/ai">AI</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/about">About</a>
+        <nav class="footer-nav" aria-label="{{ t('chrome.nav.secondary') }}">
+          <a href="/how-it-works">{{ t('nav.how_it_works') }}</a>
+          <a href="/grades">{{ t('nav.grades') }}</a>
+          <a href="/documentation">{{ t('nav.docs') }}</a>
+          <a href="/search">{{ t('nav.search') }}</a>
+          <a href="/api">{{ t('nav.api') }}</a>
+          <a href="/ai">{{ t('nav.ai') }}</a>
+          <a href="/cli">{{ t('nav.docker') }}</a>
+          <a href="/privacy">{{ t('nav.privacy') }}</a>
+          <a href="/about">{{ t('nav.about') }}</a>
         </nav>
         <p class="build">
           <a class="version-badge" href="{{ project_url }}/releases"
              rel="noopener noreferrer"
-             title="The scanner version that produced these results">
+             title="{{ t('footer.version.title') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3 4 7v10l8 4 8-4V7l-8-4z"/><path d="M12 12 4 7"/>
               <path d="m12 12 8-5"/><path d="M12 12v9"/>
             </svg>
-            <span>Backend v{{ version }}</span>
+            <span>{{ t('footer.version.label', version=version) }}</span>
           </a>
         </p>
       </div>
-      <p class="legal">
-        <strong>This check is not exhaustive, and a good grade is not a
-        certificate.</strong> It reads what a publicly reachable OpenCloud
-        instance shows an anonymous visitor: its version, the advisories
-        against that version, its transport, its headers and a set of
-        settings that are visible without logging in. An
-        &ldquo;A&rdquo; means none of those went wrong - not that the instance
-        is secure. Everything behind the login, the
-        server it runs on, the network around it, the data in it and the
-        people with accounts on it are outside what any unauthenticated scan
-        can see. Treat the result as one input among several, never as a
-        security audit or a penetration test.
-      </p>
-      <p class="legal">
-        This is an independent community project. It is not affiliated with
-        OpenCloud GmbH and is neither recommended nor supported by the
-        company. &ldquo;OpenCloud&rdquo;, the OpenCloud logo and all
-        associated trademarks are the property of their respective owners and
-        are used here solely to indicate which software this tool checks.
-      </p>
+      <p class="legal">{{ t.html('footer.legal.scope') }}</p>
+      {# The trademark notice is not optional chrome: every user-facing
+         surface carries it, in every language. #}
+      <p class="legal">{{ t.html('footer.legal.trademark') }}</p>
     </div>
   </footer>
 
   <script src="/static/js/nav.js" defer></script>
+  <script src="/static/js/lang.js" defer></script>
   <script src="/static/js/reveal.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>

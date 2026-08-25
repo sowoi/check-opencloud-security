@@ -1,7 +1,8 @@
 # The frontend
 
-Everything the browser sees: ten templates, one stylesheet, five small
-scripts, the SVGs drawn for this project and the self-hosted Inter files.
+Everything the browser sees: twelve hand-written templates, the generated CLI
+documentation templates, one stylesheet, five small scripts, the SVGs drawn
+for this project and the three self-hosted typefaces.
 No framework, no build step, no
 `node_modules`, and nothing loaded from anywhere but `/static`.
 
@@ -13,6 +14,7 @@ scanner.
 * [Layout](#layout)
 * [The rules](#the-rules)
 * [Editing the design](#editing-the-design)
+* [Languages](#languages)
 * [The template contract](#the-template-contract)
 * [The scripts](#the-scripts)
 * [Discovery, in the markup](#discovery-in-the-markup)
@@ -29,6 +31,9 @@ frontend/
 │   ├── base.html    the shell: header, footer, version badge, legal notice
 │   ├── index.html   the landing page: the hero, the form and nothing else
 │   ├── how-it-works.html  what gets tested, and the four steps
+│   ├── grades.html  the real A+ to F map and the route upward
+│   ├── documentation.html  the local CLI reference and guide index
+│   ├── docs/*.html  generated local copies of the Markdown operator guides
 │   ├── api.html     the JSON API, the fair use limits, the machine-readable
 │   │                specifications and the note for AI agents
 │   ├── privacy.html what is kept, for how long, and what the log omits
@@ -45,11 +50,17 @@ frontend/
     ├── js/reveal.js marks blocks below the fold as they scroll into view
     ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
     │                og-image.png rendered from it
-    ├── fonts/       Inter (SIL OFL 1.1), self-hosted: the body face
+    ├── fonts/       Space Grotesk, Inter and JetBrains Mono, self-hosted,
+    │                each under the SIL OFL 1.1 shipped beside it
     └── vendor/      Swagger UI and ReDoc, for the optional API docs pages
 ```
 
-There is no build step. What is in this directory is what the browser gets.
+There is no browser asset build step. What is in this directory is what the
+browser gets. One documentation source-generation step happens before it gets
+here:
+`python scripts/build_frontend_documentation.py` refreshes `templates/docs/`,
+and `--check` is what CI runs. Production still serves static templates and
+does not parse Markdown.
 
 ## The rules
 
@@ -57,9 +68,10 @@ These are not style preferences. They are the product: the pitch is that this
 service is quiet, and a page that quietly fetched a font would make it a lie.
 
 - **No third-party anything.** No CDN, no font service, no analytics, no
-  tracking pixel, no embedded video. Body type is Inter, served from
-  `/static/fonts/` like every other byte; the display serif and the dossier
-  mono still come from the reader's own system stack.
+  tracking pixel, no embedded video. All three typefaces - Space Grotesk,
+  Inter and JetBrains Mono - are served from `/static/fonts/` like every
+  other byte, with their licences beside them; nothing is fetched from a font
+  service, and no face is left to the reader's own system stack.
 - **Twitter/X, Google and Meta by name, and not only as requests.** No
   `twitter:` cards, no `fb:` properties, no `google-site-verification`, no
   Fonts, Analytics, Tag Manager or reCAPTCHA, no pixel, embed or share
@@ -97,14 +109,18 @@ limit read as a nudge rather than a door: the **trademark notice** and the
 :root {
     --ink / --ink-soft / --ink-faint     text
     --paper / --card / --card-solid / --line / --line-strong   surfaces and hairlines
-    --glass-blur / --glass-hi              the frosted panes
-    --brand / --brand-deep / --brand-soft / --accent / --on-accent
+    --glass-blur / --glass-hi / --glass-edge   the frosted panes and their lit edge
+    --brand / --brand-deep / --brand-soft / --accent / --accent-ink / --on-accent
+    --cta / --cta-hover / --brand-glow / --brand-glow-strong   the one action
     --good / --fair / --bad / --info     ratings and severities (+ *-soft, *-ink)
     --header-bg / --header-line          the translucent sticky header
+    --field-bg / --field-border          a control inside a pane
     --code-bg / --code-ink / --tint      code blocks, and inline code
-    --sky / --grain / --gridline / --stars   the backdrop layers
-    --radius-sm / --radius / --radius-lg
-    --font / --font-display / --mono     Inter, serif display, dossier mono
+    --sky / --grain / --horizon          the backdrop layers
+    --radius-sm / --radius / --radius-lg / --radius-xl
+    --shadow-sm / --shadow / --shadow-lg
+    --font / --font-display / --mono     Inter, Space Grotesk, JetBrains Mono
+    --ease / --ease-out                  one easing under a pointer, one on arrival
 }
 ```
 
@@ -113,15 +129,15 @@ Change a colour there, not at the call site. The dark theme is a
 a second stylesheet, and a token added without a dark value will look wrong on
 half the machines that visit.
 
-The voice of the design is set by four things: display headings in the
-system serif (`--font-display`), section labels in letterspaced monospace
-(the `.kicker` class, which draws its own leading rule), hairline rules
-instead of filled chrome, and frosted panes - cards are translucent and
-diffuse the backdrop they float over, carrying a single top-light. The one
-ornament is the reticle: two diagonal corner brackets from the `.brackets`
-class, framing the form that starts a scan. Keep that list short - the
-design works because the serif, the mono, the glass and the brackets are
-the only voices.
+The voice of the design is set by five things: display headings in Space
+Grotesk (`--font-display`), data in JetBrains Mono (`--mono`) - labels,
+counters, addresses, findings, the address field itself - hairline rules
+instead of filled chrome, frosted panes that blur and over-saturate the
+backdrop and carry one lit edge along their top-left, and the aurora that
+drifts behind all of it. The ornaments are the halo the `.brackets` class
+breathes around the form that starts a scan, and the reticle mark inside the
+command bar. Keep that list short - the design works because those are the
+only voices. [`DESIGN.md`](../DESIGN.md) is the long version.
 
 Two media queries carry real obligations:
 
@@ -131,6 +147,22 @@ Two media queries carry real obligations:
 
 Grades and severities have their own colour pairs. Keep a rating's colour tied
 to its meaning - a green **F** would be a very expensive joke.
+
+## Languages
+
+Every hand-written frontend sentence is addressed by a stable key in
+`webapp/locales/en.py`; `de.py`, `es.py` and `fr.py` provide German, Spanish
+and French with identical keys, placeholders and inline markup. Templates call
+`t("page.element")` or `t.html(...)` and are never copied per language.
+Measured values and remote error text are evidence, not interface copy, and
+must remain verbatim.
+
+The server chooses a language from the explicit `cos_locale` cookie, then the
+weighted `Accept-Language` header, then English. The switcher posts to
+`/language`, works without JavaScript and may return only to a validated local
+path. `lang.js` only submits the form when the select changes. Generated guide
+bodies remain English under `lang="en"` with a localized notice; their page
+chrome is translated.
 
 ## The template contract
 
@@ -147,6 +179,10 @@ to its meaning - a green **F** would be a very expensive joke.
 | `og_image` | The absolute URL of the share image |
 | `mcp_enabled` | Whether the MCP endpoint is mounted, so the API page can offer it |
 | `mcp_url` | Where it is, absolute when the origin is known |
+| `t` | The request-scoped string-catalog translator |
+| `locale` | `en`, `de`, `es` or `fr`, also used as the document language |
+| `locales` | The accessible language-switcher choices |
+| `language_next` | The validated local path the switcher returns to |
 
 `index.html` also receives:
 
@@ -162,9 +198,10 @@ to its meaning - a green **F** would be a very expensive joke.
 `scan.html` receives `scan`: the record as `GET /api/scans/{uuid}` returns it
 (`state`, `target`, `releaseTrack`, `expiresIn`, `queue`, and `result` once
 there is one) plus `summary`, the same result regrouped for the dashboard.
-`404.html` and the content pages - `how-it-works.html`, `api.html`,
-`ai.html`, `privacy.html`, `about.html` - receive nothing but the base
-variables, plus `limits` and `docs_enabled` for the API page. `docs_enabled`
+`404.html` and the content pages receive nothing but the base variables,
+except for three small catalogues: `grades.html` gets the plugin-derived grade
+scale and severity caps, `documentation.html` gets the guide index, and
+`api.html` gets `limits` and `docs_enabled`. `docs_enabled`
 now governs only the browsable Swagger and ReDoc links: `/openapi.json`,
 `/arazzo.json` and `/.well-known/ai.json` are public regardless, and
 `ai.html`, the page at `/ai`, links them whether the switch is on or not. Each of them ends by including
@@ -176,9 +213,12 @@ The form sends exactly four fields - `target_url`, `ignore_hardenings`,
 sends anything else earns a **422** from the server, on purpose.
 
 The address field is deliberately `type="text"`, not `type="url"`: a bare
-hostname is a complete answer and the server assumes `https://`. Changing it
-back would make the browser refuse `opencloud.example.com` before the request
-is ever sent.
+hostname is a complete answer and the server assumes `https://`. Its pattern
+accepts only a hostname, optional scheme and port, and an optional trailing
+slash. The server enforces the same boundary and refuses paths, parameters,
+fragments and credentials; the browser check is early feedback, never the
+security boundary. Changing the field back to `type="url"` would make the
+browser refuse `opencloud.example.com` before the request is ever sent.
 
 ## The scripts
 
@@ -200,11 +240,15 @@ hand-off: the steps settle, the page says the report is ready, falls away,
 and only then is the rendered answer asked for - unless the reader asked for
 reduced motion, which keeps the old immediate reload.
 
-`reveal.js` (37 lines) is decoration in the same sense `nav.js` is: it sets
+`reveal.js` (74 lines) is decoration in the same sense `nav.js` is: it sets
 `data-reveal-root="on"` on `<html>`, which is what the hidden-until-revealed
 rules in `app.css` key off, and then an IntersectionObserver marks each
-`[data-reveal]` block as it scrolls into view. A browser without the observer
-gets no attribute and therefore a page that hides nothing.
+`[data-reveal]` block as it scrolls into view. A jump - an anchor, the End
+key, a scroll position the browser restores - can carry a block from below the
+fold to above it between two frames, which the observer sees as no crossing at
+all, so a scrolled page also sweeps up whatever it has already passed and a
+block can never be stranded invisible. A browser without the observer gets no
+attribute and therefore a page that hides nothing.
 
 All of them are plain ES5-era JavaScript in an IIFE, because there is no
 bundler and there does not need to be one.

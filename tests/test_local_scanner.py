@@ -13,6 +13,7 @@ import threading
 
 import pytest
 
+import opencloud_local_scan.scanner as scanner_module
 from opencloud_local_scan.releases import ReleaseSettings
 from opencloud_local_scan.scanner import (
     ScanError,
@@ -49,6 +50,24 @@ def test_reads_product_version_not_the_legacy_constant(default_result):
     assert default_result["legacyVersion"] == "0.1.0.0"
     assert default_result["product"] == "OpenCloud"
     assert default_result["edition"] == "stable"
+
+
+def test_an_instance_below_a_subfolder_is_probed_below_that_base_path():
+    """Every known endpoint must stay below the deployment prefix."""
+    behaviour = InstanceBehaviour(base_path="/opencloud")
+
+    with FakeOpenCloud(behaviour) as instance:
+        result = scan(
+            f"{instance.host}/opencloud",
+            settings=SETTINGS,
+            release_settings=NO_UPDATES,
+        )
+
+    assert result["product"] == "OpenCloud"
+    requested = {path for _, path, _ in behaviour.seen}
+    assert "/opencloud/status.php" in requested
+    assert "/status.php" not in requested
+    assert all(path.startswith("/opencloud") for path in requested)
 
 
 def test_default_headers_are_recognised(default_result):
@@ -107,6 +126,112 @@ def test_capabilities_absent_does_not_invent_hardenings():
     assert "publicLinkPasswordEnforced" not in result["hardenings"]
     # Header-derived hardenings are still there.
     assert "hstsLongMaxAge" in result["hardenings"]
+
+
+def test_a_disabled_password_policy_is_reported_instead_of_disappearing():
+    """Turning the policy off must fail more loudly than lowering its minimum."""
+    behaviour = InstanceBehaviour()
+    policy = behaviour.capabilities["ocs"]["data"]["capabilities"]["password_policy"]
+    policy.clear()
+    policy["max_characters"] = 72
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["passwordPolicyEnforced"] is False
+
+    unknown = InstanceBehaviour()
+    unknown.capabilities["ocs"]["data"]["capabilities"]["password_policy"].clear()
+    unknown_result = run_scan(unknown)
+    assert "passwordPolicyEnforced" not in unknown_result["hardenings"]
+
+
+def test_unsafe_web_embed_origins_are_failed_and_safe_defaults_pass():
+    """An iframe must not choose where delegated credentials are accepted from."""
+    unsafe = run_scan(
+        InstanceBehaviour(
+            web_config={
+                "options": {
+                    "embed": {
+                        "messagesOrigin": "*",
+                        "delegateAuthentication": True,
+                    }
+                }
+            }
+        )
+    )
+    safe = run_scan(InstanceBehaviour())
+
+    wildcard = _check(unsafe, "webEmbedMessageOriginRestricted")
+    delegated = _check(unsafe, "webEmbedDelegatedAuthenticationRestricted")
+    assert wildcard["passed"] is False
+    assert wildcard["severity"] == "high"
+    assert delegated["passed"] is False
+    assert delegated["severity"] == "critical"
+    assert _check(safe, "webEmbedMessageOriginRestricted")["passed"] is True
+    assert _check(safe, "webEmbedDelegatedAuthenticationRestricted")["passed"] is True
+
+
+def test_a_matching_opencloud_backend_on_the_direct_port_is_reported(monkeypatch):
+    """A reverse proxy must not be bypassable through its private listener."""
+    settings = ScannerSettings(
+        scheme="http",
+        timeout=3,
+        check_debug_ports=True,
+        debug_port_timeout=1,
+        include_bundled_db=True,
+    )
+    with FakeOpenCloud(InstanceBehaviour(base_path="/opencloud")) as public, FakeOpenCloud(
+        InstanceBehaviour()
+    ) as backend:
+        monkeypatch.setattr(scanner_module, "BACKEND_PORT", backend.port)
+        exposed = scan(
+            f"{public.host}/opencloud",
+            settings=settings,
+            release_settings=NO_UPDATES,
+        )
+
+    finding = _check(exposed, "backendPortClosed")
+    assert finding["passed"] is False
+    assert finding["severity"] == "high"
+
+    with FakeOpenCloud(InstanceBehaviour()) as public:
+        monkeypatch.setattr(scanner_module, "BACKEND_PORT", backend.port)
+        closed = scan(
+            public.host,
+            settings=settings,
+            release_settings=NO_UPDATES,
+        )
+    assert _check(closed, "backendPortClosed")["passed"] is True
+
+
+def test_debug_ports_use_the_validated_address_pin(monkeypatch):
+    """Enabling optional port probes must not reopen DNS rebinding."""
+    dialled: list[tuple[str, int]] = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    def connect(address, timeout):
+        dialled.append(address)
+        return Connection()
+
+    monkeypatch.setattr(scanner_module.socket, "create_connection", connect)
+    settings = ScannerSettings(
+        check_debug_ports=True,
+        debug_ports=(9205,),
+        pinned_addresses=(("opencloud.example.com", ("192.0.2.10",)),),
+    )
+
+    findings = scanner_module._debug_port_findings(
+        "opencloud.example.com", settings
+    )
+
+    assert dialled == [("192.0.2.10", 9205)]
+    assert findings[0].passed is False
 
 
 def test_unsafe_inline_csp_is_flagged():
@@ -646,6 +771,82 @@ def test_an_instance_with_no_discoverable_provider_is_pointed_at_the_docs():
     assert _check(found, "identityProviderDetected")["passed"] is True
 
 
+def test_the_documented_demo_accounts_fail_the_scan_critically():
+    """
+    An admin account with a password out of the manual is the worst finding there is.
+
+    IDM_CREATE_DEMO_USERS leaves 'dennis' - an administrator - reachable with
+    the password 'demo'. It has to be critical, and it has to fail: a warning
+    that does not cap the rating would let an instance anybody can log into as
+    an admin still be graded well.
+    """
+    from opencloud_local_scan import describe_hardening
+
+    result = run_scan(InstanceBehaviour(demo_users=True))
+    finding = _check(result, "demoUsersDisabled")
+    assert finding["passed"] is False
+    assert finding["severity"] == "critical"
+    assert "dennis" in finding["detail"]
+    assert "demoUsersDisabled" in failed_extra_checks(result)
+    assert result["rating"] <= 2
+
+    explained = describe_hardening("demoUsersDisabled")
+    assert explained.setting == "IDM_CREATE_DEMO_USERS"
+    assert "docs.opencloud.eu" in explained.reference
+
+
+def test_an_instance_without_demo_accounts_passes_the_check():
+    """
+    The check has to be able to say 'no', or it says nothing.
+
+    A rejected login is the evidence the scan came for, so an instance that
+    refuses every documented pair passes rather than being left unrated.
+    """
+    result = run_scan(InstanceBehaviour())
+    finding = _check(result, "demoUsersDisabled")
+    assert finding["passed"] is True
+    assert "demoUsersDisabled" not in failed_extra_checks(result)
+
+
+def test_demo_credentials_are_only_ever_sent_to_the_instances_own_provider():
+    """
+    Logins belong to whoever signs users in, and only OpenCloud's own IDM has demo users.
+
+    With an external provider the accounts come from there, so the check has
+    nothing to look for and must not push logins at somebody's Keycloak. The
+    finding disappears entirely rather than passing quietly.
+    """
+    behaviour = InstanceBehaviour(
+        demo_users=True, openid_issuer="https://auth.example.com/realms/opencloud"
+    )
+    result = run_scan(behaviour)
+    assert [entry for entry in result["extraChecks"] if entry["id"] == "demoUsersDisabled"] == []
+    assert not any(
+        "Authorization" in headers for _, _, headers in behaviour.seen
+    ), behaviour.seen
+
+    internal = InstanceBehaviour(demo_users=True)
+    run_scan(internal)
+    assert any("Authorization" in headers for _, _, headers in internal.seen)
+
+
+def test_a_wide_open_endpoint_does_not_invent_a_demo_user():
+    """
+    An instance answering everybody proves nothing about the credentials sent.
+
+    Reporting demo accounts because an unauthenticated request also succeeds
+    would turn one broken proxy into a false accusation of an admin password
+    leak; the missing authentication is reported by its own check instead.
+    """
+    result = run_scan(InstanceBehaviour(unprotected=True))
+    finding = _check(result, "demoUsersDisabled")
+    assert finding["passed"] is True
+    assert "without authentication" in finding["detail"]
+    assert any(
+        name.startswith("authentication:") for name in failed_extra_checks(result)
+    )
+
+
 def test_office_and_calendar_integrations_are_reported_as_observations():
     """
     What can be seen is reported; what cannot be seen is not guessed at.
@@ -678,3 +879,43 @@ def test_office_and_calendar_integrations_are_reported_as_observations():
     assert bare["integrations"]["office"]["apps"] == []
     assert bare["integrations"]["calendar"]["detected"] is False
     assert bare["rating"] == result["rating"]
+
+
+def test_the_result_document_names_the_addresses_the_name_resolved_to():
+    """
+    'It answers on the wrong address' explains a surprising number of surprises.
+
+    A scan judges whatever the name pointed at while it ran, so the document
+    records that pair rather than leaving the reader to resolve it again later
+    and possibly get a different answer.
+    """
+    result = run_scan(InstanceBehaviour())
+
+    assert result["addresses"]["ipv4"] == ["127.0.0.1"]
+    # The negative half: an instance with no AAAA record must not grow one.
+    assert result["addresses"]["ipv6"] == []
+
+
+def test_pinned_addresses_win_over_a_second_lookup():
+    """
+    The web application dials the addresses it validated, so those are the ones to report.
+
+    Resolving again here could name an address the scan never connected to -
+    which is exactly the confusion the block exists to remove - and a name
+    that does not resolve at all must leave the scan reporting nothing rather
+    than failing.
+    """
+    from opencloud_local_scan.scanner import _resolved_addresses
+
+    pinned = ScannerSettings(
+        pinned_addresses=(
+            ("opencloud.example.com", ("198.51.100.7", "2001:db8::7", "198.51.100.7")),
+        )
+    )
+    assert _resolved_addresses("opencloud.example.com", pinned) == {
+        "ipv4": ["198.51.100.7"],
+        "ipv6": ["2001:db8::7"],
+    }
+    # A different name is not covered by that pin and is looked up normally;
+    # one that cannot be looked up is empty rather than an error.
+    assert _resolved_addresses("nothing.invalid", pinned) == {"ipv4": [], "ipv6": []}

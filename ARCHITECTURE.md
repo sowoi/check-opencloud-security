@@ -11,6 +11,7 @@ follow from. For a decision and the alternatives that lost, read the record in
   * [Measure: `opencloud_local_scan/`](#measure-opencloud_local_scan)
   * [Judge: `check_opencloud_security.py`](#judge-check_opencloud_securitypy)
   * [Serve: `webapp/` and `frontend/`](#serve-webapp-and-frontend)
+  * [Frontend localization](#frontend-localization)
 * [How settings reach the scanner](#how-settings-reach-the-scanner)
 * [How a scan flows through the web application](#how-a-scan-flows-through-the-web-application)
 * [The agent-facing surfaces](#the-agent-facing-surfaces)
@@ -114,6 +115,8 @@ the letters come from the plugin's `RATE_MAP`.
 | `queue.py`, `tasks.py` | Handing a scan to the ARQ worker, and running it |
 | `runner.py` | Where a request becomes `ScannerSettings` |
 | `catalog.py` | The waiver allow-list and the dashboard grouping |
+| `documentation.py`, `search.py` | Public guide and release-search manifests |
+| `i18n.py`, `locales/` | Request locale selection and the four string catalogues |
 | `reports.py` | CSV, SARIF and the hand-written PDF |
 | `redis_backend.py` | The Redis client, and the in-process stand-in the tests use |
 | `workflows.py` | What a *task* means: submit, poll, wait, complete, export |
@@ -136,6 +139,42 @@ still the *serve* layer and nothing else: see
 markup. Nothing the browser loads comes from anywhere but `/static`, and the
 CSP has no `unsafe-inline`, so there is no inline style, script or handler
 anywhere.
+
+### Frontend localization
+
+One set of templates renders in English, German, Spanish and French. English
+is the source catalogue; the other three catalogues have identical keys,
+format placeholders and inline markup. `app.py` binds one translator to each
+HTML request:
+
+```text
+validated cos_locale cookie
+          │
+          ├── absent ──► weighted Accept-Language
+          │
+          └── unsupported/absent ──► English
+                                      │
+                                      ▼
+                         shared Jinja templates + <html lang>
+```
+
+The `/language` POST stores an `HttpOnly`, `SameSite=Lax` cookie and redirects
+only to a validated local path. Pages vary on both `Cookie` and
+`Accept-Language`; no locale appears in a URL, so a result UUID remains one
+capability with one address.
+
+Only application-authored HTML is translated. OpenAPI, Arazzo, MCP, discovery
+documents and exports stay stable English contracts, while values and errors
+measured from a remote instance remain verbatim. Browser JavaScript receives
+its phrases through translated `data-*` attributes, never a second catalogue.
+Generated operator-guide bodies remain English under `lang="en"` and have
+localized chrome and a localized notice.
+
+Search follows the same boundary at release time:
+`scripts/build_search_index.py` writes one English index plus German, Spanish
+and French overlays from the catalogues. The public manifest remains its only
+input, so translation does not create a path from result data into search.
+ADR 0020 records the language decision; ADR 0019 records the search boundary.
 
 ## How settings reach the scanner
 

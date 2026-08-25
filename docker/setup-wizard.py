@@ -182,6 +182,7 @@ class Setup:
     audit_salt: str = ""
     purge_token: str = ""
     purge_signing_key: str = ""
+    export_signing_key: str = ""
     encrypt_results: bool = False
     encryption_key: str = ""
 
@@ -208,6 +209,7 @@ SECRET_VARIABLES: dict[str, str] = {
     "releases_token": "COS_WEB_RELEASES_TOKEN",
     "purge_token": "COS_WEB_PURGE_TOKEN",
     "purge_signing_key": "COS_WEB_PURGE_SIGNING_KEY",
+    "export_signing_key": "COS_WEB_EXPORT_SIGNING_KEY",
     "audit_salt": "COS_WEB_AUDIT_SALT",
     "encryption_key": "COS_WEB_ENCRYPTION_KEY_1",
     "mcp_auth_issuer": "COS_WEB_MCP_AUTH_ISSUER",
@@ -1077,6 +1079,17 @@ def build_sections(setup: Setup) -> list[Section]:
                     generate=32,
                 ),
                 Question(
+                    key="export_signing_key",
+                    prompt="Signing key for downloaded reports",
+                    explain=(
+                        "Adds a verifiable HMAC-SHA256 header over the exact PDF, "
+                        "SARIF, JSON or CSV bytes. Keep the key in the generated "
+                        ".env and give it only to systems that verify reports."
+                    ),
+                    example="generate",
+                    generate=32,
+                ),
+                Question(
                     key="encrypt_results",
                     prompt="Encrypt stored results with AES-256-GCM?",
                     explain=(
@@ -1723,6 +1736,13 @@ def _web_environment(setup: Setup) -> list[EnvEntry]:
             "Makes the proof of deletion verifiable after the data is gone.",
         )
     )
+    entries.append(
+        _entry(
+            "COS_WEB_EXPORT_SIGNING_KEY",
+            f'"{_env_reference("export_signing_key")}"',
+            "HMAC-SHA256 over the exact bytes of every downloaded report.",
+        )
+    )
     entries.extend(_encryption_environment(setup))
     return entries
 
@@ -2178,6 +2198,7 @@ def _generate_unattended(setup: Setup) -> None:
     """
     setup.purge_token = setup.purge_token or secrets.token_hex(32)
     setup.purge_signing_key = setup.purge_signing_key or secrets.token_hex(32)
+    setup.export_signing_key = setup.export_signing_key or secrets.token_hex(32)
     if setup.audit_log and not setup.audit_salt:
         setup.audit_salt = secrets.token_hex(16)
     if setup.encrypt_results and not setup.encryption_key:

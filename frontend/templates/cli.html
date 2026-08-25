@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('cli.title') }}{% endblock %}
+{% block description %}{{ t('cli.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <p class="kicker">{{ t('cli.kicker') }}</p>
+  <h1>{{ t('cli.title') }}</h1>
+  <p class="lede">{{ t('cli.lede') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner" data-reveal>
+  <p class="kicker">{{ t('cli.oneliner.kicker') }}</p>
+  <h2 id="oneliner">{{ t('cli.oneliner.heading') }}</h2>
+<pre class="code-block"><code>docker run --rm --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.example.com</code></pre>
+  <p class="flush">{{ t('cli.oneliner.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-json" data-reveal>
+  <p class="kicker">{{ t('cli.json.kicker') }}</p>
+  <h2 id="oneliner-json">{{ t('cli.json.heading') }}</h2>
+<pre class="code-block"><code>docker run --rm --entrypoint check-opencloud-scanner \
+  okxo/opencloud-scanner:latest scan opencloud.example.com</code></pre>
+  <p class="flush">{{ t.html('cli.json.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-private" data-reveal>
+  <p class="kicker">{{ t('cli.private.kicker') }}</p>
+  <h2 id="oneliner-private">{{ t('cli.private.heading') }}</h2>
+<pre class="code-block"><code>docker run --rm --network host --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.internal.example.com</code></pre>
+  <p class="flush">{{ t('cli.private.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-nodocker" data-reveal>
+  <p class="kicker">{{ t('cli.nodocker.kicker') }}</p>
+  <h2 id="oneliner-nodocker">{{ t('cli.nodocker.heading') }}</h2>
+<pre class="code-block"><code>uvx --from check-opencloud-security check-opencloud-security \
+  --host opencloud.example.com</code></pre>
+  <p class="flush">{{ t.html('cli.nodocker.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-more" data-reveal>
+  <p class="kicker">{{ t('cli.more.kicker') }}</p>
+  <h2 id="oneliner-more">{{ t('cli.more.heading') }}</h2>
+  <p class="flush">{{ t.html('cli.more.body', project=project_url) }}</p>
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

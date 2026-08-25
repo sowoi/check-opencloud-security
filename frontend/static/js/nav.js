@@ -1,7 +1,8 @@
 /*
  * The header menu on a narrow screen.
  *
- * Six links and a brand line do not fit across a phone, and a nav that
+ * The search, language control, links and brand do not fit on every screen,
+ * and a nav that
  * overflows is one that has to be scrolled sideways to be read. This file
  * collapses them behind a button - and it is the file itself that turns the
  * collapsed layout on, by marking the document, so that with scripting
@@ -41,7 +42,7 @@
 
     // A menu left open while the window grows would otherwise stay open as a
     // column underneath a header that has room for the row again.
-    var wide = window.matchMedia("(min-width: 901px)");
+    var wide = window.matchMedia("(min-width: 1361px)");
     function onWidthChange(event) {
         if (event.matches) {
             setOpen(false);

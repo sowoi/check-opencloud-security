@@ -392,6 +392,26 @@ document then stops advertising it. A new tool needs a row in `docs/mcp.md`,
 - Starlette needs `TemplateResponse(request, name, context, status_code=...)`;
   the two-argument form was removed.
 
+**Search is a release artefact, never a runtime crawl.**
+`webapp/search.py` explicitly lists the public templates,
+`scripts/build_search_index.py` writes the English index and its German,
+Spanish and French overlays, and only the release workflow refreshes them.
+Never give the generator a store, API, result template, export, UUID or
+network input; scan results and submitted addresses must be structurally
+impossible to index.
+
+**Frontend prose is a string catalogue, not copied templates.**
+`webapp/locales/en.py` is the source; `de.py`, `es.py` and `fr.py` must have
+the same keys, placeholders and inline markup. Templates use `t()` or
+`t.html()` and JavaScript reads translated `data-*` values rather than
+carrying another catalogue. A validated `cos_locale` cookie wins over the
+weighted `Accept-Language` header, then English is the fallback. The language
+switch is a POST to `/language` and may return only to a validated local path.
+Keep OpenAPI, Arazzo, MCP, discovery documents and exports in English, and
+keep remote scan evidence verbatim. Generated guide bodies remain English
+under `lang="en"` with a localized notice and chrome. See
+[ADR 0020](adr/0020-frontend-language-is-request-scoped.md).
+
 Every page carries the trademark notice in the footer of `base.html`. See
 [Trademarks and affiliation](#trademarks-and-affiliation) - do not remove it
 from a template, and add it to any new surface that stands on its own.
@@ -550,6 +570,16 @@ in `README.md`; a new page needs a row in the guide table under
 `# Deployment guides` and a row in the `docs/README.md` index. Relative links
 in `docs/` point one level up (`../README.md#anchor`), so moving a section
 means fixing the links that reached it by anchor.
+
+`/documentation` is the browser-facing CLI reference. Its index is
+hand-written, but every document below it is generated from `README.md`,
+`opencloud_local_scan/README.md` or `docs/` by
+`scripts/build_frontend_documentation.py`, using the manifest in
+`webapp/documentation.py`. Regenerate after changing a selected source; CI
+runs the script with `--check` and rejects stale HTML. Keep this a
+**build-time** pipeline: production serves the checked-in templates and must
+not gain a Markdown parser or depend on source files absent from the release
+bundle. See ADR 0018.
 
 `.github/copilot-instructions.md` is the same guidance in the form GitHub
 Copilot reads automatically. This file stays the authoritative one; keep the

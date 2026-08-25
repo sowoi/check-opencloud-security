@@ -217,11 +217,21 @@ class TlsInspection:
         """
         if self.trusted is None:
             return None
-        detail = (
-            "Certificate chain is trusted"
-            if self.trusted
-            else f"Certificate is not trusted (self-signed or unknown CA): {self.verify_error}"
-        )
+        issuer = self.certificate.issuer if self.certificate is not None else ""
+        staging = "(staging)" in issuer.lower() or "fake le" in issuer.lower()
+        if self.trusted:
+            detail = "Certificate chain is trusted"
+        elif staging:
+            detail = (
+                "Certificate was issued by the Let's Encrypt staging CA "
+                f"({issuer}); clear TRAEFIK_ACME_CASERVER and issue a production "
+                "certificate"
+            )
+        else:
+            detail = (
+                "Certificate is not trusted (self-signed or unknown CA): "
+                f"{self.verify_error}"
+            )
         return TlsCheck(
             "tlsTrusted",
             "high" if verification_required else "low",
@@ -356,11 +366,17 @@ class _Handshake(NamedTuple):
     error: Exception | None
 
 
-def _connect(host: str, port: int, timeout: float, context: ssl.SSLContext) -> _Handshake:
+def _connect(
+    host: str,
+    port: int,
+    timeout: float,
+    context: ssl.SSLContext,
+    connect_host: str | None = None,
+) -> _Handshake:
     """Open one TLS connection with the given context and describe the outcome."""
     try:
-        raw = socket.create_connection((host, port), timeout=timeout)
-        with raw, context.wrap_socket(raw, server_hostname=host) as tls:
+        raw = socket.create_connection((connect_host or host, port), timeout=timeout)
+        with raw, context.wrap_socket(raw, server_hostname=host.strip("[]")) as tls:
             cipher = tls.cipher() or ("", "", None)
             # `get_unverified_chain` counts what the server actually sent
             # and exists only from Python 3.13 on; without it the chain
@@ -579,12 +595,18 @@ def _legacy_context(version_name: str) -> ssl.SSLContext | None:
     return context
 
 
-def _accepts(host: str, port: int, timeout: float, version_name: str) -> bool | None:
+def _accepts(
+    host: str,
+    port: int,
+    timeout: float,
+    version_name: str,
+    connect_host: str | None = None,
+) -> bool | None:
     """Whether the server completes a handshake pinned to one old TLS version."""
     context = _legacy_context(version_name)
     if context is None:
         return None
-    handshake = _connect(host, port, timeout, context)
+    handshake = _connect(host, port, timeout, context, connect_host)
     if handshake.ok:
         return True
     if isinstance(handshake.error, ssl.SSLError):
@@ -594,7 +616,7 @@ def _accepts(host: str, port: int, timeout: float, version_name: str) -> bool | 
 
 
 def _legacy_handshake(
-    host: str, port: int, timeout: float
+    host: str, port: int, timeout: float, connect_host: str | None = None
 ) -> tuple[str, _Handshake] | None:
     """
     Reach a server that speaks nothing a modern client will offer.
@@ -608,13 +630,15 @@ def _legacy_handshake(
         context = _legacy_context(attribute)
         if context is None:
             continue
-        handshake = _connect(host, port, timeout, context)
+        handshake = _connect(host, port, timeout, context, connect_host)
         if handshake.ok:
             return label, handshake
     return None
 
 
-def _stapled(host: str, port: int, timeout: float) -> tuple[bool | None, str]:
+def _stapled(
+    host: str, port: int, timeout: float, connect_host: str | None = None
+) -> tuple[bool | None, str]:
     """
     Ask `openssl s_client` whether a stapled OCSP response comes back.
 
@@ -628,13 +652,16 @@ def _stapled(host: str, port: int, timeout: float) -> tuple[bool | None, str]:
         return None, "openssl is not installed, so stapling could not be checked"
     if not _SAFE_HOST.match(host):
         return None, "hostname not in a form safe to hand to openssl"
+    destination = connect_host or host
+    if ":" in destination and not destination.startswith("["):
+        destination = f"[{destination}]"
     command = [
         binary,
         "s_client",
         "-connect",
-        f"{host}:{port}",
+        f"{destination}:{port}",
         "-servername",
-        host,
+        host.strip("[]"),
         "-status",
     ]
     try:
@@ -662,6 +689,7 @@ def inspect(
     *,
     probe_deprecated: bool = True,
     check_stapling: bool = True,
+    connect_host: str | None = None,
 ) -> TlsInspection:
     """
     Look at one TLS endpoint and report everything worth reporting.
@@ -671,7 +699,9 @@ def inspect(
     still be read, plus one short-lived connection per deprecated protocol
     version that is probed.
     """
-    verified = _connect(host, port, timeout, ssl.create_default_context())
+    verified = _connect(
+        host, port, timeout, ssl.create_default_context(), connect_host
+    )
     handshake = verified
     trusted = verified.ok
     verify_error = ""
@@ -687,9 +717,9 @@ def inspect(
         else:
             # The handshake failed before the certificate was ever judged.
             trusted_value = None
-        handshake = _connect(host, port, timeout, _insecure_context())
+        handshake = _connect(host, port, timeout, _insecure_context(), connect_host)
         if not handshake.ok:
-            fallback = _legacy_handshake(host, port, timeout)
+            fallback = _legacy_handshake(host, port, timeout, connect_host)
             if fallback is None:
                 return TlsInspection(
                     host=host, port=port, reachable=False, error=str(handshake.error or error)
@@ -709,7 +739,7 @@ def inspect(
         for label, attribute in DEPRECATED_VERSIONS:
             if label in deprecated_probed:
                 continue
-            accepted = _accepts(host, port, timeout, attribute)
+            accepted = _accepts(host, port, timeout, attribute, connect_host)
             if accepted is None:
                 continue
             deprecated_probed.append(label)
@@ -719,7 +749,7 @@ def inspect(
     stapled: bool | None = None
     note = ""
     if check_stapling and certificate is not None and certificate.ocsp_urls:
-        stapled, note = _stapled(host, port, timeout)
+        stapled, note = _stapled(host, port, timeout, connect_host)
     elif check_stapling and certificate is not None:
         note = "The certificate names no OCSP responder, so there is nothing to staple"
 

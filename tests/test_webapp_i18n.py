@@ -1,0 +1,148 @@
+"""The frontend speaks the visitor's language without changing API contracts."""
+
+from __future__ import annotations
+
+import re
+from string import Formatter
+
+import pytest
+
+from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
+    _isolated_backend,
+    _offline_resolver,
+    client,
+)
+from webapp.i18n import (
+    LANGUAGE_COOKIE,
+    Translator,
+    negotiate_locale,
+    safe_next_path,
+)
+from webapp.locales import CATALOGUES
+
+FRONTEND_PATHS = (
+    "/",
+    "/how-it-works",
+    "/grades",
+    "/documentation",
+    "/search",
+    "/api",
+    "/ai",
+    "/cli",
+    "/privacy",
+    "/about",
+)
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("de-DE,de;q=0.9,en;q=0.8", "de"),
+        ("es-MX;q=0.7,fr;q=0.9", "fr"),
+        ("fr-CA,en;q=0.5", "fr"),
+        ("nl-NL,*;q=0.5", "en"),
+        ("de;q=0,en;q=0.5", "en"),
+        ("not a language", "en"),
+    ],
+)
+def test_browser_language_negotiation_honours_regions_and_quality(
+    header: str, expected: str
+):
+    """A browser's weighted language list must select the best supported locale."""
+    assert negotiate_locale(header) == expected
+
+
+def test_a_chosen_language_persists_and_overrides_the_browser():
+    """A deliberate switch must win over later browser-language negotiation."""
+    test_client = client()
+
+    response = test_client.post(
+        "/language",
+        data={"locale": "de", "next": "/grades"},
+        headers={"accept-language": "fr"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/grades"
+    assert f"{LANGUAGE_COOKIE}=de" in response.headers["set-cookie"]
+    assert "HttpOnly" in response.headers["set-cookie"]
+    assert "SameSite=lax" in response.headers["set-cookie"]
+    page = test_client.get("/grades", headers={"accept-language": "fr"})
+    assert '<html lang="de">' in page.text
+    assert Translator("de")("grades.title") in page.text
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "https://attacker.example/",
+        "//attacker.example/",
+        "/../admin",
+        r"/\attacker",
+        "/%2f%2fattacker.example",
+    ],
+)
+def test_the_language_switch_cannot_redirect_off_site(destination: str):
+    """The switcher's return field must never become an open redirect."""
+    response = client().post(
+        "/language",
+        data={"locale": "fr", "next": destination},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+def test_safe_language_return_paths_keep_local_pages_and_drop_queries():
+    """Switching on a result page should retain its path without copying a query."""
+    assert safe_next_path("/scans/1234?source=elsewhere#result") == "/scans/1234"
+
+
+def test_every_catalog_has_the_same_keys_placeholders_and_markup():
+    """A translated page must not lose a sentence, value, link, or emphasis."""
+    english = CATALOGUES["en"]
+
+    for locale in ("de", "es", "fr"):
+        translated = CATALOGUES[locale]
+        assert translated.keys() == english.keys()
+        for key, source in english.items():
+            assert _fields(translated[key]) == _fields(source), (locale, key)
+            assert _tags(translated[key]) == _tags(source), (locale, key)
+
+
+@pytest.mark.parametrize("locale", ["en", "de", "es", "fr"])
+def test_every_handwritten_page_renders_in_each_language(locale: str):
+    """One incomplete catalog key must not break an otherwise reachable page."""
+    test_client = client()
+    test_client.cookies.set(LANGUAGE_COOKIE, locale)
+
+    for path in FRONTEND_PATHS:
+        page = test_client.get(path)
+        assert page.status_code == 200
+        assert f'<html lang="{locale}">' in page.text
+        assert 'action="/language"' in page.text
+
+
+def test_machine_readable_contracts_remain_english():
+    """Language negotiation must never mutate schemas consumed by software."""
+    test_client = client(enable_docs=True)
+    english = test_client.get("/openapi.json").json()
+    german = test_client.get(
+        "/openapi.json", headers={"accept-language": "de-DE"}
+    ).json()
+
+    assert german == english
+
+
+def _fields(value: str) -> tuple[str, ...]:
+    return tuple(
+        field_name
+        for _, field_name, _, _ in Formatter().parse(value)
+        if field_name is not None
+    )
+
+
+def _tags(value: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"</?[^>]+>", value))

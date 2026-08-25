@@ -107,6 +107,7 @@ services:
       # now belongs to the identity provider.
       COS_WEB_PURGE_TOKEN: "${COS_WEB_PURGE_TOKEN:-}"
       COS_WEB_PURGE_SIGNING_KEY: "${COS_WEB_PURGE_SIGNING_KEY:-}"
+      COS_WEB_EXPORT_SIGNING_KEY: "${COS_WEB_EXPORT_SIGNING_KEY:-}"
       COS_WEB_ENCRYPT_RESULTS: "false"
     read_only: true
     tmpfs:

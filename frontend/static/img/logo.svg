@@ -8,13 +8,13 @@
   -->
   <style>
     svg {
-      --tile-a: #3539c4; --tile-b: #c2410c;
-      --shield: #ffffff; --tick: #3539c4; --sheen: #ffffff;
+      --tile-a: #5b4bff; --tile-b: #b13ad4;
+      --shield: #ffffff; --tick: #5b4bff; --sheen: #ffffff;
     }
     @media (prefers-color-scheme: dark) {
       svg {
-        --tile-a: #a5b4fc; --tile-b: #5eead4;
-        --shield: #141a3a; --tick: #5eead4; --sheen: #ffffff;
+        --tile-a: #a89dff; --tile-b: #e58ff0;
+        --shield: #141722; --tick: #a89dff; --sheen: #ffffff;
       }
     }
     .tile-a { stop-color: var(--tile-a); }

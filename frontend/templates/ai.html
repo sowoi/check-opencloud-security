@@ -1,94 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}For AI agents{% endblock %}
-{% block description %}Everything software needs to use this scanner without being written for it: the discovery document, the OpenAPI schema, the Arazzo workflows and the MCP endpoint.{% endblock %}
+{% block title %}{{ t('ai.title') }}{% endblock %}
+{% block description %}{{ t('ai.description') }}{% endblock %}
 
 {% block content %}
 <section class="page-head">
-  <p class="kicker">Machine guests</p>
-  <h1>For AI agents</h1>
-  <p class="lede">
-    This service is meant to be usable by software that was not written for
-    it. Everything an agent needs is published, in the open, without an
-    account: what the API can do, how its calls combine into a task, and a
-    way to run that task directly.
-  </p>
+  <p class="kicker">{{ t('ai.kicker') }}</p>
+  <h1>{{ t('ai.title') }}</h1>
+  <p class="lede">{{ t('ai.lede') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="ai-discovery" data-reveal>
-  <p class="kicker">Discovery</p>
-  <h2 id="ai-discovery">Start from one address</h2>
+  <p class="kicker">{{ t('ai.discovery.kicker') }}</p>
+  <h2 id="ai-discovery">{{ t('ai.discovery.heading') }}</h2>
   <ul class="plain-list">
-    <li>
-      <strong>Discovery</strong> -
-      <a href="/.well-known/ai.json">/.well-known/ai.json</a> names all of the
-      below, with absolute URLs. Start here.
-    </li>
-    <li>
-      <strong>OpenAPI</strong> - <a href="/openapi.json">/openapi.json</a>,
-      every operation with its real status codes and response shapes.
-    </li>
-    <li>
-      <strong>Arazzo workflows</strong> -
-      <a href="/arazzo.json">/arazzo.json</a>, the lifecycle of a scan:
-      submit, poll, detect completion, export.
-    </li>
+    <li>{{ t.html('ai.discovery.discovery') }}</li>
+    <li>{{ t.html('ai.discovery.openapi') }}</li>
+    <li>{{ t.html('ai.discovery.arazzo') }}</li>
     {% if mcp_enabled %}
-    <li>
-      <strong>MCP</strong> - <code>{{ mcp_url }}</code>, a Model Context
-      Protocol endpoint over streamable HTTP. Tools:
-      <code>scan_instance</code>, <code>scan_instances</code>,
-      <code>get_scan_result</code>, <code>plan_remediation</code>,
-      <code>export_scan</code> and <code>erase_instance_data</code>.
-      <code>scan_instance</code> does the whole task - submission, waiting and
-      result - in one call. Prompts name the jobs themselves, such as
-      <code>audit_instance</code>, which audits an instance and writes the
-      remediation plan, and <code>review_transport_security</code>, which
-      looks only at the certificate and the handshake. It answers the protocol
-      rather than a browser, so it is an address to configure rather than a
-      page to open.
-    </li>
+    {# The tool names are the protocol's, so they stay as they are inside a
+       sentence that does not. #}
+    <li>{{ t.html('ai.discovery.mcp', url=mcp_url) }}</li>
     {% endif %}
   </ul>
   <p class="flush">
-    The three documents describe one service from three angles: OpenAPI says
-    what the API can do, Arazzo says how those operations combine into a
-    task{% if mcp_enabled %}, and MCP hands that task to an agent as a tool it
-    can call{% endif %}. They are generated from the same code the server
-    runs, so none of them can quietly go out of date.
+    {% if mcp_enabled %}{{ t('ai.discovery.summary_mcp') }}{% else %}{{ t('ai.discovery.summary') }}{% endif %}
   </p>
 </section>
 
 {% if mcp_enabled %}
 <section class="card section-gap" aria-labelledby="ai-clients" data-reveal>
-  <p class="kicker">Configuration</p>
-  <h2 id="ai-clients">Wiring it into a client</h2>
-  <p>
-    Most agent tools take a URL and a transport. This one is streamable HTTP,
-    with no authentication and no account:
-  </p>
+  <p class="kicker">{{ t('ai.clients.kicker') }}</p>
+  <h2 id="ai-clients">{{ t('ai.clients.heading') }}</h2>
+  <p>{{ t('ai.clients.intro') }}</p>
   <pre class="code-block"><code>{"type": "http", "url": "{{ mcp_url }}"}</code></pre>
-  <p class="flush">
-    Worked configuration for Claude Code, Claude Desktop, GitHub Copilot in
-    VS Code and the CLI, Cursor, Zed and Windsurf - against this deployment or
-    one of your own - is in
-    <a href="{{ project_url }}/blob/main/docs/mcp.md"
-       rel="noopener noreferrer">the MCP guide</a>.
-  </p>
+  <p class="flush">{{ t.html('ai.clients.body', project=project_url) }}</p>
 </section>
 {% endif %}
 
 <section class="card section-gap" aria-labelledby="ai-rules" data-reveal>
-  <p class="kicker">The rules</p>
-  <h2 id="ai-rules">The same rules as everybody else</h2>
-  <p class="flush">
-    The rules are the same for an agent as for anybody else. A scan is
-    asynchronous and the uuid is the only way back to it; a
-    <code>429</code> is an invitation to slow down rather than a refusal; and
-    if you are checking more than a handful of instances, please
-    <a href="{{ project_url }}" rel="noopener noreferrer">run the scanner
-    yourself</a> - it is the same code, on your machine, with no limits.
-  </p>
+  <p class="kicker">{{ t('ai.rules.kicker') }}</p>
+  <h2 id="ai-rules">{{ t('ai.rules.heading') }}</h2>
+  <p class="flush">{{ t.html('ai.rules.body', project=project_url) }}</p>
 </section>
 
 {% include "_page-nav.html" %}

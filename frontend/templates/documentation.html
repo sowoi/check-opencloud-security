@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('docs.index.title') }}{% endblock %}
+{% block description %}{{ t('docs.index.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <p class="kicker">{{ t('docs.index.kicker') }}</p>
+  <h1>{{ t('docs.index.heading') }}</h1>
+  <p class="lede">{{ t.html('docs.index.lede') }}</p>
+</section>
+
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.index.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.index.toc.heading') }}</p>
+  <a href="#quick-start">{{ t('docs.index.toc.quickstart') }}</a>
+  <a href="#commands">{{ t('docs.index.toc.commands') }}</a>
+  <a href="#options">{{ t('docs.index.toc.options') }}</a>
+  <a href="#configuration">{{ t('docs.index.toc.configuration') }}</a>
+  <a href="#monitoring">{{ t('docs.index.toc.monitoring') }}</a>
+  <a href="#guides">{{ t('docs.index.toc.guides') }}</a>
+</nav>
+
+<section class="card section-gap" aria-labelledby="quick-start" data-reveal>
+  <p class="kicker">{{ t('docs.index.quickstart.kicker') }}</p>
+  <h2 id="quick-start">{{ t('docs.index.quickstart.heading') }}</h2>
+<pre class="code-block"><code>uvx --from check-opencloud-security check-opencloud-security \
+  --host opencloud.example.com --check-hardening</code></pre>
+  <p>{{ t('docs.index.quickstart.container') }}</p>
+<pre class="code-block"><code>docker run --rm --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.example.com \
+  --check-hardening</code></pre>
+  <p class="flush">{{ t('docs.index.quickstart.note') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="commands" data-reveal>
+  <p class="kicker">{{ t('docs.index.commands.kicker') }}</p>
+  <h2 id="commands">{{ t('docs.index.commands.heading') }}</h2>
+  <div class="docs-command-grid">
+    <div>
+      <h3><code>check-opencloud-security</code></h3>
+      <p>{{ t.html('docs.index.commands.plugin') }}</p>
+<pre class="code-block"><code>check-opencloud-security \
+  --host opencloud.example.com \
+  --release-track production \
+  --check-hardening</code></pre>
+    </div>
+    <div>
+      <h3><code>check-opencloud-scanner</code></h3>
+      <p>{{ t('docs.index.commands.scanner') }}</p>
+<pre class="code-block"><code>check-opencloud-scanner scan \
+  opencloud.example.com | jq \
+  '.rating, .ratingExplanation'</code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="card section-gap" aria-labelledby="options" data-reveal>
+  <p class="kicker">{{ t('docs.index.options.kicker') }}</p>
+  <h2 id="options">{{ t('docs.index.options.heading') }}</h2>
+  <div class="option-list">
+    <dl>
+      <div><dt><code>-H, --host</code></dt><dd>{{ t.html('docs.index.option.host') }}</dd></div>
+      <div><dt><code>--check-hardening</code></dt><dd>{{ t.html('docs.index.option.check_hardening') }}</dd></div>
+      <div><dt><code>--release-track</code></dt><dd>{{ t.html('docs.index.option.release_track') }}</dd></div>
+      <div><dt><code>--ignore-hardening</code></dt><dd>{{ t.html('docs.index.option.ignore_hardening') }}</dd></div>
+      <div><dt><code>--debug</code></dt><dd>{{ t.html('docs.index.option.debug') }}</dd></div>
+      <div><dt><code>--insecure</code></dt><dd>{{ t.html('docs.index.option.insecure') }}</dd></div>
+      <div><dt><code>--warning / --critical</code></dt><dd>{{ t.html('docs.index.option.thresholds') }}</dd></div>
+      <div><dt><code>--format</code></dt><dd>{{ t.html('docs.index.option.format') }}</dd></div>
+      <div><dt><code>--baseline / --warn-on-new</code></dt><dd>{{ t.html('docs.index.option.baseline') }}</dd></div>
+      <div><dt><code>--webhook-url</code></dt><dd>{{ t.html('docs.index.option.webhook') }}</dd></div>
+    </dl>
+  </div>
+  <p class="flush">{{ t.html('docs.index.options.manual', project=project_url) }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="configuration" data-reveal>
+  <p class="kicker">{{ t('docs.index.configuration.kicker') }}</p>
+  <h2 id="configuration">{{ t('docs.index.configuration.heading') }}</h2>
+  <p>{{ t('docs.index.configuration.intro') }}</p>
+  <ol class="precedence" aria-label="{{ t('docs.index.precedence.aria') }}">
+    <li><strong>{{ t('docs.index.precedence.cli') }}</strong><span>{{ t('docs.index.precedence.cli.note') }}</span></li>
+    <li><strong>{{ t('docs.index.precedence.env') }}</strong><span>{{ t.html('docs.index.precedence.env.note') }}</span></li>
+    <li><strong>{{ t('docs.index.precedence.file') }}</strong><span>{{ t('docs.index.precedence.file.note') }}</span></li>
+    <li><strong>{{ t('docs.index.precedence.default') }}</strong><span>{{ t('docs.index.precedence.default.note') }}</span></li>
+  </ol>
+  <p>{{ t('docs.index.configuration.wizard') }}</p>
+<pre class="code-block"><code>check-opencloud-security --configure</code></pre>
+  <p class="flush">{{ t.html('docs.index.configuration.note') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="monitoring" data-reveal>
+  <p class="kicker">{{ t('docs.index.monitoring.kicker') }}</p>
+  <h2 id="monitoring">{{ t('docs.index.monitoring.heading') }}</h2>
+  <ul class="plain-list">
+    <li>{{ t.html('docs.index.monitoring.nagios') }}</li>
+    <li>{{ t.html('docs.index.monitoring.fleet') }}</li>
+    <li>{{ t.html('docs.index.monitoring.prometheus') }}</li>
+    <li>{{ t.html('docs.index.monitoring.ci') }}</li>
+    <li>{{ t.html('docs.index.monitoring.scheduled') }}</li>
+  </ul>
+</section>
+
+<section class="section-gap-lg" aria-labelledby="guides" data-reveal>
+  <p class="kicker">{{ t('docs.index.guides.kicker') }}</p>
+  <h2 id="guides">{{ t('docs.index.guides.heading') }}</h2>
+  <p class="lede">{{ t('docs.index.guides.lede') }}</p>
+  <ul class="docs-guide-grid">
+    {% for guide in documentation_pages %}
+    <li>
+      <a class="card page-nav-card" href="/documentation/{{ guide.slug }}">
+        <strong>{{ t('docs.' ~ guide.slug ~ '.title') }}</strong>
+        <span>{{ t('docs.' ~ guide.slug ~ '.description') }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

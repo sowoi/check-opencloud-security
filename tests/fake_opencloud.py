@@ -17,6 +17,7 @@ instance, a wide-open one, or anything in between.
 
 from __future__ import annotations
 
+import base64
 import json
 import threading
 from dataclasses import dataclass, field
@@ -99,6 +100,12 @@ class InstanceBehaviour:
     capabilities: dict[str, Any] | None = field(
         default_factory=lambda: json.loads(json.dumps(CAPABILITIES_PAYLOAD))
     )
+    # Serve the instance below this URL prefix instead of at the origin root.
+    base_path: str = ""
+    # Public options rendered by the web service at /config.json.
+    web_config: dict[str, Any] | None = field(
+        default_factory=lambda: {"options": {"embed": {}}}
+    )
     # Paths served with HTTP 200 even though they must not be reachable.
     exposed_paths: set[str] = field(default_factory=set)
     # Answer every unknown path with the SPA shell instead of a 404.
@@ -108,6 +115,9 @@ class InstanceBehaviour:
     basic_auth: bool = False
     # Serve protected endpoints with 200 and a body instead of 401.
     unprotected: bool = False
+    # Accept the documented demo credentials on the protected endpoints, the
+    # way an instance left with IDM_CREATE_DEMO_USERS=true does.
+    demo_users: bool = False
     # Publish the version through webfinger.
     webfinger_version: bool = False
     # Serve a debug endpoint (/metrics, /config) on the main port.
@@ -142,6 +152,16 @@ class InstanceBehaviour:
     # Every request the instance saw, as (method, path, sorted header names).
     seen: list[tuple[str, str, tuple[str, ...]]] = field(default_factory=list)
 
+
+# The demo accounts OpenCloud's documentation publishes, which an instance
+# with IDM_CREATE_DEMO_USERS=true really does accept.
+DEMO_CREDENTIALS: dict[str, str] = {
+    "dennis": "demo",
+    "margaret": "demo",
+    "alan": "demo",
+    "lynn": "demo",
+    "mary": "demo",
+}
 
 PROTECTED_PATHS = (
     "/remote.php/dav/files/",
@@ -184,10 +204,39 @@ def _make_handler(behaviour: InstanceBehaviour):
                 {"Content-Type": "application/json"},
             )
 
-        def do_GET(self):
+        def _demo_user(self):
+            """The demo account the Authorization header names, if any."""
+            header = self.headers.get("Authorization", "")
+            scheme, _, token = header.partition(" ")
+            if scheme.lower() != "basic":
+                return None
+            try:
+                username, _, password = (
+                    base64.b64decode(token.encode()).decode().partition(":")
+                )
+            except (ValueError, UnicodeDecodeError):
+                return None
+            return username if DEMO_CREDENTIALS.get(username) == password else None
+
+        def _route_path(self):
             path = self.path.split("?", 1)[0]
+            prefix = behaviour.base_path.rstrip("/")
+            if not prefix:
+                return path
+            if path == prefix:
+                return "/"
+            if path.startswith(f"{prefix}/"):
+                return path[len(prefix):]
+            return path
+
+        def do_GET(self):
+            path = self._route_path()
             behaviour.seen.append(
-                (self.command, path, tuple(sorted(self.headers.keys())))
+                (
+                    self.command,
+                    self.path.split("?", 1)[0],
+                    tuple(sorted(self.headers.keys())),
+                )
             )
 
             if path == "/app/list":
@@ -205,6 +254,10 @@ def _make_handler(behaviour: InstanceBehaviour):
                         else []
                     }
                 )
+                return
+
+            if path == "/config.json" and behaviour.web_config is not None:
+                self._json(behaviour.web_config)
                 return
 
             if path in ("/.well-known/caldav", "/.well-known/carddav"):
@@ -297,6 +350,9 @@ def _make_handler(behaviour: InstanceBehaviour):
             if any(path.startswith(entry) for entry in PROTECTED_PATHS):
                 if behaviour.unprotected:
                     self._json({"value": [{"id": "1", "onPremisesSamAccountName": "admin"}]})
+                    return
+                if behaviour.demo_users and self._demo_user():
+                    self._json({"ocs": {"data": {"id": self._demo_user()}}})
                     return
                 challenge = "Bearer realm=\"example.com\""
                 if behaviour.basic_auth:

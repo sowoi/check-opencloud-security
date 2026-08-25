@@ -124,6 +124,28 @@ def test_the_test_suite_is_not_mistaken_for_documentation(tmp_path):
     ]
 
 
+def test_generated_browser_documentation_is_not_collected_twice(tmp_path):
+    """Generated HTML may encode punctuation that belongs to source examples."""
+    generated = tmp_path / "frontend" / "templates" / "docs"
+    generated.mkdir(parents=True)
+    (generated / "reference.html").write_text(
+        "https://docs.opencloud.eu/example/&quot;\n", encoding="utf-8"
+    )
+    static = tmp_path / "frontend" / "static"
+    static.mkdir(parents=True)
+    (static / "search-index.json").write_text(
+        '{"body": "https://docs.opencloud.eu/example/&quot;"}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "README.md").write_text(
+        "https://docs.opencloud.eu/example/\n", encoding="utf-8"
+    )
+
+    assert [link.url for link in links.collect_links(tmp_path)] == [
+        "https://docs.opencloud.eu/example/"
+    ]
+
+
 def test_a_rate_limited_answer_is_not_treated_as_rot(monkeypatch):
     """An anonymous GitHub API call is rate limited; that is not a dead link.
 

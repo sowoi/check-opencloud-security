@@ -124,12 +124,9 @@ def test_an_instance_without_tls_gets_no_transport_facts_at_all():
 
 def test_the_page_shows_the_transport_facts_beside_the_grade(tmp_path):
     """A fact in the summary that never reaches the template helps nobody."""
-    from fastapi.templating import Jinja2Templates
+    from webapp.app import build_templates
 
-    from webapp.app import frontend_dir, is_safe_link
-
-    templates = Jinja2Templates(directory=str(frontend_dir() / "templates"))
-    templates.env.tests["safe_link"] = is_safe_link
+    templates = build_templates()
     document = _document(_inspect(*_certificate(tmp_path)))
     summary = summarise(document)
     identifier = "b6f2c0c5-1c4b-4f4e-9a3b-0d3f8b7c1a20"

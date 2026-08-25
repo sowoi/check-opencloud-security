@@ -20,6 +20,7 @@
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
     * [Who signs users in](#who-signs-users-in)
+    * [The demo accounts](#the-demo-accounts)
     * [What is in front of the instance](#what-is-in-front-of-the-instance)
     * [Office and calendar integrations](#office-and-calendar-integrations)
     * [What the scan deliberately does not answer](#what-the-scan-deliberately-does-not-answer)
@@ -315,9 +316,21 @@ Use this if you would rather not install anything on the host. The image also
 ships the scan service (see
 [Running the scanner as a service](#running-the-scanner-as-a-service)).
 
-Build the image once from a local checkout of this repository. Everything
-Docker-related lives in [`docker/`](docker/), and the build context is the
-repository root:
+The published image carries both entry points, so a check is one command with
+nothing built and nothing installed:
+```shell
+docker run --rm --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.example.com
+```
+
+That one line, its JSON variant and the useful flags around it are collected in
+[Scanning from the command line, in one line](docs/docker-oneliner.md). The
+image's default command starts the web application, which is why the plugin is
+selected with `--entrypoint`.
+
+Build the image yourself instead when you want to run your own checkout.
+Everything Docker-related lives in [`docker/`](docker/), and the build context
+is the repository root:
 ```shell
 git clone https://github.com/sowoi/check-opencloud-security.git
 cd check-opencloud-security
@@ -685,6 +698,10 @@ Read from the instance itself:
   `maintenance` and `needsDbUpgrade`; a server whose product name says
   ownCloud or Nextcloud is refused rather than rated, because it serves the
   same endpoint but is not the same software
+- the IPv4 and IPv6 addresses the name resolved to while the scan ran,
+  reported as `addresses` in the result document and shown as **Resolved to**
+  on a web result page - context, never a finding, and empty when a name
+  does not resolve or an address was scanned directly
 - capabilities from `/ocs/v1.php/cloud/capabilities` (both endpoints are
   unauthenticated in OpenCloud)
 - the security headers `Strict-Transport-Security`, `Content-Security-Policy`,
@@ -711,8 +728,12 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `authentication:/remote.php/dav/files/`, `/graph/v1.0/users`, `/ocs/v1.php/cloud/user` | critical/high | An endpoint that must demand authentication answered anyway |
 | `exposed:/opencloud.yaml`, `/proxy/server.key`, `/idm/opencloud.boltdb`, `/.env`, `/docker-compose.yml`, `/storage/users/`, `/.git/config` | critical/high | Deployment internals published by a misconfigured reverse proxy |
 | `directoryListing` | critical | A directory index served instead of the web frontend |
+| `demoUsersDisabled` | critical | The built-in identity provider still accepts the documented demo accounts, one of which is an administrator |
 | `debugEndpoint:/metrics`, `/config`, `/debug/pprof/` | critical/high | Debug handlers reachable on the public address |
 | `debugPort:<port>` | high | A service debug port answering from the outside |
+| `backendPortClosed` | high | The same OpenCloud instance is reachable directly on backend port 9200, bypassing its reverse proxy |
+| `webEmbedDelegatedAuthenticationRestricted` | critical | Delegated iframe authentication accepts messages without an explicit trusted origin |
+| `webEmbedMessageOriginRestricted` | high | The web client's embed messages trust every parent origin |
 | `basicAuthDisabled` | medium | The proxy still offers HTTP basic authentication |
 | `identityProviderDetected` | low | No OpenID Connect discovery document and no redirect from it, so who signs users in cannot be established |
 | `reverseProxyDetected` | low | Nothing suggests a reverse proxy in front of the instance |
@@ -750,14 +771,35 @@ external provider.
 
 Nothing is submitted to the instance to establish this. The discovery document
 and the `Location` header are read, and no login form is ever filled in - a
-scanner that tries credentials against somebody's instance is a scanner nobody
-should point at their server, and an identity provider is the worst place to
-start.
+scanner that guesses credentials against somebody's instance is a scanner
+nobody should point at their server, and an identity provider is the worst
+place to start.
 
 When no provider can be found at all, `identityProviderDetected` fails at
 severity `low` and `--debug` points at [OpenCloud's own
 documentation][opencloud-idp] - the usual cause is a reverse proxy that does
 not forward `/.well-known/`.
+
+### The demo accounts
+
+When the discovery document names the instance's *own* provider - the built-in
+identity management rather than a Keycloak or Authentik in front of it - the
+scan additionally checks whether the demo users are still on.
+`IDM_CREATE_DEMO_USERS=true` creates five accounts whose names and passwords
+are printed in [OpenCloud's documentation][opencloud-demo-users], and `dennis`
+is an administrator. Left enabled on a reachable instance, that is an admin
+account whose password everybody already knows, so `demoUsersDisabled` is a
+`critical` finding: it fails the check and caps the rating at `D`.
+
+This is the one place the scan sends a credential, and it does so because
+there is no other way to see those accounts from outside - nothing OpenCloud
+exposes unauthenticated lists its users. What is sent is a published default
+rather than a guess at anybody's password, only the documented pairs are
+tried, and they go only to the instance's own provider: with an external
+identity provider the accounts come from there, the check does not apply, and
+no login is ever pushed at a third party. Switching the setting off does not
+delete accounts that already exist, so a failing instance needs them removed
+as well.
 
 ### What is in front of the instance
 
@@ -805,11 +847,14 @@ Neither becomes a check and neither can move the rating.
   an app provider is registered, or that something answers the CalDAV path.
   WOPI secrets, share permissions and the other service's own configuration
   live behind a login and are not checked.
-- **Anything requiring credentials.** No login form is ever submitted, no
-  password is ever tried, and no request is made with an `Authorization`
-  header.
+- **Anything requiring credentials.** No login form is ever submitted and no
+  password is ever guessed. The single exception is the demo accounts above:
+  the passwords OpenCloud publishes are sent, as published, to the instance's
+  own identity provider, because that is the only way to see from outside
+  whether those accounts still exist.
 
 [opencloud-idp]: https://docs.opencloud.eu/docs/admin/configuration/authentication-and-user-management/external-idp
+[opencloud-demo-users]: https://docs.opencloud.eu/docs/admin/resources/demo-user/
 
 ## Reading the version correctly
 
@@ -1938,6 +1983,7 @@ this file stays the reference for the options themselves.
 |:------|:---------------|
 | [Icinga Director](docs/icinga-director.md) | The `CheckCommand`, data fields, service template and apply rule, through the web UI |
 | [Automated deployment with Ansible](docs/ansible.md) | The native and Docker roles, their variables, and deploying the Icinga2 objects unattended |
+| [Scanning from the command line, in one line](docs/docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the web interface: JSON output, private networks, waivers and a shell function |
 | [Scheduling without Icinga2 / Nagios](docs/scheduling.md) | systemd timer and cron, using the files in [`contrib/`](contrib/) |
 | [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |

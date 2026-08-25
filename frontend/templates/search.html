@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ t('search.title') }}{% endblock %}
+{% block description %}{{ t('search.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-hero compact" data-reveal>
+  <p class="eyebrow">{{ t('search.eyebrow') }}</p>
+  <h1>{{ t('search.heading') }}</h1>
+  <p class="lede">{{ t('search.lede') }}</p>
+</section>
+
+{#
+  The index this page reads and the three sentences it can answer with are
+  attributes rather than strings inside search.js: the file is one asset for
+  every language, and the release index for a language is a separate file so
+  a reader downloads one of them and not four.
+#}
+<section class="glass search-panel" data-search-root data-reveal
+         data-search-index="/static/search-index.json"
+         data-search-locale="{{ locale }}"
+         data-search-results-label="{{ t.raw('search.status.results') }}"
+         data-search-empty-label="{{ t('search.status.empty') }}"
+         data-search-error-label="{{ t('search.status.error') }}">
+  <form class="search-page-form" action="/search" method="get" role="search">
+    <label for="search-query">{{ t('search.label') }}</label>
+    <div class="search-page-field">
+      <input id="search-query" name="q" type="search" autocomplete="off"
+             placeholder="{{ t('search.placeholder') }}" maxlength="120">
+      <button class="btn btn-primary" type="submit">{{ t('search.submit') }}</button>
+    </div>
+  </form>
+  <p class="hint" data-search-status aria-live="polite">{{ t('search.status.idle') }}</p>
+  <ol class="search-results" data-search-results></ol>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/search.js" defer></script>
+{% endblock %}

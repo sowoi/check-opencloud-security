@@ -1,11 +1,11 @@
 """
 Discoverability: robots.txt, sitemap.xml and the canonical URL of a page.
 
-The service itself is not a secret. The landing page and the four
-explanations are public documentation, and a person looking for a way to
-check an OpenCloud instance should be able to find them. A *result* is the
-opposite: the uuid is the whole of the authorisation, so nothing under
-``/scan/`` is listed, linked or indexed, and this module knows only about the
+The service itself is not a secret. The landing page, its explanations and
+the generated operator documentation are public, and a person looking for a
+way to check an OpenCloud instance should be able to find them. A *result* is
+the opposite: the uuid is the whole of the authorisation, so nothing under
+``/scan/`` is listed, linked or indexed, and this module knows only about
 pages that exist before anybody submits anything.
 
 Nothing here decides anything about a scan. It renders two small files and a
@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+from .documentation import DOCUMENTATION_PAGES
 
 SITE_NAME = "OpenCloud Security Scan"
 
@@ -40,12 +42,26 @@ class PublicPage:
 
 
 # The order is the order of the sitemap, and the priorities say what this
-# service is for: one page does the work and four explain it.
+# service is for: one page does the work and the rest explain it - including
+# the one that explains how to do it without this service at all.
 PUBLIC_PAGES: tuple[PublicPage, ...] = (
     PublicPage("/", "index.html", "weekly", "1.0"),
     PublicPage("/how-it-works", "how-it-works.html", "monthly", "0.8"),
+    PublicPage("/grades", "grades.html", "monthly", "0.8"),
+    PublicPage("/documentation", "documentation.html", "monthly", "0.8"),
+    *(
+        PublicPage(
+            f"/documentation/{document.slug}",
+            f"docs/{document.slug}.html",
+            "monthly",
+            "0.6",
+        )
+        for document in DOCUMENTATION_PAGES
+    ),
+    PublicPage("/search", "search.html", "monthly", "0.6"),
     PublicPage("/api", "api.html", "monthly", "0.7"),
     PublicPage("/ai", "ai.html", "monthly", "0.6"),
+    PublicPage("/cli", "cli.html", "monthly", "0.6"),
     PublicPage("/about", "about.html", "yearly", "0.5"),
     PublicPage("/privacy", "privacy.html", "yearly", "0.4"),
 )

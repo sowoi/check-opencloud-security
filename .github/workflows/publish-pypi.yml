@@ -52,6 +52,10 @@ jobs:
         if: steps.check_tag.outputs.exists != 'true'
         run: python scripts/update_release_schedule.py --allow-failure
 
+      - name: Build the static frontend search index
+        if: steps.check_tag.outputs.exists != 'true'
+        run: python scripts/build_search_index.py
+
       # The version in pyproject.toml changed - it is only ever bumped by hand.
       # The changes collected under '## [Unreleased]' in CHANGELOG.md become
       # the notes of that version, and the same entry is written to RELEASE.md.
@@ -65,7 +69,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md RELEASE.md README.md \
-            opencloud_local_scan/data/release_schedule.json
+            opencloud_local_scan/data/release_schedule.json \
+            frontend/static/search-index.json \
+            frontend/static/search-index.de.json \
+            frontend/static/search-index.es.json \
+            frontend/static/search-index.fr.json
           if git diff --cached --quiet; then
             echo "Release notes are already up to date."
           else

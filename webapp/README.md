@@ -51,18 +51,24 @@ webapp/
 ├── prompts.py        the MCP prompts: the tasks people ask for, written once
 ├── mcp_auth.py       the optional sign-in on /mcp: a token verified, never issued
 ├── discovery.py      /.well-known/ai.json, the entry point for an agent
+├── documentation.py  the manifest for the generated browser documentation
+├── i18n.py           request locale negotiation and string-catalog translation
+├── locales/          English, German, Spanish and French frontend strings
 ├── purge.py          erasure on request, and the signed receipt for it
 ├── seo.py            the public page list, robots.txt and sitemap.xml
 └── catalog.py        the waiver allow-list and the dashboard grouping
 
 frontend/
 ├── templates/        base.html, index.html, scan.html, 404.html,
-│                     how-it-works.html, api.html, privacy.html, about.html,
+│                     how-it-works.html, grades.html, documentation.html,
+│                     api.html, ai.html, cli.html, privacy.html, about.html,
+│                     docs/*.html (generated from the Markdown guides),
 │                     _page-nav.html (the cross-links between them)
 └── static/
     ├── css/app.css   the whole design system, hand-written
     ├── js/app.js     landing page niceties; the form works without it
     ├── js/nav.js     the navigation menu on a narrow screen
+    ├── js/search.js  local filtering of the release-built public-page index
     ├── js/scan.js    polls /api/scans/{uuid} until the scan settles
     └── img/*.svg     drawn for this project
 ```
@@ -71,6 +77,14 @@ Three layers, and the boundary between them is the point:
 `opencloud_local_scan` **measures**, the plugin **judges**, and `webapp`
 **serves**. If a change here starts deciding whether a finding is acceptable,
 it belongs in the scanner or the plugin instead.
+
+The HTML frontend is translated from stable string catalogues. An explicit
+language cookie wins over the browser's weighted `Accept-Language` list, with
+English as the fallback; every HTML response varies on both inputs. The
+accessible switcher is a POST that stores only a validated locale and returns
+only to a validated local path. OpenAPI, Arazzo, discovery, MCP and exports
+remain English contracts, while scan evidence remains exactly as measured.
+See ADR 0020.
 
 ## Running it
 
@@ -111,7 +125,7 @@ A small surface, and this is all of it.
 | Method | Path | What it does |
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
-| `GET` | `/how-it-works`, `/api`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/cli`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |
 | `POST` | `/api/scans/batch` | Several targets at once; **202** with what started and what did not |
@@ -619,10 +633,19 @@ The template contract is small: `base.html` receives `version`, `project_url`,
 every page - `canonical_url` is `None` on anything a crawler may not index, and
 `robots` says so a second time in the markup; `index.html` also gets `waivers`,
 `tracks`, `release_track`, `error`, `error_self_host` and `target_url`;
-`scan.html` gets the record and its `summary`. The content pages -
-`/how-it-works`, `/api`, `/privacy` and `/about` - need nothing beyond the
-base variables and `limits`. Keep the trademark notice and the "run it yourself" pointer -
-they are the reason a rate limit reads as a nudge rather than a door.
+`scan.html` gets the record and its `summary`. Most content pages need nothing
+beyond the base variables. `/grades` gets the plugin-derived grade scale and
+severity caps, `/documentation` gets the repository guide catalogue, and
+`/api` gets `limits`. Keep the trademark notice and the "run it yourself"
+pointer - they are the reason a rate limit reads as a nudge rather than a
+door.
+
+The small header search opens `/search`, where `search.js` filters
+`/static/search-index.json` locally. `webapp/search.py` is the explicit
+public-page manifest and `scripts/build_search_index.py` reads only those
+templates. The release workflow is the only automation that rebuilds the
+checked-in index. It has no store, API, result-template or network input, so
+scan UUIDs, submitted addresses and result documents cannot enter it.
 
 ## Tests
 

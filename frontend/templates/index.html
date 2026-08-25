@@ -1,27 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Scan an OpenCloud instance{% endblock %}
+{% block title %}{{ t('index.title') }}{% endblock %}
+{% block description %}{{ t('index.description') }}{% endblock %}
 
 {% block content %}
 <section class="hero">
   <div class="hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow">Independent &middot; air-gapped &middot; nothing stored</p>
+      <p class="eyebrow">{{ t.html('index.eyebrow') }}</p>
 
-      <h1>How secure is your <em class="swash">OpenCloud instance</em>?</h1>
-      <p class="lede">
-        Enter the address of an instance you are responsible for. This server talks
-        to it over HTTPS the way any visitor would, reads what it publishes without
-        logging in, and grades the result from <strong>A+</strong> to <strong>F</strong>.
-      </p>
-
-      <img class="hero-art" src="/static/img/hero.svg" alt=""
-           width="480" height="300">
+      <h1>{{ t.html('index.headline') }}</h1>
+      <p class="lede">{{ t.html('index.lede') }}</p>
     </div>
 
-    <form class="scan-form card brackets" method="post" action="/">
+    <img class="hero-art" src="/static/img/hero.svg" alt=""
+         width="480" height="300">
+  </div>
+
+  <form class="scan-form card brackets" method="post" action="/">
     <div class="ticket-head">
-      <p class="kicker">Scan request</p>
+      <p class="kicker">{{ t('index.form.kicker') }}</p>
+      <p class="hint">{{ t.html('index.form.hint') }}</p>
     </div>
 
     {% if error %}
@@ -34,32 +33,53 @@
         {{ error }}
         {% if error_self_host %}
         <br>
-        No hard feelings - the limits are what keep this small service on its
-        feet. The scanner is open source, so you can run this exact check
-        yourself, as often as you like:
+        {{ t('index.error.self_host') }}
         <a href="{{ project_url }}" rel="noopener noreferrer">github.com/sowoi/check-opencloud-security</a>.
         {% endif %}
       </span>
     </p>
     {% endif %}
 
-    <div class="field-row">
-      <div class="field">
-        <label for="target_url">Address of the instance</label>
-        <input type="text" id="target_url" name="target_url"
-               placeholder="opencloud.example.com"
-               value="{{ target_url }}"
-               inputmode="url" autocapitalize="none" autocorrect="off"
-               autocomplete="url" spellcheck="false" required
-               aria-describedby="target-hint">
-        <p class="hint" id="target-hint">
-          Just the hostname is enough - <code>https://</code> is assumed.
-          Public addresses only, and only instances you run or have permission
-          to test.
-        </p>
-      </div>
+    {#
+      The command bar: the label, the field and the button are one object, so
+      the eye finds a single target rather than a form. The reticle on the
+      left is decorative; the field keeps its own label and description.
+    #}
+    <label for="target_url">{{ t('index.field.label') }}</label>
+    <div class="command">
+      <span class="command-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round">
+          <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/>
+          <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>
+        </svg>
+      </span>
+      <input type="text" class="command-input" id="target_url" name="target_url"
+             placeholder="opencloud.example.com"
+             value="{{ target_url }}"
+             inputmode="url" autocapitalize="none" autocorrect="off"
+             autocomplete="url" spellcheck="false" required
+             maxlength="2048"
+             pattern="\s*(?:[Hh][Tt][Tt][Pp][Ss]?://)?(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9][A-Za-z0-9.\-]*)(?::\d{1,5})?(?:/[A-Za-z0-9._~-]+)*/?\s*"
+             title="{{ t('index.field.title') }}"
+             aria-describedby="target-hint">
+      {# The busy label travels as an attribute: app.js must not hold a
+         sentence of its own, or it would be the one page element that stays
+         English. #}
+      <button class="btn btn-primary" type="submit"
+              data-busy-label="{{ t('index.submit.busy') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        {{ t('index.submit') }}
+      </button>
+    </div>
+    <p class="hint" id="target-hint">{{ t.html('index.field.hint') }}</p>
+
+    <div class="field-row section-gap">
       <div class="field field-narrow">
-        <label for="release_track">Release track</label>
+        <label for="release_track">{{ t('index.track.label') }}</label>
         <select id="release_track" name="release_track"
                 aria-describedby="track-hint">
           {% for track in tracks %}
@@ -68,28 +88,26 @@
                   title="{{ track.description }}">{{ track.label }}</option>
           {% endfor %}
         </select>
-        <p class="hint" id="track-hint">
-          Decides how long this release is supported and which one it is told
-          to upgrade to.
-        </p>
+        <p class="hint" id="track-hint">{{ t('index.track.hint') }}</p>
       </div>
       <div class="field field-narrow">
-        <label for="output_format">Show me</label>
+        <label for="output_format">{{ t('index.format.label') }}</label>
         <select id="output_format" name="output_format">
-          <option value="dashboard" selected>A dashboard</option>
-          <option value="json">The raw JSON</option>
+          <option value="dashboard" selected>{{ t('index.format.dashboard') }}</option>
+          <option value="json">{{ t('index.format.json') }}</option>
         </select>
-        <p class="hint">Both come from the same scan.</p>
+        <p class="hint">{{ t('index.format.hint') }}</p>
       </div>
     </div>
 
+    {# Both spellings of the summary are rendered here, the counted one with
+       its placeholder intact, so app.js substitutes a number rather than
+       rewriting an English phrase it would have to know. #}
     <details class="waivers">
-      <summary>Ignore specific checks (optional)</summary>
+      <summary data-waiver-label="{{ t('index.waivers.summary') }}"
+               data-waiver-label-selected="{{ t.raw('index.waivers.selected') }}">{{ t('index.waivers.summary') }}</summary>
       <div class="waiver-body">
-        <p class="hint hint-lead">
-          A waived check stays in the report and is still shown - it just stops
-          holding the grade down. Only checks that actually failed can be waived.
-        </p>
+        <p class="hint hint-lead">{{ t('index.waivers.hint') }}</p>
         {% for group, options in waivers | groupby("group") %}
         <div class="waiver-group">
           <h3>{{ group }}</h3>
@@ -108,51 +126,39 @@
         {% endfor %}
       </div>
     </details>
-
-    <div class="form-actions">
-      <button class="btn btn-primary" type="submit">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-        </svg>
-        Start audit
-      </button>
-      <span class="hint hint-flush">Takes a few seconds. No sign-up.</span>
-    </div>
   </form>
-  </div>
 
-  <ul class="assurance" aria-label="How this service handles your data" data-reveal>
+  <ul class="assurance" aria-label="{{ t('index.assurance.aria') }}" data-reveal>
     <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 9.4 8 10.5 4.6-1.1 8-5.5 8-10.5V6l-8-3z"/></svg>
       <div>
-        <strong>100% air-gapped</strong>
-        <span>Every byte comes from this origin. No CDN, no font service, no analytics.</span>
+        <strong>{{ t('index.assurance.airgapped.title') }}</strong>
+        <span>{{ t('index.assurance.airgapped.body') }}</span>
       </div>
     </li>
     <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M6 7v12h12V7"/><path d="M10 11v5M14 11v5"/></svg>
       <div>
-        <strong>No data stored</strong>
-        <span>The result lives in memory and is dropped the moment it expires.</span>
+        <strong>{{ t('index.assurance.nostore.title') }}</strong>
+        <span>{{ t('index.assurance.nostore.body') }}</span>
       </div>
     </li>
     <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
       <div>
-        <strong>No registration needed</strong>
-        <span>No account, no sign-up, no email address, no waiting.</span>
+        <strong>{{ t('index.assurance.noaccount.title') }}</strong>
+        <span>{{ t('index.assurance.noaccount.body') }}</span>
       </div>
     </li>
     <li>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       <div>
-        <strong>Ephemeral results</strong>
-        <span>The link stops working {{ result_ttl_minutes }} minutes after the scan.</span>
+        <strong>{{ t('index.assurance.ephemeral.title') }}</strong>
+        <span>{{ t('index.assurance.ephemeral.body', minutes=result_ttl_minutes) }}</span>
       </div>
     </li>
   </ul>

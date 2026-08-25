@@ -14,6 +14,9 @@
  * Everything it touches is addressed by the scan's own identifier, which came
  * from the URL the visitor is already on. It asks for no other scan, and
  * there is no endpoint that would let it.
+ *
+ * Every sentence it writes was rendered by the server into a data attribute,
+ * in the language the page is in. This file carries no English of its own.
  */
 (function () {
     "use strict";
@@ -33,6 +36,8 @@
     var detail = document.getElementById("progress-detail");
     var note = document.getElementById("queue-note");
     var expiry = document.getElementById("expiry-note");
+    var card = document.getElementById("progress-card");
+    var expiryBox = expiry ? expiry.parentNode : null;
     var steps = {
         queued: document.getElementById("step-queued"),
         running: document.getElementById("step-running"),
@@ -41,6 +46,18 @@
 
     function terminal(value) {
         return TERMINAL.indexOf(value) !== -1;
+    }
+
+    function phrase(element, name) {
+        var value = element ? element.getAttribute("data-" + name) : null;
+        return value === null ? "" : value;
+    }
+
+    function fill(template, values) {
+        return template.replace(/\{(\w+)\}/g, function (match, name) {
+            return Object.prototype.hasOwnProperty.call(values, name)
+                ? String(values[name]) : match;
+        });
     }
 
     function setSteps(current) {
@@ -78,12 +95,14 @@
         }
         note.hidden = false;
         if (queue.position && queue.position > 1) {
-            note.textContent = "Scan queued. Position in line: #" + queue.position +
-                " of " + queue.length + ".";
+            note.textContent = fill(phrase(card, "queue-position"), {
+                position: queue.position,
+                length: queue.length
+            });
         } else if (queue.position === 1) {
-            note.textContent = "Scan queued. You are next in line.";
+            note.textContent = phrase(card, "queue-next");
         } else {
-            note.textContent = "Waiting for a scanner worker to pick this up.";
+            note.textContent = phrase(card, "queue-waiting");
         }
     }
 
@@ -92,14 +111,11 @@
             return;
         }
         if (payload.state === "running") {
-            title.textContent = "Scanning the instance";
-            detail.textContent = "Reading what the instance publishes: version, " +
-                "capabilities, certificate, headers and the endpoints it exposes " +
-                "without a login.";
+            title.textContent = phrase(card, "running-title");
+            detail.textContent = phrase(card, "running-detail");
         } else if (payload.state === "queued") {
-            title.textContent = "Waiting for a scanner worker";
-            detail.textContent = "Every worker is busy right now. Your scan keeps " +
-                "its place in line and starts as soon as one is free.";
+            title.textContent = phrase(card, "queued-title");
+            detail.textContent = phrase(card, "queued-detail");
         }
     }
 
@@ -108,9 +124,9 @@
             return;
         }
         var minutes = Math.max(1, Math.round(seconds / 60));
-        expiry.textContent = "This page expires in about " + minutes +
-            " minute" + (minutes === 1 ? "" : "s") +
-            ", after which the link stops working and the result is gone.";
+        expiry.textContent = minutes === 1
+            ? phrase(expiryBox, "expiry-one")
+            : fill(phrase(expiryBox, "expiry-many"), { minutes: minutes });
     }
 
     var delay = POLL_MS;
@@ -131,12 +147,11 @@
         }
         if (title) {
             title.textContent = state === "completed"
-                ? "Report ready" : "Scan finished";
+                ? phrase(card, "done-title") : phrase(card, "failed-title");
         }
         if (detail) {
             detail.textContent = state === "completed"
-                ? "The grade is in. Opening the report."
-                : "The scan could not be completed. Opening what came back.";
+                ? phrase(card, "done-detail") : phrase(card, "failed-detail");
         }
         window.setTimeout(function () {
             document.documentElement.setAttribute("data-exit", "true");

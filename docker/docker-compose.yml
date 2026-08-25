@@ -154,6 +154,9 @@ services:
       # verifiable long after the data itself is gone.
       COS_WEB_PURGE_TOKEN: ""
       COS_WEB_PURGE_SIGNING_KEY: ""
+      # Signs the exact bytes of JSON, SARIF, CSV and PDF downloads. Keep this
+      # in a secret store; verifiers need the same value.
+      COS_WEB_EXPORT_SIGNING_KEY: "${COS_WEB_EXPORT_SIGNING_KEY:-}"
       # Encrypt the stored result document with AES-256-GCM. Both this service
       # and the worker must agree, and both need the same key: the worker
       # writes the document and the web process reads it back. A key is 64 hex

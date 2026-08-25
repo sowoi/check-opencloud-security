@@ -1,6 +1,8 @@
 secrets/ export-ignore
 tests/ export-ignore
 scripts/ export-ignore
+adr/ export-ignore
+img/ export-ignore
 ansible/ export-ignore
 contrib/ export-ignore
 docker-compose.yml export-ignore
@@ -8,6 +10,8 @@ docker-compose.yml export-ignore
 .github/ export-ignore
 .gitattributes export-ignore
 .gitignore export-ignore
+AGENTS.md export-ignore
+DESIGN.md export-ignore
 CONTRIBUTING.md export-ignore
 noxfile.py export-ignore
 mypy.ini export-ignore

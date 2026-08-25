@@ -46,6 +46,7 @@ FILES: tuple[str, ...] = (
     "docker/docker-compose.authentik.yml",
     "docker/authentik-env.sh",
     "docker/setup-wizard.py",
+    "scripts/verify_export.py",
     "authentik/blueprints/opencloud-scanner.yaml",
     "docker/README.md",
     "README.md",

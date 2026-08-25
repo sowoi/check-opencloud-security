@@ -231,6 +231,101 @@ def test_a_bare_hostname_is_a_complete_answer():
 
 
 @pytest.mark.parametrize(
+    "submitted",
+    [
+        "https://opencloud.example.com/?redirect=http://169.254.169.254/",
+        "https://opencloud.example.com#fragment",
+        "https://user:secret@opencloud.example.com",
+        "https://opencloud.example.com\t/x",
+        "opencloud.example.com Xhttp://elsewhere.example",
+        "https://opencloud.example.com/;curl%20evil.example",
+        "https://opencloud.example.com/opencloud;parameter",
+        "https://opencloud.example.com/opencloud/%2e%2e/admin",
+        "https://opencloud.example.com/opencloud/../admin",
+        "https://opencloud.example.com/opencloud//admin",
+    ],
+)
+def test_a_base_path_cannot_describe_a_request_or_traverse(submitted):
+    """
+    A submission locates an instance; it never describes an arbitrary request.
+
+    The scanner may need a deployment prefix, but it still chooses every
+    endpoint below it. Queries, parameters, escapes and traversal syntax
+    would hand that choice back to the submitter and are therefore refused.
+    """
+    response = client().post("/api/scans", json={"target_url": submitted})
+
+    assert response.status_code == 400
+    assert "uuid" not in response.json()
+
+
+def test_an_instance_in_a_subfolder_is_accepted_and_preserved():
+    """
+    OpenCloud can be deployed below an origin rather than at its root.
+
+    Accepting the address is insufficient if queueing or worker revalidation
+    silently drops the prefix and scans the unrelated origin root instead.
+    """
+    response = client().post(
+        "/api/scans",
+        json={"target_url": "https://opencloud.example.com/opencloud/tenant-a/"},
+    )
+
+    assert response.status_code == 202
+    identifier = response.json()["uuid"]
+    status = client().get(f"/api/scans/{identifier}").json()
+    assert status["target"] == "https://opencloud.example.com/opencloud/tenant-a"
+
+
+def test_a_trailing_slash_port_and_subfolder_are_still_an_address():
+    """
+    Browsers add the slash and operators run on odd ports.
+
+    Refusing either would mean refusing what people actually paste, which is
+    how a safety rule turns into a support burden.
+    """
+    for submitted in (
+        "https://opencloud.example.com/",
+        "https://opencloud.example.com:8443",
+        "https://opencloud.example.com:8443/",
+        "https://opencloud.example.com:8443/opencloud/",
+        "OpenCloud.Example.COM.",
+    ):
+        response = client().post("/api/scans", json={"target_url": submitted})
+        assert response.status_code == 202, submitted
+
+
+def test_an_ipv6_literal_stays_a_valid_address_when_it_is_displayed_again():
+    """
+    Revalidation must not turn a valid IPv6 literal into an ambiguous URL.
+
+    The brackets are URL syntax rather than part of the address; dropping
+    them makes the first colon look like the beginning of a port.
+    """
+    target = validate_target("https://[2001:db8::7]:8443", allow_private=True)
+
+    assert target.hostname == "2001:db8::7"
+    assert target.display == "https://[2001:db8::7]:8443"
+
+
+def test_the_field_itself_allows_a_subfolder_but_refuses_parameters():
+    """
+    The browser should accept a base path and refuse request syntax early.
+
+    The server is the rule that counts, but a visitor who pastes a link from
+    their address bar deserves the answer immediately, and the pattern is what
+    gives it to them without a line of inline script.
+    """
+    body = client().get("/").text
+    field = re.search(r"<input[^>]*name=\"target_url\"[^>]*>", body, re.DOTALL)
+
+    assert field is not None
+    assert "pattern=" in field.group(0)
+    assert "subfolder" in field.group(0).lower()
+    assert "parameters" in field.group(0).lower()
+
+
+@pytest.mark.parametrize(
     "parameter",
     ["concurrency", "threads", "workers", "timeout", "scan_concurrency", "verify_tls"],
 )
@@ -471,7 +566,18 @@ def test_nothing_is_loaded_from_a_third_party():
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+        for path in (
+            "/",
+            "/how-it-works",
+            "/grades",
+            "/documentation",
+            "/search",
+            "/api",
+            "/ai",
+            "/cli",
+            "/privacy",
+            "/about",
+        )
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
 
@@ -614,7 +720,18 @@ def test_every_page_carries_the_trademark_notice():
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+        for path in (
+            "/",
+            "/how-it-works",
+            "/grades",
+            "/documentation",
+            "/search",
+            "/api",
+            "/ai",
+            "/cli",
+            "/privacy",
+            "/about",
+        )
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
     pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)
@@ -637,7 +754,18 @@ def test_every_page_says_the_check_is_not_exhaustive_and_a_grade_is_not_a_certif
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+        for path in (
+            "/",
+            "/how-it-works",
+            "/grades",
+            "/documentation",
+            "/search",
+            "/api",
+            "/ai",
+            "/cli",
+            "/privacy",
+            "/about",
+        )
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
 
@@ -662,7 +790,18 @@ def test_the_footer_names_the_backend_version_on_every_page():
     identifier = _create(test_client).json()["uuid"]
     pages = [
         test_client.get(path).text
-        for path in ("/", "/how-it-works", "/api", "/ai", "/privacy", "/about")
+        for path in (
+            "/",
+            "/how-it-works",
+            "/grades",
+            "/documentation",
+            "/search",
+            "/api",
+            "/ai",
+            "/cli",
+            "/privacy",
+            "/about",
+        )
     ]
     pages.append(test_client.get(f"/scan/{identifier}").text)
     pages.append(test_client.get("/scan/00000000-0000-4000-8000-000000000000").text)

@@ -21,6 +21,14 @@ template. The web application ships as a GitHub release asset,
 | **Needs** | No database, no account, no API key |
 | **Concurrency** | Fixed by the operator, never by a request |
 
+The HTML interface is available in English, German, Spanish and French. It
+uses the browser's weighted language preference on a first visit and provides
+an accessible switcher on every page; a chosen language is remembered in an
+`HttpOnly`, `SameSite=Lax` cookie. Generated operator-guide bodies remain
+English and are labelled as such, while their navigation and page chrome are
+translated. JSON APIs, agent contracts, exports and scan evidence are never
+translated.
+
 ## Contents
 
 - [Starting it](#starting-it)
@@ -125,7 +133,7 @@ Four things, and the list is closed:
 
 | Field | Meaning |
 |:------|:--------|
-| `target_url` | The instance to scan. Required |
+| `target_url` | The main address of the instance: hostname, optional `http://` or `https://`, and optional port. No path, query, fragment or credentials. Required |
 | `ignore_hardenings` | Checks to waive, from a fixed allow-list. Optional, repeatable |
 | `release_track` | `rolling`, `production`, `lts` or `auto`. Optional, defaults to `auto` |
 | `output_format` | `dashboard`, `json`, `csv`, `sarif` or `pdf`. Optional, affects presentation only |
@@ -143,6 +151,12 @@ Anything else is refused with **422**, by name, rather than ignored - a caller
 who sends `concurrency=50` should be told it did nothing, not left believing
 it worked. Concurrency, thread counts, timeouts and TLS verification are
 operator settings and have no request-side equivalent at all.
+
+The target is an address, never a request template. A path such as
+`/apps/files`, a query string, a fragment, embedded credentials, whitespace
+or request-control characters are refused rather than silently discarded.
+The scanner chooses the OpenCloud paths it knows itself; nothing appended by
+a visitor can become a path, parameter or payload in an outgoing request.
 
 Waivers are checked against an allow-list built from the hardening catalogue,
 so `*` and `debugPort:*` are dropped rather than honoured. A wildcard waiver
@@ -172,7 +186,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
 | `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin this service is reached at, used for the canonical links and `sitemap.xml`. Set it behind a proxy, which otherwise publishes an address only the proxy can reach |
-| `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and the five explanations. Result pages are never indexable whatever this says |
+| `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and its explanation pages. Result pages are never indexable whatever this says |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
 | `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day and rate scans against what it says. One request a day for the whole deployment, not one per visitor |
@@ -306,6 +320,10 @@ A public scan service forwards requests by definition, so the target is
 checked before anything connects:
 
 - the scheme must be `http` or `https`;
+- the submission may include a plain base path for an instance installed in a
+  subfolder, but not a query string, fragment, credentials, path parameters,
+  escapes or traversal segments. Redirects sent by the instance may contain
+  ordinary paths, but they are revalidated independently before being followed;
 - the hostname must resolve, and **every** address it resolves to must be
   public unicast. One private answer among several rejects the target, which
   is what makes a multi-record trick pointless;
@@ -664,17 +682,37 @@ an AI agent](mcp.md), which also covers turning the endpoint off.
 
 The result page, the landing page, and a Redis-backed health probe that says
 nothing about any scan. The explanations the landing page used to carry sit on
-their own pages - `GET /how-it-works`, `GET /api`, `GET /ai`, `GET /privacy`
-and `GET /about` - which are HTML only and stay out of the OpenAPI schema. `GET /healthz` returns 200 only after the configured
+their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
+`GET /search`, `GET /api`, `GET /ai`, `GET /cli`, `GET /privacy` and
+`GET /about` - which
+are HTML only and stay out of the OpenAPI schema. `/grades` explains the
+plugin's real 0-5 map and its remediation ceilings; `/documentation` is the
+local CLI quick reference and guide index. `GET /cli` is the one that points
+away from this service: the
+Docker one-liner that runs the same scan on the visitor's own machine, linked
+from the primary navigation and documented in
+[Scanning from the command line, in one line](docker-oneliner.md). `GET /healthz` returns 200 only after the configured
 backend answers `PING`, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate `queueDepth`
 and `worker: "ok"`; it returns a detail-free 503 while any dependency is
 unavailable.
 
+Every `/documentation/{slug}` below the index is generated at build time from
+the Markdown operator guides. The checked-in HTML is verified in CI and ships
+inside `frontend/`; the running service neither parses Markdown nor needs the
+source files. ADR 0018 records the boundary.
+
+`/search` filters a checked-in, same-origin JSON index in the browser. Its
+manifest names public templates explicitly and cannot see Redis, the API,
+result pages, exports, UUIDs or submitted addresses. The release workflow
+rebuilds that file when a new version is published; ordinary CI deliberately
+does not, so one deployed release has one immutable search index. ADR 0019
+records the boundary.
+
 ### `GET /robots.txt`, `GET /sitemap.xml`
 
-Both are generated, never files on disk. The sitemap lists the six public
-pages - the landing page and the five explanations - and takes each
+Both are generated, never files on disk. The sitemap lists the landing page,
+the nine explanation/index pages and every generated CLI document, and takes each
 `lastmod` from the template that renders it, so it cannot drift from the
 pages that actually exist. Neither ever mentions a result: the uuid is the
 whole of the authorisation, and a listing is exactly what this service does
@@ -706,6 +744,7 @@ webapp/                 the service
 ├── redis_backend.py    Redis, and the in-process stand-in for tests
 ├── reports.py          the CSV, SARIF and PDF exports
 ├── arazzo.py           the API described as executable workflows
+├── documentation.py    the manifest for the generated browser documentation
 ├── purge.py            erasure on request, and the signed receipt for it
 ├── seo.py              the public page list, robots.txt and sitemap.xml
 └── catalog.py          the waiver allow-list and the dashboard grouping
