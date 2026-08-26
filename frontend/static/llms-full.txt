@@ -521,6 +521,3 @@ When running inside a browser supporting WebMCP, client-side extensions register
                 ├──> GET /api/scans/{uuid} (Read JSON result)
                 └──> GET /api/scans/{uuid}/export/{format} (Download Report)
 ```
-
-llms-full.txt
-llms-full.txt wird angezeigt.
