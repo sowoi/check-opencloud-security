@@ -12,10 +12,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## Changed
+- **Documentation layout**: Removed redundant H1 tags.
+- **Release versions": Updated OpenCloud release versions to current
+
 ## [1.11.2] - 2026-08-26
 
 ### Added
-- **WebMCP Protocol SupportÜÜ: Added tooldescription and optional toolautosubmit
+- **WebMCP Protocol Support**: Added tooldescription and optional toolautosubmit
   declarative attributes to HTML forms, enabling AI agents to auto-discover and 
   interface directly with site features.
 - **Input Parameters Context**: Added descriptive description attributes to all 

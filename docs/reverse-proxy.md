@@ -18,32 +18,33 @@ Traefik and HAProxy. Replace `opencloud.example.com` and
 this repository.
 
 <!-- TOC -->
-* [In front of OpenCloud](#in-front-of-opencloud)
-  * [The headers this check looks for](#the-headers-this-check-looks-for)
-  * [nginx](#nginx)
-  * [Apache httpd](#apache-httpd)
-  * [Caddy](#caddy)
-  * [Traefik](#traefik)
-  * [HAProxy](#haproxy)
-  * [Mistakes that cost a grade](#mistakes-that-cost-a-grade)
-* [In front of the scan service](#in-front-of-the-scan-service)
-  * [What the service needs from a proxy](#what-the-service-needs-from-a-proxy)
-  * [nginx](#nginx-1)
-  * [Apache httpd](#apache-httpd-1)
-  * [Caddy](#caddy-1)
-  * [Traefik](#traefik-1)
-  * [HAProxy](#haproxy-1)
-  * [Checking the result](#checking-the-result)
+* [Reverse proxies](#reverse-proxies)
+  * [In front of OpenCloud](#in-front-of-opencloud)
+    * [The headers this check looks for](#the-headers-this-check-looks-for)
+    * [nginx](#nginx)
+    * [Apache httpd](#apache-httpd)
+    * [Caddy](#caddy)
+    * [Traefik](#traefik)
+    * [HAProxy](#haproxy)
+    * [Mistakes that cost a grade](#mistakes-that-cost-a-grade)
+  * [In front of the scan service](#in-front-of-the-scan-service)
+    * [What the service needs from a proxy](#what-the-service-needs-from-a-proxy)
+    * [nginx](#nginx-1)
+    * [Apache httpd](#apache-httpd-1)
+    * [Caddy](#caddy-1)
+    * [Traefik](#traefik-1)
+    * [HAProxy](#haproxy-1)
+    * [Checking the result](#checking-the-result)
 <!-- TOC -->
 
-# In front of OpenCloud
+## In front of OpenCloud
 
 OpenCloud's own proxy service already sends a full set of security headers. A
 finding under *headers* therefore almost always means one of two things:
 something in front of it removed them, or something in front of it answers
 before OpenCloud does. Adding them again in the proxy fixes both.
 
-## The headers this check looks for
+### The headers this check looks for
 
 | Header | What this check accepts |
 |:-------|:------------------------|
@@ -59,7 +60,7 @@ before OpenCloud does. Adding them again in the proxy fixes both.
 Send them on the HTTPS listener only. `Strict-Transport-Security` on a plain
 HTTP response is ignored by browsers and tells an attacker nothing useful.
 
-## nginx
+### nginx
 
 ```nginx
 server {
@@ -113,7 +114,7 @@ own, and a policy written by hand in the proxy is how an instance ends up with
 a broken web interface. Only set one here if the check reports it missing and
 you have established that nothing behind the proxy sends it.
 
-## Apache httpd
+### Apache httpd
 
 ```apache
 <VirtualHost *:443>
@@ -144,7 +145,7 @@ Needs `mod_headers`, `mod_proxy`, `mod_proxy_http` and `mod_ssl`. Apache sets
 `X-Forwarded-For` itself and appends the client to it; do not also set it by
 hand, or the instance sees the address twice.
 
-## Caddy
+### Caddy
 
 ```caddyfile
 opencloud.example.com {
@@ -173,7 +174,7 @@ Caddy terminates TLS and redirects port 80 by itself, and it sets
 asked. Its `header` directive replaces a header the backend already sent, so
 this is safe to leave in place even once OpenCloud sends its own again.
 
-## Traefik
+### Traefik
 
 As labels on the OpenCloud container:
 
@@ -201,7 +202,7 @@ labels:
 setting `Strict-Transport-Security` through `customResponseHeaders` is
 overwritten. Traefik only sends HSTS on a TLS router, which is what you want.
 
-## HAProxy
+### HAProxy
 
 ```haproxy
 frontend https-in
@@ -228,7 +229,7 @@ backend opencloud
 `set-header` replaces; `add-header` would append a second copy, and two
 `Strict-Transport-Security` headers are worse than none.
 
-## Mistakes that cost a grade
+### Mistakes that cost a grade
 
 - **A header set only on `200`.** nginx's `add_header` without `always`, and
   Apache's `Header set` without `always`, both skip error responses. This
@@ -248,7 +249,7 @@ backend opencloud
 - **A self-signed or expired certificate.** The scan refuses to establish a
   version over an untrusted connection, and no header can make up for that.
 
-# In front of the scan service
+## In front of the scan service
 
 The web application in this repository - [`docs/webapp.md`](webapp.md) - is a
 plain ASGI service on one port. It sends its own security headers, including a
@@ -256,7 +257,7 @@ plain ASGI service on one port. It sends its own security headers, including a
 add. What it does need is the truth about who is calling and enough patience
 for a scan to finish.
 
-## What the service needs from a proxy
+### What the service needs from a proxy
 
 - **A real client address.** The rate limit and the target cooldown are the
   only things standing between a public scanner and being used as an
@@ -278,7 +279,7 @@ for a scan to finish.
   discovery document are built from it, and behind a proxy the application
   cannot work it out on its own.
 
-## nginx
+### nginx
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -339,7 +340,7 @@ is safe to leave empty behind a proxy that already fixes the host, and worth
 setting anyway - it costs nothing and it is one `Host` header away from being
 the only check.
 
-## Apache httpd
+### Apache httpd
 
 ```apache
 <VirtualHost *:443>
@@ -372,7 +373,7 @@ the only check.
 Order matters: the `<Location "/mcp">` block has to come before the catch-all
 `ProxyPass /`, or the catch-all wins and the stream is buffered again.
 
-## Caddy
+### Caddy
 
 ```caddyfile
 scan.example.com {
@@ -399,7 +400,7 @@ Caddy writes `X-Forwarded-For` from the connection and drops what the client
 sent, so `COS_WEB_TRUST_FORWARDED_FOR=true` is safe with no extra
 configuration.
 
-## Traefik
+### Traefik
 
 ```yaml
 labels:
@@ -431,7 +432,7 @@ application reads the **first** entry, which is the client, so
 `COS_WEB_TRUST_FORWARDED_FOR=true` is correct here as long as Traefik is the
 only proxy and is not itself behind one it trusts blindly.
 
-## HAProxy
+### HAProxy
 
 ```haproxy
 frontend scan-in
@@ -452,7 +453,7 @@ backend scan
 `timeout tunnel` is what keeps the MCP stream alive; `timeout server` alone
 closes it mid-session.
 
-## Checking the result
+### Checking the result
 
 ```bash
 # The client address the service actually sees, through the proxy.

@@ -18,23 +18,31 @@ with a browser. A sign-in that raised a limit would have turned itself into a
 way around it.
 
 <!-- TOC -->
-* [How it works](#how-it-works)
-* [Running the stack](#running-the-stack)
-* [Sending mail](#sending-mail)
-* [What the blueprint created](#what-the-blueprint-created)
-* [Pointing the scanner at it](#pointing-the-scanner-at-it)
-* [Adding somebody who may use the endpoint](#adding-somebody-who-may-use-the-endpoint)
-* [Getting a token](#getting-a-token)
-* [Configuring an agent](#configuring-an-agent)
-* [Erasure, which is a different credential](#erasure-which-is-a-different-credential)
-* [Behind a reverse proxy](#behind-a-reverse-proxy)
-* [Backing it up](#backing-it-up)
-* [Restoring it](#restoring-it)
-* [When it does not work](#when-it-does-not-work)
-* [Using a provider that is not Authentik](#using-a-provider-that-is-not-authentik)
+* [Authentik in front of the MCP endpoint](#authentik-in-front-of-the-mcp-endpoint)
+  * [How it works](#how-it-works)
+  * [Running the stack](#running-the-stack)
+  * [Sending mail](#sending-mail)
+  * [What the blueprint created](#what-the-blueprint-created)
+  * [Pointing the scanner at it](#pointing-the-scanner-at-it)
+  * [Adding somebody who may use the endpoint](#adding-somebody-who-may-use-the-endpoint)
+    * [A group, and the binding that makes it mean something](#a-group-and-the-binding-that-makes-it-mean-something)
+    * [The person](#the-person)
+    * [The agent that is nobody](#the-agent-that-is-nobody)
+  * [Getting a token](#getting-a-token)
+    * [As a service account](#as-a-service-account)
+    * [Without naming an account at all](#without-naming-an-account-at-all)
+    * [As a person](#as-a-person)
+    * [Reading the token you got](#reading-the-token-you-got)
+  * [Configuring an agent](#configuring-an-agent)
+  * [Erasure, which is a different credential](#erasure-which-is-a-different-credential)
+  * [Behind a reverse proxy](#behind-a-reverse-proxy)
+  * [Backing it up](#backing-it-up)
+  * [Restoring it](#restoring-it)
+  * [When it does not work](#when-it-does-not-work)
+  * [Using a provider that is not Authentik](#using-a-provider-that-is-not-authentik)
 <!-- TOC -->
 
-# How it works
+## How it works
 
 This service is an OAuth 2.0 **resource server** and nothing more. It has no
 login page, no session, no user table, no client secret and no way to issue a
@@ -59,7 +67,7 @@ authorisation server. `/.well-known/ai.json` says the same thing before the
 first request, so a well-behaved agent knows it needs a token without
 spending a round trip finding out.
 
-# Running the stack
+## Running the stack
 
 `docker/docker-compose.authentik.yml` is not an overlay on the ordinary stack;
 it is the whole deployment in one file. Six services - the web application,
@@ -132,7 +140,7 @@ Notes on the stack, and where it differs from the upstream one:
 - **Do not mount `/etc/localtime` or `/etc/timezone`** into these containers.
   Authentik needs UTC internally, and mounting a timezone breaks OAuth.
 
-# Sending mail
+## Sending mail
 
 Authentik starts with exactly one account, and the way back into it is an
 email. Until a mail server is configured it uses local delivery, which means
@@ -188,7 +196,7 @@ own, and takes the password from `AUTHENTIK_EMAIL_PASSWORD` in the environment
 rather than from a flag - a password on a command line is a password in `ps`
 and in the shell history.
 
-# What the blueprint created
+## What the blueprint created
 
 `authentik/blueprints/opencloud-scanner.yaml` is mounted into both Authentik
 containers at `/blueprints/custom`, and the worker applies it on start. That
@@ -252,7 +260,7 @@ To do it by hand instead - against an Authentik you already run, say - the
 wizard under **Applications → Applications → Create with wizard** asks for the
 same things in the same order, and the table above is the answer sheet.
 
-# Pointing the scanner at it
+## Pointing the scanner at it
 
 The stack above does this for you - the values below are already in
 `docker-compose.authentik.yml`, read from `.env`. This section is for pointing
@@ -302,7 +310,7 @@ no `aud` at all is refused for the same reason. The stack in
 `docker/docker-compose.authentik.yml` sets it from `AUTHENTIK_CLIENT_ID` and
 will not start without it.
 
-# Adding somebody who may use the endpoint
+## Adding somebody who may use the endpoint
 
 **Read this before the stack is reachable by anybody else.** The blueprint
 provisions a provider and an application, and an application with no bindings
@@ -317,7 +325,7 @@ has no user table to look them up in. Who may hold a token is therefore
 entirely Authentik's decision, made in the two steps below, and it is the only
 place that decision exists.
 
-## A group, and the binding that makes it mean something
+### A group, and the binding that makes it mean something
 
 Do this once, before the first user. A binding on a group is one thing to
 review later; a binding per person is a list nobody prunes.
@@ -339,7 +347,7 @@ Test the negative case rather than assuming it: an account outside the group
 must *not* be able to get a token. An application that looks bound but is not
 is the one failure mode worth spending two minutes on.
 
-## The person
+### The person
 
 **Directory → Users → New User → Internal User.** Username and email are the
 two fields that matter; the email is what a password recovery goes to, so an
@@ -366,7 +374,7 @@ settings page at `/if/user/#/settings`; requiring it for everybody is a
 matter of adding an authenticator validation stage to the authentication
 flow, which is Authentik's business rather than this project's.
 
-## The agent that is nobody
+### The agent that is nobody
 
 A cron job, a CI pipeline or an assistant running on a server has no browser
 to be taken through, and should not be holding a person's password. It gets a
@@ -390,7 +398,7 @@ Give one to each caller rather than sharing one. They cost nothing, and the
 difference shows the day you need to revoke exactly one of them without
 telephoning everybody else.
 
-# Getting a token
+## Getting a token
 
 Which credential a caller uses depends on what it is, and all three end at the
 same token endpoint:
@@ -407,7 +415,7 @@ authentication is by an *app password*, and the client secret is only how the
 request proves which provider it is asking. This trips up everybody who has
 used another provider first.
 
-## As a service account
+### As a service account
 
 The ordinary case for an agent, and the one to reach for:
 
@@ -437,7 +445,7 @@ curl -s https://sso.example.com/application/o/token/ \
   -d scope="openid" | jq -r .access_token
 ```
 
-## Without naming an account at all
+### Without naming an account at all
 
 Leave the username out and send only the provider's client ID and secret, and
 Authentik issues the token against a service account it creates for the
@@ -459,7 +467,7 @@ exists, remember to add that generated account to the group as well, or this
 stops working - which is the correct outcome, and the moment to switch to a
 service account of your own.
 
-## As a person
+### As a person
 
 An MCP client that implements the OAuth flow needs nothing but the URL: it
 meets the `401`, reads `/.well-known/oauth-protected-resource/mcp`, finds
@@ -473,7 +481,7 @@ If a client asks to be registered instead, register it by hand under
 **Applications → Providers**: Authentik supports dynamic client registration,
 but it is off by default and gated behind a registration token.
 
-## Reading the token you got
+### Reading the token you got
 
 Before wondering why `/mcp` refuses one, look at what is in it:
 
@@ -508,7 +516,7 @@ Authentik always issues JWT access tokens, whichever way you asked for one, so
 there is never an opaque string to introspect and the scan service never has
 to ask Authentik anything.
 
-# Configuring an agent
+## Configuring an agent
 
 Most MCP clients accept a static header, which is the simplest thing that
 works:
@@ -535,7 +543,7 @@ the client by hand in the admin interface is the path that always works.
 See [the MCP guide](mcp.md) for the per-client configuration files; the only
 addition here is the header.
 
-# Erasure, which is a different credential
+## Erasure, which is a different credential
 
 `erase_instance_data` needs the operator's purge credential -
 `COS_WEB_PURGE_TOKEN` - and that has never been the same thing as an identity.
@@ -557,7 +565,7 @@ operator credential is exactly the confusion worth refusing.
 Neither ever reaches the model: the tool takes them from the request headers,
 never as an argument.
 
-# Behind a reverse proxy
+## Behind a reverse proxy
 
 Two hosts, two requirements.
 
@@ -573,7 +581,7 @@ audience is checked against and what the metadata document publishes. Set
 `COS_WEB_PUBLIC_BASE_URL`. [The reverse proxy guide](reverse-proxy.md) has
 worked configuration for both.
 
-# Backing it up
+## Backing it up
 
 **Authentik has no built-in backup.** The one it used to have was removed
 years ago, so this is yours to run. Four things matter, and the first two are
@@ -618,7 +626,7 @@ every token and every signing key Authentik holds, and `.env` contains the key
 that makes them usable. Encrypt it, keep it off the machine that made it, and
 test the restore - an untested backup is a belief, not a backup.
 
-# Restoring it
+## Restoring it
 
 ```bash
 cd docker
@@ -651,7 +659,7 @@ Nothing on the scanner's side needs restoring. It holds no state about the
 provider beyond the settings in the compose file, and the signing keys are
 fetched again on the first request.
 
-# When it does not work
+## When it does not work
 
 | Symptom | Cause |
 |:--------|:------|
@@ -681,7 +689,7 @@ curl -s https://scanner.example.com/.well-known/oauth-protected-resource/mcp | j
 curl -si https://scanner.example.com/mcp -X POST -d '{}' | grep -i www-authenticate
 ```
 
-# Using a provider that is not Authentik
+## Using a provider that is not Authentik
 
 Nothing here is Authentik-specific. Any provider that issues signed JWT access
 tokens and publishes a JWKS works: Keycloak, Zitadel, Authelia, Auth0, Okta.
