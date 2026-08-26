@@ -115,7 +115,7 @@ test = [
     "arq>=0.28.0",
     "mcp>=2.0.0",
     "httpx>=0.28.1",
-    "markdown>=3.8.2",
+    "markdown>=3.10.3",
 ]
 
 [tool.pytest.ini_options]
