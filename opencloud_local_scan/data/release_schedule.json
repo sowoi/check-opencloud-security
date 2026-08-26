@@ -1,13 +1,21 @@
 {
   "_comment": "OpenCloud release schedule, grouped by release line (MAJOR.MINOR). 'tracks' names the release types a line was published on. A rolling or production line is supported until the next line on the same track is released; an LTS line is supported for two years from its first release. Regenerate with scripts/update_release_schedule.py.",
   "source": "https://docs.opencloud.eu/docs/admin/resources/lifecycle/",
-  "updated": "2026-08-12",
+  "updated": "2026-08-26",
   "lifetime_days": {
     "rolling": 21,
     "production": 183,
     "lts": 730
   },
   "lines": [
+    {
+      "line": "7.5",
+      "tracks": [
+        "rolling"
+      ],
+      "released": "2026-08-25",
+      "latest": "7.5.0"
+    },
     {
       "line": "7.4",
       "tracks": [
@@ -31,7 +39,7 @@
         "rolling"
       ],
       "released": "2026-06-25",
-      "latest": "7.2.3"
+      "latest": "7.2.4"
     },
     {
       "line": "7.1",
@@ -229,7 +237,7 @@
     }
   ],
   "latest_release": {
-    "production": "7.2.3",
-    "rolling": "7.4.0"
+    "production": "7.2.4",
+    "rolling": "7.5.0"
   }
 }

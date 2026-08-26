@@ -1,13 +1,12 @@
-## check-opencloud-security 1.11.1
+## check-opencloud-security 1.11.2
 
 ### Added
-
-- **llms-full.txt Documentation**: Introduced a comprehensive, self-contained 
-  Markdown documentation file designed for Large Language Models (LLMs) with  
-  extended context windows.
-
-### Changed
-
-- **Updated /llms.txt layout**: follow standard Markdown guidelines, including 
-  blockquote summaries, explicit link structures, and references to full 
-  documentation.
+- **WebMCP Protocol SupportÜÜ: Added tooldescription and optional toolautosubmit
+  declarative attributes to HTML forms, enabling AI agents to auto-discover and 
+  interface directly with site features.
+- **Input Parameters Context**: Added descriptive description attributes to all 
+  security scanner form controls (target_url, release_track, output_format) for 
+  richer AI agent understanding.
+- **Structured Data (Schema.org)**: Implemented JSON-LD WebApplication schema 
+  metadata within the main template <head> to improve search engine rich snippets 
+  and AI crawler categorization.

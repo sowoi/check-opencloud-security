@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-08-26
+
 ### Added
 - **WebMCP Protocol SupportÜÜ: Added tooldescription and optional toolautosubmit
   declarative attributes to HTML forms, enabling AI agents to auto-discover and 

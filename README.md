@@ -966,11 +966,11 @@ Where the tracks stand today, straight from the bundled schedule:
 
 | Track | Current release | Line | Line opened | Supported until |
 |:------|:----------------|:-----|:------------|:----------------|
-| **Rolling** | `7.4.0` | `7.4` | 2026-08-03 | the next rolling release |
-| **Production** | `7.2.3` | `7.2` | 2026-06-25 | the next production release |
+| **Rolling** | `7.5.0` | `7.5` | 2026-08-25 | the next rolling release |
+| **Production** | `7.2.4` | `7.2` | 2026-06-25 | the next production release |
 | **LTS** | `4.0.8` | `4.0` | 2025-12-01 | 2027-12-01 |
 
-Read from the [OpenCloud release lifecycle][lifecycle] on 2026-08-12.
+Read from the [OpenCloud release lifecycle][lifecycle] on 2026-08-26.
 <!-- release-schedule:end -->
 
 The consequence for monitoring is that the *same* version can be perfectly
