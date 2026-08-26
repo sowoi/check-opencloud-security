@@ -433,7 +433,7 @@ requires-dist = [
     { name = "redis", marker = "extra == 'web'", specifier = ">=5.3.1,<6" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "types-requests", specifier = ">=2.33.0.20260712" },
-    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.42.0" },
+    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.52.3" },
 ]
 provides-extras = ["completion", "web", "mcp"]
 
