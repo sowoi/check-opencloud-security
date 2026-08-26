@@ -34,7 +34,8 @@ Traefik and HAProxy. Replace <code>opencloud.example.com</code> and
 this repository.</p>
 <!-- TOC -->
 <ul>
-<li><a href="#in-front-of-opencloud">In front of OpenCloud</a></li>
+<li><a href="#reverse-proxies">Reverse proxies</a></li>
+<li><a href="#in-front-of-opencloud">In front of OpenCloud</a><ul>
 <li><a href="#the-headers-this-check-looks-for">The headers this check looks for</a></li>
 <li><a href="#nginx">nginx</a></li>
 <li><a href="#apache-httpd">Apache httpd</a></li>
@@ -42,7 +43,9 @@ this repository.</p>
 <li><a href="#traefik">Traefik</a></li>
 <li><a href="#haproxy">HAProxy</a></li>
 <li><a href="#mistakes-that-cost-a-grade">Mistakes that cost a grade</a></li>
-<li><a href="#in-front-of-the-scan-service">In front of the scan service</a></li>
+</ul>
+</li>
+<li><a href="#in-front-of-the-scan-service">In front of the scan service</a><ul>
 <li><a href="#what-the-service-needs-from-a-proxy">What the service needs from a proxy</a></li>
 <li><a href="#nginx-1">nginx</a></li>
 <li><a href="#apache-httpd-1">Apache httpd</a></li>
@@ -51,14 +54,16 @@ this repository.</p>
 <li><a href="#haproxy-1">HAProxy</a></li>
 <li><a href="#checking-the-result">Checking the result</a></li>
 </ul>
+</li>
+</ul>
 <!-- TOC -->
 
-<h1 id="in-front-of-opencloud">In front of OpenCloud</h1>
+<h2 id="in-front-of-opencloud">In front of OpenCloud</h2>
 <p>OpenCloud's own proxy service already sends a full set of security headers. A
 finding under <em>headers</em> therefore almost always means one of two things:
 something in front of it removed them, or something in front of it answers
 before OpenCloud does. Adding them again in the proxy fixes both.</p>
-<h2 id="the-headers-this-check-looks-for">The headers this check looks for</h2>
+<h3 id="the-headers-this-check-looks-for">The headers this check looks for</h3>
 <table>
 <thead>
 <tr>
@@ -103,7 +108,7 @@ before OpenCloud does. Adding them again in the proxy fixes both.</p>
 </table>
 <p>Send them on the HTTPS listener only. <code>Strict-Transport-Security</code> on a plain
 HTTP response is ignored by browsers and tells an attacker nothing useful.</p>
-<h2 id="nginx">nginx</h2>
+<h3 id="nginx">nginx</h3>
 <pre><code class="language-nginx">server {
     listen 443 ssl http2;
     server_name opencloud.example.com;
@@ -152,7 +157,7 @@ inside a <code>location</code>, repeat the whole set there.</p>
 own, and a policy written by hand in the proxy is how an instance ends up with
 a broken web interface. Only set one here if the check reports it missing and
 you have established that nothing behind the proxy sends it.</p>
-<h2 id="apache-httpd">Apache httpd</h2>
+<h3 id="apache-httpd">Apache httpd</h3>
 <pre><code class="language-apache">&lt;VirtualHost *:443&gt;
     ServerName opencloud.example.com
 
@@ -179,7 +184,7 @@ you have established that nothing behind the proxy sends it.</p>
 <p>Needs <code>mod_headers</code>, <code>mod_proxy</code>, <code>mod_proxy_http</code> and <code>mod_ssl</code>. Apache sets
 <code>X-Forwarded-For</code> itself and appends the client to it; do not also set it by
 hand, or the instance sees the address twice.</p>
-<h2 id="caddy">Caddy</h2>
+<h3 id="caddy">Caddy</h3>
 <pre><code class="language-caddyfile">opencloud.example.com {
     encode zstd gzip
 
@@ -204,7 +209,7 @@ hand, or the instance sees the address twice.</p>
 <code>X-Forwarded-For</code>, <code>X-Forwarded-Proto</code> and <code>X-Forwarded-Host</code> without being
 asked. Its <code>header</code> directive replaces a header the backend already sent, so
 this is safe to leave in place even once OpenCloud sends its own again.</p>
-<h2 id="traefik">Traefik</h2>
+<h3 id="traefik">Traefik</h3>
 <p>As labels on the OpenCloud container:</p>
 <pre><code class="language-yaml">labels:
   - &quot;traefik.enable=true&quot;
@@ -227,7 +232,7 @@ this is safe to leave in place even once OpenCloud sends its own again.</p>
 <p><code>stsSeconds</code> is the only way to get HSTS out of Traefik's headers middleware -
 setting <code>Strict-Transport-Security</code> through <code>customResponseHeaders</code> is
 overwritten. Traefik only sends HSTS on a TLS router, which is what you want.</p>
-<h2 id="haproxy">HAProxy</h2>
+<h3 id="haproxy">HAProxy</h3>
 <pre><code class="language-haproxy">frontend https-in
     bind :443 ssl crt /etc/ssl/opencloud/opencloud.pem alpn h2,http/1.1
     http-request redirect scheme https unless { ssl_fc }
@@ -250,7 +255,7 @@ backend opencloud
 </code></pre>
 <p><code>set-header</code> replaces; <code>add-header</code> would append a second copy, and two
 <code>Strict-Transport-Security</code> headers are worse than none.</p>
-<h2 id="mistakes-that-cost-a-grade">Mistakes that cost a grade</h2>
+<h3 id="mistakes-that-cost-a-grade">Mistakes that cost a grade</h3>
 <ul>
 <li><strong>A header set only on <code>200</code>.</strong> nginx's <code>add_header</code> without <code>always</code>, and
   Apache's <code>Header set</code> without <code>always</code>, both skip error responses. This
@@ -270,13 +275,13 @@ backend opencloud
 <li><strong>A self-signed or expired certificate.</strong> The scan refuses to establish a
   version over an untrusted connection, and no header can make up for that.</li>
 </ul>
-<h1 id="in-front-of-the-scan-service">In front of the scan service</h1>
+<h2 id="in-front-of-the-scan-service">In front of the scan service</h2>
 <p>The web application in this repository - <a href="/documentation/web-service"><code>docs/webapp.md</code></a> - is a
 plain ASGI service on one port. It sends its own security headers, including a
 <code>Content-Security-Policy</code> with no <code>unsafe-inline</code>, so a proxy has nothing to
 add. What it does need is the truth about who is calling and enough patience
 for a scan to finish.</p>
-<h2 id="what-the-service-needs-from-a-proxy">What the service needs from a proxy</h2>
+<h3 id="what-the-service-needs-from-a-proxy">What the service needs from a proxy</h3>
 <ul>
 <li><strong>A real client address.</strong> The rate limit and the target cooldown are the
   only things standing between a public scanner and being used as an
@@ -298,7 +303,7 @@ for a scan to finish.</p>
   discovery document are built from it, and behind a proxy the application
   cannot work it out on its own.</li>
 </ul>
-<h2 id="nginx_1">nginx</h2>
+<h3 id="nginx_1">nginx</h3>
 <pre><code class="language-nginx">map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
@@ -352,7 +357,7 @@ COS_WEB_MCP_ALLOWED_HOSTS=scan.example.com
 is safe to leave empty behind a proxy that already fixes the host, and worth
 setting anyway - it costs nothing and it is one <code>Host</code> header away from being
 the only check.</p>
-<h2 id="apache-httpd_1">Apache httpd</h2>
+<h3 id="apache-httpd_1">Apache httpd</h3>
 <pre><code class="language-apache">&lt;VirtualHost *:443&gt;
     ServerName scan.example.com
 
@@ -381,7 +386,7 @@ the only check.</p>
 </code></pre>
 <p>Order matters: the <code>&lt;Location "/mcp"&gt;</code> block has to come before the catch-all
 <code>ProxyPass /</code>, or the catch-all wins and the stream is buffered again.</p>
-<h2 id="caddy_1">Caddy</h2>
+<h3 id="caddy_1">Caddy</h3>
 <pre><code class="language-caddyfile">scan.example.com {
     encode zstd gzip
 
@@ -404,7 +409,7 @@ the only check.</p>
 Caddy writes <code>X-Forwarded-For</code> from the connection and drops what the client
 sent, so <code>COS_WEB_TRUST_FORWARDED_FOR=true</code> is safe with no extra
 configuration.</p>
-<h2 id="traefik_1">Traefik</h2>
+<h3 id="traefik_1">Traefik</h3>
 <pre><code class="language-yaml">labels:
   - &quot;traefik.enable=true&quot;
   - &quot;traefik.http.routers.scan.rule=Host(`scan.example.com`)&quot;
@@ -429,7 +434,7 @@ configuration.</p>
 application reads the <strong>first</strong> entry, which is the client, so
 <code>COS_WEB_TRUST_FORWARDED_FOR=true</code> is correct here as long as Traefik is the
 only proxy and is not itself behind one it trusts blindly.</p>
-<h2 id="haproxy_1">HAProxy</h2>
+<h3 id="haproxy_1">HAProxy</h3>
 <pre><code class="language-haproxy">frontend scan-in
     bind :443 ssl crt /etc/ssl/scan/scan.pem alpn h2,http/1.1
     http-request set-header X-Forwarded-Proto https
@@ -446,7 +451,7 @@ backend scan
 </code></pre>
 <p><code>timeout tunnel</code> is what keeps the MCP stream alive; <code>timeout server</code> alone
 closes it mid-session.</p>
-<h2 id="checking-the-result">Checking the result</h2>
+<h3 id="checking-the-result">Checking the result</h3>
 <pre><code class="language-bash"># The client address the service actually sees, through the proxy.
 curl -sS https://scan.example.com/healthz
 

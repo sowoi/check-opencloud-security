@@ -48,6 +48,7 @@ operator of the deployment sets - see <a href="#erasure-needs-a-credential">Eras
 credential</a>.</p>
 <!-- TOC -->
 <ul>
+<li><a href="#using-the-scanner-from-an-ai-agent-mcp">Using the scanner from an AI agent (MCP)</a></li>
 <li><a href="#what-the-agent-gets">What the agent gets</a></li>
 <li><a href="#claude-code">Claude Code</a></li>
 <li><a href="#claude-desktop">Claude Desktop</a></li>
@@ -67,7 +68,7 @@ credential</a>.</p>
 </ul>
 <!-- TOC -->
 
-<h1 id="what-the-agent-gets">What the agent gets</h1>
+<h2 id="what-the-agent-gets">What the agent gets</h2>
 <p>Six tools, each a whole task rather than one HTTP endpoint:</p>
 <table>
 <thead>
@@ -157,7 +158,7 @@ the tool calls itself.</p>
 <p>"Scan opencloud.example.com" is one tool call. The submission, the waiting and
 the result are inside <code>scan_instance</code>; an agent does not have to orchestrate
 them.</p>
-<h1 id="claude-code">Claude Code</h1>
+<h2 id="claude-code">Claude Code</h2>
 <pre><code class="language-bash"># Hosted
 claude mcp add --transport http opencloud-scan https://scan.okxo.de/mcp
 
@@ -170,7 +171,7 @@ current one. Then, in a session:</p>
 </code></pre>
 <p><code>claude mcp list</code> shows whether the connection came up, and <code>/mcp</code> inside a
 session lists the tools that were discovered.</p>
-<h1 id="claude-desktop">Claude Desktop</h1>
+<h2 id="claude-desktop">Claude Desktop</h2>
 <p>Claude Desktop reads <code>claude_desktop_config.json</code>:</p>
 <ul>
 <li>macOS: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
@@ -189,7 +190,7 @@ session lists the tools that were discovered.</p>
 <p>Restart the application afterwards. Builds that cannot reach a remote server
 directly can use the bridge in <a href="#clients-that-only-speak-stdio">Clients that only speak
 stdio</a>.</p>
-<h1 id="github-copilot-in-vs-code">GitHub Copilot in VS Code</h1>
+<h2 id="github-copilot-in-vs-code">GitHub Copilot in VS Code</h2>
 <p>VS Code is the odd one out: the top-level key is <code>servers</code>, not <code>mcpServers</code>.
 Put this in <code>.vscode/mcp.json</code> for one workspace, or run <strong>MCP: Open User
 Configuration</strong> from the command palette for all of them:</p>
@@ -204,7 +205,7 @@ Configuration</strong> from the command palette for all of them:</p>
 </code></pre>
 <p>Then open Copilot Chat in <strong>Agent</strong> mode; the tools appear in the tool picker.
 <code>MCP: List Servers</code> shows the connection and its log if it does not.</p>
-<h1 id="github-copilot-cli">GitHub Copilot CLI</h1>
+<h2 id="github-copilot-cli">GitHub Copilot CLI</h2>
 <p>Copilot CLI merges configuration from <code>~/.copilot/mcp-config.json</code> (global) and
 <code>.github/mcp.json</code> or <code>.mcp.json</code> in the working directory:</p>
 <pre><code class="language-json">{
@@ -217,7 +218,7 @@ Configuration</strong> from the command palette for all of them:</p>
 }
 </code></pre>
 <p><code>/mcp</code> inside a session lists what was loaded.</p>
-<h1 id="cursor">Cursor</h1>
+<h2 id="cursor">Cursor</h2>
 <p><code>.cursor/mcp.json</code> in a project, or <code>~/.cursor/mcp.json</code> globally:</p>
 <pre><code class="language-json">{
   &quot;mcpServers&quot;: {
@@ -229,7 +230,7 @@ Configuration</strong> from the command palette for all of them:</p>
 }
 </code></pre>
 <p>Settings → MCP shows the server and lets you toggle individual tools.</p>
-<h1 id="zed">Zed</h1>
+<h2 id="zed">Zed</h2>
 <p><code>settings.json</code> (<strong>Zed: Open Settings</strong>), under <code>context_servers</code>:</p>
 <pre><code class="language-json">{
   &quot;context_servers&quot;: {
@@ -242,7 +243,7 @@ Configuration</strong> from the command palette for all of them:</p>
 </code></pre>
 <p>Recent Zed versions also accept an <code>.mcp.json</code> with the usual <code>mcpServers</code>
 key.</p>
-<h1 id="windsurf">Windsurf</h1>
+<h2 id="windsurf">Windsurf</h2>
 <p><code>~/.codeium/windsurf/mcp_config.json</code>:</p>
 <pre><code class="language-json">{
   &quot;mcpServers&quot;: {
@@ -252,7 +253,7 @@ key.</p>
   }
 }
 </code></pre>
-<h1 id="any-other-client">Any other client</h1>
+<h2 id="any-other-client">Any other client</h2>
 <p>The endpoint is ordinary <strong>streamable HTTP</strong> MCP: one URL, <code>POST</code> for
 requests, no session to keep alive, no authentication. Anything that can be
 told a URL will work with</p>
@@ -265,7 +266,7 @@ transport, the answer is <em>streamable HTTP</em> (sometimes called "HTTP" or
 <code>https://scan.okxo.de/.well-known/ai.json</code> names it, alongside the OpenAPI and
 Arazzo documents. That is the whole point of the discovery document - see
 <a href="https://scan.okxo.de/ai">the page for agents</a>.</p>
-<h1 id="clients-that-only-speak-stdio">Clients that only speak stdio</h1>
+<h2 id="clients-that-only-speak-stdio">Clients that only speak stdio</h2>
 <p>Some clients still launch a subprocess and talk to it over stdin and stdout.
 The community bridge <code>mcp-remote</code> connects such a client to a remote endpoint:</p>
 <pre><code class="language-json">{
@@ -281,7 +282,7 @@ The community bridge <code>mcp-remote</code> connects such a client to a remote 
 means your prompts pass through code neither of us wrote. Prefer a client that
 can speak HTTP directly, and prefer your own endpoint over the hosted one if
 you are going to bridge at all.</p>
-<h1 id="running-your-own-endpoint">Running your own endpoint</h1>
+<h2 id="running-your-own-endpoint">Running your own endpoint</h2>
 <p>The hosted service is convenient; your own is unlimited, and no address of
 yours leaves your network. Everything below is the stack from
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/README.md"><code>docker/</code></a>, described in full in <a href="/documentation/web-service">the public scan
@@ -329,7 +330,7 @@ perfectly well and <code>/mcp</code> answers <strong>404</strong>.</p>
 <p>Exposing it beyond localhost means putting it behind TLS: see <a href="/documentation/reverse-proxy">reverse
 proxies</a>, which covers the one thing MCP needs that a normal
 page does not - an unbuffered response, because the endpoint streams.</p>
-<h1 id="turning-mcp-off">Turning MCP off</h1>
+<h2 id="turning-mcp-off">Turning MCP off</h2>
 <p>An operator who does not want an agent interface can remove it. It is a
 setting, not a build:</p>
 <pre><code class="language-bash"># docker/, without editing docker-compose.yml
@@ -343,7 +344,7 @@ COS_WEB_ENABLE_MCP=false docker compose up -d
 <code>/.well-known/ai.json</code> and the "For AI agents" page stops advertising it. The
 HTTP API, the OpenAPI description and the Arazzo workflows are unaffected -
 they are how everything else uses the service, MCP or no MCP.</p>
-<h1 id="erasure-needs-a-credential">Erasure needs a credential</h1>
+<h2 id="erasure-needs-a-credential">Erasure needs a credential</h2>
 <p><code>erase_instance_data</code> deletes every stored scan of one hostname, including
 results other people may be reading. It is marked destructive, and it only
 works when the deployment has <code>COS_WEB_PURGE_TOKEN</code> set - the hosted service
@@ -374,7 +375,7 @@ against a credential and answer 401 for a reason nobody could see.</p>
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;
 }
 </code></pre>
-<h1 id="when-the-endpoint-asks-you-to-sign-in">When the endpoint asks you to sign in</h1>
+<h2 id="when-the-endpoint-asks-you-to-sign-in">When the endpoint asks you to sign in</h2>
 <p>Neither the hosted service nor the default self-hosted stack does. An operator
 running this for their own estate can, and then <code>/mcp</code> becomes an OAuth 2.0
 protected resource:</p>
@@ -409,7 +410,7 @@ the endpoint</a> - a
 provisioned application with no bindings admits every account in the directory
 - and <a href="/documentation/authentik#getting-a-token">how a caller gets a token</a>, whether it is
 a person in a browser or an agent with a service account.</p>
-<h1 id="limits-and-being-a-good-guest">Limits, and being a good guest</h1>
+<h2 id="limits-and-being-a-good-guest">Limits, and being a good guest</h2>
 <p>The hosted service applies the same limits to an agent as to a browser:</p>
 <ul>
 <li><strong>Rate limit per client address</strong>, answered with <strong>429</strong> and a
@@ -436,7 +437,7 @@ the way a summary field is without ceasing to be the file it claims to be, so
 its content carries the same <code>untrusted</code> block, and an export too large to
 return inline comes back with <code>truncated</code> and its URL rather than filling a
 context window.</p>
-<h1 id="checking-that-it-works">Checking that it works</h1>
+<h2 id="checking-that-it-works">Checking that it works</h2>
 <p>Without any client at all:</p>
 <pre><code class="language-bash">curl -sS -X POST https://scan.okxo.de/mcp \
   -H 'Content-Type: application/json' \

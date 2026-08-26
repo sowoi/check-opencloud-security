@@ -310,7 +310,7 @@ def test_a_declared_track_survives_the_configuration():
 # --- the declared release track ---
 def test_without_a_declared_track_the_longest_support_wins():
     """Unchanged behaviour: nobody said, so judge the line as generously as is true."""
-    status = load_release_schedule().status_for("7.2.3", today=TODAY)
+    status = load_release_schedule().status_for("7.2.4", today=TODAY)
 
     assert status.state == "supported"
     assert status.release_type == "production"
@@ -319,16 +319,16 @@ def test_without_a_declared_track_the_longest_support_wins():
 
 def test_a_rolling_instance_is_end_of_life_once_the_next_release_ships():
     """Three weeks is the whole point of the rolling track."""
-    status = load_release_schedule().status_for("7.2.3", today=TODAY, track="rolling")
+    status = load_release_schedule().status_for("7.2.4", today=TODAY, track="rolling")
 
     assert status.state == "endOfLife"
     assert status.declared_track == "rolling"
-    assert status.upgrade_to == "7.4.0"
+    assert status.upgrade_to == "7.5.0"
 
 
 def test_the_same_version_is_current_on_the_production_track():
     """The declared track, not the version number, decides the support window."""
-    status = load_release_schedule().status_for("7.2.3", today=TODAY, track="production")
+    status = load_release_schedule().status_for("7.2.4", today=TODAY, track="production")
 
     assert status.state == "supported"
     assert status.release_type == "production"
@@ -344,7 +344,7 @@ def test_a_release_ahead_of_the_declared_track_is_not_end_of_life():
     """
     schedule = load_release_schedule()
 
-    ahead = schedule.status_for("7.4.0", today=TODAY, track="production")
+    ahead = schedule.status_for("7.5.0", today=TODAY, track="production")
 
     assert ahead.state == "supported"
     assert ahead.release_type == "rolling"
@@ -358,19 +358,19 @@ def test_a_release_behind_the_declared_track_is_still_end_of_life():
     behind = schedule.status_for("2.0.5", today=TODAY, track="production")
 
     assert behind.state == "endOfLife"
-    assert behind.upgrade_to == "7.2.3"
+    assert behind.upgrade_to == "7.2.4"
 
 
 def test_a_version_that_never_shipped_on_the_declared_track_says_so():
     """The reason has to explain a verdict the version number contradicts."""
     behind = load_release_schedule().status_for("2.3.0", today=TODAY, track="production")
-    ahead = load_release_schedule().status_for("7.4.0", today=TODAY, track="production")
+    ahead = load_release_schedule().status_for("7.5.0", today=TODAY, track="production")
 
     assert "not published on the production track" in behind.reason
     assert "it is a rolling release" in behind.reason
-    assert "the current production release is 7.2.3" in behind.reason
+    assert "the current production release is 7.2.4" in behind.reason
     assert "ahead of the production track" in ahead.reason
-    assert "newer than the current production release 7.2.3" in ahead.reason
+    assert "newer than the current production release 7.2.4" in ahead.reason
 
 
 def test_the_auto_track_infers_instead_of_declaring():
@@ -381,8 +381,8 @@ def test_the_auto_track_infers_instead_of_declaring():
     """
     schedule = load_release_schedule()
 
-    inferred = schedule.status_for("7.2.3", today=TODAY)
-    automatic = schedule.status_for("7.2.3", today=TODAY, track="auto")
+    inferred = schedule.status_for("7.2.4", today=TODAY)
+    automatic = schedule.status_for("7.2.4", today=TODAY, track="auto")
 
     assert automatic.state == inferred.state == "supported"
     assert automatic.release_type == inferred.release_type == "production"
@@ -394,7 +394,7 @@ def test_the_auto_track_never_reports_a_rolling_release_as_end_of_life():
     """The case that started this: production declared, rolling installed."""
     schedule = load_release_schedule()
 
-    automatic = schedule.status_for("7.4.0", today=TODAY, track="auto")
+    automatic = schedule.status_for("7.5.0", today=TODAY, track="auto")
 
     assert automatic.state == "supported"
     assert automatic.release_type == "rolling"
@@ -402,7 +402,7 @@ def test_the_auto_track_never_reports_a_rolling_release_as_end_of_life():
 
 def test_such_a_version_is_never_told_to_downgrade():
     """An upgrade arrow must always point forwards, whatever the track."""
-    status = load_release_schedule().status_for("7.4.0", today=TODAY, track="production")
+    status = load_release_schedule().status_for("7.5.0", today=TODAY, track="production")
 
     assert status.upgrade_to is None
 
@@ -416,7 +416,7 @@ def test_an_lts_release_keeps_its_two_year_window_when_declared():
 
 def test_an_unknown_declared_track_falls_back_to_inference():
     """Validation happens at the edge; the model must not crash on bad input."""
-    status = load_release_schedule().status_for("7.2.3", today=TODAY, track="stable")
+    status = load_release_schedule().status_for("7.2.4", today=TODAY, track="stable")
 
     assert status.state == "supported"
     assert status.declared_track is None
@@ -439,7 +439,7 @@ def test_a_rolling_release_on_the_production_track_is_not_rated_f():
     CRITICAL, on a machine running the newest OpenCloud there is.
     """
     behaviour = InstanceBehaviour()
-    behaviour.status_payload["productversion"] = "7.4.0"
+    behaviour.status_payload["productversion"] = "7.5.0"
 
     result = run_scan(behaviour, release_track="production")
 
@@ -462,7 +462,7 @@ def test_an_older_release_than_the_production_track_is_still_rated_f():
 def test_the_auto_release_track_reaches_the_scan(capsys):
     """'auto' has to be usable end to end, not just parsed."""
     behaviour = InstanceBehaviour()
-    behaviour.status_payload["productversion"] = "7.4.0"
+    behaviour.status_payload["productversion"] = "7.5.0"
 
     result = run_scan(behaviour, release_track="auto")
     output, _ = run(result, capsys)
@@ -480,4 +480,4 @@ def test_the_declared_track_steers_the_update_recommendation():
 
     result = run_scan(behaviour, release_track="production")
 
-    assert result["lifecycle"]["upgradeTo"] == "7.2.3"
+    assert result["lifecycle"]["upgradeTo"] == "7.2.4"

@@ -33,13 +33,25 @@ with a browser. A sign-in that raised a limit would have turned itself into a
 way around it.</p>
 <!-- TOC -->
 <ul>
+<li><a href="#authentik-in-front-of-the-mcp-endpoint">Authentik in front of the MCP endpoint</a></li>
 <li><a href="#how-it-works">How it works</a></li>
 <li><a href="#running-the-stack">Running the stack</a></li>
 <li><a href="#sending-mail">Sending mail</a></li>
 <li><a href="#what-the-blueprint-created">What the blueprint created</a></li>
 <li><a href="#pointing-the-scanner-at-it">Pointing the scanner at it</a></li>
-<li><a href="#adding-somebody-who-may-use-the-endpoint">Adding somebody who may use the endpoint</a></li>
-<li><a href="#getting-a-token">Getting a token</a></li>
+<li><a href="#adding-somebody-who-may-use-the-endpoint">Adding somebody who may use the endpoint</a><ul>
+<li><a href="#a-group-and-the-binding-that-makes-it-mean-something">A group, and the binding that makes it mean something</a></li>
+<li><a href="#the-person">The person</a></li>
+<li><a href="#the-agent-that-is-nobody">The agent that is nobody</a></li>
+</ul>
+</li>
+<li><a href="#getting-a-token">Getting a token</a><ul>
+<li><a href="#as-a-service-account">As a service account</a></li>
+<li><a href="#without-naming-an-account-at-all">Without naming an account at all</a></li>
+<li><a href="#as-a-person">As a person</a></li>
+<li><a href="#reading-the-token-you-got">Reading the token you got</a></li>
+</ul>
+</li>
 <li><a href="#configuring-an-agent">Configuring an agent</a></li>
 <li><a href="#erasure-which-is-a-different-credential">Erasure, which is a different credential</a></li>
 <li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li>
@@ -50,7 +62,7 @@ way around it.</p>
 </ul>
 <!-- TOC -->
 
-<h1 id="how-it-works">How it works</h1>
+<h2 id="how-it-works">How it works</h2>
 <p>This service is an OAuth 2.0 <strong>resource server</strong> and nothing more. It has no
 login page, no session, no user table, no client secret and no way to issue a
 token. What it does is check one:</p>
@@ -72,7 +84,7 @@ whose <code>WWW-Authenticate</code> header names
 authorisation server. <code>/.well-known/ai.json</code> says the same thing before the
 first request, so a well-behaved agent knows it needs a token without
 spending a round trip finding out.</p>
-<h1 id="running-the-stack">Running the stack</h1>
+<h2 id="running-the-stack">Running the stack</h2>
 <p><code>docker/docker-compose.authentik.yml</code> is not an overlay on the ordinary stack;
 it is the whole deployment in one file. Six services - the web application,
 the worker, Redis, Authentik, its own PostgreSQL, and Authentik's worker - and
@@ -155,7 +167,7 @@ would break <code>docker compose up</code> for everybody who never wanted Authen
 <li><strong>Do not mount <code>/etc/localtime</code> or <code>/etc/timezone</code></strong> into these containers.
   Authentik needs UTC internally, and mounting a timezone breaks OAuth.</li>
 </ul>
-<h1 id="sending-mail">Sending mail</h1>
+<h2 id="sending-mail">Sending mail</h2>
 <p>Authentik starts with exactly one account, and the way back into it is an
 email. Until a mail server is configured it uses local delivery, which means
 the message goes into the container and stays there: a forgotten <code>akadmin</code>
@@ -241,7 +253,7 @@ message through the server container, and read the worker's log for the rest:</p
 own, and takes the password from <code>AUTHENTIK_EMAIL_PASSWORD</code> in the environment
 rather than from a flag - a password on a command line is a password in <code>ps</code>
 and in the shell history.</p>
-<h1 id="what-the-blueprint-created">What the blueprint created</h1>
+<h2 id="what-the-blueprint-created">What the blueprint created</h2>
 <p><code>authentik/blueprints/opencloud-scanner.yaml</code> is mounted into both Authentik
 containers at <code>/blueprints/custom</code>, and the worker applies it on start. That
 is what makes the setup above one command rather than a page of clicking: the
@@ -340,7 +352,7 @@ looking anywhere else.</p>
 <p>To do it by hand instead - against an Authentik you already run, say - the
 wizard under <strong>Applications → Applications → Create with wizard</strong> asks for the
 same things in the same order, and the table above is the answer sheet.</p>
-<h1 id="pointing-the-scanner-at-it">Pointing the scanner at it</h1>
+<h2 id="pointing-the-scanner-at-it">Pointing the scanner at it</h2>
 <p>The stack above does this for you - the values below are already in
 <code>docker-compose.authentik.yml</code>, read from <code>.env</code>. This section is for pointing
 the service at an Authentik, or any other provider, that you already run. On
@@ -409,7 +421,7 @@ stops the service rather than quietly widening it, and a token that carries
 no <code>aud</code> at all is refused for the same reason. The stack in
 <code>docker/docker-compose.authentik.yml</code> sets it from <code>AUTHENTIK_CLIENT_ID</code> and
 will not start without it.</p>
-<h1 id="adding-somebody-who-may-use-the-endpoint">Adding somebody who may use the endpoint</h1>
+<h2 id="adding-somebody-who-may-use-the-endpoint">Adding somebody who may use the endpoint</h2>
 <p><strong>Read this before the stack is reachable by anybody else.</strong> The blueprint
 provisions a provider and an application, and an application with no bindings
 is one <strong>every</strong> account in this Authentik can use. On a stack that exists to
@@ -421,7 +433,7 @@ require - it never looks at the subject, the username or a group claim, and it
 has no user table to look them up in. Who may hold a token is therefore
 entirely Authentik's decision, made in the two steps below, and it is the only
 place that decision exists.</p>
-<h2 id="a-group-and-the-binding-that-makes-it-mean-something">A group, and the binding that makes it mean something</h2>
+<h3 id="a-group-and-the-binding-that-makes-it-mean-something">A group, and the binding that makes it mean something</h3>
 <p>Do this once, before the first user. A binding on a group is one thing to
 review later; a binding per person is a list nobody prunes.</p>
 <ol>
@@ -440,7 +452,7 @@ is right.</p>
 <p>Test the negative case rather than assuming it: an account outside the group
 must <em>not</em> be able to get a token. An application that looks bound but is not
 is the one failure mode worth spending two minutes on.</p>
-<h2 id="the-person">The person</h2>
+<h3 id="the-person">The person</h3>
 <p><strong>Directory → Users → New User → Internal User.</strong> Username and email are the
 two fields that matter; the email is what a password recovery goes to, so an
 account without one can only be recovered by an administrator.</p>
@@ -463,7 +475,7 @@ alone is a password alone. The user enrols an authenticator from their own
 settings page at <code>/if/user/#/settings</code>; requiring it for everybody is a
 matter of adding an authenticator validation stage to the authentication
 flow, which is Authentik's business rather than this project's.</p>
-<h2 id="the-agent-that-is-nobody">The agent that is nobody</h2>
+<h3 id="the-agent-that-is-nobody">The agent that is nobody</h3>
 <p>A cron job, a CI pipeline or an assistant running on a server has no browser
 to be taken through, and should not be holding a person's password. It gets a
 <strong>service account</strong>: an account with credentials and no login.</p>
@@ -482,7 +494,7 @@ point of it: it has credentials and no login.</p>
 <p>Give one to each caller rather than sharing one. They cost nothing, and the
 difference shows the day you need to revoke exactly one of them without
 telephoning everybody else.</p>
-<h1 id="getting-a-token">Getting a token</h1>
+<h2 id="getting-a-token">Getting a token</h2>
 <p>Which credential a caller uses depends on what it is, and all three end at the
 same token endpoint:</p>
 <table>
@@ -516,7 +528,7 @@ secret</strong>, whatever the grant type is called. Identification is by <em>use
 authentication is by an <em>app password</em>, and the client secret is only how the
 request proves which provider it is asking. This trips up everybody who has
 used another provider first.</p>
-<h2 id="as-a-service-account">As a service account</h2>
+<h3 id="as-a-service-account">As a service account</h3>
 <p>The ordinary case for an agent, and the one to reach for:</p>
 <pre><code class="language-bash">curl -s https://sso.example.com/application/o/token/ \
   -d grant_type=client_credentials \
@@ -538,7 +550,7 @@ username folded in:</p>
   -d client_secret=&quot;$(printf '%s:%s' scanner-agent &quot;$APP_PASSWORD&quot; | base64 -w0)&quot; \
   -d scope=&quot;openid&quot; | jq -r .access_token
 </code></pre>
-<h2 id="without-naming-an-account-at-all">Without naming an account at all</h2>
+<h3 id="without-naming-an-account-at-all">Without naming an account at all</h3>
 <p>Leave the username out and send only the provider's client ID and secret, and
 Authentik issues the token against a service account it creates for the
 purpose, named <code>ak-check-opencloud-security-client_credentials</code>:</p>
@@ -555,7 +567,7 @@ on is the provider secret the scan service also reads. Once the binding above
 exists, remember to add that generated account to the group as well, or this
 stops working - which is the correct outcome, and the moment to switch to a
 service account of your own.</p>
-<h2 id="as-a-person">As a person</h2>
+<h3 id="as-a-person">As a person</h3>
 <p>An MCP client that implements the OAuth flow needs nothing but the URL: it
 meets the <code>401</code>, reads <code>/.well-known/oauth-protected-resource/mcp</code>, finds
 Authentik, opens a browser and comes back with a token. The blueprint already
@@ -566,7 +578,7 @@ and being connected.</p>
 <p>If a client asks to be registered instead, register it by hand under
 <strong>Applications → Providers</strong>: Authentik supports dynamic client registration,
 but it is off by default and gated behind a registration token.</p>
-<h2 id="reading-the-token-you-got">Reading the token you got</h2>
+<h3 id="reading-the-token-you-got">Reading the token you got</h3>
 <p>Before wondering why <code>/mcp</code> refuses one, look at what is in it:</p>
 <pre><code class="language-bash">python -c 'import base64,json,sys;p=sys.argv[1].split(&quot;.&quot;)[1];print(json.dumps(json.loads(base64.urlsafe_b64decode(p+&quot;=&quot;*(-len(p)%4))),indent=2))' &quot;$TOKEN&quot;
 </code></pre>
@@ -614,7 +626,7 @@ rather than one per request.</p>
 <p>Authentik always issues JWT access tokens, whichever way you asked for one, so
 there is never an opaque string to introspect and the scan service never has
 to ask Authentik anything.</p>
-<h1 id="configuring-an-agent">Configuring an agent</h1>
+<h2 id="configuring-an-agent">Configuring an agent</h2>
 <p>Most MCP clients accept a static header, which is the simplest thing that
 works:</p>
 <pre><code class="language-json">{
@@ -635,7 +647,7 @@ is disabled by default and gated behind a registration token, so registering
 the client by hand in the admin interface is the path that always works.</p>
 <p>See <a href="/documentation/mcp">the MCP guide</a> for the per-client configuration files; the only
 addition here is the header.</p>
-<h1 id="erasure-which-is-a-different-credential">Erasure, which is a different credential</h1>
+<h2 id="erasure-which-is-a-different-credential">Erasure, which is a different credential</h2>
 <p><code>erase_instance_data</code> needs the operator's purge credential -
 <code>COS_WEB_PURGE_TOKEN</code> - and that has never been the same thing as an identity.
 With the endpoint open it travels in <code>Authorization</code>, because nothing else is
@@ -651,7 +663,7 @@ operator credential is exactly the confusion worth refusing.</p>
 </code></pre>
 <p>Neither ever reaches the model: the tool takes them from the request headers,
 never as an argument.</p>
-<h1 id="behind-a-reverse-proxy">Behind a reverse proxy</h1>
+<h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>
 <p>Two hosts, two requirements.</p>
 <p><strong>Authentik builds the issuer out of the <code>Host</code> header it is handed.</strong> A proxy
 that rewrites it gives every token an <code>iss</code> nobody will accept, and the
@@ -663,7 +675,7 @@ Authentik cannot run under a subpath; give it a hostname.</p>
 audience is checked against and what the metadata document publishes. Set
 <code>COS_WEB_PUBLIC_BASE_URL</code>. <a href="/documentation/reverse-proxy">The reverse proxy guide</a> has
 worked configuration for both.</p>
-<h1 id="backing-it-up">Backing it up</h1>
+<h2 id="backing-it-up">Backing it up</h2>
 <p><strong>Authentik has no built-in backup.</strong> The one it used to have was removed
 years ago, so this is yours to run. Four things matter, and the first two are
 the ones that make a restore possible at all:</p>
@@ -726,7 +738,7 @@ tell you what they actually came out as.</p>
 every token and every signing key Authentik holds, and <code>.env</code> contains the key
 that makes them usable. Encrypt it, keep it off the machine that made it, and
 test the restore - an untested backup is a belief, not a backup.</p>
-<h1 id="restoring-it">Restoring it</h1>
+<h2 id="restoring-it">Restoring it</h2>
 <pre><code class="language-bash">cd docker
 stack=&quot;-f docker-compose.authentik.yml&quot;
 
@@ -754,7 +766,7 @@ version that made the dump, then upgrade.</p>
 <p>Nothing on the scanner's side needs restoring. It holds no state about the
 provider beyond the settings in the compose file, and the signing keys are
 fetched again on the first request.</p>
-<h1 id="when-it-does-not-work">When it does not work</h1>
+<h2 id="when-it-does-not-work">When it does not work</h2>
 <table>
 <thead>
 <tr>
@@ -838,7 +850,7 @@ fetched again on the first request.</p>
 curl -s https://scanner.example.com/.well-known/oauth-protected-resource/mcp | jq
 curl -si https://scanner.example.com/mcp -X POST -d '{}' | grep -i www-authenticate
 </code></pre>
-<h1 id="using-a-provider-that-is-not-authentik">Using a provider that is not Authentik</h1>
+<h2 id="using-a-provider-that-is-not-authentik">Using a provider that is not Authentik</h2>
 <p>Nothing here is Authentik-specific. Any provider that issues signed JWT access
 tokens and publishes a JWKS works: Keycloak, Zitadel, Authelia, Auth0, Okta.
 Set the issuer to whatever its discovery

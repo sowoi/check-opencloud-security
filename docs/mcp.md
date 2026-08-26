@@ -18,25 +18,26 @@ operator of the deployment sets - see [Erasure needs a
 credential](#erasure-needs-a-credential).
 
 <!-- TOC -->
-* [What the agent gets](#what-the-agent-gets)
-* [Claude Code](#claude-code)
-* [Claude Desktop](#claude-desktop)
-* [GitHub Copilot in VS Code](#github-copilot-in-vs-code)
-* [GitHub Copilot CLI](#github-copilot-cli)
-* [Cursor](#cursor)
-* [Zed](#zed)
-* [Windsurf](#windsurf)
-* [Any other client](#any-other-client)
-* [Clients that only speak stdio](#clients-that-only-speak-stdio)
-* [Running your own endpoint](#running-your-own-endpoint)
-* [Turning MCP off](#turning-mcp-off)
-* [Erasure needs a credential](#erasure-needs-a-credential)
-* [When the endpoint asks you to sign in](#when-the-endpoint-asks-you-to-sign-in)
-* [Limits, and being a good guest](#limits-and-being-a-good-guest)
-* [Checking that it works](#checking-that-it-works)
+* [Using the scanner from an AI agent (MCP)](#using-the-scanner-from-an-ai-agent-mcp)
+  * [What the agent gets](#what-the-agent-gets)
+  * [Claude Code](#claude-code)
+  * [Claude Desktop](#claude-desktop)
+  * [GitHub Copilot in VS Code](#github-copilot-in-vs-code)
+  * [GitHub Copilot CLI](#github-copilot-cli)
+  * [Cursor](#cursor)
+  * [Zed](#zed)
+  * [Windsurf](#windsurf)
+  * [Any other client](#any-other-client)
+  * [Clients that only speak stdio](#clients-that-only-speak-stdio)
+  * [Running your own endpoint](#running-your-own-endpoint)
+  * [Turning MCP off](#turning-mcp-off)
+  * [Erasure needs a credential](#erasure-needs-a-credential)
+  * [When the endpoint asks you to sign in](#when-the-endpoint-asks-you-to-sign-in)
+  * [Limits, and being a good guest](#limits-and-being-a-good-guest)
+  * [Checking that it works](#checking-that-it-works)
 <!-- TOC -->
 
-# What the agent gets
+## What the agent gets
 
 Six tools, each a whole task rather than one HTTP endpoint:
 
@@ -75,7 +76,7 @@ the tool calls itself.
 the result are inside `scan_instance`; an agent does not have to orchestrate
 them.
 
-# Claude Code
+## Claude Code
 
 ```bash
 # Hosted
@@ -95,7 +96,7 @@ current one. Then, in a session:
 `claude mcp list` shows whether the connection came up, and `/mcp` inside a
 session lists the tools that were discovered.
 
-# Claude Desktop
+## Claude Desktop
 
 Claude Desktop reads `claude_desktop_config.json`:
 
@@ -118,7 +119,7 @@ Restart the application afterwards. Builds that cannot reach a remote server
 directly can use the bridge in [Clients that only speak
 stdio](#clients-that-only-speak-stdio).
 
-# GitHub Copilot in VS Code
+## GitHub Copilot in VS Code
 
 VS Code is the odd one out: the top-level key is `servers`, not `mcpServers`.
 Put this in `.vscode/mcp.json` for one workspace, or run **MCP: Open User
@@ -138,7 +139,7 @@ Configuration** from the command palette for all of them:
 Then open Copilot Chat in **Agent** mode; the tools appear in the tool picker.
 `MCP: List Servers` shows the connection and its log if it does not.
 
-# GitHub Copilot CLI
+## GitHub Copilot CLI
 
 Copilot CLI merges configuration from `~/.copilot/mcp-config.json` (global) and
 `.github/mcp.json` or `.mcp.json` in the working directory:
@@ -156,7 +157,7 @@ Copilot CLI merges configuration from `~/.copilot/mcp-config.json` (global) and
 
 `/mcp` inside a session lists what was loaded.
 
-# Cursor
+## Cursor
 
 `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` globally:
 
@@ -173,7 +174,7 @@ Copilot CLI merges configuration from `~/.copilot/mcp-config.json` (global) and
 
 Settings → MCP shows the server and lets you toggle individual tools.
 
-# Zed
+## Zed
 
 `settings.json` (**Zed: Open Settings**), under `context_servers`:
 
@@ -191,7 +192,7 @@ Settings → MCP shows the server and lets you toggle individual tools.
 Recent Zed versions also accept an `.mcp.json` with the usual `mcpServers`
 key.
 
-# Windsurf
+## Windsurf
 
 `~/.codeium/windsurf/mcp_config.json`:
 
@@ -205,7 +206,7 @@ key.
 }
 ```
 
-# Any other client
+## Any other client
 
 The endpoint is ordinary **streamable HTTP** MCP: one URL, `POST` for
 requests, no session to keep alive, no authentication. Anything that can be
@@ -224,7 +225,7 @@ An agent that has never heard of this service can find the endpoint itself:
 Arazzo documents. That is the whole point of the discovery document - see
 [the page for agents](https://scan.okxo.de/ai).
 
-# Clients that only speak stdio
+## Clients that only speak stdio
 
 Some clients still launch a subprocess and talk to it over stdin and stdout.
 The community bridge `mcp-remote` connects such a client to a remote endpoint:
@@ -245,7 +246,7 @@ means your prompts pass through code neither of us wrote. Prefer a client that
 can speak HTTP directly, and prefer your own endpoint over the hosted one if
 you are going to bridge at all.
 
-# Running your own endpoint
+## Running your own endpoint
 
 The hosted service is convenient; your own is unlimited, and no address of
 yours leaves your network. Everything below is the stack from
@@ -284,7 +285,7 @@ Exposing it beyond localhost means putting it behind TLS: see [reverse
 proxies](reverse-proxy.md), which covers the one thing MCP needs that a normal
 page does not - an unbuffered response, because the endpoint streams.
 
-# Turning MCP off
+## Turning MCP off
 
 An operator who does not want an agent interface can remove it. It is a
 setting, not a build:
@@ -306,7 +307,7 @@ or set `COS_WEB_ENABLE_MCP=false` in the environment of whatever runs
 HTTP API, the OpenAPI description and the Arazzo workflows are unaffected -
 they are how everything else uses the service, MCP or no MCP.
 
-# Erasure needs a credential
+## Erasure needs a credential
 
 `erase_instance_data` deletes every stored scan of one hostname, including
 results other people may be reading. It is marked destructive, and it only
@@ -346,7 +347,7 @@ against a credential and answer 401 for a reason nobody could see.
 }
 ```
 
-# When the endpoint asks you to sign in
+## When the endpoint asks you to sign in
 
 Neither the hosted service nor the default self-hosted stack does. An operator
 running this for their own estate can, and then `/mcp` becomes an OAuth 2.0
@@ -387,7 +388,7 @@ provisioned application with no bindings admits every account in the directory
 - and [how a caller gets a token](authentik.md#getting-a-token), whether it is
 a person in a browser or an agent with a service account.
 
-# Limits, and being a good guest
+## Limits, and being a good guest
 
 The hosted service applies the same limits to an agent as to a browser:
 
@@ -417,7 +418,7 @@ its content carries the same `untrusted` block, and an export too large to
 return inline comes back with `truncated` and its URL rather than filling a
 context window.
 
-# Checking that it works
+## Checking that it works
 
 Without any client at all:
 

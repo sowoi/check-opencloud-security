@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "check-opencloud-security"
-version = "1.11.2"
+version = "1.11.3"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },

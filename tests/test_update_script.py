@@ -41,7 +41,8 @@ def panel(rows: list[tuple[str, str]]) -> str:
 
 
 ROLLING = [
-    ("v7.5.0", "TBD"),
+    ("v7.6.0", "TBD"),
+    ("v7.5.0", "2026 August 25"),
     ("v7.4.0", "2026 August 3"),
     ("v7.3.0", "2026 July 14"),
     ("v7.2.0", "2026 June 25"),
@@ -50,7 +51,8 @@ ROLLING = [
 ]
 PRODUCTION = [
     ("-", "2026 October 26"),
-    ("v7.2.3", "2026 August 6"),
+    ("v7.2.4", "2026 August 21"),
+    ("v7.2.4", "2026 August 6"),
     ("v7.2.0", "2026 June 25"),
     ("v4.0.8", "2026 June 25"),
     ("v4.0.0", "2025 December 1"),
@@ -85,8 +87,8 @@ def line_of(schedule_document, name):
 @pytest.mark.parametrize(
     ("cell", "expected"),
     [
-        ("v7.2.3", (7, 2, 3)),
-        ("7.2.3", (7, 2, 3)),
+        ("v7.2.4", (7, 2, 4)),
+        ("7.2.4", (7, 2, 4)),
         ("v7.2", (7, 2, 0)),
         ("-", None),
         ("TBD", None),
@@ -118,15 +120,15 @@ def test_releases_are_grouped_into_lines(schedule):
     """A line is MAJOR.MINOR, because that is what OpenCloud maintains."""
     names = [entry["line"] for entry in schedule["lines"]]
 
-    assert names == ["7.4", "7.3", "7.2", "4.1", "4.0", "2.0"]
+    assert names == ["7.5", "7.4", "7.3", "7.2", "4.1", "4.0", "2.0"]
 
 
 def test_a_line_records_its_first_release_and_its_newest_patch(schedule):
-    """7.2 opened on the day 7.2.0 shipped and is now at 7.2.3."""
+    """7.2 opened on the day 7.2.0 shipped and is now at 7.2.4."""
     line = line_of(schedule, "7.2")
 
     assert line["released"] == "2026-06-25"
-    assert line["latest"] == "7.2.3"
+    assert line["latest"] == "7.2.4"
 
 
 def test_a_line_can_belong_to_several_tracks(schedule):
@@ -154,22 +156,22 @@ def test_an_undated_line_keeps_the_date_of_its_other_track(schedule):
 
 
 def test_a_line_with_no_date_at_all_is_dropped():
-    """7.5 is announced on the rolling tab but has no date yet."""
+    """7.6 is announced on the rolling tab but has no date yet."""
     schedule = script.extract(
         "<ul role='tablist'>"
         + tab("Rolling")
         + tab("Production")
         + "</ul>"
-        + panel([("v7.5.0", "TBD"), ("v7.4.0", "2026 August 3")] + ROLLING[3:])
+        + panel([("v7.6.0", "TBD"), ("v7.5.0", "2026 August 25")] + ROLLING[3:])
         + panel(PRODUCTION)
     )
 
-    assert "7.5" not in [entry["line"] for entry in schedule["lines"]]
+    assert "7.6" not in [entry["line"] for entry in schedule["lines"]]
 
 
 def test_the_newest_release_is_reported_per_track(schedule):
     """Recommending the newest release overall would be a track change."""
-    assert schedule["latest_release"] == {"production": "7.2.3", "rolling": "7.4.0"}
+    assert schedule["latest_release"] == {"production": "7.2.4", "rolling": "7.5.0"}
 
 
 def test_unnamed_rows_are_ignored(schedule):
@@ -191,8 +193,8 @@ def test_an_implausibly_short_schedule_is_rejected():
             + tab("Rolling")
             + tab("Production")
             + "</ul>"
-            + panel([("v7.4.0", "2026 August 3")])
-            + panel([("v7.2.3", "2026 August 6")])
+            + panel([("v7.5.0", "2026 August 3")])
+            + panel([("v7.2.4", "2026 August 6")])
         )
 
 
@@ -261,7 +263,7 @@ def test_main_writes_the_schedule(monkeypatch, tmp_path, capsys):
 
     assert script.main([]) == 0
     document = json.loads(target.read_text())
-    assert document["latest_release"]["production"] == "7.2.3"
+    assert document["latest_release"]["production"] == "7.2.4"
     assert "Updated release schedule" in capsys.readouterr().out
 
 
@@ -340,8 +342,8 @@ def test_the_readme_learns_the_new_versions(monkeypatch, tmp_path, capsys):
     assert script.main([]) == 0
     body = script.README.read_text(encoding="utf-8")
 
-    assert "| **Rolling** | `7.4.0` | `7.4` |" in body
-    assert "| **Production** | `7.2.3` | `7.2` |" in body
+    assert "| **Rolling** | `7.5.0` | `7.5` |" in body
+    assert "| **Production** | `7.2.4` | `7.2` |" in body
     assert "Updated README.md" in capsys.readouterr().out
     # Only the marked block is generated; the prose around it is written by hand.
     assert "Text below the block that must survive every run." in body
@@ -389,7 +391,7 @@ def test_a_stale_readme_is_updated_even_when_the_schedule_did_not_move(
 
     assert script.main(["--check"]) == 1
     assert script.main([]) == 0
-    assert "`7.4.0`" in script.README.read_text(encoding="utf-8")
+    assert "`7.5.0`" in script.README.read_text(encoding="utf-8")
 
 
 def test_no_readme_leaves_the_documentation_untouched(monkeypatch, tmp_path):
