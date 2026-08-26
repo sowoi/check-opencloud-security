@@ -1,5 +1,5 @@
-## check-opencloud-security 1.11.3
+## check-opencloud-security 1.11.4
 
-## Changed
-- **Documentation layout**: Removed redundant H1 tags.
-- **Release versions": Updated OpenCloud release versions to current
+## Added
+- **Legal Notice Badge**: Added an explicit Legal Notice link to the footer, 
+  displayed exclusively when accessing the site via scan.okxo.de.

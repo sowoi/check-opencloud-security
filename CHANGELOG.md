@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-08-26
+
 ## Added
 - **Legal Notice Badge**: Added an explicit Legal Notice link to the footer, 
   displayed exclusively when accessing the site via scan.okxo.de.
