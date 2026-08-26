@@ -48,6 +48,23 @@
   <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
   <link rel="arazzo" type="application/json" href="/arazzo.json">
   <link rel="ai-discovery" type="application/json" href="/.well-known/ai.json">
+  <!-- Schema.org Structured Data (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "{{ site_name|default('OpenCloud Security Scan', true) }}",
+    "description": "{{ t('index.description') }}",
+    "url": "{{ canonical_url|default('https://check.opencloud.security', true) }}",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR"
+    }
+  }
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body {% block body_attrs %}{% endblock %}>
@@ -77,7 +94,10 @@
         <span>{{ t('chrome.menu') }}</span>
       </button>
       <nav class="site-nav" id="site-nav" aria-label="{{ t('chrome.nav.primary') }}">
-        <form class="header-search" action="/search" method="get" role="search">
+        <form class="header-search" action="/search" method="get" role="search"
+              toolname="search_site"
+              tooldescription="Search through documentation and security guides."
+              toolautosubmit="true">
           <label class="visually-hidden" for="header-search-query">{{ t('chrome.search.label') }}</label>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" aria-hidden="true">
