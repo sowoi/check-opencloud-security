@@ -1,55 +1,42 @@
 # check-opencloud-security
 
-check-opencloud-security is an independent service that runs a built-in
-scanner against a public OpenCloud instance. It measures version support,
-known advisories, TLS, headers, hardening, and exposed services. The service
-queues scans and keeps each result for a short, configured retention window.
-The developer of this tool is Massoud Ahmed.
+> Independent service running security scanners against public OpenCloud instances. It measures version support, known advisories, TLS, security headers, hardening, and exposed services. Scans are queued, and results are stored within a short retention window. Developed by Massoud Ahmed.
 
-## Discovery and contracts
+## Core Interfaces & Discovery
 
-- `GET /llms.txt`: this overview.
-- `GET /.well-known/ai.json`: machine discovery for the API, workflows, and
-  Model Context Protocol endpoint.
-- `GET /openapi.json`: OpenAPI 3.1 operations and schemas.
-- `GET /arazzo.json`: asynchronous scan, polling, export, and erasure
-  workflows.
-- `POST /mcp`: server-side MCP tools when enabled.
+- [/llms.txt](/llms.txt): This overview document.
+- [/.well-known/ai.json](/.well-known/ai.json): Machine discovery for API, workflows, and Model Context Protocol (MCP) endpoints.
+- [/openapi.json](/openapi.json): OpenAPI 3.1 specification for operations and schemas.
+- [/arazzo.json](/arazzo.json): Arazzo specification for async scanning, polling, export, and erasure workflows.
+- [/mcp](/mcp): Server-side MCP endpoint (when enabled).
 
-## Main HTTP operations
+## API Operations Summary
 
-- `POST /api/scans`: queue one scan. Send `target_url`,
-  `ignore_hardenings`, `release_track`, and `output_format` only.
-- `POST /api/scans/batch`: queue several targets under the same options.
-- `GET /api/scans/{uuid}`: poll a scan and read its structured result.
-- `GET /api/scans/{uuid}/export/{format}`: export `json`, `csv`, `sarif`, or
-  `pdf`.
-- `DELETE /api/purge?target=...`: operator-authorized erasure, when enabled.
+- `POST /api/scans`: Queue a single scan (`target_url`, `ignore_hardenings`, `release_track`, `output_format`).
+- `POST /api/scans/batch`: Queue multiple scan targets using identical options.
+- `GET /api/scans/{uuid}`: Poll scan status and fetch structured results.
+- `GET /api/scans/{uuid}/export/{format}`: Export report in `json`, `csv`, `sarif`, or `pdf`.
+- `DELETE /api/purge?target=...`: Trigger operator-authorized data erasure (when enabled).
 
-Release tracks are `auto`, `rolling`, `production`, and `lts`. Waivers hide
-an alert from the rating but keep the evidence in the result. A scan UUID is
-the whole authorization for that scan. Do not publish it, guess UUIDs, or
-retry a 404.
+## Key Parameters & Behavior
 
-## Browser WebMCP
+- **Release Tracks:** `auto`, `rolling`, `production`, `lts`.
+- **Waivers:** Exclude alerts from overall ratings while retaining evidence in results.
+- **Authorization:** A scan UUID grants full access to its result. Do not publish or guess UUIDs, and do not retry on `404` (final state).
+- **HTTP Statuses:** `202` (Queued), `409` (Export requested before scan completion), `404` (Not found/Purged).
 
-When MCP is enabled, pages with useful actions register tools through WebMCP.
-The landing page offers `scan_opencloud_security`. A result page offers
-`get_scan_result` and `export_scan_report`. Their JSON Schemas contain the
-options available on the rendered page. Tool execution calls the same HTTP
-API listed above with `Accept: application/json`; it does not bypass SSRF
-checks, rate limits, target cooldowns, queueing, or result isolation.
+## Browser WebMCP Integration
 
-Use the page-scoped WebMCP tools when running inside a supporting browser.
-For a remote agent, start with `/.well-known/ai.json`, use `/mcp` when
-available, or follow the OpenAPI and Arazzo documents. A `202` means the scan
-was queued. Poll the UUID until `done` is true. A `409` from export means the
-scan exists but is not finished; a `404` is final.
+Supported browsers register page-scoped tools via [WebMCP](https://webmachinelearning.github.io/webmcp/):
+- **Landing Page:** `scan_opencloud_security`
+- **Result Page:** `get_scan_result`, `export_scan_report`
 
-WebMCP draft: https://webmachinelearning.github.io/webmcp/
+*Note: WebMCP executes calls against the HTTP API (`Accept: application/json`) and enforces all rate limits, target cooldowns, and SSRF protections.*
 
-## Independence and trademarks
+## Legal & Trademarks
 
-This project is not affiliated with, endorsed by, sponsored by, or supported
-by OpenCloud GmbH. "OpenCloud" and its marks belong to their owners and are
-used only to identify the software being checked.
+This project is independently developed and not affiliated with, endorsed by, or sponsored by OpenCloud GmbH. "OpenCloud" is a registered trademark of its respective owner.
+
+## Optional Details
+
+- [llms-full.txt](/llms-full.txt): Complete, uncurated documentation and extended schemas.

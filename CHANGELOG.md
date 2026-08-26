@@ -12,6 +12,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **llms-full.txt Documentation**: Introduced a comprehensive, self-contained 
+  Markdown documentation file designed for Large Language Models (LLMs) with  
+  extended context windows.
+
+### Changed
+
+- **Updated /llms.txt layout**: follow standard Markdown guidelines, including 
+  blockquote summaries, explicit link structures, and references to full 
+  documentation.
+
 ## [1.11.0] - 2026-08-26
 
 ### Added
