@@ -167,6 +167,8 @@ def test_the_release_bundle_carries_everything_needed_to_run_the_service(tmp_pat
         "frontend/templates/scan.html",
         "frontend/static/css/app.css",
         "frontend/static/js/scan.js",
+        "frontend/static/js/webmcp.js",
+        "frontend/static/llms.txt",
         "opencloud_local_scan/scanner.py",
         "opencloud_local_scan/data/release_schedule.json",
         "check_opencloud_security.py",

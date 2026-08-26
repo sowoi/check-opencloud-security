@@ -528,6 +528,14 @@ move the rating:</p>
 </tbody>
 </table>
 <p>The <code>files.app_providers</code> capability is a hardcoded constant and is ignored.</p>
+<p>The <code>identityProvider</code> observation names an external provider when its OIDC
+issuer identifies one. For Keycloak, Authelia and Authentik it also includes
+<code>advisoryUrl</code>, which points to the provider's official GitHub Security
+Advisories page. <code>version</code> is present but empty because none of these providers
+exposes its product version through an unauthenticated, default-enabled
+endpoint. The scanner does not guess from URL paths, assets or proxy headers;
+if trustworthy public version evidence becomes available, that field can carry
+it without changing the result shape.</p>
 <h3 id="what-the-scanner-cannot-measure">What the scanner cannot measure</h3>
 <p>Two questions come up often enough to be worth stating as non-goals:</p>
 <ul>

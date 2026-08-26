@@ -1,0 +1,55 @@
+# check-opencloud-security
+
+check-opencloud-security is an independent service that runs a built-in
+scanner against a public OpenCloud instance. It measures version support,
+known advisories, TLS, headers, hardening, and exposed services. The service
+queues scans and keeps each result for a short, configured retention window.
+The developer of this tool is Massoud Ahmed.
+
+## Discovery and contracts
+
+- `GET /llms.txt`: this overview.
+- `GET /.well-known/ai.json`: machine discovery for the API, workflows, and
+  Model Context Protocol endpoint.
+- `GET /openapi.json`: OpenAPI 3.1 operations and schemas.
+- `GET /arazzo.json`: asynchronous scan, polling, export, and erasure
+  workflows.
+- `POST /mcp`: server-side MCP tools when enabled.
+
+## Main HTTP operations
+
+- `POST /api/scans`: queue one scan. Send `target_url`,
+  `ignore_hardenings`, `release_track`, and `output_format` only.
+- `POST /api/scans/batch`: queue several targets under the same options.
+- `GET /api/scans/{uuid}`: poll a scan and read its structured result.
+- `GET /api/scans/{uuid}/export/{format}`: export `json`, `csv`, `sarif`, or
+  `pdf`.
+- `DELETE /api/purge?target=...`: operator-authorized erasure, when enabled.
+
+Release tracks are `auto`, `rolling`, `production`, and `lts`. Waivers hide
+an alert from the rating but keep the evidence in the result. A scan UUID is
+the whole authorization for that scan. Do not publish it, guess UUIDs, or
+retry a 404.
+
+## Browser WebMCP
+
+When MCP is enabled, pages with useful actions register tools through WebMCP.
+The landing page offers `scan_opencloud_security`. A result page offers
+`get_scan_result` and `export_scan_report`. Their JSON Schemas contain the
+options available on the rendered page. Tool execution calls the same HTTP
+API listed above with `Accept: application/json`; it does not bypass SSRF
+checks, rate limits, target cooldowns, queueing, or result isolation.
+
+Use the page-scoped WebMCP tools when running inside a supporting browser.
+For a remote agent, start with `/.well-known/ai.json`, use `/mcp` when
+available, or follow the OpenAPI and Arazzo documents. A `202` means the scan
+was queued. Poll the UUID until `done` is true. A `409` from export means the
+scan exists but is not finished; a `404` is final.
+
+WebMCP draft: https://webmachinelearning.github.io/webmcp/
+
+## Independence and trademarks
+
+This project is not affiliated with, endorsed by, sponsored by, or supported
+by OpenCloud GmbH. "OpenCloud" and its marks belong to their owners and are
+used only to identify the software being checked.

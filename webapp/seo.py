@@ -28,6 +28,7 @@ SITE_NAME = "OpenCloud Security Scan"
 #: source this one is rendered from.
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
+LLMS_PATH = "/llms.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
 
 
@@ -90,6 +91,7 @@ _DISALLOWED = (
 # an agent needs in order to use this service without reading its source, and
 # a crawler that finds them has found what it came for.
 _MACHINE_READABLE = (
+    LLMS_PATH,
     "/.well-known/ai.json",
     "/openapi.json",
     "/arazzo.json",

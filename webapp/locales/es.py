@@ -627,6 +627,34 @@ MESSAGES: dict[str, str] = {
         "mismo código que ejecuta el servidor, así que ninguno puede quedarse "
         "desactualizado sin que se note."
     ),
+    "ai.webmcp.kicker": "En el navegador",
+    "ai.webmcp.heading": "Usa la página como herramienta",
+    "ai.webmcp.intro": (
+        "Un navegador compatible con el "
+        '<a href="https://webmachinelearning.github.io/webmcp/" '
+        'rel="noopener noreferrer">borrador de WebMCP</a> puede descubrir las '
+        "acciones de la página abierta. No hace falta configurar otro cliente."
+    ),
+    "ai.webmcp.landing": (
+        "En la página de inicio, <code>scan_opencloud_security</code> pone un "
+        "análisis en cola. Su esquema contiene los canales de versión, formatos "
+        "de salida y excepciones que ofrece esa página."
+    ),
+    "ai.webmcp.result": (
+        "En una página de resultados, <code>get_scan_result</code> lee el análisis "
+        "actual y <code>export_scan_report</code> descarga JSON, CSV, SARIF o PDF "
+        "para el uuid que ya se está viendo."
+    ),
+    "ai.webmcp.boundary": (
+        "Cada herramienta del navegador llama a la misma API JSON con "
+        "<code>Accept: application/json</code>. Se mantienen la protección SSRF, "
+        "los límites, la espera por objetivo, la cola y el aislamiento por uuid."
+    ),
+    "ai.webmcp.support": (
+        "WebMCP todavía es un borrador y los navegadores sin soporte lo ignoran. "
+        "Al desactivar MCP en este despliegue también desaparecen las herramientas "
+        "del navegador."
+    ),
     "ai.clients.kicker": "Configuración",
     "ai.clients.heading": "Conectarlo a un cliente",
     "ai.clients.intro": (
@@ -1051,6 +1079,8 @@ MESSAGES: dict[str, str] = {
     "result.facts.signin": "Inicio de sesión",
     "result.facts.signin.external": "Proveedor externo",
     "result.facts.signin.upstream_tag": "upstream",
+    "result.facts.signin.version_unavailable": "versión no expuesta",
+    "result.facts.signin.advisories": "consultar avisos de seguridad",
     "result.facts.signin.builtin": "Proveedor de identidad integrado",
     "result.facts.signin.none": "No detectado -",
     "result.facts.signin.link": "cómo se configura el inicio de sesión de OpenCloud",
@@ -1221,6 +1251,8 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "Para un panel de análisis de código.",
     "result.export.json": "JSON",
     "result.export.json.hint": "El documento en bruto que evalúa el complemento.",
+    "result.feedback.prompt": "¿Crees que el análisis se ha equivocado?",
+    "result.feedback.link": "Informa de un falso positivo o un falso negativo",
     "result.expiry.one": (
         "Esta página caduca en aproximadamente 1 minuto; a partir de "
         "entonces el enlace deja de funcionar y el resultado desaparece."

@@ -2,6 +2,11 @@
 
 {% block title %}{{ t('index.title') }}{% endblock %}
 {% block description %}{{ t('index.description') }}{% endblock %}
+{% block head %}
+{% if index_meta_tag %}
+<meta name="{{ index_meta_tag.name }}" content="{{ index_meta_tag.content }}">
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <section class="hero">

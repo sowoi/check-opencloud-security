@@ -63,6 +63,9 @@ services:
       # only ever sees its own, and the canonical links and sitemap.xml would
       # then publish URLs nobody can reach.
       # COS_WEB_PUBLIC_BASE_URL: "https://opencloud-scan.example.com"
+      # Optional landing-page metadata as name=content. The application
+      # renders a name/content tag and never treats this as raw HTML.
+      COS_WEB_INDEX_META_TAG: "${COS_WEB_INDEX_META_TAG:-}"
       # Let search engines index the five public pages. A result page carries
       # noindex whatever this says: the uuid is the whole of the
       # authorisation. Set it to "false" for a deployment nobody should find.

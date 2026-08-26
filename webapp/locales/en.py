@@ -597,6 +597,33 @@ MESSAGES: dict[str, str] = {
         "generated from the same code the server runs, so none of them can quietly "
         "go out of date."
     ),
+    "ai.webmcp.kicker": "In the browser",
+    "ai.webmcp.heading": "Use the page as a tool",
+    "ai.webmcp.intro": (
+        "A browser that supports the "
+        '<a href="https://webmachinelearning.github.io/webmcp/" '
+        'rel="noopener noreferrer">WebMCP draft</a> can discover actions from the '
+        "page already open. There is no separate client to configure."
+    ),
+    "ai.webmcp.landing": (
+        "On the landing page, <code>scan_opencloud_security</code> queues a scan. "
+        "Its schema contains the release tracks, output formats and waiver "
+        "identifiers offered by that page."
+    ),
+    "ai.webmcp.result": (
+        "On a result page, <code>get_scan_result</code> reads the current scan and "
+        "<code>export_scan_report</code> downloads JSON, CSV, SARIF or PDF for the "
+        "uuid already being viewed."
+    ),
+    "ai.webmcp.boundary": (
+        "Every browser tool calls the same JSON API with "
+        "<code>Accept: application/json</code>. It keeps the SSRF guard, rate "
+        "limits, target cooldown, queue and uuid isolation in place."
+    ),
+    "ai.webmcp.support": (
+        "WebMCP is still a draft and is ignored by browsers that do not implement "
+        "it. Turning MCP off for this deployment removes the browser tools too."
+    ),
     "ai.clients.kicker": "Configuration",
     "ai.clients.heading": "Wiring it into a client",
     "ai.clients.intro": (
@@ -991,6 +1018,8 @@ MESSAGES: dict[str, str] = {
     "result.facts.signin": "Sign-in",
     "result.facts.signin.external": "External provider",
     "result.facts.signin.upstream_tag": "upstream",
+    "result.facts.signin.version_unavailable": "version not exposed",
+    "result.facts.signin.advisories": "check security advisories",
     "result.facts.signin.builtin": "Built-in identity provider",
     "result.facts.signin.none": "Not detected -",
     "result.facts.signin.link": "how OpenCloud sign-in is set up",
@@ -1151,6 +1180,8 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "For a code-scanning dashboard.",
     "result.export.json": "JSON",
     "result.export.json.hint": "The raw document the plugin evaluates.",
+    "result.feedback.prompt": "Think the scan got something wrong?",
+    "result.feedback.link": "Report a false positive or false negative",
     "result.expiry.one": (
         "This page expires in about 1 minute, after which the link stops working "
         "and the result is gone."

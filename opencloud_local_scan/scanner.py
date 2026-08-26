@@ -199,6 +199,12 @@ IDP_FINGERPRINTS: tuple[tuple[str, str], ...] = (
     ("auth0.com", "Auth0"),
 )
 
+IDP_SECURITY_ADVISORIES: dict[str, str] = {
+    "Keycloak": "https://github.com/keycloak/keycloak/security/advisories",
+    "Authelia": "https://github.com/authelia/authelia/security/advisories",
+    "Authentik": "https://github.com/goauthentik/authentik/security/advisories",
+}
+
 # The accounts OpenCloud's built-in identity management creates when
 # IDM_CREATE_DEMO_USERS is on. Their names and passwords are published in the
 # OpenCloud documentation, which is why probing them is not password guessing:
@@ -863,6 +869,8 @@ def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
         "external": False,
         "issuer": "",
         "vendor": "",
+        "version": "",
+        "advisoryUrl": "",
     }
     response = probe.get(OPENID_CONFIGURATION_PATH, allow_redirects=False)
     if response is None:
@@ -892,6 +900,7 @@ def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
         "."
     )
     provider["vendor"] = _identity_provider_vendor(issuer)
+    provider["advisoryUrl"] = IDP_SECURITY_ADVISORIES.get(provider["vendor"], "")
     return provider
 
 

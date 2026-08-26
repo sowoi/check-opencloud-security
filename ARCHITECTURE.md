@@ -16,6 +16,7 @@ follow from. For a decision and the alternatives that lost, read the record in
 * [How a scan flows through the web application](#how-a-scan-flows-through-the-web-application)
 * [The agent-facing surfaces](#the-agent-facing-surfaces)
   * [One workflow layer, three descriptions](#one-workflow-layer-three-descriptions)
+  * [Browser WebMCP](#browser-webmcp)
   * [Discovery](#discovery)
   * [What MCP may not do](#what-mcp-may-not-do)
 * [Concurrency](#concurrency)
@@ -311,6 +312,39 @@ key does - an operator who believes the endpoint is protected while it is
 served open is the worst outcome available. See
 [ADR 0015](adr/0015-the-mcp-endpoint-may-require-a-sign-in.md).
 
+### Browser WebMCP
+
+When MCP is enabled, the landing and result pages expose their current actions through the
+[WebMCP draft](https://webmachinelearning.github.io/webmcp/). This is a
+client-side adapter, not another workflow implementation:
+
+```text
+Jinja context -> _webmcp.html -> /static/js/webmcp.js
+                                      |
+                                      v
+                         fetch with Accept: application/json
+                                      |
+                    +-----------------+------------------+
+                    v                 v                  v
+             POST /api/scans   GET /api/scans/{uuid}   export route
+```
+
+Jinja builds each JSON Schema from the options used by the rendered page.
+Release tracks, output formats, waiver identifiers, and export formats
+therefore cannot drift into a second browser-side catalogue. The external
+script registers tools after `DOMContentLoaded` and checks for WebMCP before
+using it. It accepts the earlier `navigator.modelContext` implementation and
+the current `document.modelContext` draft.
+
+The landing page offers `scan_opencloud_security`. A result page offers
+`get_scan_result` and `export_scan_report`, bound to the UUID already in that
+page. Other views have no useful page-specific action and register nothing.
+Every execution calls the ordinary HTTP API with `Accept: application/json`,
+so the SSRF guard, rate limits, cooldown, queue, and capability checks remain
+the only implementation. `COS_WEB_ENABLE_MCP=false` removes both these
+registrations and the server-side `/mcp` endpoint. ADR 0021 records this
+boundary.
+
 ### Discovery
 
 Naming a file after a specification is not a discovery mechanism. Nothing will
@@ -319,14 +353,19 @@ guess `/arazzo.json`, so one document names all of them:
 ```text
 https://scan.okxo.de
         |
+        +--> /llms.txt             short agent-readable map
+        |
         v
 /.well-known/ai.json --+--> /openapi.json   operations
                        +--> /arazzo.json    workflows
-                       +--> /mcp            executable tools
+                       +--> /mcp            server-side tools
                        +--> /ai             the same thing, for a human
 ```
 
-It is *this application's* discovery document and not a registered standard,
+`/llms.txt` is the short starting point for clients that look for that file.
+It names the contracts and interaction rules without containing a result,
+UUID, or credential. `/.well-known/ai.json` is *this application's* detailed
+discovery document and not a registered standard,
 which is why the code says so and the documentation does too. It lives under
 `/.well-known/` because that is where a well-behaved client looks, and it is
 deliberately small: a name, a description and absolute URLs. `base.html`
@@ -524,6 +563,11 @@ what it does, what it needs, how long it takes, what is retryable, and whether
 it destroys anything. It needs a row in the tool tables in `docs/mcp.md`,
 `webapp/README.md` and `docs/webapp.md`, and a test in
 `tests/test_webapp_mcp.py` asserting it cannot outrun a limit the API applies.
+
+**A new WebMCP tool** must represent an action already available on that
+page. Build its schema from the same server-side catalogue as the controls,
+register it through `_webmcp.html`, and execute through the public JSON API.
+It needs a test that proves no server-only setting entered its schema.
 
 **A durable decision** about a layer boundary, a public interface, the security
 or deployment model, data lifecycle or a long-lived dependency needs an ADR.

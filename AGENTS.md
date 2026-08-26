@@ -46,6 +46,7 @@ for a remote scan service.
 | `webapp/mcp_server.py` | The MCP endpoint: those workflows, executed for an agent |
 | `webapp/mcp_auth.py` | The optional sign-in on `/mcp`: a token verified, never issued |
 | `webapp/prompts.py` | The MCP prompts: the tasks people ask for, written once |
+| `frontend/static/llms.txt`, `frontend/static/js/webmcp.js` | Agent discovery and page-scoped browser tools |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
@@ -274,9 +275,10 @@ response (`error_self_host`) as well as the JSON one (`hint`,
 
 ## Working on the agent-facing surfaces
 
-`/openapi.json` says which operations exist, `/arazzo.json` how they combine
-into a task, `/mcp` lets an agent perform it, and `/.well-known/ai.json` is
-how anything finds the other three. `ARCHITECTURE.md` draws the shape;
+`/llms.txt` gives an agent a short map, `/openapi.json` says which operations
+exist, `/arazzo.json` how they combine into a task, `/mcp` lets an agent
+perform it, and `/.well-known/ai.json` names the detailed contracts.
+`ARCHITECTURE.md` draws the shape;
 [ADR 0010](adr/0010-machine-readable-descriptions-are-always-public.md) and
 [ADR 0011](adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md)
 hold the decisions.
@@ -294,6 +296,21 @@ rate limit, the target cooldown, the queue and the authorisation on erasure
 the real ones. An agent must not be able to reach a code path a browser could
 not, nor be rationed more generously than a browser is - a tool that skips a
 limit has turned the endpoint into a way around it.
+
+**WebMCP is a page-scoped API client.** The landing page registers
+`scan_opencloud_security`; a result page registers `get_scan_result` and
+`export_scan_report` for its current UUID. Definitions come from Jinja
+context through `_webmcp.html`, and `webmcp.js` registers them only after
+feature detection. Every execution uses `fetch()` against the public API with
+`Accept: application/json`. Never add a browser-only backend path, duplicate
+an option enum in JavaScript, or expose concurrency, timeouts, TLS policy, or
+another server setting. `COS_WEB_ENABLE_MCP` governs WebMCP too; an operator
+who disables agent execution must not retain browser tools.
+
+**`/llms.txt` is context, not authority.** It helps a client discover the
+stable OpenAPI, Arazzo, MCP, WebMCP, and JSON surfaces. The contracts remain
+authoritative. The file must never contain a result, UUID, credential, real
+hostname, or endpoint that lists scans.
 
 **Tools are user-level tasks, not endpoints.** `scan_instance`,
 `scan_instances`, `get_scan_result`, `plan_remediation`, `export_scan`,

@@ -29,6 +29,18 @@
 </section>
 
 {% if mcp_enabled %}
+<section class="card section-gap" aria-labelledby="ai-webmcp" data-reveal>
+  <p class="kicker">{{ t('ai.webmcp.kicker') }}</p>
+  <h2 id="ai-webmcp">{{ t('ai.webmcp.heading') }}</h2>
+  <p>{{ t.html('ai.webmcp.intro') }}</p>
+  <ul class="plain-list">
+    <li>{{ t.html('ai.webmcp.landing') }}</li>
+    <li>{{ t.html('ai.webmcp.result') }}</li>
+    <li>{{ t.html('ai.webmcp.boundary') }}</li>
+  </ul>
+  <p class="flush">{{ t('ai.webmcp.support') }}</p>
+</section>
+
 <section class="card section-gap" aria-labelledby="ai-clients" data-reveal>
   <p class="kicker">{{ t('ai.clients.kicker') }}</p>
   <h2 id="ai-clients">{{ t('ai.clients.heading') }}</h2>

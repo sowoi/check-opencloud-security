@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.10.0"
+version = "1.11.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -23,8 +23,8 @@ completion = ["argcomplete>=3.6.2"]
 # distributed as the GitHub release tarball built by
 # `scripts/build_web_bundle.py`.
 web = [
-    "fastapi>=0.141.0",
-    "uvicorn>=0.42.0",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.3",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.32",
     # Upper bound comes from arq, which pins redis[hiredis]<6.
@@ -104,7 +104,7 @@ test = [
     # what `starlette.testclient` wants since Starlette 1.6 - plain httpx still
     # works there but warns. They skip themselves when these are missing, so
     # the plugin suite still runs alone.
-    "fastapi>=0.141.0",
+    "fastapi>=0.141.1",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.32",
     "httpx2>=2.10.0",
@@ -115,7 +115,7 @@ test = [
     "arq>=0.28.0",
     "mcp>=2.0.0",
     "httpx>=0.28.1",
-    "markdown>=3.8.2",
+    "markdown>=3.10.3",
 ]
 
 [tool.pytest.ini_options]

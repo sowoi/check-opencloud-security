@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "check-opencloud-security"
-version = "1.10.0"
+version = "1.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -424,7 +424,7 @@ requires-dist = [
     { name = "arq", marker = "extra == 'web'", specifier = ">=0.28.0" },
     { name = "certifi", specifier = ">=2026.7.22" },
     { name = "cryptography", marker = "extra == 'web'", specifier = ">=50.0.0" },
-    { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.141.0" },
+    { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.141.1" },
     { name = "httpx", marker = "extra == 'mcp'", specifier = ">=0.28.1" },
     { name = "jinja2", marker = "extra == 'web'", specifier = ">=3.1.6" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0.0" },
@@ -433,7 +433,7 @@ requires-dist = [
     { name = "redis", marker = "extra == 'web'", specifier = ">=5.3.1,<6" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "types-requests", specifier = ">=2.33.0.20260712" },
-    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.42.0" },
+    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.52.3" },
 ]
 provides-extras = ["completion", "web", "mcp"]
 
@@ -443,12 +443,12 @@ test = [
     { name = "arq", specifier = ">=0.28.0" },
     { name = "build", specifier = ">=1.5.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
-    { name = "fastapi", specifier = ">=0.141.0" },
+    { name = "fastapi", specifier = ">=0.141.1" },
     { name = "hatchling", specifier = ">=1.32.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "httpx2", specifier = ">=2.10.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "markdown", specifier = ">=3.8.2" },
+    { name = "markdown", specifier = ">=3.10.3" },
     { name = "mcp", specifier = ">=2.0.0" },
     { name = "mypy", specifier = ">=2.3.0" },
     { name = "nox", specifier = ">=2026.8.10" },
