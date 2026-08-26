@@ -29,6 +29,7 @@ SITE_NAME = "OpenCloud Security Scan"
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
 LLMS_PATH = "/llms.txt"
+LLMS_FULL_PATH = "/llms-full.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
 
 

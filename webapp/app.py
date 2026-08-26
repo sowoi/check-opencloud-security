@@ -113,6 +113,7 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    LLMS_FULL_PATH,
     LLMS_PATH,
     OG_IMAGE_PATH,
     SITE_NAME,
@@ -345,6 +346,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     root = frontend_dir()
     templates = build_templates(root / "templates")
     llms_text = (root / "static" / "llms.txt").read_text(encoding="utf-8")
+    llms_full_text = (root / "static" / "llms-full.txt").read_text(encoding="utf-8")
     # The MCP extra is optional: a deployment that only wants the website
     # should not be made to install an agent runtime, and one that installed
     # it should not have to remember a second switch.
@@ -855,6 +857,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return PlainTextResponse(
             llms_text,
             headers={"Cache-Control": "public, max-age=300"},
+        )
+
+    @app.get(LLMS_FULL_PATH, include_in_schema=False)
+    async def llms_full() -> Response:
+        return PlainTextResponse(
+            llms_full_text,
+            headers={"Cache-Control": "public, max-age=3600"},
         )
 
     @app.get("/sitemap.xml", include_in_schema=False)
