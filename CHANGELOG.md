@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-08-26
+
 ### Added
 
 - **llms-full.txt Documentation**: Introduced a comprehensive, self-contained 
