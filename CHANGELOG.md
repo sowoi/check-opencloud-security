@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-26
+
 ### Added
 
 - **Browser agents can use the page already in front of them.** The landing
