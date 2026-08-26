@@ -1,6 +1,6 @@
 # check-opencloud-security (Full Documentation)
 
-Complete technical documentation, API specifications, workflows, and WebMCP definitions for check-opencloud-security. This document is self-contained and formatted for direct parsing by Large Language Models (LLMs).
+> Complete technical documentation, API specifications, workflows, and WebMCP definitions for check-opencloud-security. This document is self-contained and formatted for direct parsing by Large Language Models (LLMs).
 
 ## Overview & Service Boundaries
 
