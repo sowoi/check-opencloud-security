@@ -32,12 +32,9 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from .locales import CATALOGUES
-
-if TYPE_CHECKING:  # pragma: no cover - imported for typing only
-    from markupsafe import Markup
 
 #: The language every page falls back to, and the one every machine-readable
 #: document is written in.
@@ -104,6 +101,13 @@ class _RequestLike(Protocol):
     def headers(self) -> Mapping[str, str]: ...
 
 
+class _CatalogueMarkup(str):
+    """HTML trusted only because it came from a source-controlled catalogue."""
+
+    def __html__(self) -> str:
+        return self
+
+
 def catalogue(locale: str) -> Mapping[str, str]:
     """The strings for one language, English when it is not one we have."""
     return CATALOGUES.get(locale, CATALOGUES[DEFAULT_LOCALE])
@@ -149,20 +153,23 @@ class Translator:
         except (IndexError, KeyError, ValueError):
             return message
 
-    def html(self, key: str, /, **params: Any) -> Markup:
+    def html(self, key: str, /, **params: Any) -> _CatalogueMarkup:
         """The same string as markup, with every value escaped into it."""
         # Imported here rather than at the top: the release build reads these
         # catalogues to write the search index, and it has no template engine
         # installed to bring MarkupSafe with it.
-        from markupsafe import Markup, escape
+        from markupsafe import escape
 
-        message = Markup(self.raw(key))
+        message = self.raw(key)
         if not params:
-            return message
+            return _CatalogueMarkup(message)
         try:
-            return message.format(**{name: escape(value) for name, value in params.items()})
+            rendered = message.format(
+                **{name: escape(str(value)) for name, value in params.items()}
+            )
         except (IndexError, KeyError, ValueError):
-            return message
+            rendered = message
+        return _CatalogueMarkup(rendered)
 
 
 def normalise_locale(value: object) -> str | None:

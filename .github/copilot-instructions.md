@@ -279,13 +279,14 @@ under `lang="en"` with a localized notice and chrome. See
 
 ## The agent-facing surfaces
 
-**One workflow layer, three descriptions.** `/openapi.json` says which
-operations exist, `/arazzo.json` how they combine into a task, `/mcp` executes
-it, and `/.well-known/ai.json` is how anything finds the other three. The
-semantics live once in `webapp/workflows.py` - the submission status, the poll
-interval, the attempt ceiling, that a `404` is final and a `409` means *not
-yet*. `webapp/arazzo.py` reads those constants and `webapp/mcp_server.py`
-calls those functions; a test fails if either invents its own number. See
+**One workflow layer, several descriptions.** `/llms.txt` gives an agent a
+short map, `/openapi.json` says which operations exist, `/arazzo.json` how they
+combine into a task, `/mcp` executes it, and `/.well-known/ai.json` names the
+detailed contracts. The semantics live once in `webapp/workflows.py` - the
+submission status, the poll interval, the attempt ceiling, that a `404` is
+final and a `409` means *not yet*. `webapp/arazzo.py` reads those constants and
+`webapp/mcp_server.py` calls those functions; a test fails if either invents
+its own number. See
 [ADR 0011](../adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md).
 
 **MCP calls this service's own HTTP API in-process**, never the internals, so
@@ -294,6 +295,23 @@ authorisation on erasure are the real ones. An agent must not reach a code
 path a browser could not, nor be rationed more generously.
 `COS_WEB_MCP_MAX_CONCURRENT_WAITS` bounds waiting calls and refuses nothing:
 the uuid comes back with a note to poll.
+
+**WebMCP is a page-scoped API client.** The landing page registers
+`scan_opencloud_security`; a result page registers `get_scan_result` and
+`export_scan_report` for its current UUID. Definitions come from Jinja context
+through `_webmcp.html`, and `webmcp.js` registers them only after feature
+detection. Every execution uses `fetch()` against the public API with
+`Accept: application/json`. Never add a browser-only backend path, duplicate
+an option enum in JavaScript, or expose concurrency, timeouts, TLS policy, or
+another server setting. `COS_WEB_ENABLE_MCP` governs WebMCP too; an operator
+who disables agent execution must not retain browser tools. See
+[ADR 0021](../adr/0021-webmcp-is-a-page-scoped-api-client.md).
+
+**`/llms.txt` is context, not authority.** It helps a client discover the
+stable OpenAPI, Arazzo, MCP, WebMCP, and JSON surfaces. The contracts remain
+authoritative. The file must never contain a result, UUID, credential, real
+hostname, or endpoint that lists scans. The source files are
+`frontend/static/llms.txt` and `frontend/static/js/webmcp.js`.
 
 **Six tools, and they are tasks rather than endpoints**: `scan_instance`,
 `scan_instances`, `get_scan_result`, `plan_remediation`, `export_scan`,

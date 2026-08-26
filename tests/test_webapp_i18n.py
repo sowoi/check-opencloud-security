@@ -6,6 +6,7 @@ import re
 from string import Formatter
 
 import pytest
+from jinja2 import Environment
 
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
@@ -134,6 +135,34 @@ def test_machine_readable_contracts_remain_english():
     ).json()
 
     assert german == english
+
+
+def test_html_translation_placeholders_cannot_inject_tags_or_attributes():
+    """Untrusted placeholder text must stay escaped inside trusted catalogue HTML."""
+    payload = '"><img src=x onerror="alert(1)">'
+    translated = Translator("en").html("cli.more.body", project=payload)
+    rendered = Environment(autoescape=True).from_string("{{ value }}").render(
+        value=translated
+    )
+
+    assert "<img" not in rendered
+    assert 'onerror="' not in rendered
+    assert "&lt;img" in rendered
+    assert "&#34;alert(1)&#34;" in rendered
+
+
+def test_html_translation_keeps_trusted_catalogue_markup_renderable():
+    """Allow-listed inline elements authored in a catalogue must remain HTML."""
+    translated = Translator("en").html(
+        "cli.more.body", project="https://opencloud.example.com/docs"
+    )
+    rendered = Environment(autoescape=True).from_string("{{ value }}").render(
+        value=translated
+    )
+
+    assert '<a href="https://opencloud.example.com/docs"' in rendered
+    assert "</a>" in rendered
+    assert "&lt;a " not in rendered
 
 
 def _fields(value: str) -> tuple[str, ...]:

@@ -1,0 +1,5 @@
+{% if webmcp_tools %}
+<div id="webmcp-config" hidden
+     data-tools="{{ webmcp_tools | tojson | forceescape }}"></div>
+<script src="/static/js/webmcp.js" defer></script>
+{% endif %}

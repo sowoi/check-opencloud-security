@@ -10,6 +10,7 @@ unreachable from any request.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 
 from opencloud_local_scan.advisory_source import OSV_QUERY_URL
@@ -28,6 +29,17 @@ DEFAULT_IP_RATE_WINDOW_SECONDS = 60
 DEFAULT_TARGET_COOLDOWN_SECONDS = 300
 DEFAULT_MAX_BATCH_TARGETS = 10
 DEFAULT_MCP_MAX_CONCURRENT_WAITS = 8
+_META_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9:._-]{0,63}$")
+_RESERVED_META_NAMES = frozenset(
+    {
+        "description",
+        "robots",
+        "referrer",
+        "viewport",
+        "theme-color",
+        "google-site-verification",
+    }
+)
 
 
 def _env(name: str) -> str | None:
@@ -61,6 +73,38 @@ def _env_list(name: str) -> tuple[str, ...]:
         return ()
     parts = [item.strip() for item in raw.replace(",", ";").split(";")]
     return tuple(part for part in parts if part)
+
+
+@dataclass(frozen=True)
+class IndexMetaTag:
+    """One operator-supplied, inert ``name``/``content`` tag."""
+
+    name: str
+    content: str
+
+
+def _env_index_meta_tag() -> IndexMetaTag | None:
+    """Read ``name=content`` without allowing raw markup or reserved tags."""
+    raw = _env("INDEX_META_TAG")
+    if raw is None:
+        return None
+    name, separator, content = raw.partition("=")
+    name = name.strip()
+    content = content.strip()
+    lowered = name.lower()
+    if (
+        not separator
+        or not _META_NAME.fullmatch(name)
+        or not content
+        or len(content) > 512
+        or lowered in _RESERVED_META_NAMES
+        or lowered.startswith(("twitter:", "fb:"))
+    ):
+        raise ValueError(
+            "COS_WEB_INDEX_META_TAG must be name=content for a non-reserved "
+            "meta name and content no longer than 512 characters"
+        )
+    return IndexMetaTag(name=name, content=content)
 
 
 def _read_encryption_keys() -> dict[int, str]:
@@ -126,6 +170,12 @@ class WebSettings:
     sitemap. Unset means the address of the request is used, which is right
     for a direct deployment and wrong behind a proxy: the service would
     otherwise publish URLs only the proxy can reach."""
+
+    index_meta_tag: IndexMetaTag | None = None
+    """An optional custom ``<meta name=... content=...>`` on the landing
+    page. It is parsed from one ``name=content`` value rather than accepted as
+    raw HTML, so operator configuration cannot add scripts, redirects, or
+    attributes that weaken the page."""
 
     allow_indexing: bool = True
     """Let search engines index the landing page and the four explanations.
@@ -305,6 +355,7 @@ class WebSettings:
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
             public_base_url=_env("PUBLIC_BASE_URL"),
+            index_meta_tag=_env_index_meta_tag(),
             allow_indexing=_env_bool("ALLOW_INDEXING", True),
             releases_mode=(_env("RELEASES_MODE") or "off").lower(),
             releases_token=_env("RELEASES_TOKEN"),

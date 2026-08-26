@@ -632,6 +632,34 @@ MESSAGES: dict[str, str] = {
         "den der Server ausführt, sodass keines von ihnen unbemerkt veralten "
         "kann."
     ),
+    "ai.webmcp.kicker": "Im Browser",
+    "ai.webmcp.heading": "Die Seite als Werkzeug verwenden",
+    "ai.webmcp.intro": (
+        "Ein Browser mit Unterstützung für den "
+        '<a href="https://webmachinelearning.github.io/webmcp/" '
+        'rel="noopener noreferrer">WebMCP-Entwurf</a> kann Aktionen direkt auf '
+        "der geöffneten Seite entdecken. Ein separater Client ist nicht nötig."
+    ),
+    "ai.webmcp.landing": (
+        "Auf der Startseite stellt <code>scan_opencloud_security</code> einen Scan "
+        "in die Warteschlange. Das Schema enthält die Release-Tracks, "
+        "Ausgabeformate und Ausnahmen, die diese Seite anbietet."
+    ),
+    "ai.webmcp.result": (
+        "Auf einer Ergebnisseite liest <code>get_scan_result</code> den aktuellen "
+        "Scan. <code>export_scan_report</code> lädt JSON, CSV, SARIF oder PDF für "
+        "die bereits angezeigte UUID herunter."
+    ),
+    "ai.webmcp.boundary": (
+        "Jedes Browser-Werkzeug verwendet dieselbe JSON-API mit "
+        "<code>Accept: application/json</code>. SSRF-Schutz, Limits, Ziel-Wartezeit, "
+        "Warteschlange und UUID-Isolierung bleiben wirksam."
+    ),
+    "ai.webmcp.support": (
+        "WebMCP ist noch ein Entwurf und wird von Browsern ohne Unterstützung "
+        "ignoriert. Wird MCP für diese Bereitstellung abgeschaltet, verschwinden "
+        "auch die Browser-Werkzeuge."
+    ),
     "ai.clients.kicker": "Konfiguration",
     "ai.clients.heading": "In einen Client einbinden",
     "ai.clients.intro": (
@@ -1074,6 +1102,8 @@ MESSAGES: dict[str, str] = {
     "result.facts.signin": "Anmeldung",
     "result.facts.signin.external": "Externer Anbieter",
     "result.facts.signin.upstream_tag": "vorgelagert",
+    "result.facts.signin.version_unavailable": "Version nicht offengelegt",
+    "result.facts.signin.advisories": "Sicherheitshinweise prüfen",
     "result.facts.signin.builtin": "Eingebauter Identity-Provider",
     "result.facts.signin.none": "Nicht erkannt -",
     "result.facts.signin.link": "wie die OpenCloud-Anmeldung eingerichtet wird",
@@ -1250,6 +1280,8 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "Für ein Code-Scanning-Dashboard.",
     "result.export.json": "JSON",
     "result.export.json.hint": "Das rohe Dokument, das das Plugin auswertet.",
+    "result.feedback.prompt": "Glauben Sie, dass der Scan etwas falsch bewertet hat?",
+    "result.feedback.link": "Falsch positives oder falsch negatives Ergebnis melden",
     "result.expiry.one": (
         "Diese Seite läuft in etwa 1 Minute ab, danach funktioniert der Link "
         "nicht mehr und das Ergebnis ist weg."

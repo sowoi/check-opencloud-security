@@ -280,6 +280,11 @@ somebody could.</p>
 <td>The origin this service is reached at, used for the canonical links and <code>sitemap.xml</code>. Set it behind a proxy, which otherwise publishes an address only the proxy can reach</td>
 </tr>
 <tr>
+<td><code>COS_WEB_INDEX_META_TAG</code></td>
+<td><em>(empty)</em></td>
+<td>Optional <code>name=content</code> metadata on the landing page. The name and content are escaped separately; raw HTML, reserved page metadata, and prohibited platform metadata are refused</td>
+</tr>
+<tr>
 <td><code>COS_WEB_ALLOW_INDEXING</code></td>
 <td><code>true</code></td>
 <td>Let search engines index the landing page and its explanation pages. Result pages are never indexable whatever this says</td>
@@ -332,7 +337,7 @@ somebody could.</p>
 <tr>
 <td><code>COS_WEB_ENABLE_MCP</code></td>
 <td><code>true</code></td>
-<td>Serve the MCP endpoint at <code>/mcp</code>. Ignored when the optional <code>mcp</code> extra is not installed</td>
+<td>Serve the MCP endpoint at <code>/mcp</code> and register browser WebMCP tools. Ignored when the optional <code>mcp</code> extra is not installed</td>
 </tr>
 <tr>
 <td><code>COS_WEB_MCP_ALLOWED_HOSTS</code></td>
@@ -732,7 +737,7 @@ receipt, <strong>401</strong> for a wrong secret, <strong>422</strong> for a tar
 hostname, and <strong>404</strong> whenever <code>COS_WEB_PURGE_TOKEN</code> is unset.</p>
 <p>An instance with nothing stored answers 200 with zero counts, which is a proof
 in its own right: no data was held.</p>
-<h3 id="get-openapijson-get-arazzojson-get-well-knownaijson"><code>GET /openapi.json</code>, <code>GET /arazzo.json</code>, <code>GET /.well-known/ai.json</code></h3>
+<h3 id="get-llmstxt-get-openapijson-get-arazzojson-get-well-knownaijson"><code>GET /llms.txt</code>, <code>GET /openapi.json</code>, <code>GET /arazzo.json</code>, <code>GET /.well-known/ai.json</code></h3>
 <p><strong>Always public, and never behind a switch.</strong> A description nobody can fetch
 describes nothing, and an agent that must be told to turn a document on has
 already failed to discover it. <code>COS_WEB_ENABLE_DOCS</code> now governs only the
@@ -749,6 +754,9 @@ specification URLs, the MCP endpoint, the usage limits an agent should respect
 and the self-hosting link. It is an <strong>application-level convention</strong>, not a
 registered standard - it exists so that an agent starting from nothing but the
 origin can find the rest in one request.</p>
+<p><code>/llms.txt</code> is the shorter Markdown map. It lists the public contracts, main
+operations, WebMCP tools, and the rules around asynchronous scans and UUIDs.
+It contains no scan data and no listing mechanism.</p>
 <h3 id="post-mcp"><code>POST /mcp</code></h3>
 <p>The <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint, over
 streamable HTTP, stateless, with JSON responses. It is the agent-facing
@@ -816,6 +824,23 @@ result pages, exports, UUIDs or submitted addresses. The release workflow
 rebuilds that file when a new version is published; ordinary CI deliberately
 does not, so one deployed release has one immutable search index. ADR 0019
 records the boundary.</p>
+<p>When <code>COS_WEB_ENABLE_MCP</code> is on, the landing and result pages also expose
+their existing actions to supporting browsers through the
+<a href="https://webmachinelearning.github.io/webmcp/">WebMCP draft</a>. The landing
+page registers <code>scan_opencloud_security</code>; a result page registers
+<code>get_scan_result</code> and <code>export_scan_report</code> for the displayed UUID. Their
+schemas are rendered from the same catalogues as the page controls. Execution
+uses the public API with <code>Accept: application/json</code>, so WebMCP does not bypass
+the SSRF guard, rate limits, cooldown, queue, or capability checks.</p>
+<p><code>POST /</code> and <code>GET /scan/{uuid}</code> negotiate JSON for browser-side tools and
+other clients. <code>Accept: application/json</code> requests a structured response, and
+<code>output_format=json</code> does the same. HTML remains the default for ordinary
+browser navigation.</p>
+<p>The optional <code>COS_WEB_INDEX_META_TAG=name=content</code> setting adds one
+<code>&lt;meta name="..." content="..."&gt;</code> element to the landing page. Docker Compose
+passes it from the deployment environment. The application parses and escapes
+the two attributes instead of accepting raw HTML, and refuses names already
+owned by the page or prohibited platform metadata.</p>
 <h3 id="get-robotstxt-get-sitemapxml"><code>GET /robots.txt</code>, <code>GET /sitemap.xml</code></h3>
 <p>Both are generated, never files on disk. The sitemap lists the landing page,
 the nine explanation/index pages and every generated CLI document, and takes each

@@ -456,7 +456,7 @@ a {
 }
 a:hover { color: var(--brand); text-decoration-color: var(--brand); }
 
-code, kbd, samp { font-family: var(--mono); font-size: .92em; font-feature-settings: "liga" 0; }
+code { font-family: var(--mono); font-size: .92em; font-feature-settings: "liga" 0; }
 /* Inline code gets a tint of the surface it sits on; a block of code is a
    terminal and undoes this below. */
 code {
@@ -572,7 +572,6 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 }
 [data-reveal-root="on"] [data-reveal="2"] { transition-delay: .07s; }
 [data-reveal-root="on"] [data-reveal="3"] { transition-delay: .14s; }
-[data-reveal-root="on"] [data-reveal="4"] { transition-delay: .21s; }
 
 /*
  * The hand-off from waiting to reading. scan.js marks the document a beat
@@ -977,7 +976,6 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
    one height. */
 .grid > .card + .card { margin-top: 0; }
 @media (min-width: 800px) {
-    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
@@ -1000,7 +998,6 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 .hero-copy > * { animation: rise .6s var(--ease-out) backwards; }
 .hero-copy > *:nth-child(2) { animation-delay: .07s; }
 .hero-copy > *:nth-child(3) { animation-delay: .14s; }
-.hero-copy > *:nth-child(4) { animation-delay: .21s; }
 
 .hero .lede {
     font-size: 1.16rem; color: var(--ink-soft);
@@ -1159,7 +1156,7 @@ label {
 }
 .hint { color: var(--ink-faint); font-size: .87rem; margin: .4rem 0 0; }
 
-input[type="url"], input[type="text"], select {
+input[type="text"], select {
     width: 100%;
     font: inherit;
     color: var(--ink);
@@ -1183,7 +1180,7 @@ select {
     background-repeat: no-repeat;
     background-position: right .95rem center;
 }
-input[type="url"]:hover, input[type="text"]:hover, select:hover { border-color: var(--brand); }
+input[type="text"]:hover, select:hover { border-color: var(--brand); }
 /* The chevron is an image, so it cannot read a token: the night version is
    the same drawing in the night's faint ink. */
 @media (prefers-color-scheme: dark) {
@@ -1192,7 +1189,7 @@ input[type="url"]:hover, input[type="text"]:hover, select:hover { border-color: 
             url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9' fill='none' stroke='%237b839a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
     }
 }
-input[type="url"]:focus, input[type="text"]:focus, select:focus {
+input[type="text"]:focus, select:focus {
     border-color: var(--brand);
     background-color: var(--card-solid);
     box-shadow: 0 0 0 4px var(--brand-glow);
@@ -1996,7 +1993,6 @@ pre.json {
 .section-gap { margin-top: 1.25rem; }
 .section-gap-lg { margin-top: 3rem; }
 .flush { margin: 0; }
-.hint-flush { margin: 0; }
 .hint-lead { margin-top: .9rem; }
 .field-narrow { flex: 0 1 12rem; }
 

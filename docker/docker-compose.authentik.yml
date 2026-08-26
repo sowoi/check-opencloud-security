@@ -61,6 +61,7 @@ services:
       # a token's audience is checked against, so it is not optional here: get
       # it wrong and every valid token is refused.
       COS_WEB_PUBLIC_BASE_URL: "${COS_WEB_PUBLIC_BASE_URL:-http://localhost:8811}"
+      COS_WEB_INDEX_META_TAG: "${COS_WEB_INDEX_META_TAG:-}"
       # A deployment with a sign-in on it is not one search engines should be
       # finding. The opposite default to the public stack, deliberately.
       COS_WEB_ALLOW_INDEXING: "false"

@@ -113,6 +113,7 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    LLMS_PATH,
     OG_IMAGE_PATH,
     SITE_NAME,
     canonical_url,
@@ -129,6 +130,7 @@ from .store import (
     STATE_COMPLETED,
     STATE_FAILED,
     WORKER_HEARTBEAT_KEY,
+    ScanRecord,
     ScanStore,
 )
 
@@ -342,6 +344,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings = settings or WebSettings.from_env()
     root = frontend_dir()
     templates = build_templates(root / "templates")
+    llms_text = (root / "static" / "llms.txt").read_text(encoding="utf-8")
     # The MCP extra is optional: a deployment that only wants the website
     # should not be made to install an agent runtime, and one that installed
     # it should not have to remember a second switch.
@@ -548,6 +551,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             # local one: a result page keeps its uuid out of the query string
             # and therefore out of anybody's referrer.
             "language_next": safe_next_path(request.url.path),
+            "webmcp_tools": (),
             **context,
         }
         response = templates.TemplateResponse(request, name, payload, status_code=status)
@@ -665,22 +669,81 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         )
         return identifier
 
+    def index_context(
+        translate: Translator,
+        *,
+        release_track: str = DEFAULT_RELEASE_TRACK,
+        error: str | None = None,
+        error_self_host: bool = False,
+        target_url: str = "",
+    ) -> dict[str, Any]:
+        """The form and its WebMCP schema, both from the same catalogues."""
+        waivers = waiver_options(translate)
+        tracks = release_track_options(translate)
+        return {
+            "t": translate,
+            "waivers": waivers,
+            "tracks": tracks,
+            "release_track": release_track,
+            "error": error,
+            "error_self_host": error_self_host,
+            "target_url": target_url,
+            "index_meta_tag": settings.index_meta_tag,
+            "webmcp_tools": (
+                {
+                    "action": "scan",
+                    "endpoint": "/api/scans",
+                    "name": "scan_opencloud_security",
+                    "title": "Scan OpenCloud security",
+                    "description": (
+                        "Queue a security scan for a public OpenCloud instance. "
+                        "Returns a capability UUID and result-page URL; the scan "
+                        "continues asynchronously."
+                    ),
+                    "inputSchema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["target_url"],
+                        "properties": {
+                            "target_url": {
+                                "type": "string",
+                                "description": "Public OpenCloud base URL or hostname.",
+                            },
+                            "release_track": {
+                                "type": "string",
+                                "enum": [track.id for track in tracks],
+                                "default": DEFAULT_RELEASE_TRACK,
+                            },
+                            "output_format": {
+                                "type": "string",
+                                "enum": list(OUTPUT_FORMATS),
+                                "default": "dashboard",
+                            },
+                            "ignore_hardenings": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [option.id for option in waivers],
+                                },
+                                "uniqueItems": True,
+                                "default": [],
+                            },
+                        },
+                    },
+                    "annotations": {
+                        "readOnlyHint": False,
+                        "untrustedContentHint": True,
+                    },
+                },
+            )
+            if mcp_enabled
+            else (),
+        }
+
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> Response:
         translate = translator_for(request)
-        return page(
-            request,
-            "index.html",
-            {
-                "t": translate,
-                "waivers": waiver_options(translate),
-                "tracks": release_track_options(translate),
-                "release_track": DEFAULT_RELEASE_TRACK,
-                "error": None,
-                "error_self_host": False,
-                "target_url": "",
-            },
-        )
+        return page(request, "index.html", index_context(translate))
 
     # The landing page carries the form; the prose that used to sit under it
     # lives on these pages, so the first screen stays about scanning.
@@ -786,6 +849,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             headers={"Cache-Control": "public, max-age=3600"},
         )
 
+    @app.get(LLMS_PATH, include_in_schema=False)
+    async def llms() -> Response:
+        """A short, stable map of the service for language-model clients."""
+        return PlainTextResponse(
+            llms_text,
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
     @app.get("/sitemap.xml", include_in_schema=False)
     async def sitemap(request: Request) -> Response:
         if not settings.allow_indexing:
@@ -810,9 +881,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         output_format: str | None = _FORMAT_FIELD,
         release_track: str | None = _TRACK_FIELD,
     ) -> Response:
-        html = wants_html(request)
+        html_requested = wants_html(request)
         body: dict[str, Any] = {}
-        if not html and request.headers.get("content-type", "").startswith(
+        if request.headers.get("content-type", "").startswith(
             "application/json"
         ):
             try:
@@ -826,9 +897,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         submitted_format = str(body.get("output_format", output_format) or "dashboard")
         submitted_track = body.get("release_track", release_track)
         extra = set(body) - ALLOWED_FIELDS
-        if html or not body:
+        if html_requested or not body:
             form = await _form_fields(request)
             extra |= form - ALLOWED_FIELDS
+        html = html_requested and submitted_format != "json"
 
         try:
             identifier = await accept_submission(
@@ -845,15 +917,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 response = page(
                     request,
                     "index.html",
-                    {
-                        "t": translate,
-                        "waivers": waiver_options(translate),
-                        "tracks": release_track_options(translate),
-                        "release_track": sanitize_release_track(submitted_track),
-                        "error": exc.translated(translate),
-                        "error_self_host": exc.self_host,
-                        "target_url": str(submitted_url),
-                    },
+                    index_context(
+                        translate,
+                        release_track=sanitize_release_track(submitted_track),
+                        error=exc.translated(translate),
+                        error_self_host=exc.self_host,
+                        target_url=str(submitted_url),
+                    ),
                     status=exc.status,
                 )
             else:
@@ -1058,9 +1128,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get("/scan/{identifier}", response_class=HTMLResponse)
     async def scan_page(request: Request, identifier: str) -> Response:
+        json_requested = (
+            request.query_params.get("output_format") == "json"
+            or "application/json" in request.headers.get("accept", "")
+        )
         record = await app.state.store.get(identifier)
         if record is None:
+            if json_requested:
+                return JSONResponse({"detail": "Not found."}, status_code=404)
             return page(request, "404.html", {}, status=404)
+        if json_requested:
+            return JSONResponse(_scan_payload(record))
         translate = translator_for(request)
         return page(
             request,
@@ -1073,6 +1151,55 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "summary": (
                     summarise(record.result, translate) if record.result else None
                 ),
+                "webmcp_tools": (
+                    {
+                        "action": "status",
+                        "endpoint": f"/scan/{identifier}?output_format=json",
+                        "name": "get_scan_result",
+                        "title": "Get scan result",
+                        "description": (
+                            "Read the current state and, when complete, the "
+                            "structured result for the scan shown on this page."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {},
+                        },
+                        "annotations": {
+                            "readOnlyHint": True,
+                            "untrustedContentHint": True,
+                        },
+                    },
+                    {
+                        "action": "export",
+                        "endpoint": f"/api/scans/{identifier}/export/",
+                        "name": "export_scan_report",
+                        "title": "Export scan report",
+                        "description": (
+                            "Download the completed scan shown on this page in "
+                            "JSON, CSV, SARIF, or PDF format."
+                        ),
+                        "inputSchema": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["format"],
+                            "properties": {
+                                "format": {
+                                    "type": "string",
+                                    "enum": list(EXPORT_FORMATS),
+                                    "default": "json",
+                                }
+                            },
+                        },
+                        "annotations": {
+                            "readOnlyHint": False,
+                            "untrustedContentHint": True,
+                        },
+                    },
+                )
+                if mcp_enabled
+                else (),
             },
         )
 
@@ -1131,16 +1258,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 media_type=MEDIA_TYPES[output_format],
             )
 
-        payload = record.as_dict()
-        if record.state == STATE_COMPLETED and record.result is not None:
-            payload["summary"] = summarise(record.result)
-            payload["exports"] = {
-                name: f"/api/scans/{identifier}/export/{name}"
-                for name in EXPORT_FORMATS
-            }
-        if record.state in {STATE_COMPLETED, STATE_FAILED}:
-            payload["done"] = True
-        return JSONResponse(payload)
+        return JSONResponse(_scan_payload(record))
 
     @app.get("/healthz")
     async def healthz() -> Response:
@@ -1188,6 +1306,20 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return not_found(request)
 
     return app
+
+
+def _scan_payload(record: ScanRecord) -> dict[str, Any]:
+    """One scan record in the shared JSON shape used by both read routes."""
+    payload = record.as_dict()
+    if record.state == STATE_COMPLETED and record.result is not None:
+        payload["summary"] = summarise(record.result)
+        payload["exports"] = {
+            name: f"/api/scans/{record.uuid}/export/{name}"
+            for name in EXPORT_FORMATS
+        }
+    if record.state in {STATE_COMPLETED, STATE_FAILED}:
+        payload["done"] = True
+    return payload
 
 
 def _render_export(result: dict[str, Any], fmt: str, identifier: str) -> bytes | str:

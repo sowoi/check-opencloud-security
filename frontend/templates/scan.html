@@ -154,8 +154,15 @@
         <dd>
           {% if summary.identityProvider.detected %}
             {% if summary.identityProvider.external %}
-            {{ summary.identityProvider.vendor or t('result.facts.signin.external') }}
+            {{ summary.identityProvider.vendor or t('result.facts.signin.external') }}{% if summary.identityProvider.version %} {{ summary.identityProvider.version }}{% endif %}
             <span class="tag tag-info">{{ t('result.facts.signin.upstream_tag') }}</span>
+            {% if summary.identityProvider.advisoryUrl %}
+            <span>
+              {% if not summary.identityProvider.version %}{{ t('result.facts.signin.version_unavailable') }}; {% endif %}
+              <a href="{{ summary.identityProvider.advisoryUrl }}"
+                 rel="noopener noreferrer">{{ t('result.facts.signin.advisories') }}</a>
+            </span>
+            {% endif %}
             {% else %}
             {{ t('result.facts.signin.builtin') }}
             {% endif %}
@@ -483,6 +490,10 @@
       <span class="hint">{{ t('result.export.json.hint') }}</span>
     </li>
   </ul>
+  <p class="hint section-gap">
+    {{ t('result.feedback.prompt') }}
+    <a href="{{ project_url }}/issues" rel="noopener noreferrer">{{ t('result.feedback.link') }}</a>.
+  </p>
 </section>
 {% endif %}
 

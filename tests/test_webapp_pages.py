@@ -81,6 +81,22 @@ def test_the_landing_page_leads_with_the_form_and_delegates_the_prose():
         assert f'href="{path}"' in body
 
 
+def test_the_ai_page_explains_browser_webmcp_when_agent_tools_are_enabled():
+    """A browser agent needs page-tool names and boundaries where users find AI help."""
+    enabled = client(enable_mcp=True).get("/ai").text
+
+    assert "Use the page as a tool" in enabled
+    assert "scan_opencloud_security" in enabled
+    assert "get_scan_result" in enabled
+    assert "export_scan_report" in enabled
+    assert "https://webmachinelearning.github.io/webmcp/" in enabled
+    assert "Accept: application/json" in enabled
+
+    disabled = client(enable_mcp=False).get("/ai").text
+    assert "Use the page as a tool" not in disabled
+    assert "scan_opencloud_security" not in disabled
+
+
 def test_the_header_brand_is_short_and_cannot_wrap():
     """The first line must stay compact even before the menu is enhanced."""
     body = client().get("/").text
@@ -207,7 +223,7 @@ def test_an_unknown_page_is_still_a_404():
 # --- The result page, when our own data is older than the instance ---
 
 
-def _finished_page(version: str) -> str:
+def _finished_page(version: str, *, openid_issuer: str | None = None) -> str:
     """Scan a fake instance claiming ``version`` and return its result page."""
     import asyncio
 
@@ -221,6 +237,9 @@ def _finished_page(version: str) -> str:
     configured = settings(allow_private_targets=True, verify_tls=False, scan_timeout=5)
     store = ScanStore(backend=memory_backend(MEMORY_URL), ttl=configured.result_ttl)
     behaviour = InstanceBehaviour()
+    if openid_issuer is not None:
+        behaviour.openid_issuer = openid_issuer
+        behaviour.openid_redirect = True
     behaviour.status_payload["productversion"] = version
     with FakeOpenCloud(behaviour) as instance:
         asyncio.run(
@@ -272,6 +291,62 @@ def test_a_result_page_stays_quiet_when_the_schedule_knows_the_release():
     page = _finished_page(current)
 
     assert "Release schedule" not in page
+
+
+def test_a_finished_result_links_false_reports_without_sharing_the_scan():
+    """Issue reports must be possible without putting the capability in the URL."""
+    from opencloud_local_scan.versions import load_release_schedule
+
+    page = _finished_page(load_release_schedule().latest_for() or "7.2.3")
+    link = re.search(
+        r'<a href="([^"]+)" rel="noopener noreferrer">'
+        r"Report a false positive or false negative</a>",
+        page,
+    )
+
+    assert link is not None
+    assert link.group(1) == (
+        "https://github.com/sowoi/check-opencloud-security/issues"
+    )
+    assert "/scan/" not in link.group(1)
+    assert "opencloud.example.com" not in link.group(1)
+
+
+@pytest.mark.parametrize(
+    ("issuer", "vendor", "advisory_url"),
+    [
+        (
+            "https://id.example.com/realms/opencloud",
+            "Keycloak",
+            "https://github.com/keycloak/keycloak/security/advisories",
+        ),
+        (
+            "https://id.example.com/api/oidc",
+            "Authelia",
+            "https://github.com/authelia/authelia/security/advisories",
+        ),
+        (
+            "https://id.example.com/application/o/opencloud/",
+            "Authentik",
+            "https://github.com/goauthentik/authentik/security/advisories",
+        ),
+    ],
+)
+def test_a_result_links_recognised_identity_providers_to_their_advisories(
+    issuer: str, vendor: str, advisory_url: str
+):
+    """The overview must offer a current source without inventing a version."""
+    from opencloud_local_scan.versions import load_release_schedule
+
+    page = _finished_page(
+        load_release_schedule().latest_for() or "7.2.3",
+        openid_issuer=issuer,
+    )
+
+    assert vendor in page
+    assert "version not exposed" in page
+    assert f'href="{advisory_url}"' in page
+    assert "check security advisories" in page
 
 
 def test_a_result_page_shows_the_addresses_the_instance_resolved_to():

@@ -147,11 +147,14 @@ The service describes itself. Everything below is public, needs no
 credential, and is enough to use the API without reading any source:
 
     /.well-known/ai.json   what this service is, and where the rest of it is
+    /llms.txt              a short Markdown map for language-model clients
     /openapi.json          every operation, request and response
     /arazzo.json           how those operations combine into workflows
     /mcp                   the Model Context Protocol endpoint
 
-The MCP endpoint needs the `mcp` extra, which the Docker image installs.
+Supporting browsers also receive page-scoped WebMCP tools on the landing and
+result pages. They call the same JSON API as every other client. The MCP
+endpoint needs the `mcp` extra, which the Docker image installs.
 
 ## Before you expose it
 

@@ -343,6 +343,7 @@ COS_WEB_REDIS_URL=memory:// \
 - The schema itself: <http://127.0.0.1:8811/openapi.json>
 - The workflows: <http://127.0.0.1:8811/arazzo.json>
 - The discovery document: <http://127.0.0.1:8811/.well-known/ai.json>
+- The short agent map: <http://127.0.0.1:8811/llms.txt>
 - The MCP endpoint: <http://127.0.0.1:8811/mcp>
 
 The last four need no switch at all. In Docker, set
@@ -496,11 +497,30 @@ follows, and each has a test that fails if it is removed:
   with a note to poll `get_scan_result`, which is what `wait: false` answers
   anyway. Overload queues here too.
 
+### WebMCP in the browser
+
+When `COS_WEB_ENABLE_MCP` is on, the landing and result pages register
+page-scoped tools with the
+[WebMCP draft](https://webmachinelearning.github.io/webmcp/). The landing
+page exposes `scan_opencloud_security`. A result page exposes
+`get_scan_result` and `export_scan_report` for the UUID already being viewed.
+The schemas are rendered from the same release-track, waiver, output, and
+export catalogues as the page controls.
+
+`frontend/static/js/webmcp.js` performs no scan logic. Each tool calls the
+ordinary API with `Accept: application/json`, so it meets the same SSRF guard,
+rate limits, cooldown, queue, and capability checks. The script supports both
+the earlier `navigator.modelContext` implementation and the current
+`document.modelContext` draft. Browsers without either API ignore the
+integration. Turning MCP off removes these registrations along with `/mcp`.
+
 ### Discovery, for an agent that knows only the origin
 
-`/.well-known/ai.json` is the entry point: the two specification URLs, the MCP
-endpoint, the limits worth respecting and the link to running the whole check
-yourself. `base.html` also carries `<link rel="service-desc">`, `rel="arazzo"`
+`/llms.txt` is a short Markdown map for clients that look for it.
+`/.well-known/ai.json` is the detailed entry point: the two specification
+URLs, the MCP endpoint, the limits worth respecting and the link to running
+the whole check yourself. `base.html` also carries `<link rel="service-desc">`,
+`rel="arazzo"`
 and `rel="ai-discovery"` hints, and `/ai` says the same thing in prose for a
 human.
 
@@ -569,10 +589,11 @@ before the first deployment:
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one batch may carry; each still spends a scan from every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Only behind a proxy that **overwrites** the header, or the limit is decorative |
 | `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin in the canonical links and `sitemap.xml`. Set it behind a proxy |
+| `COS_WEB_INDEX_META_TAG` | *(empty)* | Optional `name=content` metadata on the landing page. Rendered as escaped attributes; raw HTML and reserved metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Index the six public pages. A result page is `noindex` either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
 | `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |
-| `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp`, when the optional `mcp` extra is installed |
+| `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp` and browser WebMCP tools, when the optional `mcp` extra is installed |
 | `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day, so a long-running deployment does not rate against the schedule its image shipped with |
 | `COS_WEB_ADVISORY_REFRESH` | `true` | Ask the advisory feed once a day, so an advisory published after this image was built still reaches the people scanning with it. Only ever adds; never believes an advisory with no version bounds |
 | `COS_WEB_ADVISORY_REFRESH_URL` | `https://api.osv.dev/v1/query` | Where the advisories are read from. May point at a mirror; never a request field |

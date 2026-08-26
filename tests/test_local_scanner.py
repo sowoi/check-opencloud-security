@@ -671,6 +671,40 @@ def test_an_external_identity_provider_is_recognised_from_the_redirect_alone():
     assert not [entry for entry in behaviour.seen if "Authorization" in entry[2]]
 
 
+@pytest.mark.parametrize(
+    ("issuer", "vendor", "advisory_url"),
+    [
+        (
+            "https://id.example.com/realms/opencloud",
+            "Keycloak",
+            "https://github.com/keycloak/keycloak/security/advisories",
+        ),
+        (
+            "https://id.example.com/api/oidc",
+            "Authelia",
+            "https://github.com/authelia/authelia/security/advisories",
+        ),
+        (
+            "https://id.example.com/application/o/opencloud/",
+            "Authentik",
+            "https://github.com/goauthentik/authentik/security/advisories",
+        ),
+    ],
+)
+def test_recognised_identity_providers_point_to_their_official_advisories(
+    issuer: str, vendor: str, advisory_url: str
+):
+    """Operators need a current upstream database without a guessed version."""
+    result = run_scan(
+        InstanceBehaviour(openid_issuer=issuer, openid_redirect=True)
+    )
+
+    provider = result["identityProvider"]
+    assert provider["vendor"] == vendor
+    assert provider["advisoryUrl"] == advisory_url
+    assert provider["version"] == ""
+
+
 def test_the_built_in_provider_is_not_reported_as_an_external_one():
     """
     An instance signing its own users in has not thereby failed anything.

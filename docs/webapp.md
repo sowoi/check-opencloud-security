@@ -186,6 +186,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
 | `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin this service is reached at, used for the canonical links and `sitemap.xml`. Set it behind a proxy, which otherwise publishes an address only the proxy can reach |
+| `COS_WEB_INDEX_META_TAG` | *(empty)* | Optional `name=content` metadata on the landing page. The name and content are escaped separately; raw HTML, reserved page metadata, and prohibited platform metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and its explanation pages. Result pages are never indexable whatever this says |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
@@ -196,7 +197,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_ADVISORY_REFRESH_URL` | `https://api.osv.dev/v1/query` | Where the advisories are read from. Operator configuration, so it may point at a mirror; never a request field |
 | `COS_WEB_FRONTEND_DIR` | *next to `webapp/`* | Where templates and static assets live |
 | `COS_WEB_ENABLE_DOCS` | `false` | Serve the browsable `/docs` and `/redoc` pages. The machine-readable documents are public whatever this says |
-| `COS_WEB_ENABLE_MCP` | `true` | Serve the MCP endpoint at `/mcp`. Ignored when the optional `mcp` extra is not installed |
+| `COS_WEB_ENABLE_MCP` | `true` | Serve the MCP endpoint at `/mcp` and register browser WebMCP tools. Ignored when the optional `mcp` extra is not installed |
 | `COS_WEB_MCP_ALLOWED_HOSTS` | *(empty)* | `Host` values the MCP endpoint accepts, separated by `;`. Empty turns the DNS-rebinding check off, which is right when a proxy already fixes the host |
 | `COS_WEB_MCP_MAX_CONCURRENT_WAITS` | `8` | How many MCP tool calls may sit waiting for a scan at once. Reaching the ceiling refuses nothing: the scan is submitted and the uuid comes back to be polled |
 | `COS_WEB_MCP_AUTH_ENABLED` | `false` | Require a bearer token on `/mcp`. Off, because the service is meant to answer anybody; a deployment that wants the opposite turns it on and names an issuer. See [a sign-in on the MCP endpoint](authentik.md) |
@@ -610,7 +611,7 @@ hostname, and **404** whenever `COS_WEB_PURGE_TOKEN` is unset.
 An instance with nothing stored answers 200 with zero counts, which is a proof
 in its own right: no data was held.
 
-### `GET /openapi.json`, `GET /arazzo.json`, `GET /.well-known/ai.json`
+### `GET /llms.txt`, `GET /openapi.json`, `GET /arazzo.json`, `GET /.well-known/ai.json`
 
 **Always public, and never behind a switch.** A description nobody can fetch
 describes nothing, and an agent that must be told to turn a document on has
@@ -630,6 +631,10 @@ specification URLs, the MCP endpoint, the usage limits an agent should respect
 and the self-hosting link. It is an **application-level convention**, not a
 registered standard - it exists so that an agent starting from nothing but the
 origin can find the rest in one request.
+
+`/llms.txt` is the shorter Markdown map. It lists the public contracts, main
+operations, WebMCP tools, and the rules around asynchronous scans and UUIDs.
+It contains no scan data and no listing mechanism.
 
 ### `POST /mcp`
 
@@ -708,6 +713,26 @@ result pages, exports, UUIDs or submitted addresses. The release workflow
 rebuilds that file when a new version is published; ordinary CI deliberately
 does not, so one deployed release has one immutable search index. ADR 0019
 records the boundary.
+
+When `COS_WEB_ENABLE_MCP` is on, the landing and result pages also expose
+their existing actions to supporting browsers through the
+[WebMCP draft](https://webmachinelearning.github.io/webmcp/). The landing
+page registers `scan_opencloud_security`; a result page registers
+`get_scan_result` and `export_scan_report` for the displayed UUID. Their
+schemas are rendered from the same catalogues as the page controls. Execution
+uses the public API with `Accept: application/json`, so WebMCP does not bypass
+the SSRF guard, rate limits, cooldown, queue, or capability checks.
+
+`POST /` and `GET /scan/{uuid}` negotiate JSON for browser-side tools and
+other clients. `Accept: application/json` requests a structured response, and
+`output_format=json` does the same. HTML remains the default for ordinary
+browser navigation.
+
+The optional `COS_WEB_INDEX_META_TAG=name=content` setting adds one
+`<meta name="..." content="...">` element to the landing page. Docker Compose
+passes it from the deployment environment. The application parses and escapes
+the two attributes instead of accepting raw HTML, and refuses names already
+owned by the page or prohibited platform metadata.
 
 ### `GET /robots.txt`, `GET /sitemap.xml`
 
