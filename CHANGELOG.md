@@ -12,11 +12,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## Added
+- **Legal Notice Badge**: Added an explicit Legal Notice link to the footer, 
+  displayed exclusively when accessing the site via scan.okxo.de.
+
 ## [1.11.3] - 2026-08-26
 
 ## Changed
 - **Documentation layout**: Removed redundant H1 tags.
-- **Release versions": Updated OpenCloud release versions to current
+- **Release versions**: Updated OpenCloud release versions to current
 
 ## [1.11.2] - 2026-08-26
 
