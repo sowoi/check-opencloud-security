@@ -39,4 +39,4 @@ This project is independently developed and not affiliated with, endorsed by, or
 
 ## Optional Details
 
-- [llms-full.txt](/llms-full.txt): Complete, uncurated documentation and extended schemas.
+- [llms-full.txt](/llms-full.txt): Extended agent guide with service boundaries and safe-use rules.

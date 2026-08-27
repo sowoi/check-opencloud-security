@@ -77,25 +77,79 @@ translated.</p>
 <li><a href="#trademarks-and-affiliation">Trademarks and affiliation</a></li>
 </ul>
 <h2 id="starting-it">Starting it</h2>
-<p>With Docker, which brings its own Redis:</p>
-<pre><code class="language-bash">cd docker
+<p>The service is three containers - the pages, the worker that runs the scans,
+and the Redis between them - and the shortest honest way to get all three is
+to let the setup wizard write them. It is one Python file, uses the standard
+library alone, and needs no checkout:</p>
+<pre><code class="language-bash">mkdir opencloud-scanner &amp;&amp; cd opencloud-scanner
+
+curl -fsSLO https://raw.githubusercontent.com/sowoi/check-opencloud-security/main/docker/setup-wizard.py
+chmod +x setup-wizard.py
+./setup-wizard.py
+
+docker compose up -d
+# http://127.0.0.1:8811
+</code></pre>
+<p>It asks one question at a time and writes a commented compose file with the
+non-secret answers inline, plus a <code>.env</code> created owner-readable only holding
+every credential that file refers to as <code>${NAME}</code> - the Redis password, the
+erasure token, the signing key, the audit salt and the encryption key.
+<a href="#a-deployment-of-your-own">A deployment of your own</a> has the flags.</p>
+<h3 id="or-the-compose-files-this-project-ships">Or the compose files this project ships</h3>
+<p>Two shapes, both ready to <code>up</code>. The published image:</p>
+<pre><code class="language-bash">git clone https://github.com/sowoi/check-opencloud-security.git
+cd check-opencloud-security/docker
+
+printf 'COS_REDIS_PASSWORD=%s\n' &quot;$(openssl rand -base64 36 | tr -d '/+=')&quot; &gt; .env
+chmod 600 .env
+
 docker compose -f docker-compose.dockerhub.yml up -d
 # http://127.0.0.1:8811
 </code></pre>
+<p>Or the same stack built from the checkout, with <code>docker compose up --build -d</code>
+and no <code>-f</code>.</p>
+<p>Three settings decide whether that stack is fit to be reached by anybody else,
+and all three live in <code>.env</code> beside the compose file:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COS_WEB_PUBLIC_BASE_URL</code></td>
+<td>Canonical URLs, the sitemap and the discovery document are built from it rather than from an incoming <code>Host</code> header. It defaults to <code>http://localhost:8811</code> so a first <code>up</code> works; anything a stranger reaches must set it</td>
+</tr>
+<tr>
+<td><code>COS_REDIS_PASSWORD</code></td>
+<td>Redis holds every live scan and every result still inside its TTL. Unset, it asks for nothing. See <a href="/documentation/redis">Redis</a></td>
+</tr>
+<tr>
+<td><code>COS_WEB_TRUST_FORWARDED_FOR</code></td>
+<td><code>true</code> only behind a proxy that <strong>overwrites</strong> <code>X-Forwarded-For</code>, otherwise every client can forge its own rate-limit identity</td>
+</tr>
+</tbody>
+</table>
 <p>The published image is on Docker Hub as <strong><code>okxo/opencloud-scanner</code></strong>, so a
 deployment does not have to build one. <code>latest</code> and <code>MAJOR.MINOR.PATCH</code> follow
 the released version, <code>MAJOR.MINOR</code> follows the line, and <code>edge</code> is the current
 <code>main</code>. It carries <code>linux/amd64</code> and <code>linux/arm64</code>, and the same image runs
-both the web service and the worker - they differ only in the command:</p>
+both the web service and the worker - they differ only in the command, which is
+why the code that describes a result and the code that produces it cannot drift
+apart between deployments.</p>
+<p>Running one container by hand needs a Redis the worker shares and the public
+address, since neither has a useful default outside a compose file:</p>
 <pre><code class="language-bash">docker run --rm -p 8811:8811 \
-    -e COS_WEB_REDIS_URL=redis://redis:6379/0 \
+    -e COS_WEB_REDIS_URL=&quot;redis://:PASSWORD@redis:6379/0&quot; \
+    -e COS_WEB_PUBLIC_BASE_URL=http://127.0.0.1:8811 \
     okxo/opencloud-scanner:latest
 </code></pre>
-<p>Point <code>COS_WEB_REDIS_URL</code> at a Redis the worker shares, or use
-<a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/docker-compose.dockerhub.yml"><code>docker/docker-compose.dockerhub.yml</code></a>,
-which pulls the image and wires all three together. The existing
-<a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/docker-compose.yml"><code>docker/docker-compose.yml</code></a> still builds the
-same stack from a checkout.</p>
+<p><a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/README.md"><code>docker/README.md</code></a> covers the stacks in full, including
+the Authentik one, and the Docker Hub description carries a plain <code>docker run</code>
+recipe for all three containers.</p>
+<h3 id="without-containers">Without containers</h3>
 <p>From a checkout, with three terminals or three <code>&amp;</code>:</p>
 <pre><code class="language-bash">pip install &quot;.[web,mcp]&quot;    # the mcp extra is optional; it serves /mcp
 redis-server &amp;
@@ -108,12 +162,13 @@ COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
 # dist/check_opencloud_security_web.tar.gz  (+ .sha256)
 </code></pre>
 <h3 id="a-deployment-of-your-own">A deployment of your own</h3>
-<p>The two compose files are the two usual shapes. For anything else -
-a different port, an on-premise instance the SSRF guard would otherwise
-refuse, encryption at rest, a sign-in on <code>/mcp</code> - answer the questions instead
-of editing one into place:</p>
+<p>The two compose files are the two usual shapes. For anything else - a
+different port, an on-premise instance the SSRF guard would otherwise refuse,
+encryption at rest, a sign-in on <code>/mcp</code> - the wizard is the answer rather than
+editing one of them into place, either from a checkout or downloaded on its
+own:</p>
 <pre><code class="language-bash">cd docker
-./setup-wizard.py
+./setup-wizard.py --output-dir ~/opencloud-scanner
 </code></pre>
 <p>It explains each setting, shows an example answer, and writes a commented
 compose file with the non-secret answers inline plus a <code>.env</code>, owner-readable
@@ -202,7 +257,7 @@ somebody could.</p>
 <tr>
 <td><code>COS_WEB_REDIS_URL</code></td>
 <td><code>redis://127.0.0.1:6379/0</code></td>
-<td>Where ephemeral state lives. <code>memory://</code> runs without Redis, for a single-process evaluation</td>
+<td>Where ephemeral state lives. <code>memory://</code> runs without Redis, for a single-process evaluation. Include the password when Redis requires one: <code>redis://:PASSWORD@redis:6379/0</code></td>
 </tr>
 <tr>
 <td><code>COS_WEB_RESULT_TTL</code></td>
@@ -276,13 +331,13 @@ somebody could.</p>
 </tr>
 <tr>
 <td><code>COS_WEB_PUBLIC_BASE_URL</code></td>
-<td><em>(the request's own address)</em></td>
-<td>The origin this service is reached at, used for the canonical links and <code>sitemap.xml</code>. Set it behind a proxy, which otherwise publishes an address only the proxy can reach</td>
+<td><em>(required)</em></td>
+<td>The stable origin this service is reached at, used for canonical links, <code>sitemap.xml</code>, and machine discovery. An unset value refuses startup so an incoming <code>Host</code> header cannot publish attacker-controlled URLs</td>
 </tr>
 <tr>
 <td><code>COS_WEB_INDEX_META_TAG</code></td>
 <td><em>(empty)</em></td>
-<td>Optional <code>name=content</code> metadata on the landing page. The name and content are escaped separately; raw HTML, reserved page metadata, and prohibited platform metadata are refused</td>
+<td>Up to 10 optional <code>name=content</code> metadata pairs on the landing page, separated by <code>;</code>. Names and content are escaped separately; raw HTML, duplicate or reserved names, and prohibited platform metadata are refused</td>
 </tr>
 <tr>
 <td><code>COS_WEB_ALLOW_INDEXING</code></td>
@@ -836,11 +891,12 @@ the SSRF guard, rate limits, cooldown, queue, or capability checks.</p>
 other clients. <code>Accept: application/json</code> requests a structured response, and
 <code>output_format=json</code> does the same. HTML remains the default for ordinary
 browser navigation.</p>
-<p>The optional <code>COS_WEB_INDEX_META_TAG=name=content</code> setting adds one
-<code>&lt;meta name="..." content="..."&gt;</code> element to the landing page. Docker Compose
-passes it from the deployment environment. The application parses and escapes
-the two attributes instead of accepting raw HTML, and refuses names already
-owned by the page or prohibited platform metadata.</p>
+<p>The optional <code>COS_WEB_INDEX_META_TAG=name=content;name=content</code> setting adds
+up to ten <code>&lt;meta name="..." content="..."&gt;</code> elements to the landing page.
+Docker Compose passes it from the deployment environment. The application
+parses and escapes every pair instead of accepting raw HTML, and refuses
+duplicate names, names already owned by the page, or prohibited platform
+metadata. A literal semicolon is not supported in a value.</p>
 <h3 id="get-robotstxt-get-sitemapxml"><code>GET /robots.txt</code>, <code>GET /sitemap.xml</code></h3>
 <p>Both are generated, never files on disk. The sitemap lists the landing page,
 the nine explanation/index pages and every generated CLI document, and takes each

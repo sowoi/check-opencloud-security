@@ -15,8 +15,9 @@ handful of ``<head>`` values from a fixed list of paths.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .documentation import DOCUMENTATION_PAGES
 
@@ -31,6 +32,34 @@ ROBOTS_PATH = "/robots.txt"
 LLMS_PATH = "/llms.txt"
 LLMS_FULL_PATH = "/llms-full.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
+
+#: The legal notice belongs to whoever runs this particular deployment, not to
+#: the software. Only the host it was written for serves it, so a self-hosted
+#: copy neither publishes somebody else's contact details nor grows a page its
+#: own operator never wrote.
+LEGAL_NOTICE_HOST = "scan.okxo.de"
+LEGAL_NOTICE_PATH = "/legal-notice"
+SECURITY_TXT_PATH = "/.well-known/security.txt"
+
+#: The operator this deployment belongs to, and the project's own policy. Both
+#: appear in `security.txt`; the address is the one the legal notice names.
+SECURITY_CONTACT_EMAIL = "okko@okxo.de"
+SECURITY_ADVISORY_URL = (
+    "https://github.com/sowoi/check-opencloud-security/security/advisories/new"
+)
+SECURITY_POLICY_URL = (
+    "https://github.com/sowoi/check-opencloud-security/blob/main/SECURITY.md"
+)
+
+#: How far ahead an RFC 9116 document claims to be valid. The field is
+#: mandatory and a stale one is treated as no document at all, so it is
+#: computed per request rather than written down and forgotten.
+SECURITY_TXT_VALIDITY_DAYS = 90
+
+
+def serves_legal_notice(hostname: str | None) -> bool:
+    """Whether this request reached the deployment the legal notice is for."""
+    return (hostname or "").strip().lower() == LEGAL_NOTICE_HOST
 
 
 @dataclass(frozen=True)
@@ -60,7 +89,6 @@ PUBLIC_PAGES: tuple[PublicPage, ...] = (
         )
         for document in DOCUMENTATION_PAGES
     ),
-    PublicPage("/search", "search.html", "monthly", "0.6"),
     PublicPage("/api", "api.html", "monthly", "0.7"),
     PublicPage("/ai", "ai.html", "monthly", "0.6"),
     PublicPage("/cli", "cli.html", "monthly", "0.6"),
@@ -124,6 +152,29 @@ def site_origin(base_url: str, configured: str | None) -> str:
     if configured:
         return configured.strip().rstrip("/")
     return base_url.rstrip("/")
+
+
+def validate_public_base_url(value: str | None) -> None:
+    """Require one stable, absolute origin for public machine-readable URLs."""
+    if not value:
+        raise ValueError(
+            "COS_WEB_PUBLIC_BASE_URL is required: canonical URLs, the sitemap, "
+            "and agent discovery must not trust an incoming Host header"
+        )
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+    ):
+        raise ValueError(
+            "COS_WEB_PUBLIC_BASE_URL must be an absolute http(s) origin "
+            "without credentials, a path, query, or fragment"
+        )
 
 
 def canonical_url(origin: str, path: str) -> str:
@@ -204,5 +255,39 @@ def robots_txt(origin: str, *, allow_indexing: bool) -> str:
     lines.extend(f"Disallow: {path}" for path in _DISALLOWED)
     lines.append("")
     lines.append(f"Sitemap: {origin}{SITEMAP_PATH}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def security_txt(
+    origin: str,
+    *,
+    operator_contact: str | None = None,
+    now: datetime | None = None,
+) -> str:
+    """
+    Where to send a report about *this service*, in the RFC 9116 format.
+
+    Every deployment names the project's own security policy, because a flaw
+    in the scanner is a flaw in this repository wherever it runs. Only the
+    deployment the legal notice belongs to adds an operator address: a
+    self-hosted copy must not send its visitors' reports to somebody who
+    cannot act on them.
+    """
+    moment = now or datetime.now(timezone.utc)
+    expires = moment + timedelta(days=SECURITY_TXT_VALIDITY_DAYS)
+    lines = []
+    if operator_contact:
+        lines.append(f"Contact: mailto:{operator_contact}")
+    lines.extend(
+        [
+            f"Contact: {SECURITY_ADVISORY_URL}",
+            f"Expires: {expires.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+            f"Policy: {SECURITY_POLICY_URL}",
+            "Preferred-Languages: en, de",
+        ]
+    )
+    if origin:
+        lines.append(f"Canonical: {origin}{SECURITY_TXT_PATH}")
     lines.append("")
     return "\n".join(lines)

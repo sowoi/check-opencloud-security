@@ -18,6 +18,27 @@ Whatever the platform, three things decide whether it works:
 
 ## GitHub Actions
 
+### OpenCloud compatibility evidence
+
+The repository's **real OpenCloud container** workflow keeps one reviewed,
+immutable rolling-image digest as its baseline and runs the scanner against it
+weekly. It verifies that the container still initializes, exposes the expected
+public status endpoint, identifies itself as OpenCloud, reports a version, and
+produces a bounded rating. The image reports its exact OpenCloud version during
+the test; the workflow intentionally does not claim compatibility for a new
+release until that evidence has been reviewed.
+
+| Evidence | Baseline | Compatible when | Review path |
+|:--|:--|:--|:--|
+| Vendor container integration | `opencloudeu/opencloud-rolling@sha256:0bb9038f4c01ab187a014e97550435f5d45630731aed9341d87a0b40fe72fe3d` | The complete integration test passes and its reported version and externally observable behaviour are reviewed | Dispatch the workflow with `candidate_image`; update the baseline only in a reviewed pull request |
+| Release lifecycle | Bundled schedule plus the daily conservative refresh | New or changed lines retain existing support facts and pass lifecycle regressions | Review the release-schedule refresh PR |
+| Advisories | Bundled database plus the daily conservative refresh | New advisories add evidence without removing known affected ranges | Review the advisory-database refresh PR |
+
+The automation never rewrites fixtures, grades, or security expectations to
+turn a candidate green. A changed response, header, endpoint, or security
+property must have release evidence and a reviewable test change naming that
+evidence.
+
 The repository's `Supply-chain checks` workflow runs on pull requests, pushes
 to `main` and weekly. It exports the fully resolved `uv.lock` dependency set,
 runs `pip-audit` over core, web and MCP dependencies, and publishes a

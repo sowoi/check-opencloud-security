@@ -1,523 +1,71 @@
-# check-opencloud-security (Full Documentation)
-
-> Complete technical documentation, API specifications, workflows, and WebMCP definitions for check-opencloud-security. This document is self-contained and formatted for direct parsing by Large Language Models (LLMs).
-
-## Overview & Service Boundaries
-
-### Key Capabilities
-- Measures OpenCloud version support and checks against known security advisories.
-- Validates TLS configuration, cipher suites, and certificate validity.
-- Audits HTTP security headers (HSTS, CSP, X-Frame-Options, etc.).
-- Evaluates application hardening settings and checks for exposed or vulnerable internal services.
-- Operates on a short retention window where scan results are temporary.
-
-### Service Developer
-- Massoud Ahmed
-
-### Trademark & Legal Disclaimer
-This project is an independent tool and is not affiliated with, endorsed by, sponsored by, or supported by OpenCloud GmbH. "OpenCloud" and its associated names or logos belong to their respective owners and are used strictly to identify the target software.
-
----
-
-## Machine Discovery & Contract Map
-
-- `/llms.txt`: Compact navigation overview and quick reference.
-- `/llms-full.txt`: Full concatenated documentation (this file).
-- `/.well-known/ai.json`: Machine discovery configuration mapping endpoints, workflows, and Model Context Protocol (MCP) parameters.
-- `/openapi.json`: Full OpenAPI 3.1 schema.
-- `/arazzo.json`: Arazzo specification mapping asynchronous workflows (queued scan -> polling -> export -> purge).
-- `/mcp`: Server-side MCP endpoint (JSON-RPC over HTTP/SSE when enabled).
-
----
-
-## HTTP API Specifications
-
-### Authorization & Lifecycle Rules
-1. **Scan UUIDs**: A scan UUID acts as the complete bearer credential for accessing a scan's result. Keep UUIDs private.
-2. **UUID Prohibitions**: Do not attempt to brute-force or guess UUIDs.
-3. **HTTP 404 Response**: An HTTP `404` status is terminal (the scan does not exist or has expired). Do not retry on `404`.
-4. **Target Cooldown & Queueing**: Requests are subjected to target cooldowns and SSRF validation.
-
----
-
-### Endpoint: Queue Single Scan
-
-`POST /api/scans`
-
-Queues a single target URL for execution.
-
-#### Request Headers
-- `Content-Type: application/json`
-- `Accept: application/json`
-
-#### Request Body
-```json
-{
-  "target_url": "[https://opencloud.example.com](https://opencloud.example.com)",
-  "ignore_hardenings": false,
-  "release_track": "production",
-  "output_format": "json"
-}
-Field Definitions
-target_url (string, required): Fully qualified URL of the target OpenCloud instance. Must start with http:// or https://.
-ignore_hardenings (boolean, optional): Set to true to skip specific hardening requirement warnings in scoring. Default: false.
-release_track (string, optional): One of auto, rolling, production, lts. Default: auto.
-output_format (string, optional): Preferred return format. One of json, csv, sarif, pdf. Default: json.
-Responses
-202 Accepted: Scan queued successfully. Returns payload containing the uuid.
-JSON
-{
-  "uuid": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "queued",
-  "poll_url": "/api/scans/123e4567-e89b-12d3-a456-426614174000"
-}
-400 Bad Request: Malformed payload or invalid target_url.
-429 Too Many Requests: Rate limit or target cooldown exceeded.
-Endpoint: Queue Batch Scan
-POST /api/scans/batch
-Queues multiple target URLs under uniform configuration options.
-Request Body
-JSON
-{
-  "targets": [
-    "[https://opencloud1.example.com](https://opencloud1.example.com)",
-    "[https://opencloud2.example.com](https://opencloud2.example.com)"
-  ],
-  "ignore_hardenings": false,
-  "release_track": "lts",
-  "output_format": "json"
-}
-Responses
-202 Accepted: Returns array of queued scan objects.
-Endpoint: Poll / Fetch Scan Results
-GET /api/scans/{uuid}
-Fetches the current execution state or the completed result of a scan.
-Path Parameters
-uuid (string, required): The scan identification UUID.
-Responses
-200 OK: Scan execution completed.
-JSON
-{
-  "uuid": "123e4567-e89b-12d3-a456-426614174000",
-  "done": true,
-  "rating": "A",
-  "target_url": "[https://opencloud.example.com](https://opencloud.example.com)",
-  "release_track": "production",
-  "summary": {
-    "tls": "pass",
-    "headers": "warn",
-    "advisories_found": 0
-  },
-  "evidence": [...]
-}
-200 OK (In Progress): Scan still executing ("done": false).
-404 Not Found: Scan does not exist or result was purged.
-Endpoint: Export Scan Report
-GET /api/scans/{uuid}/export/{format}
-Downloads the scan results formatted in the requested format.
-Path Parameters
-uuid (string, required): Scan identification UUID.
-format (string, required): Export type. Allowed values: json, csv, sarif, pdf.
-Responses
-200 OK: Returns formatted report stream.
-409 Conflict: Scan exists but execution is not finished yet (done: false).
-404 Not Found: Invalid UUID or expired scan.
-Endpoint: Purge Target Data
-DELETE /api/purge?target={target_url}
-Triggers operator-authorized data erasure for a target host (only available when enabled on instance).
-Query Parameters
-target (string, required): Target URL to purge.
-Responses
-200 OK: Erasure requested/completed.
-403 Forbidden: Operator authorization required or purging disabled.
-WebMCP (Browser Integration) Specifications
-When running inside a browser supporting WebMCP, client-side extensions register window-scoped tools.
-Architectural Rules
-Calling a WebMCP tool executes the exact same HTTP API logic documented above using Accept: application/json.
-WebMCP tools do not bypass SSRF checks, rate limits, target cooldowns, queueing, or result isolation.
-Available Tools
-1. Landing Page Tool: scan_opencloud_security
-Context: Available on / (Landing Page).
-Function: Queues a scan for an OpenCloud host.
-Parameters (JSON Schema):
-target_url (string, required)
-release_track (enum: ["auto", "rolling", "production", "lts"])
-ignore_hardenings (boolean)
-2. Result Page Tool: get_scan_result
-Context: Available on /scans/{uuid}.
-Function: Retrieves current scan status and findings.
-Parameters: uuid (string, required).
-3. Result Page Tool: export_scan_report
-Context: Available on /scans/{uuid}.
-Function: Fetches the scan report in a specified output format.
-Parameters:
-uuid (string, required)
-format (enum: ["json", "csv", "sarif", "pdf"])
-Workflow Integration (Arazzo Pattern)
-[Start Scan] ──> POST /api/scans (202 Accepted) ──> Extract UUID
-                                                          │
-                                                          ▼
-[Polling Loop] <── GET /api/scans/{uuid} <────────────────┤
-       │                                                  │
-       ├──> "done": false ──> Wait & Retry ───────────────┘
-       │
-       └──> "done": true
-                │
-                ├──> GET /api/scans/{uuid} (Read JSON result)
-                └──> GET /api/scans/{uuid}/export/{format} (Download Report)
-
----
-
-### Warum diese Datei ideal für KI-Agenten ist
-
-1. **Self-Contained (Autark):** Wenn ein KI-Agent die `llms-full.txt` liest, muss er **keine weiteren HTTP-Aufrufe** tätigen, um das Schema von `/api/scans` oder den Polling-Workflow zu verstehen.
-2. **Code-Snippets & Schemas:** Enthält direkte JSON-Strukturen für Anfragen und Antworten, damit LLMs API-Requests fehlerfrei konstruieren können.
-3. **Arazzo & WebMCP Details:** Alle Regeln zu WebMCP und Polling-Schleifen sind im Klartext beschrieben.
-erstelle das als downloadbare markdown Datei.
-Field Definitions
-target_url (string, required): Fully qualified URL of the target OpenCloud instance. Must start with http:// or https://.
-ignore_hardenings (boolean, optional): Set to true to skip specific hardening requirement warnings in scoring. Default: false.
-release_track (string, optional): One of auto, rolling, production, lts. Default: auto.
-output_format (string, optional): Preferred return format. One of json, csv, sarif, pdf. Default: json.
-Responses
-202 Accepted: Scan queued successfully. Returns payload containing the uuid.
-JSON
-{
-  "uuid": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "queued",
-  "poll_url": "/api/scans/123e4567-e89b-12d3-a456-426614174000"
-}
-400 Bad Request: Malformed payload or invalid target_url.
-429 Too Many Requests: Rate limit or target cooldown exceeded.
-Endpoint: Queue Batch Scan
-POST /api/scans/batch
-Queues multiple target URLs under uniform configuration options.
-Request Body
-JSON
-{
-  "targets": [
-    "[https://opencloud1.example.com](https://opencloud1.example.com)",
-    "[https://opencloud2.example.com](https://opencloud2.example.com)"
-  ],
-  "ignore_hardenings": false,
-  "release_track": "lts",
-  "output_format": "json"
-}
-Responses
-202 Accepted: Returns array of queued scan objects.
-Endpoint: Poll / Fetch Scan Results
-GET /api/scans/{uuid}
-Fetches the current execution state or the completed result of a scan.
-Path Parameters
-uuid (string, required): The scan identification UUID.
-Responses
-200 OK: Scan execution completed.
-JSON
-{
-  "uuid": "123e4567-e89b-12d3-a456-426614174000",
-  "done": true,
-  "rating": "A",
-  "target_url": "[https://opencloud.example.com](https://opencloud.example.com)",
-  "release_track": "production",
-  "summary": {
-    "tls": "pass",
-    "headers": "warn",
-    "advisories_found": 0
-  },
-  "evidence": [...]
-}
-200 OK (In Progress): Scan still executing ("done": false).
-404 Not Found: Scan does not exist or result was purged.
-Endpoint: Export Scan Report
-GET /api/scans/{uuid}/export/{format}
-Downloads the scan results formatted in the requested format.
-Path Parameters
-uuid (string, required): Scan identification UUID.
-format (string, required): Export type. Allowed values: json, csv, sarif, pdf.
-Responses
-200 OK: Returns formatted report stream.
-409 Conflict: Scan exists but execution is not finished yet (done: false).
-404 Not Found: Invalid UUID or expired scan.
-Endpoint: Purge Target Data
-DELETE /api/purge?target={target_url}
-Triggers operator-authorized data erasure for a target host (only available when enabled on instance).
-Query Parameters
-target (string, required): Target URL to purge.
-Responses
-200 OK: Erasure requested/completed.
-403 Forbidden: Operator authorization required or purging disabled.
-WebMCP (Browser Integration) Specifications
-When running inside a browser supporting WebMCP, client-side extensions register window-scoped tools.
-Architectural Rules
-Calling a WebMCP tool executes the exact same HTTP API logic documented above using Accept: application/json.
-WebMCP tools do not bypass SSRF checks, rate limits, target cooldowns, queueing, or result isolation.
-Available Tools
-1. Landing Page Tool: scan_opencloud_security
-Context: Available on / (Landing Page).
-Function: Queues a scan for an OpenCloud host.
-Parameters (JSON Schema):
-target_url (string, required)
-release_track (enum: ["auto", "rolling", "production", "lts"])
-ignore_hardenings (boolean)
-2. Result Page Tool: get_scan_result
-Context: Available on /scans/{uuid}.
-Function: Retrieves current scan status and findings.
-Parameters: uuid (string, required).
-3. Result Page Tool: export_scan_report
-Context: Available on /scans/{uuid}.
-Function: Fetches the scan report in a specified output format.
-Parameters:
-uuid (string, required)
-format (enum: ["json", "csv", "sarif", "pdf"])
-Workflow Integration (Arazzo Pattern)
-[Start Scan] ──> POST /api/scans (202 Accepted) ──> Extract UUID
-                                                          │
-                                                          ▼
-[Polling Loop] <── GET /api/scans/{uuid} <────────────────┤
-       │                                                  │
-       ├──> "done": false ──> Wait & Retry ───────────────┘
-       │
-       └──> "done": true
-                │
-                ├──> GET /api/scans/{uuid} (Read JSON result)
-                └──> GET /api/scans/{uuid}/export/{format} (Download Report)
-"""
-file_path = "llms-full.txt"
-with open(file_path, "w", encoding="utf-8") as f:
-f.write(markdown_content)
-print(f"File saved successfully as {file_path}")
-
-```text?code_stdout&code_event_index=1
-File saved successfully as llms-full.txt
-
-Your Markdown file is ready
-TXT-Symbol
-llms-full
- TXT
-Geöffnet
-Die Datei llms-full.txt wurde erfolgreich erstellt und steht zum Download bereit. Du kannst sie direkt im Wurzelverzeichnis (Root) deines Webservers bereitstellen.
-
-
-Gemini ist eine KI und kann Fehler machen, auch bei Informationen über Personen. Datenschutz und GeminiWird in einem neuen Fenster geöffnet
-
-Wird analysiert
-# check-opencloud-security (Full Documentation)
-
-> Complete technical documentation, API specifications, workflows, and WebMCP definitions for check-opencloud-security. This document is self-contained and formatted for direct parsing by Large Language Models (LLMs).
-
----
-
-## Overview & Service Boundaries
-
-check-opencloud-security is an independent security measurement service designed to scan publicly accessible OpenCloud instances.
-
-### Key Capabilities
-- Measures OpenCloud version support and checks against known security advisories.
-- Validates TLS configuration, cipher suites, and certificate validity.
-- Audits HTTP security headers (HSTS, CSP, X-Frame-Options, etc.).
-- Evaluates application hardening settings and checks for exposed or vulnerable internal services.
-- Operates on a short retention window where scan results are temporary.
-
-### Service Developer
-- Massoud Ahmed
-
-### Trademark & Legal Disclaimer
-This project is an independent tool and is not affiliated with, endorsed by, sponsored by, or supported by OpenCloud GmbH. "OpenCloud" and its associated names or logos belong to their respective owners and are used strictly to identify the target software.
-
----
-
-## Machine Discovery & Contract Map
-
-- `/llms.txt`: Compact navigation overview and quick reference.
-- `/llms-full.txt`: Full concatenated documentation (this file).
-- `/.well-known/ai.json`: Machine discovery configuration mapping endpoints, workflows, and Model Context Protocol (MCP) parameters.
-- `/openapi.json`: Full OpenAPI 3.1 schema.
-- `/arazzo.json`: Arazzo specification mapping asynchronous workflows (queued scan -> polling -> export -> purge).
-- `/mcp`: Server-side MCP endpoint (JSON-RPC over HTTP/SSE when enabled).
-
----
-
-## HTTP API Specifications
-
-### Authorization & Lifecycle Rules
-1. **Scan UUIDs**: A scan UUID acts as the complete bearer credential for accessing a scan's result. Keep UUIDs private.
-2. **UUID Prohibitions**: Do not attempt to brute-force or guess UUIDs.
-3. **HTTP 404 Response**: An HTTP `404` status is terminal (the scan does not exist or has expired). Do not retry on `404`.
-4. **Target Cooldown & Queueing**: Requests are subjected to target cooldowns and SSRF validation.
-
----
-
-### Endpoint: Queue Single Scan
-
-`POST /api/scans`
-
-Queues a single target URL for execution.
-
-#### Request Headers
-- `Content-Type: application/json`
-- `Accept: application/json`
-
-#### Request Body
-```json
-{
-  "target_url": "https://opencloud.example.com",
-  "ignore_hardenings": false,
-  "release_track": "production",
-  "output_format": "json"
-}
-```
-
-#### Field Definitions
-- `target_url` *(string, required)*: Fully qualified URL of the target OpenCloud instance. Must start with `http://` or `https://`.
-- `ignore_hardenings` *(boolean, optional)*: Set to `true` to skip specific hardening requirement warnings in scoring. Default: `false`.
-- `release_track` *(string, optional)*: One of `auto`, `rolling`, `production`, `lts`. Default: `auto`.
-- `output_format` *(string, optional)*: Preferred return format. One of `json`, `csv`, `sarif`, `pdf`. Default: `json`.
-
-#### Responses
-- **`202 Accepted`**: Scan queued successfully. Returns payload containing the `uuid`.
-  ```json
-  {
-    "uuid": "123e4567-e89b-12d3-a456-426614174000",
-    "status": "queued",
-    "poll_url": "/api/scans/123e4567-e89b-12d3-a456-426614174000"
-  }
-  ```
-- **`400 Bad Request`**: Malformed payload or invalid `target_url`.
-- **`429 Too Many Requests`**: Rate limit or target cooldown exceeded.
-
----
-
-### Endpoint: Queue Batch Scan
-
-`POST /api/scans/batch`
-
-Queues multiple target URLs under uniform configuration options.
-
-#### Request Body
-```json
-{
-  "targets": [
-    "https://opencloud1.example.com",
-    "https://opencloud2.example.com"
-  ],
-  "ignore_hardenings": false,
-  "release_track": "lts",
-  "output_format": "json"
-}
-```
-
-#### Responses
-- **`202 Accepted`**: Returns array of queued scan objects.
-
----
-
-### Endpoint: Poll / Fetch Scan Results
-
-`GET /api/scans/{uuid}`
-
-Fetches the current execution state or the completed result of a scan.
-
-#### Path Parameters
-- `uuid` *(string, required)*: The scan identification UUID.
-
-#### Responses
-- **`200 OK`**: Scan execution completed.
-  ```json
-  {
-    "uuid": "123e4567-e89b-12d3-a456-426614174000",
-    "done": true,
-    "rating": "A",
-    "target_url": "https://opencloud.example.com",
-    "release_track": "production",
-    "summary": {
-      "tls": "pass",
-      "headers": "warn",
-      "advisories_found": 0
-    },
-    "evidence": [...]
-  }
-  ```
-- **`200 OK` (In Progress)**: Scan still executing (`"done": false`).
-- **`404 Not Found`**: Scan does not exist or result was purged.
-
----
-
-### Endpoint: Export Scan Report
-
-`GET /api/scans/{uuid}/export/{format}`
-
-Downloads the scan results formatted in the requested format.
-
-#### Path Parameters
-- `uuid` *(string, required)*: Scan identification UUID.
-- `format` *(string, required)*: Export type. Allowed values: `json`, `csv`, `sarif`, `pdf`.
-
-#### Responses
-- **`200 OK`**: Returns formatted report stream.
-- **`409 Conflict`**: Scan exists but execution is not finished yet (`done: false`).
-- **`404 Not Found`**: Invalid UUID or expired scan.
-
----
-
-### Endpoint: Purge Target Data
-
-`DELETE /api/purge?target={target_url}`
-
-Triggers operator-authorized data erasure for a target host (only available when enabled on instance).
-
-#### Query Parameters
-- `target` *(string, required)*: Target URL to purge.
-
-#### Responses
-- **`200 OK`**: Erasure requested/completed.
-- **`403 Forbidden`**: Operator authorization required or purging disabled.
-
----
-
-## WebMCP (Browser Integration) Specifications
-
-When running inside a browser supporting WebMCP, client-side extensions register window-scoped tools.
-
-### Architectural Rules
-- Calling a WebMCP tool executes the exact same HTTP API logic documented above using `Accept: application/json`.
-- WebMCP tools **do not** bypass SSRF checks, rate limits, target cooldowns, queueing, or result isolation.
-
-### Available Tools
-
-#### 1. Landing Page Tool: `scan_opencloud_security`
-- **Context**: Available on `/` (Landing Page).
-- **Function**: Queues a scan for an OpenCloud host.
-- **Parameters (JSON Schema)**:
-  - `target_url` (string, required)
-  - `release_track` (enum: ["auto", "rolling", "production", "lts"])
-  - `ignore_hardenings` (boolean)
-
-#### 2. Result Page Tool: `get_scan_result`
-- **Context**: Available on `/scans/{uuid}`.
-- **Function**: Retrieves current scan status and findings.
-- **Parameters**: `uuid` (string, required).
-
-#### 3. Result Page Tool: `export_scan_report`
-- **Context**: Available on `/scans/{uuid}`.
-- **Function**: Fetches the scan report in a specified output format.
-- **Parameters**:
-  - `uuid` (string, required)
-  - `format` (enum: ["json", "csv", "sarif", "pdf"])
-
----
-
-## Workflow Integration (Arazzo Pattern)
-
-```
-[Start Scan] ──> POST /api/scans (202 Accepted) ──> Extract UUID
-                                                          │
-                                                          ▼
-[Polling Loop] <── GET /api/scans/{uuid} <────────────────┤
-       │                                                  │
-       ├──> "done": false ──> Wait & Retry ───────────────┘
-       │
-       └──> "done": true
-                │
-                ├──> GET /api/scans/{uuid} (Read JSON result)
-                └──> GET /api/scans/{uuid}/export/{format} (Download Report)
-```
+# check-opencloud-security: extended agent guide
+
+This is an independent OpenCloud security scanner. It measures what a public,
+unauthenticated visitor can observe: release support, known advisories, TLS,
+HTTP security headers, hardening signals, and exposed services. It does not
+authenticate, test accounts or stored data, assess the host or network, or
+replace a penetration test.
+
+The scanner grades the measured result from 0 to 5 (A+ to F). A scan UUID is a
+bearer capability: do not disclose it, guess it, or put it in an issue, log,
+or public document. Results expire after the service retention period; an
+unknown, expired, malformed, or erased UUID always returns `404`.
+
+## Authoritative contracts
+
+- [Discovery document](/.well-known/ai.json): service-specific entry point.
+- [OpenAPI 3.1](/openapi.json): endpoint and schema authority.
+- [Arazzo 1.0.1](/arazzo.json): asynchronous API workflow authority.
+- [MCP](/mcp): task interface when enabled by the operator.
+- [API guide](/api), [agent guide](/ai), and [privacy policy](/privacy): human
+  explanations of the same public interface.
+
+The discovery document is an application convention, not a registered
+standard. Its URLs, the OpenAPI document, and the Arazzo document are the
+authoritative machine contracts. This file is explanatory and must not
+override them.
+
+## Safe use
+
+Only scan a public OpenCloud instance the caller is responsible for or has
+permission to test. The service rejects private, loopback, link-local, and
+cloud metadata addresses. Requests may choose `target_url`,
+`ignore_hardenings`, `release_track`, and `output_format`; timeout,
+concurrency, TLS verification, and worker settings are server-side only.
+
+Submit one target with `POST /api/scans`, then poll
+`GET /api/scans/{uuid}`. `202` means queued; `200` can still mean queued or
+running; `404` is final; `429` supplies `Retry-After`; and an export can
+return `409` until the scan has completed. Use the Arazzo workflow rather than
+inventing a polling or retry policy.
+
+The task-level MCP tools are `scan_instance`, `scan_instances`,
+`get_scan_result`, `plan_remediation`, `export_scan`, and
+`erase_instance_data`. The last is destructive and requires the same
+operator authorisation as the HTTP erasure endpoint. MCP and browser WebMCP
+execute the public API; they do not bypass SSRF protection, rate limits,
+queueing, or result isolation.
+
+## Release and advisory evidence
+
+The bundled release lifecycle and advisory database are checked-in evidence
+used by the offline scanner. CI refreshes both through reviewable pull
+requests. The web worker may refresh its in-memory copies, but accepts only
+conservative updates: schedules cannot lose known support facts, and
+advisories cannot lose known affected ranges. A new release is not assumed
+compatible; the integration workflow tests the scanner against an OpenCloud
+container and the refresh PR runs the relevant regression tests before review.
+
+## Privacy and limits
+
+This service has no account or API key. It queues work rather than returning
+`503` for a valid submission, and rate limits are a prompt to run the
+open-source scanner locally. The service does not publish a scan listing.
+Search engines are instructed not to index scan pages, API results, or
+exports. See [/privacy](/privacy) for the retention and logging model.
+
+## Trademark
+
+This project is independent and is not affiliated with, endorsed by, or
+supported by OpenCloud GmbH. “OpenCloud” and related marks belong to their
+owners and are used only to identify the software being checked.

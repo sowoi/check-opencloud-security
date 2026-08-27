@@ -481,6 +481,22 @@ MESSAGES: dict[str, str] = {
         "forme de contrôle en ligne de commande et de paquet Python. Dans les "
         "deux cas, rien ici ne communique avec un service tiers."
     ),
+    # ----------------------------------------------------------- legal notice
+    "legal.title": "Mentions légales",
+    "legal.description": (
+        "Identification du fournisseur, coordonnées et clauses de "
+        "responsabilité de l'exploitant de cette installation."
+    ),
+    "legal.kicker": "Mentions légales",
+    "legal.lede": (
+        "Identification du fournisseur selon le droit allemand, pour "
+        "l'exploitant de cette installation."
+    ),
+    "legal.english_notice": (
+        "Ces mentions sont le texte juridique de l'exploitant et ne sont "
+        "disponibles qu'en anglais. La page qui les entoure est traduite, le "
+        "texte ci-dessous ne l'est pas."
+    ),
     # ----------------------------------------------------------------- about
     "about.title": "À propos d'OpenCloud et de ce scanner",
     "about.description": (

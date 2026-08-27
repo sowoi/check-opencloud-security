@@ -48,14 +48,16 @@
   <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
   <link rel="arazzo" type="application/json" href="/arazzo.json">
   <link rel="ai-discovery" type="application/json" href="/.well-known/ai.json">
-  <!-- Schema.org Structured Data (JSON-LD) -->
+  {% if canonical_url %}
+  {# Indexable pages describe their visible service with JSON values, not
+     HTML-escaped attribute values. Results intentionally have neither. #}
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "{{ site_name|default('OpenCloud Security Scan', true) }}",
-    "description": "{{ t('index.description') }}",
-    "url": "{{ canonical_url|default('https://check.opencloud.security', true) }}",
+    "name": {{ site_name|default('OpenCloud Security Scan', true)|tojson }},
+    "description": {{ self.description()|striptags|tojson }},
+    "url": {{ canonical_url|tojson }},
     "applicationCategory": "SecurityApplication",
     "operatingSystem": "All",
     "offers": {
@@ -65,6 +67,7 @@
     }
   }
   </script>
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 <body {% block body_attrs %}{% endblock %}>
@@ -182,18 +185,16 @@
             </svg>
             <span>{{ t('footer.version.label', version=version) }}</span>
           </a>
-          {% if request and request.url.hostname == 'scan.okxo.de' %}
-          <a class="version-badge" href="https://okxo.de/impressum-legal-notice/"
-             rel="noopener noreferrer"
-             target="_blank"
-             title="Legal Notice">
+          {% if legal_notice_path %}
+          <a class="version-badge" href="{{ legal_notice_path }}"
+             title="{{ t('legal.title') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10"/>
               <path d="M12 16v-4"/>
               <path d="M12 8h.01"/>
             </svg>
-            <span>Legal Notice</span>
+            <span>{{ t('legal.title') }}</span>
           </a>
           {% endif %}
         </div>

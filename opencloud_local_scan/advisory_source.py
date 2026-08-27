@@ -180,16 +180,18 @@ def merge_document(
             by_id[entry["id"]] = len(current) - 1
             added += 1
             continue
-        merged = dict(current[index])
+        previous = current[index]
+        merged = dict(previous)
         merged.update({key: value for key, value in entry.items() if value not in (None, "")})
-        # 'ranges' is authoritative or absent: a fetched single-range advisory
-        # must not inherit a stale multi-range list from the file.
-        if "ranges" in entry:
-            merged["ranges"] = entry["ranges"]
-        else:
+        ranges = _merged_ranges(previous, entry)
+        merged["introduced"], merged["fixed"] = ranges[0]
+        if len(ranges) == 1:
             merged.pop("ranges", None)
-            merged["introduced"] = entry["introduced"]
-            merged["fixed"] = entry["fixed"]
+        else:
+            merged["ranges"] = [
+                {"introduced": introduced, "fixed": fixed}
+                for introduced, fixed in ranges
+            ]
         current[index] = merged
 
     LOGGER.debug("Advisory merge: %d fetched, %d new", len(entries), added)
@@ -197,6 +199,32 @@ def merge_document(
     document["updated"] = datetime.now(tz=timezone.utc).date().isoformat()
     document["comment"] = DOCUMENT_COMMENT
     return document
+
+
+def _ranges(entry: dict[str, Any]) -> list[tuple[str | None, str | None]]:
+    """Read all bounded ranges from either native representation."""
+    listed = entry.get("ranges")
+    if isinstance(listed, list):
+        ranges = [
+            (item.get("introduced"), item.get("fixed"))
+            for item in listed
+            if isinstance(item, dict)
+            and (item.get("introduced") or item.get("fixed"))
+        ]
+        if ranges:
+            return ranges
+    return [(entry.get("introduced"), entry.get("fixed"))]
+
+
+def _merged_ranges(
+    previous: dict[str, Any], fetched: dict[str, Any]
+) -> list[tuple[str | None, str | None]]:
+    """Preserve every known affected range when a feed revises an advisory."""
+    merged: list[tuple[str | None, str | None]] = []
+    for version_range in [*_ranges(previous), *_ranges(fetched)]:
+        if version_range not in merged:
+            merged.append(version_range)
+    return merged
 
 
 def fetch_advisory_document(

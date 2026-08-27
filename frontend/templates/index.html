@@ -3,9 +3,9 @@
 {% block title %}{{ t('index.title') }}{% endblock %}
 {% block description %}{{ t('index.description') }}{% endblock %}
 {% block head %}
-{% if index_meta_tag %}
-<meta name="{{ index_meta_tag.name }}" content="{{ index_meta_tag.content }}">
-{% endif %}
+{% for meta_tag in index_meta_tags %}
+<meta name="{{ meta_tag.name }}" content="{{ meta_tag.content }}">
+{% endfor %}
 {% endblock %}
 
 {% block content %}

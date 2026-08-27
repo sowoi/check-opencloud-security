@@ -324,12 +324,26 @@ def test_a_deployment_that_cannot_check_a_token_refuses_to_start():
 def test_a_deployment_that_does_not_know_its_own_address_refuses_to_start():
     """The 401 names the resource and the RFC 9728 metadata is published
     beneath it; guessing the address would send clients somewhere else."""
-    with pytest.raises(ValueError, match="RESOURCE_URL"):
+    with pytest.raises(ValueError, match="COS_WEB_PUBLIC_BASE_URL"):
         create_app(
             settings(
                 public_base_url="", mcp_auth_enabled=True, mcp_auth_issuer=ISSUER
             )
         )
+    with pytest.raises(ValueError, match="RESOURCE_URL"):
+        mcp_auth.ensure_mcp_auth_ready(
+            settings(
+                public_base_url="", mcp_auth_enabled=True, mcp_auth_issuer=ISSUER
+            )
+        )
+    mcp_auth.ensure_mcp_auth_ready(
+        settings(
+            public_base_url=BASE,
+            mcp_auth_enabled=True,
+            mcp_auth_issuer=ISSUER,
+            mcp_auth_audience=AUDIENCE,
+        )
+    )
 
 
 def test_a_sign_in_over_plain_http_refuses_to_start():

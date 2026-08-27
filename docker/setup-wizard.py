@@ -187,6 +187,7 @@ class Setup:
     encryption_key: str = ""
 
     redis_maxmemory: str = "256mb"
+    redis_password: str = ""
 
 
 # Answers a private deployment wants instead: it scans its own network, it is
@@ -206,6 +207,12 @@ PRIVATE_PRESET: dict[str, Any] = {
 # compose file, never written into it. The value is the environment variable
 # name both files agree on.
 SECRET_VARIABLES: dict[str, str] = {
+    # Redis holds every live scan and every result still inside its TTL. It is
+    # reachable by name from anything that lands on the same Compose network,
+    # so it asks for a password as well as sitting on a network of its own -
+    # an unauthenticated Redis is one misplaced container away from being a
+    # readable copy of everybody's scans.
+    "redis_password": "COS_REDIS_PASSWORD",
     "releases_token": "COS_WEB_RELEASES_TOKEN",
     "purge_token": "COS_WEB_PURGE_TOKEN",
     "purge_signing_key": "COS_WEB_PURGE_SIGNING_KEY",
@@ -533,7 +540,8 @@ def build_sections(setup: Setup) -> list[Section]:
                         "The URL visitors actually use. Behind a proxy the service only "
                         "ever sees its own address, and the canonical links, the sitemap "
                         "and the OAuth metadata would otherwise publish URLs nobody can "
-                        "reach. Leave it unset for a deployment reached directly."
+                        "reach. It is required even for a direct deployment so an "
+                        "incoming Host header cannot choose those public URLs."
                     ),
                     example="https://scan.example.com",
                     validate=_optional_url,
@@ -1283,9 +1291,14 @@ def _finalise(setup: Setup) -> None:
     the slug, the redirect back from the address this service is reached at,
     the credentials from a random number generator. Asking would be a quiz.
     """
+    if not setup.public_base_url:
+        setup.public_base_url = f"http://localhost:{setup.host_port}"
+    # No question for this one: there is no answer an operator could give that
+    # is better than a random string neither of us has to remember. The URL
+    # both application containers use carries it by reference.
+    if not setup.redis_password:
+        setup.redis_password = secrets.token_urlsafe(32)
     if _uses_authentik(setup):
-        if not setup.public_base_url:
-            setup.public_base_url = f"http://localhost:{setup.host_port}"
         if not setup.authentik_url:
             setup.authentik_url = f"http://localhost:{setup.authentik_http_port}"
         if not setup.authentik_redirect_uri:
@@ -1553,7 +1566,12 @@ def _entry(name: str, value: str, *comment: str) -> EnvEntry:
 def _web_environment(setup: Setup) -> list[EnvEntry]:
     """What the web service reads, in the order it makes sense to read it."""
     entries: list[EnvEntry] = [
-        _entry("COS_WEB_REDIS_URL", '"redis://redis:6379/0"'),
+        _entry(
+            "COS_WEB_REDIS_URL",
+            f'"redis://:{_env_reference("redis_password")}@redis:6379/0"',
+            "Redis requires a password and sits on a network of its own.",
+            "The value lives in .env, never here.",
+        ),
         _entry(
             "COS_WEB_RESULT_TTL",
             f'"{setup.result_ttl}"',
@@ -1769,7 +1787,12 @@ def _encryption_environment(setup: Setup) -> list[EnvEntry]:
 def _worker_environment(setup: Setup) -> list[EnvEntry]:
     """What the worker reads. This is where the load on other hosts is set."""
     entries: list[EnvEntry] = [
-        _entry("COS_WEB_REDIS_URL", '"redis://redis:6379/0"'),
+        _entry(
+            "COS_WEB_REDIS_URL",
+            f'"redis://:{_env_reference("redis_password")}@redis:6379/0"',
+            "Redis requires a password and sits on a network of its own.",
+            "The value lives in .env, never here.",
+        ),
         _entry("COS_WEB_RESULT_TTL", f'"{setup.result_ttl}"'),
         _entry(
             "COS_WEB_MAX_WORKERS",
@@ -1897,6 +1920,9 @@ services:
       - "{setup.bind_address}:{setup.host_port}:8811"
     environment:
 {_render_environment(_web_environment(setup), "      ")}
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -1913,6 +1939,9 @@ services:
         condition: service_healthy
     environment:
 {_render_environment(_worker_environment(setup), "      ")}
+    networks:
+      - default
+      - scanner_internal
     # The image health check probes the web server. The worker has no HTTP
     # listener, so verify its PID and the Redis connection it needs instead.
     healthcheck:
@@ -1941,12 +1970,27 @@ services:
     restart: unless-stopped
     # No persistence: nothing here is worth surviving a restart, and a dump
     # file would be a copy of everybody's scans sitting on a disk.
+    #
+    # It also asks for a password. Redis answers whoever reaches it, and what
+    # it holds is every live scan and every result still inside its TTL, so
+    # "nothing else is on this network" is an assumption rather than a
+    # control. The password comes from .env; the network below is the second
+    # half of the same argument.
     command: >
       redis-server
       --save ""
       --appendonly no
       --maxmemory {setup.redis_maxmemory}
       --maxmemory-policy allkeys-lru
+      --requirepass "{_env_reference("redis_password")}"
+    environment:
+      # redis-cli reads this, so the health check authenticates without the
+      # password appearing in its own command line.
+      REDISCLI_AUTH: "{_env_reference("redis_password")}"
+    # No `ports`: nothing outside this stack has any business connecting, and
+    # `internal` means the network has no route off the host either.
+    networks:
+      - scanner_internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -1954,7 +1998,14 @@ services:
       retries: 5
     security_opt:
       - no-new-privileges:true
-{_authentik_services(setup)}{_authentik_volumes(setup)}"""
+{_authentik_services(setup)}
+networks:
+  # The two application containers keep the default network, because a scan is
+  # an outbound HTTP request and the web service is published on a port. Redis
+  # is only on this one, which has no gateway at all.
+  scanner_internal:
+    internal: true
+{_authentik_volumes(setup)}"""
 
 
 def write_files(
@@ -2197,6 +2248,7 @@ def _generate_unattended(setup: Setup) -> None:
     deletion until somebody notices.
     """
     setup.purge_token = setup.purge_token or secrets.token_hex(32)
+    setup.redis_password = setup.redis_password or secrets.token_urlsafe(32)
     setup.purge_signing_key = setup.purge_signing_key or secrets.token_hex(32)
     setup.export_signing_key = setup.export_signing_key or secrets.token_hex(32)
     if setup.audit_log and not setup.audit_salt:

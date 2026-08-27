@@ -88,12 +88,28 @@ See ADR 0020.
 
 ## Running it
 
-With Docker, which brings its own Redis:
+With Docker, which brings its own Redis. The usual way in is
+[`docker/setup-wizard.py`](../docker/setup-wizard.py), which asks what the
+deployment needs and writes both the compose file and the `.env` holding its
+credentials:
+
+```bash
+cd docker
+./setup-wizard.py --output-dir ~/opencloud-scanner
+cd ~/opencloud-scanner && docker compose up -d
+# http://127.0.0.1:8811
+```
+
+The two compose files that ship here are ready to `up` as they are:
 
 ```bash
 cd docker && docker compose -f docker-compose.dockerhub.yml up
 # http://127.0.0.1:8811
 ```
+
+Set `COS_REDIS_PASSWORD` and `COS_WEB_PUBLIC_BASE_URL` in `docker/.env` before
+anybody else reaches it. [`docs/webapp.md`](../docs/webapp.md#starting-it) and
+[`docs/redis.md`](../docs/redis.md) have the reasoning.
 
 The released image is on Docker Hub as `okxo/opencloud-scanner`
 (`latest`, `MAJOR.MINOR.PATCH`, `MAJOR.MINOR` and `edge`, for `linux/amd64`
@@ -588,8 +604,8 @@ before the first deployment:
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one batch may carry; each still spends a scan from every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Only behind a proxy that **overwrites** the header, or the limit is decorative |
-| `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin in the canonical links and `sitemap.xml`. Set it behind a proxy |
-| `COS_WEB_INDEX_META_TAG` | *(empty)* | Optional `name=content` metadata on the landing page. Rendered as escaped attributes; raw HTML and reserved metadata are refused |
+| `COS_WEB_PUBLIC_BASE_URL` | *(required)* | The stable origin in canonical links, `sitemap.xml`, and agent discovery. Startup refuses an unset value rather than trusting an incoming `Host` header |
+| `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 `name=content` metadata tags on the landing page, separated by `;`. Rendered as escaped attributes; raw HTML, duplicate, and reserved metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Index the six public pages. A result page is `noindex` either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
 | `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |

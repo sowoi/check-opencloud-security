@@ -1278,12 +1278,13 @@ docker compose -f docker-compose.monitoring.yml up -d scanner
 docker compose -f docker-compose.monitoring.yml run --rm check
 </code></pre>
 <p>The plain <code>docker compose up</code> in that directory is the public web application
-instead - see <a href="/documentation/web-service">the web application</a>. A deployment of it that
-needs different answers can be generated rather than edited:
-<code>docker/setup-wizard.py</code> asks what the service should be reachable at, how
-hard it may scan and who may erase a result, then writes a compose file and a
-<code>.env</code> holding the credentials it refers to - see
-<a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/README.md#the-setup-wizard"><code>docker/README.md</code></a>.</p>
+instead - see <a href="/documentation/web-service">the web application</a>. Set that one up with
+<strong><code>docker/setup-wizard.py</code></strong> rather than by editing a compose file: it asks
+what the service should be reachable at, how hard it may scan and who may
+erase a result, then writes a commented compose file and a <code>.env</code> holding the
+Redis password and every other credential that file refers to. It is one
+stdlib-only Python file, so it runs on a host with Docker and nothing else -
+see <a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/README.md#setting-up-the-whole-stack"><code>docker/README.md</code></a>.</p>
 <p>Everything in <code>secrets/</code> except the <code>*.example</code> templates is git-ignored - see
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/secrets/README.md"><code>secrets/README.md</code></a>.</p>
 <h2 id="update-check">Update check</h2>
@@ -2212,6 +2213,10 @@ this file stays the reference for the options themselves.</p>
 <tr>
 <td><a href="/documentation/web-service">The public scan service</a></td>
 <td>The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits</td>
+</tr>
+<tr>
+<td><a href="/documentation/redis">Redis behind the scan service</a></td>
+<td>What is kept in Redis and for how long, giving it a password, keeping it off the network, memory and eviction, and reading its health</td>
 </tr>
 <tr>
 <td><a href="/documentation/mcp">Using the scanner from an AI agent</a></td>

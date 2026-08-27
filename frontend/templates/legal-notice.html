@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('legal.title') }}{% endblock %}
+{% block description %}{{ t('legal.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <p class="kicker">{{ t('legal.kicker') }}</p>
+  <h1>{{ t('legal.title') }}</h1>
+  <p class="lede">{{ t('legal.lede') }}</p>
+</section>
+
+{% if locale != 'en' %}
+<p class="hint section-gap" lang="{{ locale }}">{{ t('legal.english_notice') }}</p>
+{% endif %}
+
+<article class="docs-article card section-gap" data-reveal lang="en">
+<h2 id="tmg">Information according to § 5 TMG</h2>
+<p>
+  Massoud Ahmed<br>
+  Hauptstr 151<br>
+  70771 Leinfelden-Echterdingen<br>
+  Germany
+</p>
+<p>Represented by: Massoud Ahmed</p>
+<p>
+  <strong>Contact</strong><br>
+  Phone: +49 (0)711-31511458<br>
+  Email: <a href="mailto:okko@okxo.de">okko@okxo.de</a>
+</p>
+
+<h2 id="rstv">Responsible for the content according to § 55 Abs. 2 RStV</h2>
+<p>
+  Massoud Ahmed<br>
+  Hauptstr 151<br>
+  70771 Leinfelden-Echterdingen<br>
+  Germany
+</p>
+
+<h2 id="why">Understanding the necessity of an Impressum under German law</h2>
+<p>In adherence to German law, providing an "Impressum" (legal notice) is a
+mandatory component for websites operated from within Germany or directed
+towards a German audience. This legal stipulation, embedded within the
+Telemedia Act (Telemediengesetz - TMG) and the State Media Treaties
+(Rundfunkstaatsvertrag - RStV), is designed to uphold transparency and
+accountability by mandating websites to contain a clear and accessible
+statement with information about the website owner or publisher, including
+contact details and, if applicable, additional regulatory information.</p>
+
+<h2 id="disclaimer">Legal disclaimer</h2>
+<p>While the content of these pages has been created with the highest degree of
+diligence, I cannot guarantee its accuracy and completeness in perpetuity.</p>
+<p>okxo.de features links to external websites. Given that the content of those
+third-party websites is not under my control, I am unable to accept liability
+for them. The respective provider or operator of the pages always bears
+responsibility for the content of the linked pages.</p>
+
+<h2 id="data-protection">Data protection</h2>
+<p>Please note that, generally speaking, a visit to okxo.de does not result in
+the saving of personal data. No data will be shared with third parties without
+your explicit consent. It's important to note that the security of unsecured
+data transmission over the internet (such as via email) cannot be guaranteed,
+thus such data could potentially be accessed by third parties.</p>
+<p>What this scan service itself keeps, and for how long, is described on the
+<a href="/privacy">privacy page for the scan service</a>.</p>
+
+<h2 id="privacy-policy">Privacy policy</h2>
+<p>okxo.de uses an on-premise version of Plausible to anonymously monitor
+statistics. It neither implements tracking cookies nor collects personal data.
+All statistical data are preserved on servers located in the European Union and
+are neither disclosed to nor sold to other companies. The scan service on this
+host runs no analytics of any kind.</p>
+<p>On occasions, okxo.de may store form data in your browser's localStorage to
+save you time on subsequent uses of the form. This information is not shared
+with anyone, including myself.</p>
+<p>Furthermore, the website gathers anonymized server error logs for debugging
+purposes. These logs do not contain personal data.</p>
+
+<h2 id="cdn">Use of Cloudflare CDN</h2>
+<p>This website utilizes Cloudflare as a Content Delivery Network (CDN) to
+enhance its performance and security. Cloudflare may process some of your data,
+such as your IP address, to provide its services. The decision to implement
+Cloudflare came after the removal of the <code>__cfduid</code> cookie, which was
+a concern for me.</p>
+<p>The data processed by Cloudflare is in accordance with its privacy policy and
+is used primarily to detect and prevent threats. Cloudflare may also use cookies
+to provide its services, but these cookies do not store personally identifiable
+information.</p>
+
+<h2 id="cookies">Cookies</h2>
+<p>I only use essential cookies to make sure the website runs smoothly. Using
+Ghost CMS to manage content on okxo.de means that, by default, no cookies are
+set. I also do not use any third-party cookies, so you won't see any cookie
+banners popping up. Your browsing here won't be interrupted, and your data won't
+be shared or used for non-essential purposes.</p>
+
+<h2 id="advertising">Advertising</h2>
+<p>I don't display any ads, nor do I have plans to sell ad space in the future.
+All expenses related to maintaining and operating the website come straight from
+my own pocket. I'm committed to providing an unbiased and genuine user
+experience, free from external influences. So, while advertising inquiries are
+appreciated, they won't be successful.</p>
+</article>
+
+{% include "_page-nav.html" %}
+{% endblock %}

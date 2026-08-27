@@ -451,6 +451,22 @@ MESSAGES: dict[str, str] = {
         "de línea de comandos y un paquete de Python. En ningún caso se "
         "comunica nada de esto con un servicio de terceros."
     ),
+    # ----------------------------------------------------------- legal notice
+    "legal.title": "Aviso legal",
+    "legal.description": (
+        "Identificación del prestador, datos de contacto y advertencias de "
+        "responsabilidad del operador de esta instalación."
+    ),
+    "legal.kicker": "Aviso legal",
+    "legal.lede": (
+        "Identificación del prestador conforme al derecho alemán, para el "
+        "operador de esta instalación."
+    ),
+    "legal.english_notice": (
+        "Este aviso es el texto legal del propio operador y solo está "
+        "disponible en inglés. La página que lo rodea está traducida; el texto "
+        "de abajo no."
+    ),
     # ----------------------------------------------------------------- about
     "about.title": "Acerca de OpenCloud y de este escáner",
     "about.description": (

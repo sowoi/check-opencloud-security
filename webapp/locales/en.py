@@ -126,14 +126,14 @@ MESSAGES: dict[str, str] = {
     ),
     "notfound.action": "Run a new scan",
     # ------------------------------------------------------- landing page
-    "index.title": "Scan an OpenCloud instance",
+    "index.title": "OpenCloud Security Scanner",
     "index.description": (
         "Check an OpenCloud instance for known vulnerabilities, missing "
         "hardening and weak security headers. Free, independent and nothing is "
         "stored."
     ),
     "index.eyebrow": "Independent &middot; air-gapped &middot; nothing stored",
-    "index.headline": 'How secure is your <em class="swash">OpenCloud instance</em>?',
+    "index.headline": 'OpenCloud <em class="swash">Security Scanner</em>',
     "index.lede": (
         "Enter the address of an instance you are responsible for. This server "
         "talks to it over HTTPS the way any visitor would, reads what it "
@@ -436,6 +436,21 @@ MESSAGES: dict[str, str] = {
         "Prefer to run it yourself? The same scanner is a command line check and a "
         "Python package. Nothing here talks to a third-party service in either "
         "case."
+    ),
+    # ----------------------------------------------------------- legal notice
+    "legal.title": "Legal Notice",
+    "legal.description": (
+        "Provider identification, contact details and disclaimers for the "
+        "operator of this deployment."
+    ),
+    "legal.kicker": "Imprint",
+    "legal.lede": (
+        "Provider identification under German law, for the operator of this "
+        "deployment."
+    ),
+    "legal.english_notice": (
+        "This notice is the operator's own legal text and is available in "
+        "English only. The page around it is translated; the text below is not."
     ),
     # ----------------------------------------------------------------- about
     "about.title": "About OpenCloud and this scanner",

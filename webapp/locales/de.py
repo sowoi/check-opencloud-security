@@ -461,6 +461,22 @@ MESSAGES: dict[str, str] = {
         "Kommandozeilenprüfung und ein Python-Paket. In keinem der beiden Fälle "
         "spricht hier irgendetwas mit einem Drittanbieterdienst."
     ),
+    # ----------------------------------------------------------- legal notice
+    "legal.title": "Impressum",
+    "legal.description": (
+        "Anbieterkennzeichnung, Kontaktdaten und Haftungshinweise des "
+        "Betreibers dieser Installation."
+    ),
+    "legal.kicker": "Impressum",
+    "legal.lede": (
+        "Anbieterkennzeichnung nach deutschem Recht für den Betreiber dieser "
+        "Installation."
+    ),
+    "legal.english_notice": (
+        "Dieses Impressum ist der eigene Rechtstext des Betreibers und liegt "
+        "nur auf Englisch vor. Die Seite darum herum ist übersetzt, der Text "
+        "darunter nicht."
+    ),
     # ----------------------------------------------------------------- about
     "about.title": "Über OpenCloud und diesen Scanner",
     "about.description": (

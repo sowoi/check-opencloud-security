@@ -92,11 +92,12 @@ a token, and turning the endpoint off turns the sign-in off with it. There is
 no combination of these two variables that leaves the endpoint open by
 accident.
 
-`authentik-env.sh` writes five secrets into `docker/.env` and never overwrites
+`authentik-env.sh` writes six secrets into `docker/.env` and never overwrites
 one it finds, so running it twice is safe:
 
 | Variable | What it is |
 |:---------|:-----------|
+| `COS_REDIS_PASSWORD` | The password Redis requires. It holds every live scan and every result still inside its TTL - see [Redis](redis.md) |
 | `AUTHENTIK_SECRET_KEY` | Signs everything in Authentik's database |
 | `AUTHENTIK_PG_PASS` | The password for Authentik's PostgreSQL |
 | `AUTHENTIK_CLIENT_ID` | The OAuth client ID, and therefore the audience |
