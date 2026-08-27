@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-08-27
+
 ## Fixed
 
 - Fix YAML syntax error in Github actions workflow
