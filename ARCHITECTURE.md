@@ -23,6 +23,7 @@ follow from. For a decision and the alternatives that lost, read the record in
 * [State and its lifetime](#state-and-its-lifetime)
 * [The rating](#the-rating)
 * [The release lifecycle](#the-release-lifecycle)
+  * [Updating for a new OpenCloud release](#updating-for-a-new-opencloud-release)
 * [What ships where](#what-ships-where)
 * [Testing strategy](#testing-strategy)
 * [Where to add things](#where-to-add-things)
@@ -492,6 +493,54 @@ line can belong to several tracks.
 `opencloud_local_scan/data/release_schedule.json` and the block between the
 `release-schedule` markers in `README.md`. Both are committed together, and
 neither is edited by hand.
+
+### Updating for a new OpenCloud release
+
+The repository learns release facts automatically, but it never declares a
+new OpenCloud release scanner-compatible without review. Follow this sequence
+for a rolling, production, or LTS release:
+
+1. **Start with evidence.** Let the scheduled
+   `release-schedule.yml` workflow, or a local
+   `uv run python scripts/update_release_schedule.py`, read the authoritative
+   lifecycle page. It opens a PR containing only the schedule and generated
+   README table. Do not edit either by hand and do not infer a track from a
+   version number: the lifecycle source is what says whether a line is rolling,
+   production, LTS, or several of them.
+2. **Review the track-specific lifecycle change.** For a rolling or production
+   line, verify that its successor makes the previous line unsupported. For an
+   LTS line, verify the opening date and the calculated two-year support
+   window. Existing lines may gain a newer patch, but their known tracks and
+   opening dates must not disappear. A rejected runtime refresh is a safety
+   signal, not a reason to relax that rule.
+3. **Evaluate the vendor image separately.** Dispatch the `real OpenCloud
+   container` workflow with `candidate_image` set to the immutable candidate
+   digest. It initializes the vendor image and scans its public status
+   endpoint. Record the reported OpenCloud version and inspect failures in
+   version detection, TLS, headers, authentication redirects, exposed
+   endpoints, hardening evidence, and the rating.
+4. **Map any changed behaviour to the scanner.** Compare the candidate result
+   with `tests/fake_opencloud.py`, `tests/test_local_scanner.py`, TLS and
+   hardening tests. Change a fixture or expectation only with release evidence
+   explaining the former behaviour, the new behaviour, the affected version,
+   and the scanner rule. Never remove an assertion, weaken a grade, or widen a
+   tolerance merely to make the candidate pass.
+5. **Add a check only when it is externally observable and actionable.** Put
+   new measurement in `opencloud_local_scan/`; keep rating decisions in the
+   plugin. Confirm in OpenCloud source that an operator can change a proposed
+   hardening setting before adding it. Add positive and negative unit coverage,
+   update operator and machine-readable documentation, and add an ADR only if
+   the change alters a durable boundary.
+6. **Review advisory evidence too.** Run or wait for
+   `vulnerability-db.yml`. Its PR may add affected ranges but must never
+   remove an advisory or an already-known range. Check every new range against
+   the advisory source before merge.
+7. **Promote deliberately.** Once lifecycle, advisory, scanner, and full-suite
+   evidence are reviewed, update the integration workflow's reviewed digest in
+   a normal PR. Run `uv run pytest`, `uvx ruff check .`, `uv run mypy
+   --config-file mypy.ini`, generated-document validation, and the candidate
+   container test. The resulting diff is the compatibility record; no release
+   data, fixture, or version number is changed directly in production.
 
 ## What ships where
 

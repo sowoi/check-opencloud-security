@@ -36,6 +36,7 @@ def settings(**overrides: Any) -> WebSettings:
         "ip_rate_limit": 0,
         "target_cooldown": 0,
         "result_ttl": 3600,
+        "public_base_url": "http://testserver",
     }
     defaults.update(overrides)
     return WebSettings(**defaults)

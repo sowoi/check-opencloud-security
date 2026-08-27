@@ -50,7 +50,7 @@ services:
     ports:
       - "127.0.0.1:8811:8811"
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       COS_WEB_RESULT_TTL: "3600"
       COS_WEB_IP_RATE_LIMIT: "10"
       COS_WEB_IP_RATE_WINDOW: "60"
@@ -110,6 +110,9 @@ services:
       COS_WEB_PURGE_SIGNING_KEY: "${COS_WEB_PURGE_SIGNING_KEY:-}"
       COS_WEB_EXPORT_SIGNING_KEY: "${COS_WEB_EXPORT_SIGNING_KEY:-}"
       COS_WEB_ENCRYPT_RESULTS: "false"
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -130,7 +133,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       COS_WEB_RESULT_TTL: "3600"
       # The whole of this service's load on other people's servers, and set
       # here alone. Nothing a request carries can change either number.
@@ -154,6 +157,9 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -175,6 +181,19 @@ services:
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+      # unset and this behaves exactly as it did before. Redis answers whoever
+      # reaches it, and what it holds is every live scan and every result still
+      # inside its TTL, so set one on anything that is not a laptop.
+      --requirepass "${COS_REDIS_PASSWORD:-}"
+    environment:
+      # redis-cli reads this, so the health check authenticates without the
+      # password appearing in its own command line.
+      REDISCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
+    # No published port, and `internal` on the network below means it has no
+    # route off the host either.
+    networks:
+      - scanner_internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -375,6 +394,13 @@ services:
 # every user, flow, provider and signing key, and none of it is recoverable
 # without the AUTHENTIK_SECRET_KEY in `.env`. `docs/authentik.md` has the
 # backup, which is yours to run - Authentik has none built in.
+networks:
+  # The application containers keep the default network: a scan is an outbound
+  # request and the web service is published on a port. Redis is only on the
+  # internal one, which has no gateway at all.
+  scanner_internal:
+    internal: true
+
 volumes:
   authentik_database:
   authentik_media:

@@ -1139,12 +1139,13 @@ docker compose -f docker-compose.monitoring.yml run --rm check
 ```
 
 The plain `docker compose up` in that directory is the public web application
-instead - see [the web application](docs/webapp.md). A deployment of it that
-needs different answers can be generated rather than edited:
-`docker/setup-wizard.py` asks what the service should be reachable at, how
-hard it may scan and who may erase a result, then writes a compose file and a
-`.env` holding the credentials it refers to - see
-[`docker/README.md`](docker/README.md#the-setup-wizard).
+instead - see [the web application](docs/webapp.md). Set that one up with
+**`docker/setup-wizard.py`** rather than by editing a compose file: it asks
+what the service should be reachable at, how hard it may scan and who may
+erase a result, then writes a commented compose file and a `.env` holding the
+Redis password and every other credential that file refers to. It is one
+stdlib-only Python file, so it runs on a host with Docker and nothing else -
+see [`docker/README.md`](docker/README.md#setting-up-the-whole-stack).
 
 Everything in `secrets/` except the `*.example` templates is git-ignored - see
 [`secrets/README.md`](secrets/README.md).
@@ -1988,6 +1989,7 @@ this file stays the reference for the options themselves.
 | [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
 | [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
 | [The public scan service](docs/webapp.md) | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits |
+| [Redis behind the scan service](docs/redis.md) | What is kept in Redis and for how long, giving it a password, keeping it off the network, memory and eviction, and reading its health |
 | [Using the scanner from an AI agent](docs/mcp.md) | The MCP endpoint: configuring Claude Code, Claude Desktop, GitHub Copilot, Cursor, Zed and Windsurf against the hosted or a self-hosted service, and turning it off |
 | [A sign-in on the MCP endpoint](docs/authentik.md) | The whole stack with Authentik in it, the self-provisioning OIDC provider, the `COS_WEB_MCP_AUTH_*` settings, adding the users and service accounts that may use it, getting a token, sending mail, and backing it up |
 | [Reverse proxies](docs/reverse-proxy.md) | nginx, Apache, Caddy, Traefik and HAProxy - in front of an OpenCloud instance, and in front of the scan service |

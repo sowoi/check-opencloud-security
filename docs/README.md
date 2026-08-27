@@ -24,6 +24,7 @@ places this check tends to end up.
 | [A sign-in on the MCP endpoint](authentik.md) | One compose file with Authentik in it, the provider a blueprint creates for you, the `COS_WEB_MCP_AUTH_*` settings, adding the people and service accounts allowed to use it, how each of them gets a token, and the backup Authentik does not do for you |
 | [Reverse proxies](reverse-proxy.md) | Worked nginx, Apache, Caddy, Traefik and HAProxy configuration - the headers this check grades in front of OpenCloud, and what the scan service needs from a proxy |
 | [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits. Running at [scan.okxo.de](https://scan.okxo.de) |
+| [Redis behind the scan service](redis.md) | The one piece of infrastructure that stack needs: what it holds and for how long, giving it a password, keeping it off the network, memory and eviction, and what to alert on |
 
 ## Feeding the result somewhere
 

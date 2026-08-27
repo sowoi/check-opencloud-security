@@ -48,6 +48,12 @@ command -v openssl > /dev/null || {
 
 echo "Writing secrets to $env_file"
 
+# Redis holds every live scan and every result still inside its TTL. It is on
+# an internal network with no published port, but "only our containers are on
+# this network" is an assumption rather than a control, so it asks for a
+# password as well. Both compose stacks read this name.
+put COS_REDIS_PASSWORD "$(random 48 40)"
+
 # Django's SECRET_KEY. Authentik wants at least 50 characters, and changing it
 # later invalidates every session and token it has ever signed.
 put AUTHENTIK_SECRET_KEY "$(random 72 64)"

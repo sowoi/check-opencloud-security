@@ -44,7 +44,7 @@ services:
     ports:
       - "127.0.0.1:8811:8811"
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       # How long a result stays readable. Also the lifetime of every key.
       COS_WEB_RESULT_TTL: "3600"
       # Rate limits: per client address, and per target instance.
@@ -59,10 +59,11 @@ services:
       # X-Forwarded-For. Trusting a header a client can send makes the client
       # rate limit decorative.
       COS_WEB_TRUST_FORWARDED_FOR: "false"
-      # The address this service is reached at from outside. Behind a proxy it
-      # only ever sees its own, and the canonical links and sitemap.xml would
-      # then publish URLs nobody can reach.
-      # COS_WEB_PUBLIC_BASE_URL: "https://opencloud-scan.example.com"
+      # Required. The address this service is reached at from outside: behind
+      # a proxy it only ever sees its own, and the canonical links and
+      # sitemap.xml would then publish URLs nobody can reach. Set it to the
+      # public address before putting this anywhere but a laptop.
+      COS_WEB_PUBLIC_BASE_URL: "${COS_WEB_PUBLIC_BASE_URL:-http://localhost:8811}"
       # Optional landing-page metadata as name=content. The application
       # renders a name/content tag and never treats this as raw HTML.
       COS_WEB_INDEX_META_TAG: "${COS_WEB_INDEX_META_TAG:-}"
@@ -168,6 +169,9 @@ services:
       # without a usable key refuses to start rather than store plaintext.
       COS_WEB_ENCRYPT_RESULTS: "false"
       # COS_WEB_ENCRYPTION_KEY_1: "<64 hex characters>"
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -188,7 +192,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       COS_WEB_RESULT_TTL: "3600"
       # Scans running at once, and probes in flight within one scan. These two
       # numbers are the whole of this service's load on the outside world, and
@@ -237,6 +241,9 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -257,6 +264,19 @@ services:
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+      # unset and this behaves exactly as it did before. Redis answers whoever
+      # reaches it, and what it holds is every live scan and every result still
+      # inside its TTL, so set one on anything that is not a laptop.
+      --requirepass "${COS_REDIS_PASSWORD:-}"
+    environment:
+      # redis-cli reads this, so the health check authenticates without the
+      # password appearing in its own command line.
+      REDISCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
+    # No published port, and `internal` on the network below means it has no
+    # route off the host either.
+    networks:
+      - scanner_internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -264,3 +284,10 @@ services:
       retries: 5
     security_opt:
       - no-new-privileges:true
+
+networks:
+  # The application containers keep the default network: a scan is an outbound
+  # request and the web service is published on a port. Redis is only on the
+  # internal one, which has no gateway at all.
+  scanner_internal:
+    internal: true

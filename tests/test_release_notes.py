@@ -11,6 +11,7 @@ promotion is covered from both directions.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -165,9 +166,12 @@ def test_collected_notes_still_release_with_require_unreleased(changelog):
 
 def test_the_version_is_read_from_pyproject_and_never_invented():
     """The release number comes from the file the maintainer edits by hand."""
-    import tomllib
-
-    with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
-        expected = tomllib.load(handle)["project"]["version"]
+    body = (
+        (REPO_ROOT / "pyproject.toml")
+        .read_text(encoding="utf-8")
+        .split("[project]", 1)[1]
+        .split("\n[", 1)[0]
+    )
+    expected = re.search(r'^version\s*=\s*"([^"]+)"', body, re.MULTILINE).group(1)
 
     assert script.project_version() == expected

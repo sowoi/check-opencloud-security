@@ -28,83 +28,88 @@
     },
     {
       "path": "/documentation/reference",
-      "title": "Complete CLI reference",
-      "summary": "Installation, every CLI flag, configuration, ratings and worked examples."
+      "title": "OpenCloud Security Scanner CLI reference",
+      "summary": "Install, configure, rate, and automate the OpenCloud Security Scanner CLI."
     },
     {
       "path": "/documentation/scanner",
-      "title": "Scanner library and JSON CLI",
-      "summary": "The result document, rating algorithm and direct scanner commands."
+      "title": "OpenCloud Security Scanner library and JSON CLI",
+      "summary": "Use the OpenCloud Security Scanner library, JSON result document, and direct CLI."
     },
     {
       "path": "/documentation/docker",
-      "title": "Docker one-liner",
-      "summary": "The published image, JSON output, private networks and shell shortcuts."
+      "title": "Run the OpenCloud Security Scanner with Docker",
+      "summary": "Run OpenCloud security scans in Docker, including JSON output and private networks."
     },
     {
       "path": "/documentation/scheduling",
-      "title": "systemd and cron",
-      "summary": "Run the check on a schedule without a monitoring server."
+      "title": "Schedule OpenCloud security scans with systemd and cron",
+      "summary": "Run the OpenCloud Security Scanner on a schedule without a monitoring server."
     },
     {
       "path": "/documentation/many-instances",
-      "title": "A fleet of instances",
-      "summary": "Several hosts, one configuration per instance and honest waivers."
+      "title": "Scan a fleet with the OpenCloud Security Scanner",
+      "summary": "Scan multiple OpenCloud instances with per-instance configuration and visible waivers."
     },
     {
       "path": "/documentation/ci",
-      "title": "CI pipelines",
-      "summary": "GitHub Actions, GitLab CI and reporting without failing."
+      "title": "OpenCloud security checks in CI pipelines",
+      "summary": "Run the OpenCloud Security Scanner in GitHub Actions and GitLab CI."
     },
     {
       "path": "/documentation/prometheus",
-      "title": "Prometheus and Grafana",
-      "summary": "Metrics, scrape patterns, dashboards and alerting rules."
+      "title": "OpenCloud security metrics for Prometheus and Grafana",
+      "summary": "Expose OpenCloud Security Scanner metrics, dashboards, and alerting rules."
     },
     {
       "path": "/documentation/kubernetes",
-      "title": "Kubernetes",
-      "summary": "A scheduled scan, metrics and a self-hosted web service."
+      "title": "Run the OpenCloud Security Scanner on Kubernetes",
+      "summary": "Deploy scheduled scans, metrics, and the self-hosted web service on Kubernetes."
     },
     {
       "path": "/documentation/mcp",
-      "title": "AI agents and MCP",
-      "summary": "Connect supported agents to the scanner's task-level tools."
+      "title": "OpenCloud Security Scanner for AI agents and MCP",
+      "summary": "Connect agents to the OpenCloud Security Scanner task-level MCP tools."
     },
     {
       "path": "/documentation/ansible",
-      "title": "Ansible",
-      "summary": "Deploy the native check or its container and configure it consistently."
+      "title": "Deploy the OpenCloud Security Scanner with Ansible",
+      "summary": "Deploy the native OpenCloud security check or its container with Ansible."
     },
     {
       "path": "/documentation/authentik",
-      "title": "Authentik for the MCP endpoint",
-      "summary": "Protect the agent endpoint with a self-hosted OAuth provider."
+      "title": "Protect OpenCloud Security Scanner MCP with Authentik",
+      "summary": "Protect the scanner's agent endpoint with a self-hosted OAuth provider."
     },
     {
       "path": "/documentation/icinga-director",
-      "title": "Icinga Director",
-      "summary": "Import the command, fields and apply rules into Icinga Director."
+      "title": "OpenCloud Security Scanner in Icinga Director",
+      "summary": "Import OpenCloud security check commands, fields, and apply rules into Icinga Director."
     },
     {
       "path": "/documentation/reverse-proxy",
-      "title": "Reverse proxies",
-      "summary": "Headers and examples for nginx, Apache, Caddy, Traefik and HAProxy."
+      "title": "Reverse proxy the OpenCloud Security Scanner",
+      "summary": "Configure scanner reverse-proxy headers for nginx, Apache, Caddy, Traefik, and HAProxy."
     },
     {
       "path": "/documentation/webhooks",
-      "title": "Webhook recipes",
-      "summary": "Receivers for common alerting systems and a safe local test."
+      "title": "OpenCloud security scanner webhook recipes",
+      "summary": "Connect OpenCloud security results to alerting systems and test them safely."
     },
     {
       "path": "/documentation/web-service",
-      "title": "The public scan service",
-      "summary": "Deploy, configure and operate the browser, API and worker stack."
+      "title": "Deploy the OpenCloud Security Scanner web service",
+      "summary": "Deploy, configure, and operate the OpenCloud security scan browser, API, and worker stack."
+    },
+    {
+      "path": "/documentation/redis",
+      "title": "Redis behind the OpenCloud Security Scanner web service",
+      "summary": "Secure, size, and operate the Redis instance that queues OpenCloud security scans."
     },
     {
       "path": "/documentation/troubleshooting",
-      "title": "Troubleshooting",
-      "summary": "The errors operators actually meet and the exit-code reference."
+      "title": "Troubleshoot the OpenCloud Security Scanner",
+      "summary": "Resolve OpenCloud security scan errors and interpret the exit-code reference."
     },
     {
       "path": "/api",

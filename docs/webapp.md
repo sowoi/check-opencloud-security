@@ -47,31 +47,78 @@ translated.
 
 ## Starting it
 
-With Docker, which brings its own Redis:
+The service is three containers - the pages, the worker that runs the scans,
+and the Redis between them - and the shortest honest way to get all three is
+to let the setup wizard write them. It is one Python file, uses the standard
+library alone, and needs no checkout:
 
 ```bash
-cd docker
+mkdir opencloud-scanner && cd opencloud-scanner
+
+curl -fsSLO https://raw.githubusercontent.com/sowoi/check-opencloud-security/main/docker/setup-wizard.py
+chmod +x setup-wizard.py
+./setup-wizard.py
+
+docker compose up -d
+# http://127.0.0.1:8811
+```
+
+It asks one question at a time and writes a commented compose file with the
+non-secret answers inline, plus a `.env` created owner-readable only holding
+every credential that file refers to as `${NAME}` - the Redis password, the
+erasure token, the signing key, the audit salt and the encryption key.
+[A deployment of your own](#a-deployment-of-your-own) has the flags.
+
+### Or the compose files this project ships
+
+Two shapes, both ready to `up`. The published image:
+
+```bash
+git clone https://github.com/sowoi/check-opencloud-security.git
+cd check-opencloud-security/docker
+
+printf 'COS_REDIS_PASSWORD=%s\n' "$(openssl rand -base64 36 | tr -d '/+=')" > .env
+chmod 600 .env
+
 docker compose -f docker-compose.dockerhub.yml up -d
 # http://127.0.0.1:8811
 ```
+
+Or the same stack built from the checkout, with `docker compose up --build -d`
+and no `-f`.
+
+Three settings decide whether that stack is fit to be reached by anybody else,
+and all three live in `.env` beside the compose file:
+
+| Setting | Why it matters |
+|:--------|:---------------|
+| `COS_WEB_PUBLIC_BASE_URL` | Canonical URLs, the sitemap and the discovery document are built from it rather than from an incoming `Host` header. It defaults to `http://localhost:8811` so a first `up` works; anything a stranger reaches must set it |
+| `COS_REDIS_PASSWORD` | Redis holds every live scan and every result still inside its TTL. Unset, it asks for nothing. See [Redis](redis.md) |
+| `COS_WEB_TRUST_FORWARDED_FOR` | `true` only behind a proxy that **overwrites** `X-Forwarded-For`, otherwise every client can forge its own rate-limit identity |
 
 The published image is on Docker Hub as **`okxo/opencloud-scanner`**, so a
 deployment does not have to build one. `latest` and `MAJOR.MINOR.PATCH` follow
 the released version, `MAJOR.MINOR` follows the line, and `edge` is the current
 `main`. It carries `linux/amd64` and `linux/arm64`, and the same image runs
-both the web service and the worker - they differ only in the command:
+both the web service and the worker - they differ only in the command, which is
+why the code that describes a result and the code that produces it cannot drift
+apart between deployments.
+
+Running one container by hand needs a Redis the worker shares and the public
+address, since neither has a useful default outside a compose file:
 
 ```bash
 docker run --rm -p 8811:8811 \
-    -e COS_WEB_REDIS_URL=redis://redis:6379/0 \
+    -e COS_WEB_REDIS_URL="redis://:PASSWORD@redis:6379/0" \
+    -e COS_WEB_PUBLIC_BASE_URL=http://127.0.0.1:8811 \
     okxo/opencloud-scanner:latest
 ```
 
-Point `COS_WEB_REDIS_URL` at a Redis the worker shares, or use
-[`docker/docker-compose.dockerhub.yml`](../docker/docker-compose.dockerhub.yml),
-which pulls the image and wires all three together. The existing
-[`docker/docker-compose.yml`](../docker/docker-compose.yml) still builds the
-same stack from a checkout.
+[`docker/README.md`](../docker/README.md) covers the stacks in full, including
+the Authentik one, and the Docker Hub description carries a plain `docker run`
+recipe for all three containers.
+
+### Without containers
 
 From a checkout, with three terminals or three `&`:
 
@@ -92,14 +139,15 @@ python scripts/build_web_bundle.py
 
 ### A deployment of your own
 
-The two compose files are the two usual shapes. For anything else -
-a different port, an on-premise instance the SSRF guard would otherwise
-refuse, encryption at rest, a sign-in on `/mcp` - answer the questions instead
-of editing one into place:
+The two compose files are the two usual shapes. For anything else - a
+different port, an on-premise instance the SSRF guard would otherwise refuse,
+encryption at rest, a sign-in on `/mcp` - the wizard is the answer rather than
+editing one of them into place, either from a checkout or downloaded on its
+own:
 
 ```bash
 cd docker
-./setup-wizard.py
+./setup-wizard.py --output-dir ~/opencloud-scanner
 ```
 
 It explains each setting, shows an example answer, and writes a commented
@@ -170,7 +218,7 @@ Every setting is an environment variable, read once at startup.
 
 | Variable | Default | What it does |
 |:---------|:--------|:-------------|
-| `COS_WEB_REDIS_URL` | `redis://127.0.0.1:6379/0` | Where ephemeral state lives. `memory://` runs without Redis, for a single-process evaluation |
+| `COS_WEB_REDIS_URL` | `redis://127.0.0.1:6379/0` | Where ephemeral state lives. `memory://` runs without Redis, for a single-process evaluation. Include the password when Redis requires one: `redis://:PASSWORD@redis:6379/0` |
 | `COS_WEB_RESULT_TTL` | `3600` | Seconds a scan stays readable. Also the TTL on every key |
 | `COS_WEB_MAX_WORKERS` | `5` | Scans running at once |
 | `COS_WEB_SCAN_CONCURRENCY` | `4` | Probes in flight within one scan |
@@ -185,8 +233,8 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again. `0` disables |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
-| `COS_WEB_PUBLIC_BASE_URL` | *(the request's own address)* | The origin this service is reached at, used for the canonical links and `sitemap.xml`. Set it behind a proxy, which otherwise publishes an address only the proxy can reach |
-| `COS_WEB_INDEX_META_TAG` | *(empty)* | Optional `name=content` metadata on the landing page. The name and content are escaped separately; raw HTML, reserved page metadata, and prohibited platform metadata are refused |
+| `COS_WEB_PUBLIC_BASE_URL` | *(required)* | The stable origin this service is reached at, used for canonical links, `sitemap.xml`, and machine discovery. An unset value refuses startup so an incoming `Host` header cannot publish attacker-controlled URLs |
+| `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 optional `name=content` metadata pairs on the landing page, separated by `;`. Names and content are escaped separately; raw HTML, duplicate or reserved names, and prohibited platform metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and its explanation pages. Result pages are never indexable whatever this says |
 | `COS_WEB_RELEASES_MODE` | `off` | Update check against the OpenCloud release feed: `off`, `auto`, `feed`, `bundled` |
 | `COS_WEB_RELEASES_TOKEN` | *(none)* | GitHub token raising the feed's rate limit |
@@ -728,11 +776,12 @@ other clients. `Accept: application/json` requests a structured response, and
 `output_format=json` does the same. HTML remains the default for ordinary
 browser navigation.
 
-The optional `COS_WEB_INDEX_META_TAG=name=content` setting adds one
-`<meta name="..." content="...">` element to the landing page. Docker Compose
-passes it from the deployment environment. The application parses and escapes
-the two attributes instead of accepting raw HTML, and refuses names already
-owned by the page or prohibited platform metadata.
+The optional `COS_WEB_INDEX_META_TAG=name=content;name=content` setting adds
+up to ten `<meta name="..." content="...">` elements to the landing page.
+Docker Compose passes it from the deployment environment. The application
+parses and escapes every pair instead of accepting raw HTML, and refuses
+duplicate names, names already owned by the page, or prohibited platform
+metadata. A literal semicolon is not supported in a value.
 
 ### `GET /robots.txt`, `GET /sitemap.xml`
 

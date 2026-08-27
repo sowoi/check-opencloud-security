@@ -29,8 +29,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import tomllib
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 RELEASE = REPO_ROOT / "RELEASE.md"
@@ -91,9 +89,31 @@ def run_git(*args: str) -> str:
 
 
 def project_version() -> str:
-    """Read the current version from pyproject.toml."""
-    with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
-        return str(tomllib.load(handle)["project"]["version"])
+    """
+    Read the current version from pyproject.toml.
+
+    ``tomllib`` is 3.11+ and this project supports 3.10, so the one field that
+    matters is matched directly. The version sits in ``[project]``, above every
+    other table, which is what anchoring the search to that header buys.
+    """
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(
+        r"^\[project\]$(?P<body>.*?)(?=^\[)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    version = (
+        re.search(
+            r'^version\s*=\s*["\']([^"\']+)["\']',
+            match.group("body"),
+            re.MULTILINE,
+        )
+        if match
+        else None
+    )
+    if version is None:
+        raise SystemExit("pyproject.toml declares no version under [project].")
+    return version.group(1)
 
 
 def previous_tag(version: str) -> str | None:

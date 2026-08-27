@@ -5,15 +5,15 @@ application image, and the three Compose stacks they belong to.
 
 | File | What it is |
 |:-----|:-----------|
-| [`Dockerfile`](Dockerfile) | The plugin and the scan service - the PyPI wheel and nothing else |
-| [`Dockerfile.web`](Dockerfile.web) | The web application: the wheel plus the `web` extra, `webapp/` and `frontend/` |
+| [`setup-wizard.py`](setup-wizard.py) | **Start here.** Asks what a deployment needs and writes a compose file and its `.env` |
 | [`docker-compose.yml`](docker-compose.yml) | The locally built web stack: `web_app`, `arq_worker`, `redis` |
-| [`setup-wizard.py`](setup-wizard.py) | Asks what a deployment needs and writes a compose file and its `.env` |
 | [`docker-compose.dockerhub.yml`](docker-compose.dockerhub.yml) | The published-image web stack: `okxo/opencloud-scanner`, worker and Redis |
-| [`dockerhub-readme.md`](dockerhub-readme.md) | The short description submitted to Docker Hub with every image publication |
 | [`docker-compose.authentik.yml`](docker-compose.authentik.yml) | The whole thing with a sign-in: the web stack *and* Authentik, in one file |
 | [`authentik-env.sh`](authentik-env.sh) | Writes the secrets that stack needs into `.env`, once |
 | [`docker-compose.monitoring.yml`](docker-compose.monitoring.yml) | The plugin's own scan service, for monitoring hosts |
+| [`Dockerfile`](Dockerfile) | The plugin and the scan service - the PyPI wheel and nothing else |
+| [`Dockerfile.web`](Dockerfile.web) | The web application: the wheel plus the `web` extra, `webapp/` and `frontend/` |
+| [`dockerhub-readme.md`](dockerhub-readme.md) | The short description submitted to Docker Hub with every image publication |
 
 **The build context is the repository root, not this directory.** Both images
 need files from above it, so build from the root with `-f`:
@@ -29,27 +29,73 @@ reads it from the context, not from next to the Dockerfile.
 Compose, on the other hand, is run **from this directory**, which is why the
 paths inside those files point one level up (`../config`, `../secrets`).
 
-## The web application
+## Setting up the whole stack
 
-The whole service - the pages, the scanner behind them and the Redis between
-them - from a local image build:
+**Start with [`setup-wizard.py`](setup-wizard.py).** The compose files here
+are the two shapes this service usually takes, and if yours is one of them you
+can run one directly. Anything else - a different port, an on-premise instance
+the SSRF guard would otherwise refuse, encryption at rest, a sign-in on
+`/mcp` - is a question to answer rather than a file to edit into place.
 
 ```bash
 cd docker
+./setup-wizard.py --output-dir ~/opencloud-scanner
+cd ~/opencloud-scanner
+docker compose up -d
+# http://127.0.0.1:8811
+```
+
+It needs no checkout of its own: it is one file, uses the standard library
+alone, and runs on a host that has Docker and nothing else installed yet.
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/sowoi/check-opencloud-security/main/docker/setup-wizard.py
+chmod +x setup-wizard.py && ./setup-wizard.py
+```
+
+[The flags, the presets and the Authentik answers](#the-setup-wizard) are
+below.
+
+Three things the wizard gets right that a hand-edited file often does not:
+
+- **`COS_WEB_PUBLIC_BASE_URL` is required.** Canonical URLs, the sitemap and
+  the discovery document must not be built from an incoming `Host` header, so
+  the service refuses to start without one.
+- **Redis gets a password.** `COS_REDIS_PASSWORD` is generated into `.env`,
+  and what Redis holds is every live scan and every result still inside its
+  TTL. See [`docs/redis.md`](../docs/redis.md).
+- **The credentials are generated, not invented.** The erasure token, the
+  signing key, the audit salt and the encryption key, into a `.env` created
+  owner-readable only.
+
+### Running the files that ship here instead
+
+From a local image build:
+
+```bash
+cd docker
+printf 'COS_REDIS_PASSWORD=%s\n' "$(openssl rand -base64 36 | tr -d '/+=')" > .env
+chmod 600 .env
 docker compose up --build -d
 # http://127.0.0.1:8811
 docker compose logs -f web_app
 docker compose down
 ```
 
-To run the published image instead, while keeping the local-build Compose file
-unchanged:
+From the published image, leaving the local-build file unchanged:
 
 ```bash
 cd docker
 docker compose -f docker-compose.dockerhub.yml up -d
-# http://127.0.0.1:8811
 ```
+
+Both files default `COS_WEB_PUBLIC_BASE_URL` to `http://localhost:8811` so
+that a first `up` works. A deployment anybody else reaches must set it to the
+address they use, in `.env` beside the Redis password: canonical URLs, the
+sitemap and the discovery document are built from it and must not come from an
+incoming `Host` header.
+
+## The web application
 
 `web_app` serves the pages and the API from `frontend/`; `arq_worker` runs the
 scans; `redis` holds the state until its TTL runs out. Both application
@@ -58,24 +104,7 @@ describes a result and the code that produces it can never drift apart between
 deployments. The Docker Hub stack pulls
 `okxo/opencloud-scanner:latest` before each start.
 
-## Real-container integration test
-
-The scanner has an opt-in integration test that initializes and scans a real
-OpenCloud container. It does not run as part of the normal suite and creates
-only disposable Docker volumes and a container:
-
-```bash
-COS_INTEGRATION_IMAGE=opencloudeu/opencloud-rolling:latest \
-  uv run pytest -q -rs tests/integration/test_real_opencloud.py
-```
-
-The test pulls the selected image first and skips clearly when Docker, the
-image, or the image's `init` workflow is unavailable. The weekly
-`real OpenCloud container` workflow runs the same check; set
-`COS_INTEGRATION_IMAGE` to a compatible pinned image when the rolling image is
-not available.
-
-Two rules the compose file exists to enforce:
+Three rules the compose files exist to enforce:
 
 - **Concurrency is set here and nowhere else.** `COS_WEB_MAX_WORKERS` and
   `COS_WEB_SCAN_CONCURRENCY` are the whole of this service's load on other
@@ -84,6 +113,12 @@ Two rules the compose file exists to enforce:
 - **Redis is a cache, not a database.** No persistence, capped memory,
   `allkeys-lru`, and every key carries a TTL anyway. A dump file would be a
   copy of everybody's scans sitting on a disk.
+- **Redis is on an internal network and asks for a password.** It publishes no
+  port and the `scanner_internal` network has no route off the host. Set
+  `COS_REDIS_PASSWORD` in `docker/.env` and Redis requires it as well; leave it
+  unset and nothing changes. `setup-wizard.py` generates one, and so does
+  `authentik-env.sh`. What Redis holds is every live scan and every result
+  still inside its TTL, so set one on anything that is not a laptop.
 
 Both application services run read-only, with `no-new-privileges`, all
 capabilities dropped, an unprivileged uid and a 16 MB tmpfs for `/tmp`.
@@ -93,7 +128,8 @@ Common changes:
 | Want | Do |
 |:-----|:---|
 | A different port | Change the `ports` mapping on `web_app`; `8811` inside the container is fixed |
-| Reachable from outside | Drop the `127.0.0.1:` prefix and put a reverse proxy in front - see [`docs/webapp.md`](../docs/webapp.md#putting-it-behind-a-reverse-proxy) |
+| Reachable from outside | Drop the `127.0.0.1:` prefix, set `COS_WEB_PUBLIC_BASE_URL` to the address visitors use, and put a reverse proxy in front - see [`docs/webapp.md`](../docs/webapp.md#putting-it-behind-a-reverse-proxy) |
+| A password on Redis | `COS_REDIS_PASSWORD` in `docker/.env`. Both compose files already read it - see [`docs/redis.md`](../docs/redis.md) |
 | Behind a proxy | Set `COS_WEB_TRUST_FORWARDED_FOR: "true"`, but only if the proxy **overwrites** `X-Forwarded-For` |
 | More scans at once | Raise `COS_WEB_MAX_WORKERS` on `arq_worker`, and think about the instances on the other end |
 | Swagger UI | `COS_WEB_ENABLE_DOCS: "true"` on `web_app`, then <http://127.0.0.1:8811/docs> |
@@ -109,15 +145,8 @@ developer's side in [`webapp/README.md`](../webapp/README.md).
 
 ## The setup wizard
 
-The compose files here are the two shapes this service usually takes. A
-deployment that is neither - a different port, an on-premise instance behind
-the SSRF guard, encryption at rest, a sign-in on `/mcp` - can be answered for
-rather than edited into place:
-
-```bash
-cd docker
-./setup-wizard.py
-```
+[Setting up the whole stack](#setting-up-the-whole-stack) has the short
+version. This is the rest of it.
 
 It asks one question at a time, explains what each setting does and shows an
 example answer, then writes into whichever directory you point it at:
@@ -126,8 +155,8 @@ example answer, then writes into whichever directory you point it at:
   stays something you can commit, diff and paste into a ticket;
 - a **`.env`** holding the credentials it refers to as `${NAME}`, created
   owner-readable only. A purge token or an encryption key never reaches the
-  compose file.
-
+  compose file;
+- the **Redis password**, generated into that same `.env`;
 - and, when you ask it to bring an identity provider, the **Authentik
   blueprint**, in `authentik/blueprints/` beside the compose file that mounts
   it.
@@ -284,6 +313,23 @@ Secrets are files under `secrets/`, mounted at `/run/secrets` and referenced
 as `secret://name`; see [`secrets/README.md`](../secrets/README.md). Adjust
 `COS_HOST` in the compose file, or pass `COS_*` variables per run - the full
 list is in the [README](../README.md#environment-variables).
+
+## Real-container integration test
+
+The scanner has an opt-in integration test that initializes and scans a real
+OpenCloud container. It does not run as part of the normal suite and creates
+only disposable Docker volumes and a container:
+
+```bash
+COS_INTEGRATION_IMAGE=opencloudeu/opencloud-rolling:latest \
+  uv run pytest -q -rs tests/integration/test_real_opencloud.py
+```
+
+The test pulls the selected image first and skips clearly when Docker, the
+image, or the image's `init` workflow is unavailable. The weekly
+`real OpenCloud container` workflow runs the same check; set
+`COS_INTEGRATION_IMAGE` to a compatible pinned image when the rolling image is
+not available.
 
 ## Trademarks and affiliation
 

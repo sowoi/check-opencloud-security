@@ -258,6 +258,32 @@ def test_a_feed_that_has_forgotten_an_advisory_never_removes_it():
     assert [a.fixed for a in database.matches("9.0.1")] == ["9.0.4"]
 
 
+def test_a_revised_advisory_never_loses_an_earlier_affected_range():
+    """
+    A feed correction must not turn a previously vulnerable release into clean.
+
+    Replacing an advisory range is a security regression unless a human has
+    reviewed the withdrawal; refreshes therefore retain both known bounds.
+    """
+    store = memory_backend(MEMORY_URL)
+    original = osv_record("TEST-9010", [("9.0.0", "9.0.4")])
+    revised = osv_record("TEST-9010", [("9.0.2", "9.0.4")])
+
+    with FakeAdvisoryFeed([original]) as feed:
+        assert run(
+            refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url))
+        ) == "updated"
+    with FakeAdvisoryFeed([revised]) as feed:
+        assert run(
+            refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url))
+        ) == "updated"
+
+    database = run(stored_database(store, refresh_settings()))
+    assert [advisory.id for advisory in database.matches("9.0.1")] == ["TEST-9010"]
+    assert [advisory.id for advisory in database.matches("9.0.3")] == ["TEST-9010"]
+    assert database.matches("9.0.4") == []
+
+
 def test_a_refresh_never_loses_the_advisories_that_shipped_in_the_image():
     """The bundled file is the floor, not a starting guess to be replaced."""
     bundled_ids = {str(entry["id"]) for entry in BUNDLED["advisories"]}

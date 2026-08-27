@@ -103,7 +103,7 @@ follows the endpoint.</strong> <code>COS_WEB_MCP_AUTH_ENABLED</code> in that fil
 a token, and turning the endpoint off turns the sign-in off with it. There is
 no combination of these two variables that leaves the endpoint open by
 accident.</p>
-<p><code>authentik-env.sh</code> writes five secrets into <code>docker/.env</code> and never overwrites
+<p><code>authentik-env.sh</code> writes six secrets into <code>docker/.env</code> and never overwrites
 one it finds, so running it twice is safe:</p>
 <table>
 <thead>
@@ -113,6 +113,10 @@ one it finds, so running it twice is safe:</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>COS_REDIS_PASSWORD</code></td>
+<td>The password Redis requires. It holds every live scan and every result still inside its TTL - see <a href="/documentation/redis">Redis</a></td>
+</tr>
 <tr>
 <td><code>AUTHENTIK_SECRET_KEY</code></td>
 <td>Signs everything in Authentik's database</td>

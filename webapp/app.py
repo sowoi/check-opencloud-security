@@ -113,15 +113,21 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    LEGAL_NOTICE_PATH,
     LLMS_FULL_PATH,
     LLMS_PATH,
     OG_IMAGE_PATH,
+    SECURITY_CONTACT_EMAIL,
+    SECURITY_TXT_PATH,
     SITE_NAME,
     canonical_url,
     is_indexable,
     robots_txt,
+    security_txt,
+    serves_legal_notice,
     site_origin,
     sitemap_xml,
+    validate_public_base_url,
     wants_robots_tag,
 )
 from .settings import WebSettings
@@ -343,6 +349,7 @@ def build_templates(directory: Path | None = None) -> Jinja2Templates:
 def create_app(settings: WebSettings | None = None) -> FastAPI:
     """Build the application. One call, one set of settings, no globals."""
     settings = settings or WebSettings.from_env()
+    validate_public_base_url(settings.public_base_url)
     root = frontend_dir()
     templates = build_templates(root / "templates")
     llms_text = (root / "static" / "llms.txt").read_text(encoding="utf-8")
@@ -532,6 +539,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "mcp_enabled": mcp_enabled,
             "mcp_url": f"{origin}{MCP_PATH}" if origin else MCP_PATH,
             "site_name": SITE_NAME,
+            # The footer only offers the legal notice where the legal notice
+            # is actually served.
+            "legal_notice_path": (
+                LEGAL_NOTICE_PATH
+                if serves_legal_notice(request.url.hostname)
+                else None
+            ),
             "robots": "index, follow" if indexable else "noindex, nofollow",
             # A canonical URL for a page nobody may index would only invite
             # one to be created.
@@ -690,7 +704,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "error": error,
             "error_self_host": error_self_host,
             "target_url": target_url,
-            "index_meta_tag": settings.index_meta_tag,
+            "index_meta_tags": settings.index_meta_tags,
             "webmcp_tools": (
                 {
                     "action": "scan",
@@ -794,6 +808,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def privacy(request: Request) -> Response:
         return page(request, "privacy.html", {})
 
+    # Somebody else's deployment is not covered by this notice and must not
+    # appear to be, so anywhere but the host it names, the page does not exist.
+    @app.get(LEGAL_NOTICE_PATH, response_class=HTMLResponse, include_in_schema=False)
+    async def legal_notice(request: Request) -> Response:
+        if not serves_legal_notice(request.url.hostname):
+            return not_found(request)
+        return page(request, "legal-notice.html", {})
+
     @app.get("/api", response_class=HTMLResponse, include_in_schema=False)
     async def api_page(request: Request) -> Response:
         return page(request, "api.html", {})
@@ -848,6 +870,20 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         origin = site_origin(str(request.base_url), settings.public_base_url)
         return PlainTextResponse(
             robots_txt(origin, allow_indexing=settings.allow_indexing),
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @app.get(SECURITY_TXT_PATH, include_in_schema=False)
+    async def security(request: Request) -> Response:
+        """RFC 9116: how to report a flaw in this service, not in OpenCloud."""
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        contact = (
+            SECURITY_CONTACT_EMAIL
+            if serves_legal_notice(request.url.hostname)
+            else None
+        )
+        return PlainTextResponse(
+            security_txt(origin, operator_contact=contact),
             headers={"Cache-Control": "public, max-age=3600"},
         )
 

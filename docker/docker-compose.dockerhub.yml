@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:8811:8811"
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       # How long a result stays readable. Also the lifetime of every key.
       COS_WEB_RESULT_TTL: "3600"
       # Rate limits: per client address, and per target instance.
@@ -28,6 +28,9 @@ services:
       COS_WEB_TARGET_COOLDOWN: "300"
       # Set this only when a reverse proxy overwrites X-Forwarded-For.
       COS_WEB_TRUST_FORWARDED_FOR: "false"
+      # Required. The address this service is reached at from outside, so the
+      # canonical links and sitemap.xml do not publish URLs nobody can reach.
+      COS_WEB_PUBLIC_BASE_URL: "${COS_WEB_PUBLIC_BASE_URL:-http://localhost:8811}"
       # Do not query the release feed once per visitor by default.
       COS_WEB_RELEASES_MODE: "off"
       # Re-read the OpenCloud release lifecycle page once a day, so a
@@ -64,6 +67,9 @@ services:
       COS_WEB_MCP_AUTH_JWKS_URL: "${COS_WEB_MCP_AUTH_JWKS_URL:-}"
       COS_WEB_MCP_AUTH_RESOURCE_URL: "${COS_WEB_MCP_AUTH_RESOURCE_URL:-}"
       COS_WEB_MCP_AUTH_SCOPES: "${COS_WEB_MCP_AUTH_SCOPES:-}"
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -82,7 +88,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      COS_WEB_REDIS_URL: "redis://redis:6379/0"
+      COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"
       COS_WEB_RESULT_TTL: "3600"
       # These values are the service's complete scanning load on other hosts.
       COS_WEB_MAX_WORKERS: "5"
@@ -117,6 +123,9 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+    networks:
+      - default
+      - scanner_internal
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -136,6 +145,19 @@ services:
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+      # unset and this behaves exactly as it did before. Redis answers whoever
+      # reaches it, and what it holds is every live scan and every result still
+      # inside its TTL, so set one on anything that is not a laptop.
+      --requirepass "${COS_REDIS_PASSWORD:-}"
+    environment:
+      # redis-cli reads this, so the health check authenticates without the
+      # password appearing in its own command line.
+      REDISCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
+    # No published port, and `internal` on the network below means it has no
+    # route off the host either.
+    networks:
+      - scanner_internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -143,3 +165,10 @@ services:
       retries: 5
     security_opt:
       - no-new-privileges:true
+
+networks:
+  # The application containers keep the default network: a scan is an outbound
+  # request and the web service is published on a port. Redis is only on the
+  # internal one, which has no gateway at all.
+  scanner_internal:
+    internal: true

@@ -201,6 +201,26 @@ def test_a_page_that_has_lost_a_release_line_is_refused():
     assert run(store.get(SCHEDULE_DOCUMENT_KEY)) is not None
 
 
+def test_a_refresh_cannot_change_the_support_facts_of_a_known_line():
+    """
+    Track membership and first release date decide end-of-life, not just names.
+
+    A parser regression that drops a production track would make a supported
+    release appear unsupported, so a candidate may only add a newer patch.
+    """
+    changed = json.loads(json.dumps(BUNDLED))
+    known = next(entry for entry in changed["lines"] if "production" in entry["tracks"])
+    known["tracks"].remove("production")
+    store = memory_backend(MEMORY_URL)
+
+    with FakeLifecycleSite(lifecycle_page(changed)) as site:
+        assert run(
+            refresh_schedule(store, refresh_settings(schedule_refresh_url=site.url))
+        ) == "rejected"
+
+    assert run(store.get(SCHEDULE_DOCUMENT_KEY)) is None
+
+
 def test_a_page_that_is_not_a_release_table_at_all_is_refused():
     """A redesigned documentation site must not empty the schedule."""
     store = memory_backend(MEMORY_URL)

@@ -32,6 +32,48 @@ running is silent, and silence is indistinguishable from a healthy instance.</p>
   <code>--critical</code> decide how strict it is.</li>
 </ul>
 <h2 id="github-actions">GitHub Actions</h2>
+<h3 id="opencloud-compatibility-evidence">OpenCloud compatibility evidence</h3>
+<p>The repository's <strong>real OpenCloud container</strong> workflow keeps one reviewed,
+immutable rolling-image digest as its baseline and runs the scanner against it
+weekly. It verifies that the container still initializes, exposes the expected
+public status endpoint, identifies itself as OpenCloud, reports a version, and
+produces a bounded rating. The image reports its exact OpenCloud version during
+the test; the workflow intentionally does not claim compatibility for a new
+release until that evidence has been reviewed.</p>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Baseline</th>
+<th>Compatible when</th>
+<th>Review path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vendor container integration</td>
+<td><code>opencloudeu/opencloud-rolling@sha256:0bb9038f4c01ab187a014e97550435f5d45630731aed9341d87a0b40fe72fe3d</code></td>
+<td>The complete integration test passes and its reported version and externally observable behaviour are reviewed</td>
+<td>Dispatch the workflow with <code>candidate_image</code>; update the baseline only in a reviewed pull request</td>
+</tr>
+<tr>
+<td>Release lifecycle</td>
+<td>Bundled schedule plus the daily conservative refresh</td>
+<td>New or changed lines retain existing support facts and pass lifecycle regressions</td>
+<td>Review the release-schedule refresh PR</td>
+</tr>
+<tr>
+<td>Advisories</td>
+<td>Bundled database plus the daily conservative refresh</td>
+<td>New advisories add evidence without removing known affected ranges</td>
+<td>Review the advisory-database refresh PR</td>
+</tr>
+</tbody>
+</table>
+<p>The automation never rewrites fixtures, grades, or security expectations to
+turn a candidate green. A changed response, header, endpoint, or security
+property must have release evidence and a reviewable test change naming that
+evidence.</p>
 <p>The repository's <code>Supply-chain checks</code> workflow runs on pull requests, pushes
 to <code>main</code> and weekly. It exports the fully resolved <code>uv.lock</code> dependency set,
 runs <code>pip-audit</code> over core, web and MCP dependencies, and publishes a

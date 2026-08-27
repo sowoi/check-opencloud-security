@@ -105,6 +105,14 @@ def discovery_document(
                 "workflow": "awaitScanResult",
             },
             {
+                "name": "plan_remediation",
+                "description": (
+                    "Turn one finished scan into its rating-preserving, "
+                    "ordered remediation plan."
+                ),
+                "workflow": "planRemediation",
+            },
+            {
                 "name": "export_scan",
                 "description": "Render a finished scan as JSON, CSV, SARIF or PDF.",
                 "workflow": "exportFinishedScan",

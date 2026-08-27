@@ -38,6 +38,7 @@ from opencloud_local_scan.schedule_source import (
 )
 from opencloud_local_scan.versions import (
     ReleaseSchedule,
+    compare_versions,
     load_release_schedule,
     schedule_from_document,
 )
@@ -74,9 +75,22 @@ def _is_improvement(candidate: ReleaseSchedule, bundled: ReleaseSchedule) -> boo
     """
     if len(candidate.lines) < MIN_LINES:
         return False
-    if not set(bundled.lines).issubset(candidate.lines):
+    if bundled.updated and (candidate.updated or "") < bundled.updated:
         return False
-    return not (bundled.updated and (candidate.updated or "") < bundled.updated)
+    for name, existing in bundled.lines.items():
+        replacement = candidate.lines.get(name)
+        if replacement is None:
+            return False
+        # A changed track or opening date can make a previously supported
+        # line look end of life (or the reverse). Those facts are immutable;
+        # only a newer patch on the same line is new knowledge.
+        if (
+            not set(existing.tracks).issubset(replacement.tracks)
+            or existing.released != replacement.released
+            or compare_versions(replacement.latest, existing.latest) < 0
+        ):
+            return False
+    return True
 
 
 async def stored_schedule(

@@ -176,12 +176,15 @@ def test_llms_txt_maps_the_public_agent_surfaces_without_exposing_a_scan():
     assert "Allow: /llms.txt" in served.get("/robots.txt").text
 
 
-def test_an_optional_index_meta_tag_is_typed_escaped_and_landing_page_only():
+def test_optional_index_meta_tags_are_typed_escaped_and_landing_page_only():
     """Compose metadata cannot become raw markup or leak onto result pages."""
     served = client(
-        index_meta_tag=IndexMetaTag(
-            name="fediverse:creator",
-            content='@scanner@social.example.com"><script>',
+        index_meta_tags=(
+            IndexMetaTag(
+                name="fediverse:creator",
+                content='@scanner@social.example.com"><script>',
+            ),
+            IndexMetaTag(name="custom-verification", content="verification-token"),
         )
     )
     identifier = served.post(
@@ -194,22 +197,30 @@ def test_an_optional_index_meta_tag_is_typed_escaped_and_landing_page_only():
         'content="@scanner@social.example.com&#34;&gt;&lt;script&gt;"' in landing
     )
     assert "<script>" not in landing
+    assert 'name="custom-verification" content="verification-token"' in landing
     assert "fediverse:creator" not in served.get(f"/scan/{identifier}").text
     assert "fediverse:creator" not in client().get("/").text
 
 
-def test_the_index_meta_environment_value_rejects_raw_or_reserved_markup(
+def test_the_index_meta_environment_value_accepts_a_bounded_tag_list(
     monkeypatch,
 ):
-    """The environment may provide one inert tag, not rewrite the document head."""
+    """The environment may provide bounded inert tags, not rewrite the document head."""
     monkeypatch.setenv(
         "COS_WEB_INDEX_META_TAG",
         "custom-verification=verification-token",
     )
     configured = WebSettings.from_env()
-    assert configured.index_meta_tag == IndexMetaTag(
-        name="custom-verification",
-        content="verification-token",
+    assert configured.index_meta_tags == (
+        IndexMetaTag(name="custom-verification", content="verification-token"),
+    )
+    monkeypatch.setenv(
+        "COS_WEB_INDEX_META_TAG",
+        "custom-verification=first;fediverse:creator=@scanner@social.example.com",
+    )
+    assert WebSettings.from_env().index_meta_tags == (
+        IndexMetaTag(name="custom-verification", content="first"),
+        IndexMetaTag(name="fediverse:creator", content="@scanner@social.example.com"),
     )
 
     for invalid in (
@@ -217,6 +228,7 @@ def test_the_index_meta_environment_value_rejects_raw_or_reserved_markup(
         "robots=noindex",
         "google-site-verification=token",
         "twitter:card=summary",
+        "custom-verification=first;custom-verification=second",
     ):
         monkeypatch.setenv("COS_WEB_INDEX_META_TAG", invalid)
         with pytest.raises(ValueError):

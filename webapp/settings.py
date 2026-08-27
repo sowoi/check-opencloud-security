@@ -83,28 +83,39 @@ class IndexMetaTag:
     content: str
 
 
-def _env_index_meta_tag() -> IndexMetaTag | None:
-    """Read ``name=content`` without allowing raw markup or reserved tags."""
+def _env_index_meta_tags() -> tuple[IndexMetaTag, ...]:
+    """Read a semicolon-separated ``name=content`` list without raw markup."""
     raw = _env("INDEX_META_TAG")
     if raw is None:
-        return None
-    name, separator, content = raw.partition("=")
-    name = name.strip()
-    content = content.strip()
-    lowered = name.lower()
-    if (
-        not separator
-        or not _META_NAME.fullmatch(name)
-        or not content
-        or len(content) > 512
-        or lowered in _RESERVED_META_NAMES
-        or lowered.startswith(("twitter:", "fb:"))
-    ):
+        return ()
+    tags: list[IndexMetaTag] = []
+    names: set[str] = set()
+    for item in raw.split(";"):
+        name, separator, content = item.partition("=")
+        name = name.strip()
+        content = content.strip()
+        lowered = name.lower()
+        if (
+            not separator
+            or not _META_NAME.fullmatch(name)
+            or not content
+            or len(content) > 512
+            or lowered in names
+            or lowered in _RESERVED_META_NAMES
+            or lowered.startswith(("twitter:", "fb:"))
+        ):
+            raise ValueError(
+                "COS_WEB_INDEX_META_TAG must be up to 10 semicolon-separated "
+                "name=content pairs with unique non-reserved names and content "
+                "no longer than 512 characters"
+            )
+        names.add(lowered)
+        tags.append(IndexMetaTag(name=name, content=content))
+    if not tags or len(tags) > 10:
         raise ValueError(
-            "COS_WEB_INDEX_META_TAG must be name=content for a non-reserved "
-            "meta name and content no longer than 512 characters"
+            "COS_WEB_INDEX_META_TAG must contain between 1 and 10 name=content pairs"
         )
-    return IndexMetaTag(name=name, content=content)
+    return tuple(tags)
 
 
 def _read_encryption_keys() -> dict[int, str]:
@@ -171,11 +182,11 @@ class WebSettings:
     for a direct deployment and wrong behind a proxy: the service would
     otherwise publish URLs only the proxy can reach."""
 
-    index_meta_tag: IndexMetaTag | None = None
-    """An optional custom ``<meta name=... content=...>`` on the landing
-    page. It is parsed from one ``name=content`` value rather than accepted as
-    raw HTML, so operator configuration cannot add scripts, redirects, or
-    attributes that weaken the page."""
+    index_meta_tags: tuple[IndexMetaTag, ...] = field(default_factory=tuple)
+    """Optional custom ``<meta name=... content=...>`` elements on the
+    landing page. They are parsed from a bounded ``;``-separated
+    ``name=content`` list rather than raw HTML, so operator configuration
+    cannot add scripts, redirects, or attributes that weaken the page."""
 
     allow_indexing: bool = True
     """Let search engines index the landing page and the four explanations.
@@ -355,7 +366,7 @@ class WebSettings:
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
             public_base_url=_env("PUBLIC_BASE_URL"),
-            index_meta_tag=_env_index_meta_tag(),
+            index_meta_tags=_env_index_meta_tags(),
             allow_indexing=_env_bool("ALLOW_INDEXING", True),
             releases_mode=(_env("RELEASES_MODE") or "off").lower(),
             releases_token=_env("RELEASES_TOKEN"),

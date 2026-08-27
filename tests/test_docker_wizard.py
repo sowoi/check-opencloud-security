@@ -579,3 +579,53 @@ def test_a_sign_in_without_a_way_to_send_mail_is_pointed_out(tmp_path: Path) -> 
     setup.smtp_host = "smtp.example.com"
     setup.smtp_from = "authentik@example.com"
     assert not any("mail" in warning.lower() for warning in wizard_module.check_consistency(setup))
+
+
+def test_the_generated_redis_asks_for_a_password_that_only_the_env_file_holds() -> None:
+    """
+    Redis holds every live scan and every result still inside its TTL.
+
+    Left open it answers whoever reaches it, which turns one stray container
+    on the same network into a readable copy of everybody's scans. The
+    password is generated rather than asked for, and it reaches the compose
+    file the same way every other secret does: by reference.
+    """
+    setup = wizard_module.Setup()
+    wizard_module._finalise(setup)
+
+    compose = wizard_module.render_compose_file(setup, "compose.yml")
+    env_file = wizard_module.render_env_file(setup)
+
+    assert setup.redis_password
+    assert '--requirepass "${COS_REDIS_PASSWORD:-}"' in compose
+    assert 'COS_WEB_REDIS_URL: "redis://:${COS_REDIS_PASSWORD:-}@redis:6379/0"' in compose
+    # The value itself is in .env and nowhere else.
+    assert f"COS_REDIS_PASSWORD={setup.redis_password}" in env_file
+    assert setup.redis_password not in compose
+
+    # A second deployment does not get the first one's password.
+    other = wizard_module.Setup()
+    wizard_module._finalise(other)
+    assert other.redis_password != setup.redis_password
+
+
+def test_the_generated_redis_sits_on_a_network_with_no_route_off_the_host() -> None:
+    """
+    The password and the network are two halves of the same argument.
+
+    A scan is an outbound request and the web service is published, so those
+    containers keep the default network; Redis has no reason to reach anything
+    or be reached, and an `internal` network is what says so.
+    """
+    setup = wizard_module.Setup()
+    wizard_module._finalise(setup)
+
+    compose = wizard_module.render_compose_file(setup, "compose.yml")
+
+    redis_block = compose.split("\n  redis:\n", 1)[1].split("\nnetworks:", 1)[0]
+    assert "scanner_internal" in redis_block
+    assert "ports:" not in redis_block
+    assert "\n  scanner_internal:\n    internal: true\n" in compose
+    # The application containers need both, or a published port and an
+    # outbound scan would stop working.
+    assert compose.count("      - default\n      - scanner_internal\n") == 2
