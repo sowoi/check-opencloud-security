@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-27
+
 ### Changed
 
 - **Security and release-data safeguards**: Kept advisory ranges and release

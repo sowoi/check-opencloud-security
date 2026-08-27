@@ -1,6 +1,7 @@
-## check-opencloud-security 1.11.4
+## check-opencloud-security 1.12.0
 
-## Changed
+### Changed
+
 - **Security and release-data safeguards**: Kept advisory ranges and release
   support facts monotonic during refreshes, and validate refresh pull requests
   against their relevant regression tests before review.
@@ -26,7 +27,17 @@
   no published port, answering the "Redis does not require authentication and
   is not protected by network restriction" finding.
 
-## Fixed
+### Added
+
+- **Redis operator guide**: `docs/redis.md` and `/documentation/redis` cover
+  what the scan service keeps in Redis and for how long, authentication,
+  network isolation, memory and eviction, health signals and troubleshooting.
+- **`/.well-known/security.txt`**: An RFC 9116 document with a computed
+  `Expires`, naming the project's security policy everywhere and an operator
+  address only on the deployment the legal notice belongs to.
+
+### Fixed
+
 - **The Python version matrix actually tested one version**: `nox` installed
   no test dependencies and ran the outer environment's `pytest`, so every
   session reported the same interpreter. Each session now syncs into its own
@@ -34,13 +45,3 @@
 - **Python 3.10 compatibility**: `scripts/release_notes.py` and its test
   imported `tomllib`, which does not exist before 3.11. Both now read the
   project version without it.
-
-## Added
-- **Redis operator guide**: `docs/redis.md` and `/documentation/redis` cover
-  what the scan service keeps in Redis and for how long, authentication,
-  network isolation, memory and eviction, health signals and troubleshooting.
-- **`/.well-known/security.txt`**: An RFC 9116 document with a computed
-  `Expires`, naming the project's security policy everywhere and an operator
-  address only on the deployment the legal notice belongs to.
-- **Legal Notice Badge**: Added an explicit Legal Notice link to the footer, 
-  displayed exclusively when accessing the site via scan.okxo.de.
