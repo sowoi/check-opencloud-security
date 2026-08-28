@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-08-28
+
 ### Added
 
 - **TLS cipher and certificate-policy findings**: The built-in scanner now
