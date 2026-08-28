@@ -518,7 +518,12 @@ the non-secret answers inline and a `.env` holding every credential that file
 refers to as `${NAME}`. The split is the rule: a secret never lands in the
 compose file, `.env` is created `0600`, and the compose files that ship in
 `docker/` are refused as targets, because the next update would take a
-hand-made deployment with it. Keep it independent of
+hand-made deployment with it. An existing `.env` is read back and its values
+become the defaults, so a re-run edits a deployment rather than regenerating
+its credentials. Asked for automatic updates, it adds Watchtower
+scoped by label to the stack's own containers and detects the Docker socket
+for the user running it - a rootless Docker serves it under
+`/run/user/<uid>`, not `/var/run`. Keep it independent of
 `opencloud_local_scan.wizard`, which sets up a monitoring check against one
 instance - no imports, no shared configuration.
 `tests/test_docker_wizard.py` asserts all of that.

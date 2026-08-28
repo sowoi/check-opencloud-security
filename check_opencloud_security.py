@@ -1375,6 +1375,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--ca-file",
+        default=None,
+        help=(
+            "PEM CA bundle used to verify an internal TLS certificate. "
+            f"Default: scanner.tls_ca_file (env: {ENV_PREFIX}SCANNER_TLS_CA_FILE)."
+        ),
+    )
+    parser.add_argument(
         "--no-debug-ports",
         action="store_true",
         default=_env_bool("NO_DEBUG_PORTS"),
@@ -1778,6 +1786,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         port=args.port,
         extra_checks=False if args.no_extra_checks else None,
         verify_tls=False if args.insecure else None,
+        tls_ca_file=args.ca_file,
         check_debug_ports=False if args.no_debug_ports else None,
         release_track=args.release_track,
         ignore_hardenings=_waiver_patterns(args.ignore_hardening),

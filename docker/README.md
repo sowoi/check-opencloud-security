@@ -167,12 +167,19 @@ and warns before writing about the combinations the service itself refuses to
 start on, such as a sign-in on `/mcp` with a provider it was told nothing
 about.
 
+Point it at a directory that already has a `.env` and it reads that file back
+instead of overwriting it: every value it holds becomes the default the
+question offers, so re-running the wizard against a live deployment edits it
+rather than regenerating credentials something else already depends on. A
+flag still wins over a reused value.
+
 | Flag | What it does |
 |:-----|:-------------|
 | `--output-dir DIR` | Where the generated files go. Default: the current directory |
 | `--compose-file NAME` | Name of the generated compose file |
 | `--env-file NAME` | Name of the generated secrets file |
 | `--preset public\|private` | Starting answers: open to anybody, or scanning your own network |
+| `--auto-updates` | Add Watchtower to the stack, updating the pulled images daily. Scoped to this stack's own containers |
 | `--sign-in` | Require a sign-in on `/mcp`, against a provider you already run |
 | `--with-authentik` | Add Authentik to the stack, provisioned to issue those tokens. Does not require one by itself |
 | `--smtp-host HOST` | Mail server Authentik sends from. Empty leaves it on local delivery |
@@ -188,6 +195,17 @@ There is deliberately no `--smtp-password`: a password on a command line is a
 password in `ps` and in the shell history. The wizard takes it from
 `AUTHENTIK_EMAIL_PASSWORD` in the environment, or asks for it, and writes it
 into `.env` alone.
+
+**Automatic updates are an answer, not a default.** Asked whether the pulled
+images should update themselves - or given `--auto-updates` - the wizard adds
+Watchtower to the generated stack: once a day it checks the registry, pulls a
+moved image and restarts its container. Only this stack's containers carry the
+label Watchtower watches for, so other projects on the same host are left
+alone, and a locally built image is skipped rather than replaced - rebuild
+those with `docker compose up -d --build`. The Docker socket it mounts is
+detected for the user running the wizard: a rootless Docker serves it under
+`/run/user/<uid>` rather than `/var/run`, and the detected path is the default
+of a question, so a different daemon is an edit rather than a discovery.
 
 **A sign-in and an identity provider are two answers, not one**, and neither
 implies the other:

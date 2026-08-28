@@ -295,6 +295,8 @@ class ScannerSettings:
 
     timeout: int = DEFAULT_TIMEOUT_SECONDS
     verify_tls: bool = True
+    tls_ca_file: str | None = None
+    """PEM CA bundle used to verify an internal TLS deployment."""
     proxy: str | None = None
     scheme: str = "https"
     port: int | None = None
@@ -364,6 +366,11 @@ class ScannerSettings:
     def proxies(self) -> dict[str, str] | None:
         """requests-style proxy mapping."""
         return {"http": self.proxy, "https": self.proxy} if self.proxy else None
+
+    @property
+    def tls_verify(self) -> bool | str:
+        """The verification setting understood by requests."""
+        return self.tls_ca_file if self.verify_tls and self.tls_ca_file else self.verify_tls
 
     @property
     def workers(self) -> int:
@@ -553,7 +560,7 @@ class _Probe:
                     method,
                     url,
                     timeout=self.settings.timeout,
-                    verify=self.settings.verify_tls,
+                    verify=self.settings.tls_verify,
                     proxies=self.settings.proxies,
                     allow_redirects=follow,
                     headers={
@@ -624,7 +631,7 @@ class _Probe:
                         method,
                         target,
                         timeout=self.settings.timeout,
-                        verify=self.settings.verify_tls,
+                        verify=self.settings.tls_verify,
                         proxies=self.settings.proxies,
                         allow_redirects=False,
                         headers={
@@ -673,6 +680,53 @@ def _resolved_addresses(hostname: str, settings: ScannerSettings) -> dict[str, l
         if str(address) not in bucket:
             bucket.append(str(address))
     return addresses
+
+
+def _address_tls_inspections(
+    hostname: str, port: int, settings: ScannerSettings, addresses: Mapping[str, list[str]]
+) -> dict[str, TlsInspection]:
+    """Inspect one IPv4 and one IPv6 endpoint without repeating heavy probes."""
+    inspections: dict[str, TlsInspection] = {}
+    for family in ("ipv4", "ipv6"):
+        candidates = addresses.get(family) or []
+        if candidates:
+            inspections[family] = inspect_tls(
+                hostname,
+                port,
+                settings.timeout,
+                connect_host=candidates[0],
+                probe_deprecated=False,
+                check_stapling=False,
+                ca_file=settings.tls_ca_file,
+            )
+    return inspections
+
+
+def _address_parity_finding(inspections: Mapping[str, TlsInspection]) -> Finding | None:
+    """Both DNS families must present the same usable TLS identity."""
+    ipv4, ipv6 = inspections.get("ipv4"), inspections.get("ipv6")
+    if ipv4 is None or ipv6 is None:
+        return None
+    if not ipv4.reachable or not ipv6.reachable:
+        unavailable = "IPv4" if not ipv4.reachable else "IPv6"
+        return Finding("tlsAddressParity", "medium", False, f"{unavailable} TLS endpoint is unreachable")
+    left = ipv4.certificate.serial if ipv4.certificate else ""
+    right = ipv6.certificate.serial if ipv6.certificate else ""
+    differences = [
+        field
+        for field in ("protocol", "cipher", "trusted")
+        if getattr(ipv4, field) != getattr(ipv6, field)
+    ]
+    if left != right:
+        differences.append("certificate")
+    return Finding(
+        "tlsAddressParity",
+        "medium",
+        not differences,
+        "IPv4 and IPv6 present the same TLS identity"
+        if not differences
+        else "IPv4 and IPv6 differ in " + ", ".join(differences),
+    )
 
 
 def _host_and_port(host: str, settings: ScannerSettings) -> tuple[str, int, str]:
@@ -790,6 +844,55 @@ def _check_headers(response: requests.Response | None) -> dict[str, bool]:
         else:
             result[name] = expected.lower() in value.lower()
     return result
+
+
+def _set_cookie_values(response: requests.Response | None) -> list[str]:
+    """Read every Set-Cookie field without retaining any cookie value."""
+    if response is None:
+        return []
+    raw_headers = getattr(getattr(response, "raw", None), "headers", None)
+    getlist = getattr(raw_headers, "getlist", None)
+    values = getlist("Set-Cookie") if callable(getlist) else None
+    if values is None:
+        value = response.headers.get("Set-Cookie")
+        values = [value] if value else []
+    return [str(value) for value in values if value]
+
+
+def _cookie_findings(response: requests.Response | None) -> list[Finding]:
+    """Check security attributes on cookies the public response actually set."""
+    observed = _set_cookie_values(response)
+    if not observed:
+        return []
+    missing: dict[str, list[str]] = {"Secure": [], "HttpOnly": [], "SameSite": []}
+    for value in observed:
+        name = value.split("=", 1)[0].strip()
+        name = re.sub(r"[^A-Za-z0-9_.-]", "?", name)[:80] or "unnamed cookie"
+        attributes = {part.strip().split("=", 1)[0].lower() for part in value.split(";")[1:]}
+        if "secure" not in attributes:
+            missing["Secure"].append(name)
+        if "httponly" not in attributes:
+            missing["HttpOnly"].append(name)
+        if "samesite" not in attributes:
+            missing["SameSite"].append(name)
+    findings: list[Finding] = []
+    for attribute, severity, identifier in (
+        ("Secure", "high", "cookieSecure"),
+        ("HttpOnly", "medium", "cookieHttpOnly"),
+        ("SameSite", "low", "cookieSameSite"),
+    ):
+        names = missing[attribute]
+        findings.append(
+            Finding(
+                identifier,
+                severity,
+                not names,
+                f"Observed cookies {'; '.join(names)} lack {attribute}"
+                if names
+                else f"Every observed cookie sets {attribute}",
+            )
+        )
+    return findings
 
 
 def _hsts_max_age(value: str | None) -> int | None:
@@ -1869,6 +1972,7 @@ def _collect_extra_findings(
     identity_provider: Mapping[str, Any] | None = None,
     reverse_proxy: Mapping[str, Any] | None = None,
     tls_inspection: TlsInspection | None = None,
+    address_parity: Finding | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -1882,6 +1986,9 @@ def _collect_extra_findings(
                 verification_required=verification_required,
             )
         )
+    if address_parity is not None:
+        findings.append(address_parity)
+    findings.extend(_cookie_findings(root_response))
     findings.extend(_authentication_findings(probe))
     findings.append(_basic_auth_finding(challenge, identity_provider))
     findings.append(_identity_provider_finding(identity_provider or {}))
@@ -2049,6 +2156,7 @@ def scan(
     # The TLS layer is inspected once, before the findings are assembled, so
     # that the full detail can be published beside them: the findings say what
     # is wrong, the `tls` block says what was actually observed.
+    addresses = _resolved_addresses(hostname, settings)
     tls_inspection = (
         inspect_tls(
             hostname,
@@ -2062,9 +2170,18 @@ def scan(
                 ),
                 None,
             ),
+            ca_file=settings.tls_ca_file,
         )
         if settings.extra_checks and probe.base_url.startswith("https://")
         else None
+    )
+    address_tls = (
+        _address_tls_inspections(hostname, port, settings, addresses)
+        if settings.extra_checks
+        and probe.base_url.startswith("https://")
+        and addresses["ipv4"]
+        and addresses["ipv6"]
+        else {}
     )
     findings = (
         _collect_extra_findings(
@@ -2079,6 +2196,7 @@ def scan(
             identity_provider,
             reverse_proxy,
             tls_inspection,
+            _address_parity_finding(address_tls),
             verification_required=verification_required,
         )
         if settings.extra_checks
@@ -2112,7 +2230,7 @@ def scan(
     scanned_at = datetime.now(timezone.utc)
     result: dict[str, Any] = {
         "domain": hostname,
-        "addresses": _resolved_addresses(hostname, settings),
+        "addresses": addresses,
         "url": f"{probe.base_url}{STATUS_PATH}",
         "product": product,
         "version": version or "",
@@ -2134,6 +2252,7 @@ def scan(
         "hardenings": hardenings,
         "setup": {"https": https, "headers": headers},
         "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
+        "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},
         "identityProvider": identity_provider,
         "reverseProxy": reverse_proxy,
         "integrations": integrations,

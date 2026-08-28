@@ -156,6 +156,23 @@ def test_tls_connections_can_be_pinned_without_changing_sni(tmp_path):
     assert inspection.certificate is not None
 
 
+def test_a_private_ca_bundle_verifies_an_internal_certificate(tmp_path):
+    """Internal PKI must not force an operator to disable TLS verification."""
+    certificate_path, key_path = _certificate(tmp_path)
+    with _server(certificate_path, key_path) as port:
+        inspection = tls.inspect(
+            "localhost",
+            port,
+            TIMEOUT,
+            probe_deprecated=False,
+            check_stapling=False,
+            ca_file=str(certificate_path),
+        )
+
+    assert inspection.reachable is True
+    assert inspection.trusted is True
+
+
 def test_a_certificate_for_another_name_fails_the_hostname_check(tmp_path):
     """A certificate that does not cover the host is an interception to a client."""
     (tmp_path / "match").mkdir()
@@ -219,6 +236,54 @@ def test_a_certificate_issued_for_longer_than_the_public_maximum_is_flagged(tmp_
             "localhost", port, TIMEOUT, probe_deprecated=False, check_stapling=False
         )
     assert _ids(ordinary)["tlsCertificateLifetime"] is True
+
+
+def test_the_negotiated_cipher_must_be_modern_and_forward_secret():
+    """A contemporary protocol does not rescue a weak normal cipher selection."""
+    secure = tls.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        protocol="TLSv1.3",
+        cipher="TLS_AES_256_GCM_SHA384",
+    )
+    weak = tls.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        protocol="TLSv1.2",
+        cipher="AES128-SHA",
+    )
+
+    assert _ids(secure)["tlsCipherSuite"] is True
+    assert _ids(weak)["tlsCipherSuite"] is False
+
+
+def test_a_certificate_policy_requires_measured_key_and_signature_facts():
+    """A missing OpenSSL measurement must not create a reassuring green check."""
+    weak = tls.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        certificate=tls.Certificate(
+            key_type="RSA", key_bits=1024, signature_algorithm="sha1WithRSAEncryption"
+        ),
+    )
+    modern = tls.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        certificate=tls.Certificate(
+            key_type="EC", key_bits=256, signature_algorithm="ecdsa-with-SHA256"
+        ),
+    )
+    unknown = tls.TlsInspection(
+        host="opencloud.example.com", port=443, reachable=True, certificate=tls.Certificate()
+    )
+
+    assert _ids(weak)["tlsCertificatePolicy"] is False
+    assert _ids(modern)["tlsCertificatePolicy"] is True
+    assert "tlsCertificatePolicy" not in _ids(unknown)
 
 
 def test_a_modern_server_refuses_the_deprecated_protocol_versions(tmp_path):

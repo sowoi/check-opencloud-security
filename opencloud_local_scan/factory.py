@@ -98,6 +98,7 @@ def scanner_settings_from_config(
             "SCANNER_TIMEOUT", config.get_int("TIMEOUT", DEFAULT_TIMEOUT_SECONDS)
         ),
         verify_tls=config.get_bool("SCANNER_VERIFY_TLS", True),
+        tls_ca_file=config.get("SCANNER_TLS_CA_FILE"),
         proxy=config.get("SCANNER_PROXY") or config.get("PROXY"),
         scheme=config.get("SCANNER_SCHEME") or "https",
         port=int(port) if port else None,

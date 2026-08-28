@@ -150,6 +150,7 @@ def test_scanner_settings_are_built_from_the_configuration(tmp_path):
         scanner:
           timeout: 20
           verify_tls: false
+          tls_ca_file: /etc/ssl/opencloud-ca.pem
           scheme: http
           target_port: 9200
           tls_min_days: 30
@@ -164,6 +165,7 @@ def test_scanner_settings_are_built_from_the_configuration(tmp_path):
 
     assert settings.timeout == 20
     assert settings.verify_tls is False
+    assert settings.tls_ca_file == "/etc/ssl/opencloud-ca.pem"
     assert settings.scheme == "http"
     assert settings.port == 9200
     assert settings.tls_min_days == 30

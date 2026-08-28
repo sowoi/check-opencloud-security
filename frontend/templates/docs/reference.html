@@ -779,6 +779,16 @@ below describes what the built-in scanner does and how to tune it.</p>
 <td>The certificate is valid for longer than the 398 days browsers accept</td>
 </tr>
 <tr>
+<td><code>tlsCipherSuite</code></td>
+<td>medium</td>
+<td>The cipher suite negotiated by this scan is weak or lacks forward secrecy</td>
+</tr>
+<tr>
+<td><code>tlsCertificatePolicy</code></td>
+<td>medium</td>
+<td>The certificate has a weak key or an MD5/SHA-1 signature</td>
+</tr>
+<tr>
 <td><code>tlsOcspStapling</code></td>
 <td>low</td>
 <td>No OCSP response stapled to the handshake, although the certificate names a responder</td>

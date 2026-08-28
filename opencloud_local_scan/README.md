@@ -551,6 +551,10 @@ still shows up in the findings; it just stops counting against the rating, so
 a self-signed instance can be monitored without a permanently degraded grade
 while a genuinely broken certificate elsewhere still stands out.
 
+For an internal CA, keep verification on and set `scanner.tls_ca_file` (or
+`COS_SCANNER_TLS_CA_FILE`) to its PEM bundle; `check-opencloud-scanner scan`
+also accepts `--ca-file`. This trusts that CA without turning verification off.
+
 ### What is measured
 
 `tls.py` does the inspecting and hands `scanner.py` a list of checks; it knows
@@ -564,6 +568,10 @@ nothing about ratings. Beyond the handshake and trust it reports:
 | `tlsChain` | Does the server send its intermediates, or only a leaf that validates by luck? |
 | `tlsCertificate` | Does it expire within `tls_min_days`, or has it already? |
 | `tlsCertificateLifetime` | Is it valid for longer than the 398 days browsers accept? |
+| `tlsCipherSuite` | Is the cipher suite negotiated by this scan modern and forward-secret? |
+| `tlsCertificatePolicy` | Does the certificate use an adequately sized key and a modern signature? |
+| `tlsAddressParity` | Do the published IPv4 and IPv6 endpoints present the same usable TLS identity? |
+| `cookieSecure`, `cookieHttpOnly`, `cookieSameSite` | Do cookies actually observed on the public response carry these attributes? |
 | `tlsOcspStapling` | Is a revocation response stapled to the handshake? |
 
 The measurements behind them are in a `tls` block in the result document: the
@@ -597,7 +605,10 @@ and stapling probes found.
     "lifetimeDays": 90,
     "altNames": ["opencloud.example.com"],
     "ocspResponders": [],
-    "selfSigned": false
+    "selfSigned": false,
+    "keyType": "RSA",
+    "keyBits": 2048,
+    "signatureAlgorithm": "sha256WithRSAEncryption"
   }
 }
 ```

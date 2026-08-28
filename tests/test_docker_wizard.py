@@ -629,3 +629,79 @@ def test_the_generated_redis_sits_on_a_network_with_no_route_off_the_host() -> N
     # The application containers need both, or a published port and an
     # outbound scan would stop working.
     assert compose.count("      - default\n      - scanner_internal\n") == 2
+
+
+def test_asking_for_automatic_updates_adds_watchtower_scoped_to_this_stack(
+    tmp_path: Path,
+) -> None:
+    """Watchtower without the label scope would update every container on the host."""
+    assert _run(tmp_path, "--auto-updates") == 0
+
+    document = _compose(tmp_path)
+    watchtower = document["services"]["watchtower"]
+    assert watchtower["image"] == wizard_module.WATCHTOWER_IMAGE
+    assert watchtower["environment"]["WATCHTOWER_LABEL_ENABLE"] == "true"
+    mount = watchtower["volumes"][0]
+    assert mount.endswith(":/var/run/docker.sock")
+    assert mount.startswith("/")
+
+    # Every other service of the stack opts in, watchtower itself included or
+    # not - and nothing outside the stack carries the label it looks for.
+    for name, service in document["services"].items():
+        if name == "watchtower":
+            continue
+        assert service["labels"]["com.centurylinklabs.watchtower.enable"] == "true", name
+
+    # The identity provider's containers are part of the stack, so they are
+    # updated with it rather than left behind on an old image.
+    signed = tmp_path / "signed"
+    assert _run(signed, "--auto-updates", "--with-authentik") == 0
+    for name, service in _compose(signed)["services"].items():
+        if name == "watchtower":
+            continue
+        assert service["labels"]["com.centurylinklabs.watchtower.enable"] == "true", name
+
+
+def test_a_deployment_without_automatic_updates_gets_no_watchtower(tmp_path: Path) -> None:
+    """The daemon socket is the host; no container gets it that did not ask for it."""
+    assert _run(tmp_path) == 0
+
+    document = _compose(tmp_path)
+    assert "watchtower" not in document["services"]
+    for service in document["services"].values():
+        assert "labels" not in service
+
+
+def test_the_rootless_socket_is_detected_for_the_user_running_the_wizard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rootless Docker serves its socket under the user's runtime directory."""
+    runtime = tmp_path / "run"
+    runtime.mkdir()
+    (runtime / "docker.sock").touch()
+
+    monkeypatch.delenv("DOCKER_HOST", raising=False)
+    monkeypatch.setattr(os, "getuid", lambda: 1000)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+    assert wizard_module.detect_docker_socket() == str(runtime / "docker.sock")
+
+    # DOCKER_HOST is the socket every other Docker command here already uses.
+    monkeypatch.setenv("DOCKER_HOST", "unix:///elsewhere/docker.sock")
+    assert wizard_module.detect_docker_socket() == "/elsewhere/docker.sock"
+
+
+def test_the_socket_question_only_applies_when_updates_do() -> None:
+    """Asking for a socket with no Watchtower to use it is a quiz, not a setup."""
+    assert not wizard_module._relevant("watchtower_socket", wizard_module.Setup())
+    assert wizard_module._relevant(
+        "watchtower_socket", wizard_module.Setup(auto_updates=True)
+    )
+
+
+def test_automatic_updates_with_a_local_build_are_pointed_out() -> None:
+    """Watchtower pulls; it cannot rebuild an image the stack builds itself."""
+    warnings = wizard_module.check_consistency(wizard_module.Setup(auto_updates=True))
+    assert any("build" in warning.lower() for warning in warnings)
+
+    pulled = wizard_module.Setup(auto_updates=True, image_source="dockerhub")
+    assert not any("build" in w.lower() for w in wizard_module.check_consistency(pulled))

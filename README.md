@@ -1,6 +1,7 @@
 <!-- TOC -->
 * [check-opencloud-security](#check-opencloud-security)
 * [Try it online](#try-it-online)
+    * [👉 **scan.okxo.de** - scan an instance in your browser, nothing to install](#-scanokxode---scan-an-instance-in-your-browser-nothing-to-install)
 * [Quick start](#quick-start)
 * [Features](#features)
 * [Prerequisites](#prerequisites)
@@ -529,50 +530,50 @@ check-opencloud-security --host <Hostname> --check-hardening
 ```
 
 # Options:
-| Option              | Description                                            | Default      | Environment variable |
-|:--------------------|:--------------------------------------------------------|:-------------|:----------------------|
-| `-H, --host`        | OpenCloud server address(es): hostname, IP or URL, optionally with a port. Accepts a comma-separated list to check multiple hosts in one run | **required** | `COS_HOST`            |
-| `-P, --proxy`       | Proxy server address                                   | *None*       | `COS_PROXY`           |
-| `-d, --debug`       | Explain the rating and every finding; verbose logging  | *False*      | `COS_DEBUG`           |
-| `-w, --warning`     | Rating (0-5) at or below which the check warns         | `3` (`C`)    | `COS_WARNING`         |
-| `-c, --critical`    | Rating (0-5) at or below which the check is critical   | `1` (`E`)    | `COS_CRITICAL`        |
-| `--check-hardening` | Also report missing hardening measures and security headers | *False* | `COS_CHECK_HARDENING` |
-| `--timeout`         | HTTP timeout in seconds per request                    | `10`         | `COS_TIMEOUT`         |
-| `--port`            | Port the instance listens on (OpenCloud's own proxy uses `9200`) | from `--host`, else `443` | `COS_SCANNER_TARGET_PORT` |
-| `--scheme`          | `https` or `http`; `https` falls back to `http` automatically | `https` | `COS_SCANNER_SCHEME`  |
-| `--insecure`        | Do not verify the instance's TLS certificate           | *False*      | `COS_INSECURE`        |
-| `--no-extra-checks` | Only check product, version and security headers       | *False*      | `COS_NO_EXTRA_CHECKS` |
-| `--no-debug-ports`  | Skip probing the OpenCloud debug ports                 | *False*      | `COS_NO_DEBUG_PORTS`  |
-| `--concurrency`     | Maximum parallel host workers; one is used per host up to this ceiling | `5` | `COS_CONCURRENCY` |
-| `--format`          | One-shot output format: `nagios` or `prometheus` | `nagios` | `COS_FORMAT` |
-| `--prometheus-listen-port` | Serve native `/metrics` on this port until stopped | disabled | `COS_PROMETHEUS_LISTEN_PORT` |
-| `--prometheus-listen-addr` | Bind address for the native Prometheus exporter | `127.0.0.1` | `COS_PROMETHEUS_LISTEN_ADDR` |
-| `--scrape-interval` | Seconds to cache exporter scan results (`0` scans on every scrape) | `60` | `COS_SCRAPE_INTERVAL` |
-| `--ignore-hardening`| Hardening measure or check to accept, repeatable, comma-separated and wildcard capable | *None* | `COS_SCANNER_IGNORE_HARDENINGS` |
-| `--release-track`   | Release track this instance follows: `rolling`, `production`, `lts` or `auto` | `auto` | `COS_SCANNER_RELEASE_TRACK` |
-| `--update-source`   | Where the newest release comes from: `auto`, `feed`, `pinned`, `bundled`, `off` | `auto` | `COS_UPDATE_SOURCE` |
-| `--release-feed`    | URL of the release feed                                | GitHub releases API of `opencloud-eu/opencloud` | `COS_RELEASES_FEED_URL` |
-| `--release-token`   | Token for the release feed (raises GitHub's rate limit)| *None*       | `COS_RELEASES_TOKEN`  |
-| `--latest-version`  | Newest release, given explicitly; implies `--update-source pinned` | *None* | `COS_RELEASES_LATEST_VERSION` |
-| `--no-update-check` | Disable the update check (same as `--update-source off`)| *False*     | `COS_NO_UPDATE_CHECK` |
-| `--update-warning`  | Report WARNING when a newer release is available       | *False*      | `COS_UPDATE_WARNING`  |
-| `--baseline`        | File that remembers the findings of the last run, one entry per host | *None* | `COS_BASELINE` |
-| `--warn-on-new`     | Only alert on findings that are new or worse than the baseline; needs `--baseline` | *False* | `COS_WARN_ON_NEW` |
-| `--diff-format`     | Render baseline changes as `text`, `markdown`, or Slack Block Kit `slack`/`json` | `text` | `COS_DIFF_FORMAT` |
-| `--self-update-check` | Note when a newer version of the plugin is published on PyPI; never changes the exit code | *False* | `COS_SELF_UPDATE_CHECK` |
-| `--webhook-url`     | Optional endpoint notified when the check reaches the configured state | *None* (disabled) | `COS_WEBHOOK_URL` |
-| `--webhook-on`      | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`) | `critical` | `COS_WEBHOOK_ON` |
-| `--webhook-header`  | Extra header for the webhook request, repeatable       | *None*       | `COS_WEBHOOK_HEADERS` |
-| `--webhook-timeout` | HTTP timeout in seconds for the webhook call           | `10`         | `COS_WEBHOOK_TIMEOUT` |
-| `--allow-private-webhooks` | Permit webhooks to private, loopback, or link-local addresses | *False* | `COS_ALLOW_PRIVATE_WEBHOOKS` |
-| `--retries`         | Retry attempts for transient network errors            | `2`          | `COS_RETRIES`         |
-| `--backoff-factor`  | Exponential backoff factor (seconds) between retries   | `0.5`        | `COS_BACKOFF_FACTOR`  |
-| `--config`          | Path to the configuration file (`.json` as JSON, else YAML) | auto-discovered | `COS_CONFIG_FILE`  |
-| `--configure`       | Ask for the settings interactively and save them, then exit | —          | —                     |
-| `--upgrade-self [run\|check]` | Upgrade the plugin with pipx, uv or pip, then exit; `check` prints the command instead of running it | `run` when given without a value | — |
-| `--check-only`      | Only with `--upgrade-self`: another spelling of `--upgrade-self check` | —  | —                     |
-| `-V, --version`     | Show the installed version and exit                    | —            | —                     |
-| `-h, --help`        | Show help and exit                                     | —            | —                     |
+| Option                        | Description                                                                                                                                  | Default                                         | Environment variable            |
+|:------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------|:--------------------------------|
+| `-H, --host`                  | OpenCloud server address(es): hostname, IP or URL, optionally with a port. Accepts a comma-separated list to check multiple hosts in one run | **required**                                    | `COS_HOST`                      |
+| `-P, --proxy`                 | Proxy server address                                                                                                                         | *None*                                          | `COS_PROXY`                     |
+| `-d, --debug`                 | Explain the rating and every finding; verbose logging                                                                                        | *False*                                         | `COS_DEBUG`                     |
+| `-w, --warning`               | Rating (0-5) at or below which the check warns                                                                                               | `3` (`C`)                                       | `COS_WARNING`                   |
+| `-c, --critical`              | Rating (0-5) at or below which the check is critical                                                                                         | `1` (`E`)                                       | `COS_CRITICAL`                  |
+| `--check-hardening`           | Also report missing hardening measures and security headers                                                                                  | *False*                                         | `COS_CHECK_HARDENING`           |
+| `--timeout`                   | HTTP timeout in seconds per request                                                                                                          | `10`                                            | `COS_TIMEOUT`                   |
+| `--port`                      | Port the instance listens on (OpenCloud's own proxy uses `9200`)                                                                             | from `--host`, else `443`                       | `COS_SCANNER_TARGET_PORT`       |
+| `--scheme`                    | `https` or `http`; `https` falls back to `http` automatically                                                                                | `https`                                         | `COS_SCANNER_SCHEME`            |
+| `--insecure`                  | Do not verify the instance's TLS certificate                                                                                                 | *False*                                         | `COS_INSECURE`                  |
+| `--no-extra-checks`           | Only check product, version and security headers                                                                                             | *False*                                         | `COS_NO_EXTRA_CHECKS`           |
+| `--no-debug-ports`            | Skip probing the OpenCloud debug ports                                                                                                       | *False*                                         | `COS_NO_DEBUG_PORTS`            |
+| `--concurrency`               | Maximum parallel host workers; one is used per host up to this ceiling                                                                       | `5`                                             | `COS_CONCURRENCY`               |
+| `--format`                    | One-shot output format: `nagios` or `prometheus`                                                                                             | `nagios`                                        | `COS_FORMAT`                    |
+| `--prometheus-listen-port`    | Serve native `/metrics` on this port until stopped                                                                                           | disabled                                        | `COS_PROMETHEUS_LISTEN_PORT`    |
+| `--prometheus-listen-addr`    | Bind address for the native Prometheus exporter                                                                                              | `127.0.0.1`                                     | `COS_PROMETHEUS_LISTEN_ADDR`    |
+| `--scrape-interval`           | Seconds to cache exporter scan results (`0` scans on every scrape)                                                                           | `60`                                            | `COS_SCRAPE_INTERVAL`           |
+| `--ignore-hardening`          | Hardening measure or check to accept, repeatable, comma-separated and wildcard capable                                                       | *None*                                          | `COS_SCANNER_IGNORE_HARDENINGS` |
+| `--release-track`             | Release track this instance follows: `rolling`, `production`, `lts` or `auto`                                                                | `auto`                                          | `COS_SCANNER_RELEASE_TRACK`     |
+| `--update-source`             | Where the newest release comes from: `auto`, `feed`, `pinned`, `bundled`, `off`                                                              | `auto`                                          | `COS_UPDATE_SOURCE`             |
+| `--release-feed`              | URL of the release feed                                                                                                                      | GitHub releases API of `opencloud-eu/opencloud` | `COS_RELEASES_FEED_URL`         |
+| `--release-token`             | Token for the release feed (raises GitHub's rate limit)                                                                                      | *None*                                          | `COS_RELEASES_TOKEN`            |
+| `--latest-version`            | Newest release, given explicitly; implies `--update-source pinned`                                                                           | *None*                                          | `COS_RELEASES_LATEST_VERSION`   |
+| `--no-update-check`           | Disable the update check (same as `--update-source off`)                                                                                     | *False*                                         | `COS_NO_UPDATE_CHECK`           |
+| `--update-warning`            | Report WARNING when a newer release is available                                                                                             | *False*                                         | `COS_UPDATE_WARNING`            |
+| `--baseline`                  | File that remembers the findings of the last run, one entry per host                                                                         | *None*                                          | `COS_BASELINE`                  |
+| `--warn-on-new`               | Only alert on findings that are new or worse than the baseline; needs `--baseline`                                                           | *False*                                         | `COS_WARN_ON_NEW`               |
+| `--diff-format`               | Render baseline changes as `text`, `markdown`, or Slack Block Kit `slack`/`json`                                                             | `text`                                          | `COS_DIFF_FORMAT`               |
+| `--self-update-check`         | Note when a newer version of the plugin is published on PyPI; never changes the exit code                                                    | *False*                                         | `COS_SELF_UPDATE_CHECK`         |
+| `--webhook-url`               | Optional endpoint notified when the check reaches the configured state                                                                       | *None* (disabled)                               | `COS_WEBHOOK_URL`               |
+| `--webhook-on`                | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`)                                                          | `critical`                                      | `COS_WEBHOOK_ON`                |
+| `--webhook-header`            | Extra header for the webhook request, repeatable                                                                                             | *None*                                          | `COS_WEBHOOK_HEADERS`           |
+| `--webhook-timeout`           | HTTP timeout in seconds for the webhook call                                                                                                 | `10`                                            | `COS_WEBHOOK_TIMEOUT`           |
+| `--allow-private-webhooks`    | Permit webhooks to private, loopback, or link-local addresses                                                                                | *False*                                         | `COS_ALLOW_PRIVATE_WEBHOOKS`    |
+| `--retries`                   | Retry attempts for transient network errors                                                                                                  | `2`                                             | `COS_RETRIES`                   |
+| `--backoff-factor`            | Exponential backoff factor (seconds) between retries                                                                                         | `0.5`                                           | `COS_BACKOFF_FACTOR`            |
+| `--config`                    | Path to the configuration file (`.json` as JSON, else YAML)                                                                                  | auto-discovered                                 | `COS_CONFIG_FILE`               |
+| `--configure`                 | Ask for the settings interactively and save them, then exit                                                                                  | —                                               | —                               |
+| `--upgrade-self [run\|check]` | Upgrade the plugin with pipx, uv or pip, then exit; `check` prints the command instead of running it                                         | `run` when given without a value                | —                               |
+| `--check-only`                | Only with `--upgrade-self`: another spelling of `--upgrade-self check`                                                                       | —                                               | —                               |
+| `-V, --version`               | Show the installed version and exit                                                                                                          | —                                               | —                               |
+| `-h, --help`                  | Show help and exit                                                                                                                           | —                                               | —                               |
 
 Settings that have no command-line flag of their own - the TLS expiry window,
 the debug-port list, the advisory sources - are configured through the
@@ -715,30 +716,34 @@ Read from the instance itself:
 Plus the additional checks (`extraChecks` in the JSON, disable with
 `--no-extra-checks`):
 
-| Check | Severity | Purpose |
-|:------|:---------|:--------|
-| `httpsAvailable`, `tlsHandshake`, `tlsProtocol` | critical/high | Instance only reachable over HTTP, broken TLS, or a protocol older than TLS 1.2 |
-| `tlsCertificate`, `tlsTrusted` | high/medium | Certificate expired, expiring within `scanner.tls_min_days`, or not trusted |
-| `tlsDeprecatedProtocol` | high | The server still accepts TLS 1.0 or 1.1 even though it negotiated something newer with us |
-| `tlsHostname` | high | The certificate does not cover the name it was asked for |
-| `tlsChain` | medium | The chain is missing an intermediate, so it validates only for clients that happen to have one cached |
-| `tlsCertificateLifetime` | low | The certificate is valid for longer than the 398 days browsers accept |
-| `tlsOcspStapling` | low | No OCSP response stapled to the handshake, although the certificate names a responder |
-| `header:<name>` | high - low | One of the headers above missing or too weak |
-| `authentication:/remote.php/dav/files/`, `/graph/v1.0/users`, `/ocs/v1.php/cloud/user` | critical/high | An endpoint that must demand authentication answered anyway |
-| `exposed:/opencloud.yaml`, `/proxy/server.key`, `/idm/opencloud.boltdb`, `/.env`, `/docker-compose.yml`, `/storage/users/`, `/.git/config` | critical/high | Deployment internals published by a misconfigured reverse proxy |
-| `directoryListing` | critical | A directory index served instead of the web frontend |
-| `demoUsersDisabled` | critical | The built-in identity provider still accepts the documented demo accounts, one of which is an administrator |
-| `debugEndpoint:/metrics`, `/config`, `/debug/pprof/` | critical/high | Debug handlers reachable on the public address |
-| `debugPort:<port>` | high | A service debug port answering from the outside |
-| `backendPortClosed` | high | The same OpenCloud instance is reachable directly on backend port 9200, bypassing its reverse proxy |
-| `webEmbedDelegatedAuthenticationRestricted` | critical | Delegated iframe authentication accepts messages without an explicit trusted origin |
-| `webEmbedMessageOriginRestricted` | high | The web client's embed messages trust every parent origin |
-| `basicAuthDisabled` | medium | The proxy still offers HTTP basic authentication |
-| `identityProviderDetected` | low | No OpenID Connect discovery document and no redirect from it, so who signs users in cannot be established |
-| `reverseProxyDetected` | low | Nothing suggests a reverse proxy in front of the instance |
-| `versionDisclosure:Server`, `webfingerVersionDisclosure` | low | Exact versions leaked to unauthenticated callers |
-| `maintenanceMode`, `databaseUpgrade` | medium/high | Instance in maintenance mode or waiting for a database upgrade |
+| Check                                                                                                                                      | Severity      | Purpose                                                                                                     |
+|:-------------------------------------------------------------------------------------------------------------------------------------------|:--------------|:------------------------------------------------------------------------------------------------------------|
+| `httpsAvailable`, `tlsHandshake`, `tlsProtocol`                                                                                            | critical/high | Instance only reachable over HTTP, broken TLS, or a protocol older than TLS 1.2                             |
+| `tlsCertificate`, `tlsTrusted`                                                                                                             | high/medium   | Certificate expired, expiring within `scanner.tls_min_days`, or not trusted                                 |
+| `tlsDeprecatedProtocol`                                                                                                                    | high          | The server still accepts TLS 1.0 or 1.1 even though it negotiated something newer with us                   |
+| `tlsHostname`                                                                                                                              | high          | The certificate does not cover the name it was asked for                                                    |
+| `tlsChain`                                                                                                                                 | medium        | The chain is missing an intermediate, so it validates only for clients that happen to have one cached       |
+| `tlsCertificateLifetime`                                                                                                                   | low           | The certificate is valid for longer than the 398 days browsers accept                                       |
+| `tlsCipherSuite`                                                                                                                           | medium        | The cipher suite negotiated by this scan is weak or lacks forward secrecy                                   |
+| `tlsCertificatePolicy`                                                                                                                     | medium        | The certificate has a weak key or an MD5/SHA-1 signature                                                    |
+| `tlsAddressParity`                                                                                                                          | medium        | IPv4 and IPv6 present different TLS services, or one is unreachable                                          |
+| `cookieSecure`, `cookieHttpOnly`, `cookieSameSite`                                                                                        | high - low    | An observed cookie lacks Secure, HttpOnly or SameSite                                                        |
+| `tlsOcspStapling`                                                                                                                          | low           | No OCSP response stapled to the handshake, although the certificate names a responder                       |
+| `header:<name>`                                                                                                                            | high - low    | One of the headers above missing or too weak                                                                |
+| `authentication:/remote.php/dav/files/`, `/graph/v1.0/users`, `/ocs/v1.php/cloud/user`                                                     | critical/high | An endpoint that must demand authentication answered anyway                                                 |
+| `exposed:/opencloud.yaml`, `/proxy/server.key`, `/idm/opencloud.boltdb`, `/.env`, `/docker-compose.yml`, `/storage/users/`, `/.git/config` | critical/high | Deployment internals published by a misconfigured reverse proxy                                             |
+| `directoryListing`                                                                                                                         | critical      | A directory index served instead of the web frontend                                                        |
+| `demoUsersDisabled`                                                                                                                        | critical      | The built-in identity provider still accepts the documented demo accounts, one of which is an administrator |
+| `debugEndpoint:/metrics`, `/config`, `/debug/pprof/`                                                                                       | critical/high | Debug handlers reachable on the public address                                                              |
+| `debugPort:<port>`                                                                                                                         | high          | A service debug port answering from the outside                                                             |
+| `backendPortClosed`                                                                                                                        | high          | The same OpenCloud instance is reachable directly on backend port 9200, bypassing its reverse proxy         |
+| `webEmbedDelegatedAuthenticationRestricted`                                                                                                | critical      | Delegated iframe authentication accepts messages without an explicit trusted origin                         |
+| `webEmbedMessageOriginRestricted`                                                                                                          | high          | The web client's embed messages trust every parent origin                                                   |
+| `basicAuthDisabled`                                                                                                                        | medium        | The proxy still offers HTTP basic authentication                                                            |
+| `identityProviderDetected`                                                                                                                 | low           | No OpenID Connect discovery document and no redirect from it, so who signs users in cannot be established   |
+| `reverseProxyDetected`                                                                                                                     | low           | Nothing suggests a reverse proxy in front of the instance                                                   |
+| `versionDisclosure:Server`, `webfingerVersionDisclosure`                                                                                   | low           | Exact versions leaked to unauthenticated callers                                                            |
+| `maintenanceMode`, `databaseUpgrade`                                                                                                       | medium/high   | Instance in maintenance mode or waiting for a database upgrade                                              |
 
 A failed additional check caps the rating (critical -> `D`, high -> `C`, medium
 -> `A`, low -> `A+`); set `scanner.extra_checks_rating: false` to report them
@@ -903,13 +908,13 @@ These listeners bind to loopback by default, so a debug port that answers from
 your monitoring host is a genuine finding - usually a container that published
 the whole port range. The scanner probes the five most informative ones:
 
-| Port | Service |
-|:-----|:--------|
-| 9205 | proxy |
+| Port | Service  |
+|:-----|:---------|
+| 9205 | proxy    |
 | 9141 | frontend |
-| 9124 | graph |
-| 9134 | idp |
-| 9239 | idm |
+| 9124 | graph    |
+| 9134 | idp      |
+| 9239 | idm      |
 
 Each probe is a single TCP connect with a three second timeout, so a firewalled
 host costs up to 15 seconds. Turn the probes off with `--no-debug-ports`, run
@@ -948,11 +953,11 @@ A version number on its own does not tell you whether an OpenCloud instance is
 still receiving security fixes, because OpenCloud maintains three kinds of
 releases at the same time:
 
-| Track | Cadence | Supported until | Support |
-|:------|:--------|:----------------|:--------|
-| **Rolling** | about every 3 weeks | its successor is released | community |
-| **Production** | about every 6 months | the next production release | professional |
-| **LTS** | a production line | 2 years after the line opened | professional |
+| Track          | Cadence              | Supported until               | Support      |
+|:---------------|:---------------------|:------------------------------|:-------------|
+| **Rolling**    | about every 3 weeks  | its successor is released     | community    |
+| **Production** | about every 6 months | the next production release   | professional |
+| **LTS**        | a production line    | 2 years after the line opened | professional |
 
 See the [OpenCloud release lifecycle][lifecycle] for the authoritative
 description.
@@ -1089,13 +1094,13 @@ check-opencloud-scanner scan opencloud.example.com
 check-opencloud-scanner serve --port 8811
 ```
 
-| Endpoint | Behaviour |
-|:---------|:----------|
-| `POST /api/queue` (`url=<host>`) | Scan the host, return `{"uuid": ...}` |
-| `GET /api/result/<uuid>` | Return the stored result |
-| `POST /api/requeue` (`url=<host>`) | Discard the cache and scan again |
-| `GET /api/scan?url=<host>` | Convenience: scan and return the document |
-| `GET /healthz` | Liveness probe |
+| Endpoint                           | Behaviour                                 |
+|:-----------------------------------|:------------------------------------------|
+| `POST /api/queue` (`url=<host>`)   | Scan the host, return `{"uuid": ...}`     |
+| `GET /api/result/<uuid>`           | Return the stored result                  |
+| `POST /api/requeue` (`url=<host>`) | Discard the cache and scan again          |
+| `GET /api/scan?url=<host>`         | Convenience: scan and return the document |
+| `GET /healthz`                     | Liveness probe                            |
 
 The plugin does **not** talk to this service - it has no remote backend and
 always scans in process. The service exists so that several consumers (a
@@ -1156,13 +1161,13 @@ release?" is answered by comparing the `productversion` the instance reports
 against the OpenCloud release feed on GitHub. `--update-source` selects where
 that number comes from:
 
-| Mode | Behaviour |
-|:-----|:----------|
+| Mode             | Behaviour                                                                      |
+|:-----------------|:-------------------------------------------------------------------------------|
 | `auto` (default) | Try the feed; on any failure fall back to the release bundled with the package |
-| `feed` | Only the feed. A failure is reported as unknown rather than silently ignored |
-| `pinned` | Use `--latest-version`. No network access |
-| `bundled` | Use the release recorded in the shipped data file. No network access |
-| `off` | Skip the update check entirely (same as `--no-update-check`) |
+| `feed`           | Only the feed. A failure is reported as unknown rather than silently ignored   |
+| `pinned`         | Use `--latest-version`. No network access                                      |
+| `bundled`        | Use the release recorded in the shipped data file. No network access           |
+| `off`            | Skip the update check entirely (same as `--no-update-check`)                   |
 
 ```shell
 # ask GitHub, with a token to stay clear of the anonymous rate limit
@@ -1195,12 +1200,12 @@ The update check therefore uses the
 [release schedule](#end-of-life-detection) to pick a target on the instance's
 own track:
 
-| Installed | Track | Recommended | Why |
-|:----------|:------|:------------|:----|
-| `7.2.3` | production | *nothing* | Current production release, even though rolling is at `7.4.0` |
-| `7.2.0` | production | `7.2.3` | The newest patch of the same line |
-| `7.3.0` | rolling | `7.4.0` | On rolling, the newest release is the right one |
-| `4.0.0` | LTS | `4.0.8` | Where the backports are |
+| Installed | Track      | Recommended | Why                                                           |
+|:----------|:-----------|:------------|:--------------------------------------------------------------|
+| `7.2.3`   | production | *nothing*   | Current production release, even though rolling is at `7.4.0` |
+| `7.2.0`   | production | `7.2.3`     | The newest patch of the same line                             |
+| `7.3.0`   | rolling    | `7.4.0`     | On rolling, the newest release is the right one               |
+| `4.0.0`   | LTS        | `4.0.8`     | Where the backports are                                       |
 
 The newest release overall is still reported, as `newestRelease` in the JSON
 result and the webhook payload, so nothing is hidden - it is just not
@@ -1234,14 +1239,14 @@ instances on different tracks:
 check-opencloud-security --host opencloud.example.com --release-track auto
 ```
 
-| Installed | Declared | Verdict |
-|:----------|:---------|:--------|
-| `7.2.3` | *nothing* or `auto` | Supported - current production release |
-| `7.2.3` | `production` | Supported - current production release |
-| `7.2.3` | `rolling` | **End of life** - superseded by `7.4.0`, upgrade to `7.4.0` |
-| `7.4.0` | `production` | Supported - ahead of the production track, whose current release is `7.2.3` |
-| `2.3.0` | `production` | **End of life** - behind the production track, upgrade to `7.2.3` |
-| `4.0.8` | `lts` | Supported until the two-year window closes |
+| Installed | Declared            | Verdict                                                                     |
+|:----------|:--------------------|:----------------------------------------------------------------------------|
+| `7.2.3`   | *nothing* or `auto` | Supported - current production release                                      |
+| `7.2.3`   | `production`        | Supported - current production release                                      |
+| `7.2.3`   | `rolling`           | **End of life** - superseded by `7.4.0`, upgrade to `7.4.0`                 |
+| `7.4.0`   | `production`        | Supported - ahead of the production track, whose current release is `7.2.3` |
+| `2.3.0`   | `production`        | **End of life** - behind the production track, upgrade to `7.2.3`           |
+| `4.0.8`   | `lts`               | Supported until the two-year window closes                                  |
 
 Two consequences are worth knowing about in advance:
 
@@ -1319,12 +1324,12 @@ is `COS_SCANNER_TARGET_PORT`, `releases.token` is `COS_RELEASES_TOKEN`,
 Secrets never have to be written into the file or the process environment.
 Any value may be a reference:
 
-| Reference | Resolves to |
-|:----------|:------------|
-| `secret://name` | `<secrets.dir>/name`, i.e. `/run/secrets/name` for Docker and Kubernetes secrets |
-| `file:///path/to/file` | The contents of that file |
-| `env://VARIABLE` | The value of that environment variable |
-| `exec://command --arg` | The stdout of that command (requires `secrets.allow_exec: true`) |
+| Reference              | Resolves to                                                                      |
+|:-----------------------|:---------------------------------------------------------------------------------|
+| `secret://name`        | `<secrets.dir>/name`, i.e. `/run/secrets/name` for Docker and Kubernetes secrets |
+| `file:///path/to/file` | The contents of that file                                                        |
+| `env://VARIABLE`       | The value of that environment variable                                           |
+| `exec://command --arg` | The stdout of that command (requires `secrets.allow_exec: true`)                 |
 
 Alternatively append `_file` to any key or variable:
 `COS_RELEASES_TOKEN_FILE=/run/secrets/token` or `token_file: /run/secrets/token`.
@@ -1398,16 +1403,16 @@ one means and what to change. Every setting below is an OpenCloud environment
 variable; run the plugin with `--debug` to get the same explanation printed
 next to the finding.
 
-| Hardening | What a failure means | Setting to change |
-|:----------|:---------------------|:------------------|
-| `basicAuthDisabled` | The instance offers HTTP Basic auth, so credentials can be replayed on every request and single sign-on (with any second factor) is bypassed. Often deliberate: CalDAV, CardDAV and WebDAV clients cannot speak OpenID Connect, which is why this is rated `medium`, and `low` when an external identity provider handles the interactive login. | [`PROXY_ENABLE_BASIC_AUTH=false`][proxy-env] if nothing needs it; otherwise keep it and hand those clients app tokens rather than account passwords. |
-| `cspWithoutUnsafeInline` | The `Content-Security-Policy` contains `'unsafe-inline'`, so injected markup may execute. **This is OpenCloud's shipped default** - see the note below. | [`PROXY_CSP_CONFIG_FILE_LOCATION`][proxy-env] pointing at your own `csp.yaml` (or `PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION` to replace the default outright). |
-| `publicLinkPasswordEnforced` | Public links may be created without a password, so the URL alone grants access. OpenCloud enforces a password on read-only links but not on writable ones. | [`OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD=true`][sharing-env] and `OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD=true`. |
-| `passwordPolicyEnforced` | Public link passwords may be shorter than 8 characters. (This policy covers link passwords, not account passwords - those belong to your identity provider.) | [`OC_PASSWORD_POLICY_MIN_CHARACTERS`][link-password] (default `8`), plus the `MIN_LOWERCASE`/`MIN_UPPERCASE`/`MIN_DIGITS`/`MIN_SPECIAL_CHARACTERS` companions. |
-| `hstsLongMaxAge` | `Strict-Transport-Security` carries a `max-age` below a year. | None in OpenCloud - its proxy sends ten years, so a short value comes from a reverse proxy in front of it. |
-| `hstsPreload` | The same header has no `preload` directive, so the very first request to the host is unprotected. | None in OpenCloud - again a reverse proxy rewriting the header. Only add `preload` once every subdomain is HTTPS-only. |
-| `publicLinkExpirationEnforced` | Nothing about your instance: OpenCloud hardcodes this capability to `false`. **Never alerted on** - see below. | None exists. |
-| `userEnumerationRestricted` | Account search is not limited to shared groups. OpenCloud hardcodes the restricted state, so this passes everywhere. | None exists. |
+| Hardening                      | What a failure means                                                                                                                                                                                                                                                                                                                             | Setting to change                                                                                                                                              |
+|:-------------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `basicAuthDisabled`            | The instance offers HTTP Basic auth, so credentials can be replayed on every request and single sign-on (with any second factor) is bypassed. Often deliberate: CalDAV, CardDAV and WebDAV clients cannot speak OpenID Connect, which is why this is rated `medium`, and `low` when an external identity provider handles the interactive login. | [`PROXY_ENABLE_BASIC_AUTH=false`][proxy-env] if nothing needs it; otherwise keep it and hand those clients app tokens rather than account passwords.           |
+| `cspWithoutUnsafeInline`       | The `Content-Security-Policy` contains `'unsafe-inline'`, so injected markup may execute. **This is OpenCloud's shipped default** - see the note below.                                                                                                                                                                                          | [`PROXY_CSP_CONFIG_FILE_LOCATION`][proxy-env] pointing at your own `csp.yaml` (or `PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION` to replace the default outright).  |
+| `publicLinkPasswordEnforced`   | Public links may be created without a password, so the URL alone grants access. OpenCloud enforces a password on read-only links but not on writable ones.                                                                                                                                                                                       | [`OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD=true`][sharing-env] and `OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD=true`.                              |
+| `passwordPolicyEnforced`       | Public link passwords may be shorter than 8 characters. (This policy covers link passwords, not account passwords - those belong to your identity provider.)                                                                                                                                                                                     | [`OC_PASSWORD_POLICY_MIN_CHARACTERS`][link-password] (default `8`), plus the `MIN_LOWERCASE`/`MIN_UPPERCASE`/`MIN_DIGITS`/`MIN_SPECIAL_CHARACTERS` companions. |
+| `hstsLongMaxAge`               | `Strict-Transport-Security` carries a `max-age` below a year.                                                                                                                                                                                                                                                                                    | None in OpenCloud - its proxy sends ten years, so a short value comes from a reverse proxy in front of it.                                                     |
+| `hstsPreload`                  | The same header has no `preload` directive, so the very first request to the host is unprotected.                                                                                                                                                                                                                                                | None in OpenCloud - again a reverse proxy rewriting the header. Only add `preload` once every subdomain is HTTPS-only.                                         |
+| `publicLinkExpirationEnforced` | Nothing about your instance: OpenCloud hardcodes this capability to `false`. **Never alerted on** - see below.                                                                                                                                                                                                                                   | None exists.                                                                                                                                                   |
+| `userEnumerationRestricted`    | Account search is not limited to shared groups. OpenCloud hardcodes the restricted state, so this passes everywhere.                                                                                                                                                                                                                             | None exists.                                                                                                                                                   |
 
 [proxy-env]: https://docs.opencloud.eu/docs/dev/server/services/proxy/environment-variables
 [sharing-env]: https://docs.opencloud.eu/docs/dev/server/services/sharing/environment-variables
@@ -1752,14 +1757,14 @@ the rating, the OpenCloud version and the reason for the state are visible in
 the heartbeat detail. To surface the state in the message column too, use the
 push URL's own query parameters alongside the webhook:
 
-| Field in the payload | What it tells you in Uptime Kuma |
-|:---------------------|:---------------------------------|
-| `status` / `exit_code` | `OK`, `WARNING`, `CRITICAL` or `UNKNOWN` |
-| `message` | The one-line reason, ready to paste into an alert |
-| `rating`, `rating_label` | The `0`-`5` score and its `A`-`F` label |
-| `product_version`, `eol` | Which OpenCloud release, and whether it still gets fixes |
-| `update.availableVersion` | What to upgrade to |
-| `duration_seconds` | How long the scan took |
+| Field in the payload      | What it tells you in Uptime Kuma                         |
+|:--------------------------|:---------------------------------------------------------|
+| `status` / `exit_code`    | `OK`, `WARNING`, `CRITICAL` or `UNKNOWN`                 |
+| `message`                 | The one-line reason, ready to paste into an alert        |
+| `rating`, `rating_label`  | The `0`-`5` score and its `A`-`F` label                  |
+| `product_version`, `eol`  | Which OpenCloud release, and whether it still gets fixes |
+| `update.availableVersion` | What to upgrade to                                       |
+| `duration_seconds`        | How long the scan took                                   |
 
 If you would rather have Uptime Kuma go down on *any* problem, keep
 `--webhook-on always` and add a keyword check on the JSON, or run a second
@@ -1903,15 +1908,15 @@ The `rating` metric carries the configured WARNING and CRITICAL thresholds in
 Nagios range syntax (`@0:3` means "warn inside 0-3"), so Icinga2 draws them on
 the graph without extra configuration.
 
-| Metric            | Meaning                                                         |
-|:------------------|:-----------------------------------------------------------------|
-| `rating`          | Numeric scan rating, `0`-`5` (`5`=A+ ... `0`=F), `U` if unknown |
-| `vulnerabilities` | Number of known vulnerabilities reported for the scanned version |
-| `time`            | Time spent on the scan, in seconds                               |
-| `hardenings_missing` | Missing hardening measures (only with `--check-hardening`)     |
-| `extra_checks_failed` | Number of failed additional checks                           |
-| `update_available` | `1` when a newer OpenCloud release exists                       |
-| `support_days_left` | Days until the release line loses support (negative when overdue) |
+| Metric                | Meaning                                                           |
+|:----------------------|:------------------------------------------------------------------|
+| `rating`              | Numeric scan rating, `0`-`5` (`5`=A+ ... `0`=F), `U` if unknown   |
+| `vulnerabilities`     | Number of known vulnerabilities reported for the scanned version  |
+| `time`                | Time spent on the scan, in seconds                                |
+| `hardenings_missing`  | Missing hardening measures (only with `--check-hardening`)        |
+| `extra_checks_failed` | Number of failed additional checks                                |
+| `update_available`    | `1` when a newer OpenCloud release exists                         |
+| `support_days_left`   | Days until the release line loses support (negative when overdue) |
 
 Outside Icinga2, the same numbers reach Prometheus through the node_exporter
 textfile collector or a Pushgateway - see
@@ -1980,23 +1985,23 @@ what each identifier means - see
 The longer deployment walk-throughs live in [`docs/`](docs/README.md), so that
 this file stays the reference for the options themselves.
 
-| Guide | What it covers |
-|:------|:---------------|
-| [Icinga Director](docs/icinga-director.md) | The `CheckCommand`, data fields, service template and apply rule, through the web UI |
-| [Automated deployment with Ansible](docs/ansible.md) | The native and Docker roles, their variables, and deploying the Icinga2 objects unattended |
-| [Scanning from the command line, in one line](docs/docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the web interface: JSON output, private networks, waivers and a shell function |
-| [Scheduling without Icinga2 / Nagios](docs/scheduling.md) | systemd timer and cron, using the files in [`contrib/`](contrib/) |
-| [Kubernetes](docs/kubernetes.md) | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes |
-| [Running the check from CI](docs/ci.md) | GitHub Actions and GitLab CI, and gating a pipeline on the result document |
-| [The public scan service](docs/webapp.md) | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits |
-| [Redis behind the scan service](docs/redis.md) | What is kept in Redis and for how long, giving it a password, keeping it off the network, memory and eviction, and reading its health |
-| [Using the scanner from an AI agent](docs/mcp.md) | The MCP endpoint: configuring Claude Code, Claude Desktop, GitHub Copilot, Cursor, Zed and Windsurf against the hosted or a self-hosted service, and turning it off |
-| [A sign-in on the MCP endpoint](docs/authentik.md) | The whole stack with Authentik in it, the self-provisioning OIDC provider, the `COS_WEB_MCP_AUTH_*` settings, adding the users and service accounts that may use it, getting a token, sending mail, and backing it up |
-| [Reverse proxies](docs/reverse-proxy.md) | nginx, Apache, Caddy, Traefik and HAProxy - in front of an OpenCloud instance, and in front of the scan service |
-| [Checking a fleet of instances](docs/many-instances.md) | One configuration file per instance, and keeping waivers honest |
-| [Prometheus and Grafana](docs/prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
-| [Webhook recipes](docs/webhook-recipes.md) | Adapters for Slack, Discord, ntfy and Alertmanager |
-| [Troubleshooting](docs/troubleshooting.md) | The errors people actually hit, and the exit code reference |
+| Guide                                                                  | What it covers                                                                                                                                                                                                        |
+|:-----------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Icinga Director](docs/icinga-director.md)                             | The `CheckCommand`, data fields, service template and apply rule, through the web UI                                                                                                                                  |
+| [Automated deployment with Ansible](docs/ansible.md)                   | The native and Docker roles, their variables, and deploying the Icinga2 objects unattended                                                                                                                            |
+| [Scanning from the command line, in one line](docs/docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the web interface: JSON output, private networks, waivers and a shell function                                                         |
+| [Scheduling without Icinga2 / Nagios](docs/scheduling.md)              | systemd timer and cron, using the files in [`contrib/`](contrib/)                                                                                                                                                     |
+| [Kubernetes](docs/kubernetes.md)                                       | A `CronJob` for scheduled scans, and the scan service as a `Deployment` with probes                                                                                                                                   |
+| [Running the check from CI](docs/ci.md)                                | GitHub Actions and GitLab CI, and gating a pipeline on the result document                                                                                                                                            |
+| [The public scan service](docs/webapp.md)                              | The web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF protection and rate limits                                                                                                                 |
+| [Redis behind the scan service](docs/redis.md)                         | What is kept in Redis and for how long, giving it a password, keeping it off the network, memory and eviction, and reading its health                                                                                 |
+| [Using the scanner from an AI agent](docs/mcp.md)                      | The MCP endpoint: configuring Claude Code, Claude Desktop, GitHub Copilot, Cursor, Zed and Windsurf against the hosted or a self-hosted service, and turning it off                                                   |
+| [A sign-in on the MCP endpoint](docs/authentik.md)                     | The whole stack with Authentik in it, the self-provisioning OIDC provider, the `COS_WEB_MCP_AUTH_*` settings, adding the users and service accounts that may use it, getting a token, sending mail, and backing it up |
+| [Reverse proxies](docs/reverse-proxy.md)                               | nginx, Apache, Caddy, Traefik and HAProxy - in front of an OpenCloud instance, and in front of the scan service                                                                                                       |
+| [Checking a fleet of instances](docs/many-instances.md)                | One configuration file per instance, and keeping waivers honest                                                                                                                                                       |
+| [Prometheus and Grafana](docs/prometheus.md)                           | Textfile collector, Pushgateway, alerting rules and what to graph                                                                                                                                                     |
+| [Webhook recipes](docs/webhook-recipes.md)                             | Adapters for Slack, Discord, ntfy and Alertmanager                                                                                                                                                                    |
+| [Troubleshooting](docs/troubleshooting.md)                             | The errors people actually hit, and the exit code reference                                                                                                                                                           |
 
 Something not working? Start with
 [Troubleshooting](docs/troubleshooting.md), which also carries the exit code

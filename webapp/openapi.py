@@ -538,6 +538,12 @@ def _schemas() -> dict[str, Any]:
                         "altNames": {"type": "array", "items": {"type": "string"}},
                         "ocspResponders": {"type": "array", "items": {"type": "string"}},
                         "selfSigned": {"type": "boolean"},
+                        "keyType": {
+                            "type": "string",
+                            "description": "The public-key algorithm, when OpenSSL could inspect it.",
+                        },
+                        "keyBits": {"type": ["integer", "null"]},
+                        "signatureAlgorithm": {"type": "string"},
                     },
                 },
             },

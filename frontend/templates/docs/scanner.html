@@ -684,6 +684,14 @@ nothing about ratings. Beyond the handshake and trust it reports:</p>
 <td>Is it valid for longer than the 398 days browsers accept?</td>
 </tr>
 <tr>
+<td><code>tlsCipherSuite</code></td>
+<td>Is the cipher suite negotiated by this scan modern and forward-secret?</td>
+</tr>
+<tr>
+<td><code>tlsCertificatePolicy</code></td>
+<td>Does the certificate use an adequately sized key and a modern signature?</td>
+</tr>
+<tr>
 <td><code>tlsOcspStapling</code></td>
 <td>Is a revocation response stapled to the handshake?</td>
 </tr>
@@ -718,7 +726,10 @@ and stapling probes found.</p>
     &quot;lifetimeDays&quot;: 90,
     &quot;altNames&quot;: [&quot;opencloud.example.com&quot;],
     &quot;ocspResponders&quot;: [],
-    &quot;selfSigned&quot;: false
+    &quot;selfSigned&quot;: false,
+    &quot;keyType&quot;: &quot;RSA&quot;,
+    &quot;keyBits&quot;: 2048,
+    &quot;signatureAlgorithm&quot;: &quot;sha256WithRSAEncryption&quot;
   }
 }
 </code></pre>

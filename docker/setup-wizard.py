@@ -8,8 +8,8 @@ Interactive Docker setup for the check-opencloud-security web application.
 It asks, one question at a time, for the settings a deployment of the web
 application actually has to decide - what the service is reachable at, how
 hard it is allowed to scan, who may erase results, whether an AI agent may
-use it - explains what each one does and shows an example answer, and then
-writes two files:
+use it, whether the images update themselves - explains what each one does
+and shows an example answer, and then writes two files:
 
 * ``docker-compose.yml`` - the stack, with every non-secret answer inline and
   commented, so the file explains itself to whoever reads it next;
@@ -39,7 +39,10 @@ freshly installed host that has Docker and nothing else.
 
 Nothing is overwritten by surprise: an existing file has to be confirmed, and
 the compose files that ship with this project are refused outright, because
-the next ``git pull`` would take a hand-made deployment with it.
+the next ``git pull`` would take a hand-made deployment with it. A ``.env``
+that is already there is read back instead: its values become the defaults
+the questions offer, so re-running the wizard against a live deployment edits
+it rather than regenerating every credential it holds.
 
 Non-interactive use, for a test or an unattended install:
 
@@ -72,6 +75,11 @@ AUTHENTIK_IMAGE = "ghcr.io/goauthentik/server"
 AUTHENTIK_TAG = "2026.8.0"
 BLUEPRINT_SOURCE = REPO_ROOT / "authentik" / "blueprints" / "opencloud-scanner.yaml"
 BLUEPRINT_RELATIVE = Path("authentik") / "blueprints" / "opencloud-scanner.yaml"
+
+# The updater a deployment gets when it asks for automatic updates. Unlike
+# the identity provider it follows 'latest': the thing that applies updates
+# should not be the one thing that never receives one.
+WATCHTOWER_IMAGE = "containrrr/watchtower:latest"
 
 # Compose files that ship with the project. Writing over one of them would put
 # a deployment's own settings in the way of the next update, so the wizard
@@ -107,6 +115,12 @@ class Setup:
     image_ref: str = DOCKERHUB_IMAGE
     build_context: str = ".."
     project_name: str = "opencloud-scan"
+
+    # Automatic updates of the pulled images. On, and Watchtower joins the
+    # stack; the socket is detected for the user running the wizard, because
+    # a rootless Docker serves it somewhere else than /var/run.
+    auto_updates: bool = False
+    watchtower_socket: str = ""
 
     # How the service is reached.
     bind_address: str = "127.0.0.1"
@@ -332,6 +346,12 @@ def _mail_address(value: str) -> str | None:
     return None
 
 
+def _socket_path(value: str) -> str | None:
+    if not value.startswith("/"):
+        return "A socket path is absolute, e.g. /var/run/docker.sock."
+    return None
+
+
 def _hex_key(value: str) -> str | None:
     if not value.strip():
         return None
@@ -505,6 +525,31 @@ def build_sections(setup: Setup) -> list[Section]:
                         "deployments on one host stay out of each other's way."
                     ),
                     example="opencloud-scan",
+                ),
+                Question(
+                    key="auto_updates",
+                    prompt="Keep the pulled images up to date automatically?",
+                    explain=(
+                        "Adds Watchtower to the stack: once a day it asks the registry "
+                        "whether an image this stack runs has moved, pulls the new one "
+                        "and restarts the container. Only containers carrying its label "
+                        "are touched, so other projects on the same host are left alone, "
+                        "and a locally built image is skipped rather than replaced."
+                    ),
+                    example="no",
+                    kind="bool",
+                ),
+                Question(
+                    key="watchtower_socket",
+                    prompt="Docker socket Watchtower reaches the daemon through",
+                    explain=(
+                        "Detected for the user running this wizard. A rootless Docker "
+                        "serves its socket under /run/user/<uid> rather than /var/run, "
+                        "and Watchtower must talk to the same daemon the containers "
+                        "run on or it sees nothing to update."
+                    ),
+                    example="/run/user/1000/docker.sock",
+                    validate=_socket_path,
                 ),
             ],
         ),
@@ -1163,6 +1208,8 @@ def _relevant(key: str, setup: Setup) -> bool:
         return setup.image_source == "dockerhub"
     if key == "build_context":
         return setup.image_source == "build"
+    if key == "watchtower_socket":
+        return setup.auto_updates
     if key == "releases_token":
         return setup.releases_mode != "off"
     if key in {"mcp_allowed_hosts", "mcp_max_concurrent_waits", "mcp_auth_enabled"}:
@@ -1242,6 +1289,14 @@ def check_consistency(setup: Setup) -> list[str]:
         warnings.append(
             "Encryption without a key is refused at startup rather than "
             "storing plaintext. Answer 'generate' at the key question."
+        )
+    if setup.auto_updates and setup.image_source == "build":
+        warnings.append(
+            "Automatic updates follow pulled images, and the application "
+            "containers here are built locally - Watchtower will keep Redis "
+            "and the rest current but cannot rebuild those. Update them with "
+            "'docker compose up -d --build', or answer 'dockerhub' at the "
+            "image question."
         )
     if setup.allow_private_targets and setup.bind_address == "0.0.0.0":  # nosec B104
         warnings.append(
@@ -1413,6 +1468,7 @@ def _authentik_services(setup: Setup) -> str:
     image = f"{AUTHENTIK_IMAGE}:{setup.authentik_tag}"
     environment = _render_environment(_authentik_environment(setup), "      ")
     blueprints = f"./{BLUEPRINT_RELATIVE.parent.as_posix()}:/blueprints/custom:ro"
+    label = _update_label(setup)
     return f"""
   # Authentik, which is what makes the sign-in above enforceable. It
   # provisions itself: `{BLUEPRINT_RELATIVE.as_posix()}` is mounted into
@@ -1444,7 +1500,7 @@ def _authentik_services(setup: Setup) -> str:
       retries: 5
     security_opt:
       - no-new-privileges:true
-
+{label}
   authentik_server:
     image: "{image}"
     container_name: {setup.project_name}-authentik
@@ -1473,7 +1529,7 @@ def _authentik_services(setup: Setup) -> str:
       - authentik_templates:/templates
     security_opt:
       - no-new-privileges:true
-
+{label}
   authentik_worker:
     image: "{image}"
     container_name: {setup.project_name}-authentik-worker
@@ -1495,7 +1551,7 @@ def _authentik_services(setup: Setup) -> str:
       - authentik_templates:/templates
     security_opt:
       - no-new-privileges:true
-"""
+{label}"""
 
 
 def _authentik_volumes(setup: Setup) -> str:
@@ -1860,6 +1916,51 @@ def _image_block(setup: Setup, container: str) -> str:
     )
 
 
+def _update_label(setup: Setup) -> str:
+    """The label Watchtower watches for, or nothing when updates are manual.
+
+    The label is what keeps Watchtower inside this stack: without it, every
+    container on the host would be fair game for a restart.
+    """
+    if not setup.auto_updates:
+        return ""
+    return '    labels:\n      com.centurylinklabs.watchtower.enable: "true"\n'
+
+
+def _watchtower_service(setup: Setup) -> str:
+    """Automatic updates, for the deployment that asked for them."""
+    if not setup.auto_updates:
+        return ""
+    return f"""
+  # Watchtower, which is what makes the updates above automatic. Once a day
+  # it asks the registry whether an image this stack runs has moved, pulls the
+  # new one and restarts the container. Only containers carrying the enable
+  # label are touched - without WATCHTOWER_LABEL_ENABLE it would update every
+  # container on the host - and a locally built image is skipped rather than
+  # replaced, because Watchtower cannot build anything.
+  #
+  # The Docker socket is the whole of its authority, and handing a container
+  # the daemon socket is handing it the host. It is mounted read-write because
+  # restarting containers *is* writing. A rootless Docker serves its socket
+  # under /run/user/<uid>; the wizard detected {setup.watchtower_socket} for
+  # the user that ran it.
+  watchtower:
+    image: {WATCHTOWER_IMAGE}
+    container_name: {setup.project_name}-watchtower
+    restart: unless-stopped
+    volumes:
+      - {setup.watchtower_socket}:/var/run/docker.sock
+    environment:
+      # Six-field cron: 4am every day. A failed check tries again tomorrow.
+      WATCHTOWER_SCHEDULE: "0 0 4 * * *"
+      # Delete the superseded image, or the disk fills one layer per update.
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+    security_opt:
+      - no-new-privileges:true
+"""
+
+
 def render_compose_file(setup: Setup, name: str = "docker-compose.yml") -> str:
     """The compose file: every non-secret answer, inline and explained.
 
@@ -1930,7 +2031,7 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-
+{_update_label(setup)}
   arq_worker:
 {_image_block(setup, "worker")}    restart: unless-stopped
     command: ["python", "-m", "webapp.tasks"]
@@ -1963,7 +2064,7 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-
+{_update_label(setup)}
   redis:
     image: redis:8.10-alpine
     container_name: {setup.project_name}-redis
@@ -1998,7 +2099,7 @@ services:
       retries: 5
     security_opt:
       - no-new-privileges:true
-{_authentik_services(setup)}
+{_update_label(setup)}{_watchtower_service(setup)}{_authentik_services(setup)}
 networks:
   # The two application containers keep the default network, because a scan is
   # an outbound HTTP request and the web service is published on a port. Redis
@@ -2125,6 +2226,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Ask nothing and take every default, generating the credentials.",
     )
     parser.add_argument(
+        "--auto-updates",
+        action="store_true",
+        help=(
+            "Add Watchtower to the generated stack so the pulled images are "
+            "updated automatically, scoped to this stack's own containers."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite existing files without asking.",
@@ -2193,6 +2302,8 @@ def _apply_flags(setup: Setup, args: argparse.Namespace) -> None:
     if args.sign_in:
         setup.enable_mcp = True
         setup.mcp_auth_enabled = True
+    if args.auto_updates:
+        setup.auto_updates = True
     # Deliberately does not turn the sign-in on. Provisioning a provider and
     # requiring a token are separate decisions, and a flag that quietly made
     # the second one would be a flag that closed an endpoint somebody meant
@@ -2217,6 +2328,27 @@ def _apply_flags(setup: Setup, args: argparse.Namespace) -> None:
     password = os.environ.get("AUTHENTIK_EMAIL_PASSWORD", "").strip()
     if password:
         setup.smtp_password = password
+
+
+def detect_docker_socket() -> str:
+    """The Docker socket of the user running this wizard.
+
+    Watchtower has to reach the same daemon the containers run on. A rootless
+    Docker serves its socket under the user's runtime directory rather than
+    /var/run, so which path answers is a fact about the installation, not a
+    preference. ``DOCKER_HOST`` wins when it is set, because that is the
+    socket every other Docker command in this shell is already using.
+    """
+    docker_host = os.environ.get("DOCKER_HOST", "")
+    if docker_host.startswith("unix://"):
+        return docker_host[len("unix://"):]
+    getuid = getattr(os, "getuid", None)
+    if getuid is not None and getuid() != 0:
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{getuid()}"
+        rootless = Path(runtime_dir) / "docker.sock"
+        if rootless.exists():
+            return str(rootless)
+    return "/var/run/docker.sock"
 
 
 def _default_build_context(output_dir: Path) -> str:
@@ -2257,6 +2389,33 @@ def _generate_unattended(setup: Setup) -> None:
         setup.encryption_key = secrets.token_hex(32)
 
 
+def _read_existing_env(setup: Setup, env_path: Path) -> int:
+    """Values from a `.env` that is already there, as the defaults.
+
+    Re-running the wizard against an existing deployment should feel like
+    editing it, not like starting over: every credential it already holds is
+    offered back rather than regenerated, so a token something else depends
+    on survives the second run. Command-line flags are applied afterwards
+    and still win.
+    """
+    if not env_path.is_file():
+        return 0
+    variables = {variable: key for key, variable in SECRET_VARIABLES.items()}
+    loaded = 0
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        name, separator, value = line.partition("=")
+        if not separator:
+            continue
+        key = variables.get(name.strip())
+        value = value.strip()
+        if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        if key and value:
+            setattr(setup, key, value)
+            loaded += 1
+    return loaded
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
 
@@ -2271,8 +2430,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     setup = Setup()
     _apply_preset(setup, args.preset)
+    reused = _read_existing_env(setup, env_path)
     _apply_flags(setup, args)
     setup.build_context = _default_build_context(output_dir)
+    setup.watchtower_socket = setup.watchtower_socket or detect_docker_socket()
 
     wizard = Wizard(setup, interactive=not args.non_interactive)
     wizard.say("Docker setup for the check-opencloud-security web application")
@@ -2289,6 +2450,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     wizard.say(f"  Compose file: {compose_path}")
     wizard.say(f"  Secrets file: {env_path}")
     wizard.say(f"  Preset:       {args.preset}")
+    if reused:
+        wizard.say()
+        wizard.say(
+            f"  {env_path} is already there: its values are the defaults below,"
+        )
+        wizard.say("  so nothing you configured before is generated anew.")
     wizard.say()
     wizard.say(
         "  This is not the plugin's --configure wizard, which sets up a"

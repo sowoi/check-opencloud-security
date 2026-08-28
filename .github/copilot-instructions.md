@@ -166,7 +166,12 @@ plugin.** It is standalone and stdlib-only, asks question by question with an
 explanation and an example, and writes a commented compose file plus a `.env`
 holding every credential the compose file refers to as `${NAME}` - a secret
 never lands in the compose file, and `.env` is created `0600`. It refuses to
-overwrite the compose files that ship in `docker/`. Keep it independent of
+overwrite the compose files that ship in `docker/`, and reads an existing
+`.env` back instead of regenerating it - its values become the defaults, so a
+re-run edits a deployment. Asked for automatic
+updates, it adds Watchtower scoped by label to the stack's own containers and
+detects the Docker socket for the user running it - a rootless Docker serves
+it under `/run/user/<uid>`, not `/var/run`. Keep it independent of
 `opencloud_local_scan.wizard`, which sets up a monitoring check;
 `tests/test_docker_wizard.py` asserts both the split and the independence.
 

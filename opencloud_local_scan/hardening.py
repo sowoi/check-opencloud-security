@@ -464,6 +464,79 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_TLS,
     ),
+    "tlsCipherSuite": Hardening(
+        id="tlsCipherSuite",
+        title="The negotiated TLS cipher suite is weak",
+        meaning=(
+            "The TLS connection completed with a cipher suite that uses a "
+            "legacy primitive or does not provide forward secrecy. A modern "
+            "protocol version alone does not protect a connection whose normal "
+            "cipher selection is weak. This finding judges the suite this scan "
+            "actually negotiated; it does not claim to enumerate every suite "
+            "the server might offer."
+        ),
+        remediation=(
+            "Configure the TLS terminator to use TLS 1.2+ cipher suites with "
+            "AEAD encryption and ephemeral ECDHE or DHE key exchange, then "
+            "reload it. Remove NULL, RC4, DES/3DES, MD5, SHA-1 and static-RSA "
+            "suites rather than merely preferring stronger ones."
+        ),
+        reference=DOCS_TLS,
+    ),
+    "tlsCertificatePolicy": Hardening(
+        id="tlsCertificatePolicy",
+        title="The certificate uses a weak key or signature",
+        meaning=(
+            "The presented certificate has an RSA key below 2048 bits, an EC "
+            "key below 256 bits, or an MD5/SHA-1 signature. Those parameters "
+            "are no longer an adequate protection for an internet-facing "
+            "certificate, even if the certificate has not expired."
+        ),
+        remediation=(
+            "Issue a replacement certificate with at least a 2048-bit RSA key "
+            "or a 256-bit EC key and a SHA-256-or-stronger signature. Update "
+            "the issuing CA template as well, so the next renewal does not "
+            "restore the weak parameters."
+        ),
+        reference=DOCS_TLS,
+    ),
+    "tlsAddressParity": Hardening(
+        id="tlsAddressParity",
+        title="IPv4 and IPv6 do not present the same TLS service",
+        meaning=(
+            "The hostname publishes both address families, but their TLS "
+            "endpoints differ or one cannot complete a handshake. Visitors may "
+            "reach either address, so an old IPv6 listener can bypass the TLS "
+            "configuration maintained on IPv4."
+        ),
+        remediation=(
+            "Deploy the same TLS terminator configuration and certificate on "
+            "both address families, or remove the stale DNS record until it is "
+            "ready."
+        ),
+        reference=DOCS_TLS,
+    ),
+    "cookieSecure": Hardening(
+        id="cookieSecure",
+        title="An observed cookie can travel over HTTP",
+        meaning="A cookie sent by the public response lacks the Secure attribute.",
+        remediation="Set Secure on every cookie the reverse proxy or application issues.",
+        reference=DOCS_REVERSE_PROXY,
+    ),
+    "cookieHttpOnly": Hardening(
+        id="cookieHttpOnly",
+        title="An observed cookie is readable by page scripts",
+        meaning="A cookie sent by the public response lacks the HttpOnly attribute.",
+        remediation="Set HttpOnly unless a browser script must deliberately read that cookie.",
+        reference=DOCS_REVERSE_PROXY,
+    ),
+    "cookieSameSite": Hardening(
+        id="cookieSameSite",
+        title="An observed cookie has no cross-site policy",
+        meaning="A cookie sent by the public response lacks a SameSite attribute.",
+        remediation="Set SameSite=Lax or Strict unless a documented cross-site flow needs None.",
+        reference=DOCS_REVERSE_PROXY,
+    ),
     "tlsOcspStapling": Hardening(
         id="tlsOcspStapling",
         title="No OCSP response is stapled to the handshake",
