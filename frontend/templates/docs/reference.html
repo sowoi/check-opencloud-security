@@ -789,6 +789,16 @@ below describes what the built-in scanner does and how to tune it.</p>
 <td>The certificate has a weak key or an MD5/SHA-1 signature</td>
 </tr>
 <tr>
+<td><code>tlsAddressParity</code></td>
+<td>medium</td>
+<td>IPv4 and IPv6 present different TLS services, or one is unreachable</td>
+</tr>
+<tr>
+<td><code>cookieSecure</code>, <code>cookieHttpOnly</code>, <code>cookieSameSite</code></td>
+<td>high - low</td>
+<td>An observed cookie lacks Secure, HttpOnly or SameSite</td>
+</tr>
+<tr>
 <td><code>tlsOcspStapling</code></td>
 <td>low</td>
 <td>No OCSP response stapled to the handshake, although the certificate names a responder</td>
