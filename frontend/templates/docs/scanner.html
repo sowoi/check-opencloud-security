@@ -648,6 +648,9 @@ than failing on the first one:</p>
 still shows up in the findings; it just stops counting against the rating, so
 a self-signed instance can be monitored without a permanently degraded grade
 while a genuinely broken certificate elsewhere still stands out.</p>
+<p>For an internal CA, keep verification on and set <code>scanner.tls_ca_file</code> (or
+<code>COS_SCANNER_TLS_CA_FILE</code>) to its PEM bundle; <code>check-opencloud-scanner scan</code>
+also accepts <code>--ca-file</code>. This trusts that CA without turning verification off.</p>
 <h3 id="what-is-measured">What is measured</h3>
 <p><code>tls.py</code> does the inspecting and hands <code>scanner.py</code> a list of checks; it knows
 nothing about ratings. Beyond the handshake and trust it reports:</p>
@@ -684,6 +687,22 @@ nothing about ratings. Beyond the handshake and trust it reports:</p>
 <td>Is it valid for longer than the 398 days browsers accept?</td>
 </tr>
 <tr>
+<td><code>tlsCipherSuite</code></td>
+<td>Is the cipher suite negotiated by this scan modern and forward-secret?</td>
+</tr>
+<tr>
+<td><code>tlsCertificatePolicy</code></td>
+<td>Does the certificate use an adequately sized key and a modern signature?</td>
+</tr>
+<tr>
+<td><code>tlsAddressParity</code></td>
+<td>Do the published IPv4 and IPv6 endpoints present the same usable TLS identity?</td>
+</tr>
+<tr>
+<td><code>cookieSecure</code>, <code>cookieHttpOnly</code>, <code>cookieSameSite</code></td>
+<td>Do cookies actually observed on the public response carry these attributes?</td>
+</tr>
+<tr>
 <td><code>tlsOcspStapling</code></td>
 <td>Is a revocation response stapled to the handshake?</td>
 </tr>
@@ -718,7 +737,10 @@ and stapling probes found.</p>
     &quot;lifetimeDays&quot;: 90,
     &quot;altNames&quot;: [&quot;opencloud.example.com&quot;],
     &quot;ocspResponders&quot;: [],
-    &quot;selfSigned&quot;: false
+    &quot;selfSigned&quot;: false,
+    &quot;keyType&quot;: &quot;RSA&quot;,
+    &quot;keyBits&quot;: 2048,
+    &quot;signatureAlgorithm&quot;: &quot;sha256WithRSAEncryption&quot;
   }
 }
 </code></pre>

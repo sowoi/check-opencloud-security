@@ -70,6 +70,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Do not verify TLS certificates (OpenCloud self-signs by default).",
     )
     scan_parser.add_argument(
+        "--ca-file", help="PEM CA bundle used to verify an internal TLS certificate."
+    )
+    scan_parser.add_argument(
         "--no-extra-checks",
         dest="extra_checks",
         action="store_false",
@@ -227,6 +230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         config,
         timeout=getattr(args, "timeout", None),
         verify_tls=getattr(args, "verify_tls", None),
+        tls_ca_file=getattr(args, "ca_file", None),
         extra_checks=getattr(args, "extra_checks", None),
         check_debug_ports=getattr(args, "check_debug_ports", None),
         port=getattr(args, "port", None) if args.command == "scan" else None,

@@ -44,7 +44,7 @@ import subprocess  # nosec B404 - only ever `openssl s_client`, argv, no shell
 import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, NamedTuple
 
@@ -65,6 +65,17 @@ MODERN_VERSIONS = frozenset({"TLSv1.2", "TLSv1.3"})
 # comes from a private CA, and in both cases it stays valid long after a
 # compromised key would have been rotated.
 MAX_LIFETIME_DAYS = 398
+
+# The scan judges only the suite it actually negotiated.  That is enough to
+# catch a server whose normal configuration is weak, without pretending it has
+# enumerated every suite the endpoint might offer.  TLS 1.3 names encode the
+# authenticated encryption algorithm; its key exchange is always ephemeral.
+_WEAK_CIPHER_MARKERS = ("NULL", "RC4", "3DES", "DES-", "MD5", "CCM_8")
+_WEAK_CIPHER_SUFFIXES = ("-SHA", "_SHA")
+_FORWARD_SECRET_CIPHER_MARKERS = ("ECDHE", "DHE", "TLS_")
+_WEAK_SIGNATURE_MARKERS = ("MD5", "SHA1", "SHA-1")
+_MIN_RSA_KEY_BITS = 2048
+_MIN_EC_KEY_BITS = 256
 
 # OpenSSL's verification result codes, which say considerably more than the
 # message they come with. `X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY` in
@@ -105,6 +116,9 @@ class Certificate:
     ocsp_urls: tuple[str, ...] = ()
     self_signed: bool = False
     unparsable_dates: str = ""
+    key_type: str = ""
+    key_bits: int | None = None
+    signature_algorithm: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         """The certificate as the result document carries it."""
@@ -119,6 +133,9 @@ class Certificate:
             "altNames": list(self.alt_names),
             "ocspResponders": list(self.ocsp_urls),
             "selfSigned": self.self_signed,
+            "keyType": self.key_type,
+            "keyBits": self.key_bits,
+            "signatureAlgorithm": self.signature_algorithm,
         }
 
 
@@ -198,6 +215,7 @@ class TlsInspection:
             self._deprecated_check(),
             self._hostname_check(),
             self._chain_check(),
+            self._cipher_check(),
             *self._certificate_checks(min_days),
             self._ocsp_check(),
         ):
@@ -292,6 +310,26 @@ class TlsInspection:
             "intermediate certificate is missing, or the issuing CA is private",
         )
 
+    def _cipher_check(self) -> TlsCheck | None:
+        """Judge the cipher this connection used, never suites not probed."""
+        if not self.cipher:
+            return None
+        cipher = self.cipher.upper()
+        weak = any(marker in cipher for marker in _WEAK_CIPHER_MARKERS) or (
+            cipher.endswith(_WEAK_CIPHER_SUFFIXES)
+        )
+        forward_secret = any(marker in cipher for marker in _FORWARD_SECRET_CIPHER_MARKERS)
+        passed = not weak and forward_secret
+        if passed:
+            detail = f"Negotiated modern cipher suite {self.cipher}"
+        elif weak:
+            detail = f"Negotiated weak cipher suite {self.cipher}"
+        else:
+            detail = (
+                f"Negotiated {self.cipher}, which does not provide forward secrecy"
+            )
+        return TlsCheck("tlsCipherSuite", "medium", passed, detail)
+
     def _certificate_checks(self, min_days: int) -> list[TlsCheck]:
         certificate = self.certificate
         if certificate is None:
@@ -337,6 +375,10 @@ class TlsInspection:
                     ),
                 )
             )
+        policy = _certificate_policy(certificate)
+        if policy is not None:
+            passed, detail = policy
+            checks.append(TlsCheck("tlsCertificatePolicy", "medium", passed, detail))
         return checks
 
     def _ocsp_check(self) -> TlsCheck | None:
@@ -471,7 +513,9 @@ def _parse_date(value: Any) -> datetime | None:
         return None
 
 
-def _certificate(peercert: Mapping[str, Any], *, now: datetime | None = None) -> Certificate | None:
+def _certificate(
+    peercert: Mapping[str, Any], der: bytes | None = None, *, now: datetime | None = None
+) -> Certificate | None:
     """Build the certificate view, or nothing when there is no certificate."""
     if not peercert:
         return None
@@ -493,7 +537,7 @@ def _certificate(peercert: Mapping[str, Any], *, now: datetime | None = None) ->
     )
     subject = _name(peercert.get("subject"))
     issuer = _name(peercert.get("issuer"))
-    return Certificate(
+    certificate = Certificate(
         subject=subject,
         issuer=issuer,
         serial=str(peercert.get("serialNumber") or ""),
@@ -512,6 +556,86 @@ def _certificate(peercert: Mapping[str, Any], *, now: datetime | None = None) ->
         ocsp_urls=tuple(str(url) for url in peercert.get("OCSP", ()) or ()),
         self_signed=bool(subject) and subject == issuer,
         unparsable_dates=unparsable,
+    )
+    key_type, key_bits, signature_algorithm = _certificate_details(der)
+    return replace(
+        certificate,
+        key_type=key_type,
+        key_bits=key_bits,
+        signature_algorithm=signature_algorithm,
+    )
+
+
+def _certificate_policy(certificate: Certificate) -> tuple[bool, str] | None:
+    """Return an actionable key/signature verdict when both facts are known."""
+    if not certificate.key_type or certificate.key_bits is None or not certificate.signature_algorithm:
+        return None
+    key_type = certificate.key_type.upper()
+    signature = certificate.signature_algorithm.upper()
+    weak_key = (key_type == "RSA" and certificate.key_bits < _MIN_RSA_KEY_BITS) or (
+        key_type in {"EC", "ECDSA"} and certificate.key_bits < _MIN_EC_KEY_BITS
+    )
+    weak_signature = any(marker in signature for marker in _WEAK_SIGNATURE_MARKERS)
+    if not weak_key and not weak_signature:
+        return (
+            True,
+            (
+                f"Certificate uses a {certificate.key_bits}-bit {certificate.key_type} key "
+                f"and {certificate.signature_algorithm}"
+            ),
+        )
+    problems: list[str] = []
+    if weak_key:
+        problems.append(f"{certificate.key_bits}-bit {certificate.key_type} key")
+    if weak_signature:
+        problems.append(f"{certificate.signature_algorithm} signature")
+    return False, "Certificate uses weak " + " and ".join(problems)
+
+
+def _certificate_details(der: bytes | None) -> tuple[str, int | None, str]:
+    """Read key and signature facts with OpenSSL, or leave them unknown.
+
+    Python's ``ssl`` exposes the certificate fields needed for validity and
+    hostname checks but not its public-key or signature algorithms.  OpenSSL
+    is already the optional mechanism used for OCSP stapling; if it is absent
+    or cannot parse the DER, the policy check is absent rather than green.
+    """
+    binary = shutil.which("openssl")
+    if not der or binary is None:
+        return "", None, ""
+    try:
+        completed = subprocess.run(  # nosec B603 - fixed argv, DER on stdin
+            [binary, "x509", "-inform", "DER", "-noout", "-text"],
+            input=der,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        LOGGER.debug("Could not inspect certificate policy: %s", exc)
+        return "", None, ""
+    if completed.returncode:
+        return "", None, ""
+    text = completed.stdout.decode("utf-8", "replace")
+    key_match = re.search(r"Public Key Algorithm:\s*([^\n]+)", text)
+    bits_match = re.search(r"Public-Key:\s*\((\d+) bit\)", text)
+    signature_match = re.search(r"Signature Algorithm:\s*([^\n]+)", text)
+    raw_key_type = key_match.group(1).strip().lower() if key_match else ""
+    key_type = (
+        "RSA"
+        if "rsa" in raw_key_type
+        else "EC"
+        if "ec" in raw_key_type
+        else "Ed25519"
+        if "ed25519" in raw_key_type
+        else "Ed448"
+        if "ed448" in raw_key_type
+        else ""
+    )
+    return (
+        key_type,
+        int(bits_match.group(1)) if bits_match else None,
+        signature_match.group(1).strip() if signature_match else "",
     )
 
 
@@ -690,6 +814,7 @@ def inspect(
     probe_deprecated: bool = True,
     check_stapling: bool = True,
     connect_host: str | None = None,
+    ca_file: str | None = None,
 ) -> TlsInspection:
     """
     Look at one TLS endpoint and report everything worth reporting.
@@ -699,9 +824,13 @@ def inspect(
     still be read, plus one short-lived connection per deprecated protocol
     version that is probed.
     """
-    verified = _connect(
-        host, port, timeout, ssl.create_default_context(), connect_host
-    )
+    try:
+        verified_context = ssl.create_default_context(cafile=ca_file)
+    except (OSError, ssl.SSLError) as exc:
+        return TlsInspection(
+            host=host, port=port, reachable=False, error=f"Could not load CA bundle: {exc}"
+        )
+    verified = _connect(host, port, timeout, verified_context, connect_host)
     handshake = verified
     trusted = verified.ok
     verify_error = ""
@@ -727,7 +856,7 @@ def inspect(
             forced, handshake = fallback
 
     peercert = handshake.peercert or _decode(handshake.der)
-    certificate = _certificate(peercert)
+    certificate = _certificate(peercert, handshake.der)
 
     deprecated_probed: list[str] = []
     deprecated_accepted: list[str] = []

@@ -22,6 +22,7 @@ from opencloud_local_scan.scanner import (
     failed_extra_checks,
     scan,
 )
+from opencloud_local_scan.tls import Certificate
 from tests.fake_opencloud import DEFAULT_CSP_UNSAFE, FakeOpenCloud, InstanceBehaviour
 
 # The fake instance speaks plain HTTP, and there is no point in looking up
@@ -953,3 +954,44 @@ def test_pinned_addresses_win_over_a_second_lookup():
     # A different name is not covered by that pin and is looked up normally;
     # one that cannot be looked up is empty rather than an error.
     assert _resolved_addresses("nothing.invalid", pinned) == {"ipv4": [], "ipv6": []}
+
+
+def test_observed_cookies_must_carry_security_attributes():
+    """The scanner must judge only cookies a public response actually set."""
+    result = run_scan(
+        InstanceBehaviour(extra_headers={"Set-Cookie": "session=opaque; Path=/"})
+    )
+    findings = {entry["id"]: entry for entry in result["extraChecks"]}
+
+    assert findings["cookieSecure"]["passed"] is False
+    assert findings["cookieHttpOnly"]["passed"] is False
+    assert findings["cookieSameSite"]["passed"] is False
+
+
+def test_address_parity_compares_the_tls_identity_from_both_dns_families():
+    """An IPv6 listener must not quietly lag behind the IPv4 TLS deployment."""
+    certificate = Certificate(serial="same")
+    ipv4 = scanner_module.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        protocol="TLSv1.3",
+        cipher="TLS_AES_256_GCM_SHA384",
+        trusted=True,
+        certificate=certificate,
+    )
+    ipv6 = scanner_module.TlsInspection(
+        host="opencloud.example.com",
+        port=443,
+        reachable=True,
+        protocol="TLSv1.2",
+        cipher="ECDHE-RSA-AES256-GCM-SHA384",
+        trusted=True,
+        certificate=certificate,
+    )
+
+    finding = scanner_module._address_parity_finding({"ipv4": ipv4, "ipv6": ipv6})
+
+    assert finding is not None
+    assert finding.passed is False
+    assert "protocol" in finding.detail
