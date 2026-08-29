@@ -29,6 +29,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   webhook payload shape, SARIF 2.1.0 for a code-scanning dashboard, or JUnit
   XML with one testsuite per host. The exit code keeps its Nagios meaning
   under every format.
+- **IPv6 connectivity in the Docker setup wizard**: `docker/setup-wizard.py`
+  now asks whether the deployment's containers have outbound IPv6
+  connectivity (`COS_WEB_IPV6_ENABLED`, off by default, since Docker's
+  default network has none). Left off, the built-in scanner still lists an
+  instance's IPv6 addresses but skips dialling them for the IPv4/IPv6
+  TLS-parity check, and the dashboard notes why instead of reporting the
+  instance's IPv6 side as unreachable for a limitation of the deployment
+  rather than of the instance.
 
 ## [1.13.0] - 2026-08-28
 

@@ -35,6 +35,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "New scan",
     "nav.how_it_works": "How it works",
     "nav.grades": "Grades",
+    "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Search",
     "nav.api": "API",
@@ -88,6 +89,11 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.title": "What the grades mean",
     "pagenav.grades.blurb": (
         "Every step from A+ to F, what holds a grade down and how to move it up."
+    ),
+    "pagenav.catalogue.title": "What the scanner checks",
+    "pagenav.catalogue.blurb": (
+        "Every hardening flag, header and TLS check, and every known advisory - "
+        "independent of any one scan."
     ),
     "pagenav.docs.title": "CLI documentation",
     "pagenav.docs.blurb": "Install, configure and automate the scanner from a terminal.",
@@ -213,6 +219,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transport & TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "Security headers",
+    "category.authentication": "Authentication & accounts",
+    "category.sharing": "Sharing & links",
+    "category.exposure": "Network exposure",
+    "category.embedding": "Embedding",
+    "category.lifecycle": "Version & lifecycle",
+    "category.proxy": "Identity provider & proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "Nothing found",
     "grade.5.meaning": (
@@ -1014,6 +1030,11 @@ MESSAGES: dict[str, str] = {
     "result.verdict.dial": "Rating {label}, {rating} out of 5",
     "result.facts.instance": "Instance",
     "result.facts.resolved": "Resolved to",
+    "result.facts.ipv6.heading": "IPv6 reachability",
+    "result.facts.ipv6.note": (
+        "Not checked - this deployment has no outbound IPv6 connectivity, so "
+        "it is noted here rather than counted against the instance."
+    ),
     "result.facts.product": "Product",
     "result.facts.track": "Release track",
     "result.facts.track.unknown": "unknown",

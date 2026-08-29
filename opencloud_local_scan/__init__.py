@@ -47,7 +47,7 @@ from .config import (
     load_configuration,
 )
 from .factory import release_settings_from_config, scanner_settings_from_config
-from .hardening import HARDENINGS, Hardening, is_actionable
+from .hardening import CATEGORIES, HARDENINGS, Hardening, all_checks, is_actionable
 from .hardening import describe as describe_hardening
 from .releases import (
     DEFAULT_FEED_URL,
@@ -154,6 +154,7 @@ def _detect_version() -> str:
 __version__ = _detect_version()
 
 __all__ = [
+    "CATEGORIES",
     "DEFAULT_CONCURRENCY",
     "DEFAULT_CONFIG_NAME",
     "DEFAULT_CONFIG_PATHS",
@@ -187,6 +188,7 @@ __all__ = [
     "UpgradePlan",
     "VulnerabilityDatabase",
     "__version__",
+    "all_checks",
     "build_server",
     "compare_versions",
     "derive_hardenings",

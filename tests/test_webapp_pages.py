@@ -22,6 +22,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
 CONTENT_PAGES = (
     "/how-it-works",
     "/grades",
+    "/catalogue",
     "/documentation",
     "/api",
     "/ai",
@@ -36,6 +37,7 @@ CONTENT_PAGES = (
     [
         ("/how-it-works", "How the scan works"),
         ("/grades", "What the grades mean"),
+        ("/catalogue", "What the scanner checks"),
         ("/documentation", "Run the scanner from your terminal"),
         ("/search", "Search the scanner"),
         ("/api", "Scanning from a script"),
@@ -383,6 +385,20 @@ def test_a_result_without_addresses_prints_no_empty_row():
         {"rating": 5, "addresses": {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}}
     )
     assert kept["addresses"] == {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}
+
+
+def test_summary_reports_whether_the_scanner_could_reach_ipv6_at_all():
+    """
+    A document from a deployment with no IPv6 route says so, so the page can
+    explain why an instance's IPv6 side went unchecked instead of counting it
+    against the rating.
+    """
+    from webapp.catalog import summarise
+
+    # A document from an older scanner has no such key and defaults to true,
+    # matching every scanner that predates this flag.
+    assert summarise({"rating": 5})["ipv6Enabled"] is True
+    assert summarise({"rating": 5, "ipv6Enabled": False})["ipv6Enabled"] is False
 
 
 def test_the_one_liner_page_is_a_menu_tab_of_its_own():

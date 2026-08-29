@@ -97,6 +97,11 @@ services:
       COS_WEB_JOB_TIMEOUT: "180"
       COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
       COS_WEB_CHECK_DEBUG_PORTS: "false"
+      # Whether this container can dial an IPv6 address at all. False - the
+      # default - skips the IPv4/IPv6 TLS-parity check and notes why in the
+      # result rather than reporting an instance's IPv6 side as unreachable
+      # for a limitation of this deployment.
+      COS_WEB_IPV6_ENABLED: "false"
       COS_WEB_RELEASES_MODE: "off"
       # Re-read the OpenCloud release lifecycle page once a day, so a
       # deployment that has been up for months does not rate instances

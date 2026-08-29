@@ -47,7 +47,7 @@ from fastapi.templating import Jinja2Templates
 
 from opencloud_local_scan import __version__
 
-from .advisories import advisory_state
+from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
     REASON_BATCH_TOO_LARGE,
@@ -61,6 +61,7 @@ from .audit import (
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
     SEVERITY_TAGS,
+    check_catalogue,
     grade_scale,
     release_track_options,
     sanitize_release_track,
@@ -777,6 +778,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "t": translate,
                 "grades": grade_scale(translate),
                 "caps": severity_caps(),
+                "severity_tags": SEVERITY_TAGS,
+            },
+        )
+
+    @app.get("/catalogue", response_class=HTMLResponse, include_in_schema=False)
+    async def catalogue(request: Request) -> Response:
+        translate = translator_for(request)
+        database = await stored_database(app.state.backend, settings)
+        return page(
+            request,
+            "catalogue.html",
+            {
+                "t": translate,
+                "categories": check_catalogue(translate),
+                "advisories": advisory_catalogue(database),
                 "severity_tags": SEVERITY_TAGS,
             },
         )

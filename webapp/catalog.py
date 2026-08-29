@@ -21,7 +21,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from check_opencloud_security import RATE_MAP
-from opencloud_local_scan import HARDENINGS, describe_hardening, failed_extra_checks
+from opencloud_local_scan import (
+    CATEGORIES,
+    HARDENINGS,
+    all_checks,
+    describe_hardening,
+    failed_extra_checks,
+)
 from opencloud_local_scan.hardening import is_actionable
 from opencloud_local_scan.remediation import SEVERITY_RATING_CAP
 from opencloud_local_scan.versions import RELEASE_TRACK_CHOICES, TRACK_AUTO
@@ -143,6 +149,67 @@ def waiver_options(translate: Translator | None = None) -> list[WaiverOption]:
 def allowed_waivers() -> frozenset[str]:
     """Every identifier a request may ask to have waived."""
     return frozenset(option.id for option in waiver_options())
+
+
+@dataclass(frozen=True)
+class CatalogueCheck:
+    """One check the scanner can run, as the catalogue page lists it."""
+
+    id: str
+    title: str
+    meaning: str
+    remediation: str
+    reference: str
+    actionable: bool
+
+
+@dataclass(frozen=True)
+class CatalogueCategory:
+    """One category of checks, with a translated label for its heading."""
+
+    id: str
+    label: str
+    checks: tuple[CatalogueCheck, ...]
+
+
+def check_catalogue(translate: Translator | None = None) -> tuple[CatalogueCategory, ...]:
+    """
+    Every check and hardening flag this build knows how to explain, grouped.
+
+    This is the reference the dashboard's per-finding category badges point
+    back to: the same :attr:`~opencloud_local_scan.hardening.Hardening.category`
+    a failed check carries, gathered here into one page so a visitor can see
+    the whole set the scanner runs rather than only the ones that failed on
+    their instance. ``describe_hardening`` is the single source for every
+    sentence, so this page can never disagree with a result page about what a
+    check means.
+    """
+    t = translate or Translator()
+    entries = list(all_checks())
+    entries.extend(describe_hardening(name) for name in HEADER_IDS)
+
+    grouped: dict[str, list[CatalogueCheck]] = {}
+    for entry in entries:
+        grouped.setdefault(entry.category, []).append(
+            CatalogueCheck(
+                id=entry.id,
+                title=entry.title,
+                meaning=entry.meaning,
+                remediation=entry.remediation,
+                reference=entry.reference,
+                actionable=entry.actionable,
+            )
+        )
+
+    return tuple(
+        CatalogueCategory(
+            id=category,
+            label=t(f"category.{category}"),
+            checks=tuple(sorted(grouped[category], key=lambda item: item.id)),
+        )
+        for category in CATEGORIES
+        if category in grouped
+    )
 
 
 # Working the track out from the release the instance reports is right more
@@ -336,6 +403,7 @@ def summarise(
             "id": entry.get("id"),
             "severity": entry.get("severity"),
             "tag": SEVERITY_TAGS.get(str(entry.get("severity")), "info"),
+            "category": describe_hardening(str(entry.get("id"))).category,
             "detail": entry.get("detail") or entry.get("message") or "",
             "explanation": describe_hardening(str(entry.get("id"))).meaning,
             "remediation": describe_hardening(str(entry.get("id"))).remediation,
@@ -368,6 +436,7 @@ def summarise(
             "remediation": describe_hardening(name).remediation,
             "reference": describe_hardening(name).reference,
             "setting": describe_hardening(name).setting,
+            "category": describe_hardening(name).category,
         }
         for name, passed in _flags(hardenings)
         if not passed and is_actionable(name)
@@ -379,6 +448,7 @@ def summarise(
             "title": describe_hardening(name).title,
             "remediation": describe_hardening(name).remediation,
             "reference": describe_hardening(name).reference,
+            "category": describe_hardening(name).category,
         }
         for name, passed in _flags(headers)
         if not passed
@@ -395,6 +465,7 @@ def summarise(
         "eol": bool(result.get("EOL")),
         "domain": result.get("domain"),
         "addresses": _addresses(result),
+        "ipv6Enabled": bool(result.get("ipv6Enabled", True)),
         "product": result.get("product"),
         "version": result.get("version"),
         "releaseType": result.get("releaseType"),

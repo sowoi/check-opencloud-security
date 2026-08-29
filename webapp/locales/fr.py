@@ -1137,6 +1137,11 @@ MESSAGES: dict[str, str] = {
     "result.verdict.dial": "Note {label}, {rating} sur 5",
     "result.facts.instance": "Instance",
     "result.facts.resolved": "Résolu vers",
+    "result.facts.ipv6.heading": "Accessibilité IPv6",
+    "result.facts.ipv6.note": (
+        "Non vérifiée - ce déploiement n'a pas de connectivité IPv6 sortante, "
+        "c'est donc simplement noté ici plutôt que compté contre l'instance."
+    ),
     "result.facts.product": "Produit",
     "result.facts.track": "Canal de version",
     "result.facts.track.unknown": "inconnu",

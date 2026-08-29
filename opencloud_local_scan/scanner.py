@@ -303,6 +303,16 @@ class ScannerSettings:
     port: int | None = None
     extra_checks: bool = True
     extra_checks_affect_rating: bool = True
+    ipv6_enabled: bool = True
+    """Whether this process itself has outbound IPv6 connectivity.
+
+    Guards the IPv4/IPv6 TLS-parity check, which dials an instance's IPv6
+    address directly: a host or container with no IPv6 route of its own
+    cannot reach that address at all, and reporting the resulting timeout as
+    a finding would penalise the rating for a limitation of the scanner
+    rather than of the target. False skips the probe instead - the address
+    is still listed under ``addresses``, just not dialled a second time.
+    """
     tls_min_days: int = DEFAULT_TLS_MIN_DAYS
     check_debug_ports: bool = True
     debug_ports: tuple[int, ...] = ()
@@ -701,6 +711,16 @@ def _address_tls_inspections(
                 ca_file=settings.tls_ca_file,
             )
     return inspections
+
+
+def _address_parity_may_run(settings: ScannerSettings, addresses: Mapping[str, list[str]]) -> bool:
+    """Whether the IPv4/IPv6 TLS-parity probe is worth dialling for this scan.
+
+    Needs both address families to compare, and needs a scanner that can
+    actually reach an IPv6 address in the first place - see
+    :attr:`ScannerSettings.ipv6_enabled`.
+    """
+    return settings.ipv6_enabled and bool(addresses["ipv4"]) and bool(addresses["ipv6"])
 
 
 def _address_parity_finding(inspections: Mapping[str, TlsInspection]) -> Finding | None:
@@ -2183,8 +2203,7 @@ def scan(
         _address_tls_inspections(hostname, port, settings, addresses)
         if settings.extra_checks
         and probe.base_url.startswith("https://")
-        and addresses["ipv4"]
-        and addresses["ipv6"]
+        and _address_parity_may_run(settings, addresses)
         else {}
     )
     # CAA is a DNS record, not a TLS handshake property, but it answers the
@@ -2245,6 +2264,10 @@ def scan(
     result: dict[str, Any] = {
         "domain": hostname,
         "addresses": addresses,
+        # Whether this scanner could dial an IPv6 address at all; a
+        # deployment with no IPv6 route reports it here rather than as a
+        # failed - and rating-affecting - reachability check.
+        "ipv6Enabled": settings.ipv6_enabled,
         "url": f"{probe.base_url}{STATUS_PATH}",
         "product": product,
         "version": version or "",

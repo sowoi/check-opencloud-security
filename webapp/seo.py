@@ -79,6 +79,7 @@ PUBLIC_PAGES: tuple[PublicPage, ...] = (
     PublicPage("/", "index.html", "weekly", "1.0"),
     PublicPage("/how-it-works", "how-it-works.html", "monthly", "0.8"),
     PublicPage("/grades", "grades.html", "monthly", "0.8"),
+    PublicPage("/catalogue", "catalogue.html", "monthly", "0.8"),
     PublicPage("/documentation", "documentation.html", "monthly", "0.8"),
     *(
         PublicPage(

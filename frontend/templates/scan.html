@@ -8,6 +8,12 @@
   {%- endif -%}
 {%- endmacro %}
 
+{% macro category_tag(value) -%}
+  {%- if value -%}
+  <a class="tag tag-neutral" href="/catalogue#category-{{ value }}">{%- if t.has('category.' ~ value) -%}{{ t('category.' ~ value) }}{%- else -%}{{ value }}{%- endif -%}</a>
+  {%- endif -%}
+{%- endmacro %}
+
 {% block title %}{{ t('result.title') }}{% endblock %}
 {% block description %}{{ t('result.description') }}{% endblock %}
 
@@ -130,6 +136,10 @@
           <span class="tag tag-info">IPv6</span> <code>{{ address }}</code>{% if not loop.last %}<br>{% endif %}
           {% endfor %}
         </dd>
+        {% endif %}
+        {% if summary.addresses.ipv6 and not summary.ipv6Enabled %}
+        <dt>{{ t('result.facts.ipv6.heading') }}</dt>
+        <dd>{{ t('result.facts.ipv6.note') }}</dd>
         {% endif %}
         <dt>{{ t('result.facts.product') }}</dt><dd>{{ summary.product }} {{ summary.version }}</dd>
         <dt>{{ t('result.facts.track') }}</dt>
@@ -311,6 +321,7 @@
       <div class="finding-head">
         <code>{{ issue.id }}</code>
         <span class="tag tag-{{ issue.tag }}">{{ severity_label(issue.severity) }}</span>
+        {{ category_tag(issue.category) }}
       </div>
       {% if issue.detail %}<p>{{ issue.detail }}</p>{% endif %}
       <p>{{ issue.explanation }}</p>
@@ -337,6 +348,7 @@
       <div class="finding-head">
         <code>{{ item.id }}</code>
         <span class="tag tag-warning">{{ t('result.hardening.tag') }}</span>
+        {{ category_tag(item.category) }}
       </div>
       <p>{{ item.title }}</p>
       <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ item.remediation }}
@@ -349,6 +361,7 @@
       <div class="finding-head">
         <code>{{ item.id }}</code>
         <span class="tag tag-info">{{ t('result.header.tag') }}</span>
+        {{ category_tag(item.category) }}
       </div>
       <p>{{ item.title }}</p>
       <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ item.remediation }}</p>

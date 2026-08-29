@@ -49,6 +49,7 @@ def scanner_settings_for(
         port=target.port,
         extra_checks=True,
         extra_checks_affect_rating=True,
+        ipv6_enabled=settings.ipv6_enabled,
         check_debug_ports=settings.check_debug_ports,
         concurrency=settings.scan_concurrency,
         ignore_hardenings=ignore_hardenings,

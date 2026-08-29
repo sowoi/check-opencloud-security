@@ -31,6 +31,7 @@ NAV_PAGES = (
     "/",
     "/how-it-works",
     "/grades",
+    "/catalogue",
     "/documentation",
     "/api",
     "/ai",

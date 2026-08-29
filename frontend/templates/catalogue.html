@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% macro severity_label(value) -%}
+  {%- if value and t.has('severity.' ~ value) -%}
+    {{ t('severity.' ~ value) }}
+  {%- else -%}
+    {{ value }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block title %}{{ t('catalogue.title') }}{% endblock %}
+{% block description %}{{ t('catalogue.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <p class="kicker">{{ t('catalogue.kicker') }}</p>
+  <h1>{{ t('catalogue.title') }}</h1>
+  <p class="lede">{{ t('catalogue.lede') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="checks" data-reveal>
+  <p class="kicker">{{ t('catalogue.checks.kicker') }}</p>
+  <h2 id="checks">{{ t('catalogue.checks.heading') }}</h2>
+  <p class="lede">{{ t('catalogue.checks.lede') }}</p>
+
+  {% for category in categories %}
+  <h3 id="category-{{ category.id }}" class="section-gap">{{ category.label }}</h3>
+  <ul class="findings">
+    {% for check in category.checks %}
+    <li class="finding" data-tag="neutral">
+      <div class="finding-head">
+        <code>{{ check.id }}</code>
+        {% if not check.actionable %}
+        <span class="tag tag-info">{{ t('catalogue.checks.not_configurable') }}</span>
+        {% endif %}
+      </div>
+      <p>{{ check.title }}</p>
+      <p class="hint">{{ check.meaning }}</p>
+      <p class="fix"><strong>{{ t('result.fix') }}</strong> {{ check.remediation }}
+        {% if check.reference %}<a href="{{ check.reference }}" rel="noopener noreferrer">{{ t('result.documentation') }}</a>{% endif %}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</section>
+
+<section class="card section-gap" aria-labelledby="advisories" data-reveal>
+  <p class="kicker">{{ t('catalogue.advisories.kicker') }}</p>
+  <h2 id="advisories">{{ t('catalogue.advisories.heading') }}</h2>
+  <p class="lede">{{ t('catalogue.advisories.lede') }}</p>
+  {% if advisories %}
+  <ul class="findings">
+    {% for advisory in advisories %}
+    <li class="finding" data-tag="{{ severity_tags.get(advisory.severity, 'info') }}">
+      <div class="finding-head">
+        <code>{{ advisory.id }}</code>
+        <span class="tag tag-{{ severity_tags.get(advisory.severity, 'info') }}">{{ severity_label(advisory.severity) }}</span>
+      </div>
+      <p>{{ advisory.title or advisory.description or t('result.advisories.no_summary') }}</p>
+      {% if advisory.title and advisory.description %}<p class="hint">{{ advisory.description }}</p>{% endif %}
+      <p class="hint">
+        {% for range in advisory.ranges %}
+          {% if range.fixed %}{{ t('catalogue.advisories.fixed_in', version=range.fixed) }}{% else %}{{ t('catalogue.advisories.unfixed') }}{% endif %}{% if not loop.last %}; {% endif %}
+        {% endfor %}
+      </p>
+      {% if advisory.url %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">{{ t('result.advisories.read') }}</a></p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="flush"><span class="tag tag-good">{{ t('catalogue.advisories.empty.tag') }}</span>
+    {{ t('catalogue.advisories.empty.body') }}</p>
+  {% endif %}
+</section>
+
+{% include "_page-nav.html" %}
+{% endblock %}

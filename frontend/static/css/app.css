@@ -1353,6 +1353,7 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .tag-warning { background: var(--fair-soft); color: var(--fair-ink); }
 .tag-info { background: var(--info-soft); color: var(--info-ink); }
 .tag-good { background: var(--good-soft); color: var(--good-ink); }
+.tag-neutral { background: var(--tint); color: var(--ink-soft); }
 
 .alert {
     display: flex; gap: .7rem; align-items: flex-start;
