@@ -20,6 +20,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "Nouvelle analyse",
     "nav.how_it_works": "Fonctionnement",
     "nav.grades": "Notes",
+    "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Rechercher",
     "nav.api": "API",
@@ -79,6 +80,12 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.blurb": (
         "Chaque échelon de A+ à F, ce qui plombe une note et comment la faire "
         "remonter."
+    ),
+    "pagenav.catalogue.title": "Ce que le scanner vérifie",
+    "pagenav.catalogue.blurb": (
+        "Chaque indicateur de durcissement, chaque en-tête et vérification "
+        "TLS, et chaque vulnérabilité connue - indépendamment d'une analyse "
+        "particulière."
     ),
     "pagenav.docs.title": "Documentation en ligne de commande",
     "pagenav.docs.blurb": (
@@ -224,6 +231,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "élevée",
     "severity.medium": "moyenne",
     "severity.low": "faible",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transport & TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "En-têtes de sécurité",
+    "category.authentication": "Authentification & comptes",
+    "category.sharing": "Partage & liens",
+    "category.exposure": "Exposition réseau",
+    "category.embedding": "Intégration",
+    "category.lifecycle": "Version & cycle de vie",
+    "category.proxy": "Fournisseur d'identité & proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "Rien à signaler",
     "grade.5.meaning": (
@@ -395,6 +412,39 @@ MESSAGES: dict[str, str] = {
         "l'analyse</a> énumère ce qu'elle lit, et chaque page de résultat "
         "rappelle les limites sous la note."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "Ce que le scanner vérifie",
+    "catalogue.description": (
+        "Chaque indicateur de durcissement, en-tête de sécurité, vérification "
+        "TLS et vulnérabilité connue que ce scanner peut signaler, "
+        "indépendamment d'un résultat d'analyse particulier."
+    ),
+    "catalogue.kicker": "Référence",
+    "catalogue.lede": (
+        "Voici l'ensemble complet : chaque contrôle ci-dessous peut "
+        "apparaître sur une page de résultat, et chaque vulnérabilité "
+        "ci-dessous est une de celles contre lesquelles une analyse est "
+        "évaluée. Rien ici ne dépend d'une instance particulière."
+    ),
+    "catalogue.checks.kicker": "Contrôles",
+    "catalogue.checks.heading": "Chaque contrôle, par catégorie",
+    "catalogue.checks.lede": (
+        "Regroupés par sujet plutôt que par gravité - la gravité dépend de "
+        "l'instance analysée, elle n'est donc pas indiquée ici."
+    ),
+    "catalogue.checks.not_configurable": "non configurable",
+    "catalogue.advisories.kicker": "Vulnérabilités",
+    "catalogue.advisories.heading": "Vulnérabilités connues",
+    "catalogue.advisories.lede": (
+        "Chaque vulnérabilité de la base contre laquelle une analyse est "
+        "évaluée, actualisée chaque jour depuis le flux public."
+    ),
+    "catalogue.advisories.empty.tag": "Aucune connue",
+    "catalogue.advisories.empty.body": (
+        "La base de données de vulnérabilités est actuellement vide."
+    ),
+    "catalogue.advisories.fixed_in": "Corrigé dans {version}",
+    "catalogue.advisories.unfixed": "Aucun correctif publié pour le moment",
     # -------------------------------------------------- how the scan works
     "how.title": "Comment fonctionne l'analyse",
     "how.description": (
@@ -994,6 +1044,11 @@ MESSAGES: dict[str, str] = {
     "search.page.grades.summary": (
         "L'échelle de notation de A+ à F et les correctifs qui améliorent "
         "chaque note."
+    ),
+    "search.page.catalogue.title": "Ce que le scanner vérifie",
+    "search.page.catalogue.summary": (
+        "Chaque indicateur de durcissement, en-tête et vérification TLS du "
+        "scanner, et chaque vulnérabilité connue."
     ),
     "search.page.documentation.title": "Documentation en ligne de commande",
     "search.page.documentation.summary": (

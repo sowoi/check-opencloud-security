@@ -19,6 +19,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "Neuer Scan",
     "nav.how_it_works": "So funktioniert es",
     "nav.grades": "Noten",
+    "nav.catalogue": "Katalog",
     "nav.docs": "Doku",
     "nav.search": "Suche",
     "nav.api": "API",
@@ -75,6 +76,11 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.blurb": (
         "Jede Stufe von A+ bis F, was eine Note nach unten drückt und wie man sie "
         "verbessert."
+    ),
+    "pagenav.catalogue.title": "Was der Scanner prüft",
+    "pagenav.catalogue.blurb": (
+        "Jedes Härtungsmerkmal, jeden Header- und TLS-Check und jede bekannte "
+        "Sicherheitslücke - unabhängig von einem einzelnen Scan."
     ),
     "pagenav.docs.title": "CLI-Dokumentation",
     "pagenav.docs.blurb": (
@@ -214,6 +220,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "hoch",
     "severity.medium": "mittel",
     "severity.low": "niedrig",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transport & TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "Sicherheits-Header",
+    "category.authentication": "Authentifizierung & Konten",
+    "category.sharing": "Freigaben & Links",
+    "category.exposure": "Netzwerk-Exposition",
+    "category.embedding": "Einbettung",
+    "category.lifecycle": "Version & Lebenszyklus",
+    "category.proxy": "Identity-Provider & Proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "Nichts gefunden",
     "grade.5.meaning": (
@@ -378,6 +394,39 @@ MESSAGES: dict[str, str] = {
         "er liest, und jede Ergebnisseite wiederholt die Grenzen unterhalb der "
         "Note."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "Was der Scanner prüft",
+    "catalogue.description": (
+        "Jedes Härtungsmerkmal, jeden Sicherheits-Header, jeden TLS-Check und "
+        "jede bekannte Sicherheitslücke, unabhängig von einem einzelnen "
+        "Scan-Ergebnis."
+    ),
+    "catalogue.kicker": "Referenz",
+    "catalogue.lede": (
+        "Dies ist die vollständige Menge: Jeder Check unten kann auf einer "
+        "Ergebnisseite erscheinen, und jede Sicherheitslücke unten ist eine, "
+        "gegen die ein Scan bewertet wird. Nichts hier hängt von einer "
+        "bestimmten Instanz ab."
+    ),
+    "catalogue.checks.kicker": "Checks",
+    "catalogue.checks.heading": "Jeder Check, nach Kategorie",
+    "catalogue.checks.lede": (
+        "Gruppiert nach Thema statt nach Schweregrad - der Schweregrad hängt "
+        "von der gescannten Instanz ab und wird hier deshalb nicht angezeigt."
+    ),
+    "catalogue.checks.not_configurable": "nicht konfigurierbar",
+    "catalogue.advisories.kicker": "Sicherheitslücken",
+    "catalogue.advisories.heading": "Bekannte Sicherheitslücken",
+    "catalogue.advisories.lede": (
+        "Jede Sicherheitslücke in der Datenbank, gegen die ein Scan bewertet "
+        "wird, täglich aus dem öffentlichen Feed aktualisiert."
+    ),
+    "catalogue.advisories.empty.tag": "Keine bekannt",
+    "catalogue.advisories.empty.body": (
+        "Die Datenbank der Sicherheitslücken ist derzeit leer."
+    ),
+    "catalogue.advisories.fixed_in": "Behoben in {version}",
+    "catalogue.advisories.unfixed": "Noch keine Korrektur veröffentlicht",
     # -------------------------------------------------- how the scan works
     "how.title": "Wie der Scan funktioniert",
     "how.description": (
@@ -955,6 +1004,11 @@ MESSAGES: dict[str, str] = {
     "search.page.grades.summary": (
         "Die Bewertungsskala von A+ bis F und die Fixes, die jede Note "
         "verbessern."
+    ),
+    "search.page.catalogue.title": "Was der Scanner prüft",
+    "search.page.catalogue.summary": (
+        "Jedes Härtungsmerkmal, jeden Header- und TLS-Check des Scanners, und "
+        "jede bekannte Sicherheitslücke."
     ),
     "search.page.documentation.title": "CLI-Dokumentation",
     "search.page.documentation.summary": (

@@ -275,10 +275,13 @@ response (`error_self_host`) as well as the JSON one (`hint`,
 
 ## Working on the agent-facing surfaces
 
-`/llms.txt` gives an agent a short map, `/openapi.json` says which operations
-exist, `/arazzo.json` how they combine into a task, `/mcp` lets an agent
-perform it, and `/.well-known/ai.json` names the detailed contracts.
-`ARCHITECTURE.md` draws the shape;
+`/llms.txt` gives an agent a short map, `/agents.txt` names the same map
+under the filename some agent frameworks look for by convention rather than
+crawling for, `/openapi.json` says which operations exist, `/arazzo.json` how
+they combine into a task, `/mcp` lets an agent perform it - both to execute a
+task and, through its `catalogue` and `advisories` resources, to read the
+knowledge base behind a finding - and `/.well-known/ai.json` names the
+detailed contracts. `ARCHITECTURE.md` draws the shape;
 [ADR 0010](adr/0010-machine-readable-descriptions-are-always-public.md) and
 [ADR 0011](adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md)
 hold the decisions.
@@ -319,6 +322,18 @@ instance should call one tool, not orchestrate a submission and thirty polls.
 Write the description *for an agent* - inputs, outputs, how long it takes,
 what is retryable, when to stop, when to ask the user - and mark a destructive
 one as destructive.
+
+**Resources are the knowledge base, and read only.** `openapi`, `arazzo` and
+`discovery` are the contracts; `catalogue` and `advisories` are what a person
+would otherwise have to read `/catalogue` for - every hardening flag and
+extra check the scanner runs, explained, and the whole advisory database a
+scan is rated against. Both are built by calling `webapp.catalog` and
+`webapp.advisories` directly, the same functions the page calls, never a
+restatement of them - a resource and a page that can describe the same check
+id differently is exactly the divergence [ADR
+0011](adr/0011-mcp-is-an-execution-layer-not-a-second-implementation.md)
+exists to rule out. A resource takes no scan target and touches nothing: if
+an addition needs an argument or changes state, it is a tool, not a resource.
 
 **Prompts are the tasks a person asks for**, and their wording lives once in
 `webapp/prompts.py`: the catalogue, the rendering functions, and nothing that
@@ -367,8 +382,8 @@ and [`docs/authentik.md`](docs/authentik.md).
 **The four documents are public and unauthenticated**, at stable paths.
 `COS_WEB_ENABLE_DOCS` governs only `/docs` and `/redoc`; `COS_WEB_ENABLE_MCP`
 turns the endpoint off for a deployment that wants none, and the discovery
-document then stops advertising it. A new tool needs a row in `docs/mcp.md`,
-`webapp/README.md` and `docs/webapp.md`, and a test in
+document then stops advertising it. A new tool or resource needs a row in
+`docs/mcp.md`, `webapp/README.md` and `docs/webapp.md`, and a test in
 `tests/test_webapp_mcp.py`.
 
 ## Working on the frontend

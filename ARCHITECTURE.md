@@ -279,10 +279,20 @@ Six tools, and they are **tasks rather than endpoints**: `scan_instance`,
 `scan_instances`, `get_scan_result`, `plan_remediation`, `export_scan` and
 `erase_instance_data`. An agent asked to scan an instance calls one tool once;
 it does not orchestrate a submission and thirty polls, because the polling is
-in `workflows.py`. Three resources - `spec://check-opencloud-security/...` for
-the OpenAPI, Arazzo and discovery documents - let an agent read the contracts
-it is working against. A specification is a document an agent reads, not a
-call it makes, so it gets a resource URI rather than a link.
+in `workflows.py`. Five resources - `spec://check-opencloud-security/...` -
+let an agent read what it is working against without leaving the protocol. A
+document an agent reads, not a call it makes, gets a resource URI rather than
+a link:
+
+- `openapi`, `arazzo` and `discovery` are the contracts.
+- `catalogue` and `advisories` are a **knowledge base** rather than a
+  contract: every hardening flag and extra check the scanner runs, explained,
+  and the whole advisory database a scan is rated against. Both call
+  `webapp/catalog.py` and `webapp/advisories.py` directly - the same
+  functions the `/catalogue` page renders from - so an agent can explain a
+  finding by id, or see what the scanner would catch, without ever
+  submitting a target, and without a resource ever disagreeing with the page
+  about what a check means.
 
 Six **prompts** name the tasks a person asks for - `audit_instance`,
 `audit_estate`, `explain_scan_result`, `triage_findings`,
@@ -355,26 +365,32 @@ guess `/arazzo.json`, so one document names all of them:
 https://scan.okxo.de
         |
         +--> /llms.txt             short agent-readable map
+        +--> /agents.txt           the same map, by another name
         |
         v
 /.well-known/ai.json --+--> /openapi.json   operations
                        +--> /arazzo.json    workflows
-                       +--> /mcp            server-side tools
+                       +--> /mcp            server-side tools + knowledge base
                        +--> /ai             the same thing, for a human
 ```
 
 `/llms.txt` is the short starting point for clients that look for that file.
 It names the contracts and interaction rules without containing a result,
-UUID, or credential. `/.well-known/ai.json` is *this application's* detailed
-discovery document and not a registered standard,
-which is why the code says so and the documentation does too. It lives under
-`/.well-known/` because that is where a well-behaved client looks, and it is
-deliberately small: a name, a description and absolute URLs. `base.html`
-carries `service-desc` and `arazzo` link relations as hints, and the `/ai`
-page says the same in prose with ordinary clickable links - for the visitor
-who is a person, and for the crawler that only reads HTML.
+UUID, or credential. `/agents.txt` names the same interfaces under the
+filename some agent frameworks look for by convention instead - it reuses
+`/robots.txt`'s own allow/disallow list, so the two can never disagree about
+what is off limits, and is, like the discovery document, an informal
+convention rather than a registered standard. `/.well-known/ai.json` is
+*this application's* detailed discovery document and not a registered
+standard, which is why the code says so and the documentation does too. It
+lives under `/.well-known/` because that is where a well-behaved client
+looks, and it is deliberately small: a name, a description and absolute
+URLs. `base.html` carries `service-desc` and `arazzo` link relations as
+hints, and the `/ai` page says the same in prose with ordinary clickable
+links - for the visitor who is a person, and for the crawler that only reads
+HTML.
 
-All four URLs are public and unauthenticated at stable paths.
+Every one of these URLs is public and unauthenticated at a stable path.
 `COS_WEB_ENABLE_DOCS` governs only the browsable `/docs` and `/redoc` pages,
 never the JSON: a description nobody can fetch describes nothing
 ([ADR 0010](adr/0010-machine-readable-descriptions-are-always-public.md)).
@@ -612,6 +628,14 @@ what it does, what it needs, how long it takes, what is retryable, and whether
 it destroys anything. It needs a row in the tool tables in `docs/mcp.md`,
 `webapp/README.md` and `docs/webapp.md`, and a test in
 `tests/test_webapp_mcp.py` asserting it cannot outrun a limit the API applies.
+
+**A new MCP resource** is for reference material an agent reads, never for
+something that takes an argument or changes state - that is a tool. Call an
+existing presentation function (`webapp/catalog.py`, `webapp/advisories.py`)
+rather than writing a second one; a resource restating what a page already
+renders is exactly the divergence a resource exists to avoid. It needs a
+`spec://check-opencloud-security/...` URI, the same rows and test as a new
+MCP tool above, and no scan target in its signature.
 
 **A new WebMCP tool** must represent an action already available on that
 page. Build its schema from the same server-side catalogue as the controls,

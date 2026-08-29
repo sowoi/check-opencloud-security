@@ -1,5 +1,6 @@
 """
-Discoverability: robots.txt, sitemap.xml and the canonical URL of a page.
+Discoverability: robots.txt, agents.txt, sitemap.xml and the canonical URL
+of a page.
 
 The service itself is not a secret. The landing page, its explanations and
 the generated operator documentation are public, and a person looking for a
@@ -29,9 +30,14 @@ SITE_NAME = "OpenCloud Security Scan"
 #: source this one is rendered from.
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
+AGENTS_TXT_PATH = "/agents.txt"
 LLMS_PATH = "/llms.txt"
 LLMS_FULL_PATH = "/llms-full.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
+
+#: Speaks to a protocol rather than serving anything a `GET` returns, so it
+#: is named for an agent that reads `agents.txt` but never crawled for it.
+MCP_PATH = "/mcp"
 
 #: The legal notice belongs to whoever runs this particular deployment, not to
 #: the software. Only the host it was written for serves it, so a self-hosted
@@ -101,9 +107,9 @@ PUBLIC_PAGES: tuple[PublicPage, ...] = (
 #: that includes every result, every export and every error page.
 INDEXABLE_PATHS = frozenset(page.path for page in PUBLIC_PAGES)
 
-# The files a crawler fetches before anything else, and the three documents
-# an agent is *meant* to find, must not be told to forget what they just read.
-_ROBOTS_EXEMPT = frozenset({ROBOTS_PATH, SITEMAP_PATH})
+# The files a crawler fetches before anything else, and the documents an
+# agent is *meant* to find, must not be told to forget what they just read.
+_ROBOTS_EXEMPT = frozenset({ROBOTS_PATH, SITEMAP_PATH, AGENTS_TXT_PATH})
 
 # Everything a crawler has no business in. `/api` is a page about the API and
 # stays crawlable; `/api/` and below is the API itself. `/mcp` speaks a
@@ -114,12 +120,12 @@ _DISALLOWED = (
     "/docs",
     "/redoc",
     "/healthz",
-    "/mcp",
+    MCP_PATH,
 )
 
-# The machine-readable contract, said out loud. These are the three documents
-# an agent needs in order to use this service without reading its source, and
-# a crawler that finds them has found what it came for.
+# The machine-readable contract, said out loud. These are the documents an
+# agent needs in order to use this service without reading its source, and a
+# crawler that finds them has found what it came for.
 _MACHINE_READABLE = (
     LLMS_PATH,
     "/.well-known/ai.json",
@@ -256,6 +262,39 @@ def robots_txt(origin: str, *, allow_indexing: bool) -> str:
     lines.extend(f"Disallow: {path}" for path in _DISALLOWED)
     lines.append("")
     lines.append(f"Sitemap: {origin}{SITEMAP_PATH}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def agents_txt(origin: str, *, allow_indexing: bool, mcp_enabled: bool) -> str:
+    """
+    What an autonomous agent may do here, in the convention some agent
+    frameworks look for by that name, alongside `robots.txt` and `llms.txt`.
+
+    `robots.txt` says which pages a crawler may fetch. This says the same
+    thing - the same allow-list, so the two documents cannot answer a path
+    differently - and adds what a crawling convention has no field for:
+    where the tools are, not only the pages. `/mcp` is disallowed above
+    because there is nothing a `GET` can fetch there, and named again here as
+    the place an agent that speaks the protocol should connect instead.
+
+    Like `/.well-known/ai.json`, this is an informal convention rather than a
+    registered standard; the OpenAPI, Arazzo and MCP contracts remain
+    authoritative over anything said here.
+    """
+    if not allow_indexing:
+        return "User-agent: *\nDisallow: /\n"
+    lines = ["User-agent: *", "Allow: /"]
+    lines.extend(f"Allow: {path}" for path in _MACHINE_READABLE)
+    lines.extend(f"Disallow: {path}" for path in _DISALLOWED)
+    lines.append("")
+    lines.append(f"# Discovery: {origin}/.well-known/ai.json")
+    lines.append(f"# Content map: {origin}{LLMS_PATH}")
+    lines.append(f"# API: {origin}/openapi.json")
+    lines.append(f"# Workflows: {origin}/arazzo.json")
+    if mcp_enabled:
+        lines.append(f"# Tools (Model Context Protocol): {origin}{MCP_PATH}")
+    lines.append(f"# Sitemap: {origin}{SITEMAP_PATH}")
     lines.append("")
     return "\n".join(lines)
 

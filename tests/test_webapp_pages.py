@@ -208,6 +208,25 @@ def test_the_moved_prose_survived_the_move():
             assert re.sub(r"\s+", " ", phrase) in re.sub(r"\s+", " ", body)
 
 
+def test_the_catalogue_lists_a_known_check_and_a_known_advisory():
+    """
+    The catalogue is read straight from the scanner's own data, not copied.
+
+    A known hardening id and its category prove the checks half is wired to
+    ``opencloud_local_scan``; the bundled advisory proves the advisories half
+    is wired to the same database a scan is rated against.
+    """
+    from opencloud_local_scan.vulndb import load_database
+
+    body = client().get("/catalogue").text
+    bundled = load_database()
+
+    assert "basicAuthDisabled" in body
+    assert "Authentication" in body
+    for advisory in bundled.advisories:
+        assert advisory.id in body
+
+
 def test_an_unknown_page_is_still_a_404():
     """
     Adding routes must not turn a typo into a match.

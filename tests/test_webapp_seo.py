@@ -124,6 +124,37 @@ def test_robots_points_at_the_sitemap_and_keeps_crawlers_out_of_the_results():
     assert "Disallow: /\n" not in body
 
 
+def test_agents_txt_matches_robots_and_names_the_agent_facing_endpoints():
+    """
+    Two files a fetcher might read first must not disagree.
+
+    `agents.txt` reuses the same allow/disallow list as `robots.txt` and adds
+    what a crawling convention has no field for - the discovery document, the
+    contracts and the MCP endpoint - so an agent finds the tools, not only
+    the pages.
+    """
+    robots = client().get("/robots.txt").text
+    body = client().get("/agents.txt").text
+
+    assert body.startswith("User-agent: *\nAllow: /\n")
+    assert "Disallow: /scan/" in body
+    assert "Disallow: /api/" in body
+    assert "Disallow: /\n" not in body
+    # The negative half: both documents agree on what is off limits.
+    for line in body.splitlines():
+        if line.startswith("Disallow:"):
+            assert line in robots
+    assert "# Discovery: http://testserver/.well-known/ai.json" in body
+    assert "Tools (Model Context Protocol): http://testserver/mcp" in body
+
+
+def test_agents_txt_is_a_flat_refusal_when_indexing_is_off():
+    """A private deployment should not hand an agent a list of its tools either."""
+    body = client(allow_indexing=False).get("/agents.txt").text
+
+    assert body == "User-agent: *\nDisallow: /\n"
+
+
 def test_indexing_can_be_turned_off_completely():
     """
     A private deployment should be able to disappear.

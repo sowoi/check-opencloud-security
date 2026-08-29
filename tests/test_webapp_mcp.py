@@ -29,7 +29,13 @@ from webapp import prompts as pr
 from webapp import workflows as wf
 from webapp.app import create_app
 from webapp.arazzo import arazzo_document
-from webapp.mcp_server import ARAZZO_RESOURCE, OPENAPI_RESOURCE
+from webapp.catalog import check_catalogue
+from webapp.mcp_server import (
+    ADVISORIES_RESOURCE,
+    ARAZZO_RESOURCE,
+    CATALOGUE_RESOURCE,
+    OPENAPI_RESOURCE,
+)
 
 TARGET = "https://opencloud.example.com"
 
@@ -180,6 +186,51 @@ def test_the_specifications_are_offered_as_resources_an_agent_can_read():
     assert [w["workflowId"] for w in document["workflows"]] == [
         w["workflowId"] for w in arazzo_document()["workflows"]
     ]
+
+
+def test_the_catalogue_resource_is_the_same_knowledge_base_the_dashboard_uses():
+    """
+    An agent should be able to explain a finding without scraping the site.
+
+    The resource has to be the same catalogue the /catalogue page renders -
+    not a second list that could quietly say something different about the
+    same identifier.
+    """
+    with client() as served:
+        resources = {
+            item["uri"]
+            for item in _call(served, "resources/list")["result"]["resources"]
+        }
+        read = _call(served, "resources/read", {"uri": CATALOGUE_RESOURCE})
+
+    assert CATALOGUE_RESOURCE in resources
+    document = json.loads(read["result"]["contents"][0]["text"])
+    expected = check_catalogue()
+    assert [category["id"] for category in document] == [
+        category.id for category in expected
+    ]
+    first = document[0]["checks"][0]
+    assert first["id"] == expected[0].checks[0].id
+    assert first["meaning"] == expected[0].checks[0].meaning
+    # The negative half: no scan is required to read it.
+    assert "targetUrl" not in json.dumps(document)
+
+
+def test_the_advisories_resource_is_the_whole_database_not_one_scans_subset():
+    """An agent asking 'what would this catch' should not have to run a scan first."""
+    with client() as served:
+        resources = {
+            item["uri"]
+            for item in _call(served, "resources/list")["result"]["resources"]
+        }
+        read = _call(served, "resources/read", {"uri": ADVISORIES_RESOURCE})
+
+    assert ADVISORIES_RESOURCE in resources
+    document = json.loads(read["result"]["contents"][0]["text"])
+    assert isinstance(document, list)
+    if document:
+        entry = document[0]
+        assert {"id", "severity", "ranges"} <= set(entry)
 
 
 def test_reading_an_unknown_scan_answers_a_refusal_the_model_can_act_on():

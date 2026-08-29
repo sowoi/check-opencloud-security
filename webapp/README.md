@@ -55,7 +55,7 @@ webapp/
 ├── i18n.py           request locale negotiation and string-catalog translation
 ├── locales/          English, German, Spanish and French frontend strings
 ├── purge.py          erasure on request, and the signed receipt for it
-├── seo.py            the public page list, robots.txt and sitemap.xml
+├── seo.py            the public page list, robots.txt, agents.txt and sitemap.xml
 └── catalog.py        the waiver allow-list and the dashboard grouping
 
 frontend/
@@ -153,6 +153,7 @@ A small surface, and this is all of it.
 | `GET` | `/arazzo.json` | The API as Arazzo workflows, beside the schema and behind the same switch |
 | `GET` | `/healthz` | Pings Redis, reads queue depth, and requires a live worker heartbeat; returns the aggregate depth or a 503 when unavailable |
 | `GET` | `/robots.txt` | Generated. Points at the sitemap and keeps crawlers out of `/scan/` and `/api/` |
+| `GET` | `/agents.txt` | Generated. Same allow/disallow list as `/robots.txt`, plus the discovery document, the contracts and the MCP endpoint |
 | `GET` | `/sitemap.xml` | Generated from the six public pages, with each `lastmod` taken from its template; **404** when `COS_WEB_ALLOW_INDEXING` is off |
 
 ### Starting a scan
@@ -360,9 +361,10 @@ COS_WEB_REDIS_URL=memory:// \
 - The workflows: <http://127.0.0.1:8811/arazzo.json>
 - The discovery document: <http://127.0.0.1:8811/.well-known/ai.json>
 - The short agent map: <http://127.0.0.1:8811/llms.txt>
+- The agent/crawler allow-list: <http://127.0.0.1:8811/agents.txt>
 - The MCP endpoint: <http://127.0.0.1:8811/mcp>
 
-The last four need no switch at all. In Docker, set
+The last five need no switch at all. In Docker, set
 `COS_WEB_ENABLE_DOCS: "true"` on the `web_app` service in
 [`docker/docker-compose.yml`](../docker/docker-compose.yml) for the first two.
 
@@ -441,9 +443,23 @@ authorisation a browser does.
 Configuring a client against it is documented for operators in
 [`docs/mcp.md`](../docs/mcp.md).
 
-Three resources expose the specifications under `spec://` URIs - the OpenAPI
-document, the Arazzo document and the discovery document - so an agent can
-read the contracts without leaving the protocol.
+Five resources are published under `spec://` URIs, so an agent can read the
+contracts - and the knowledge behind a finding - without leaving the
+protocol.
+
+| Resource | What it is |
+|:---------|:-----------|
+| `openapi` | The OpenAPI document |
+| `arazzo` | The Arazzo document |
+| `discovery` | The `/.well-known/ai.json` document |
+| `catalogue` | Every hardening flag and extra check the scanner runs, explained: what it means, the setting behind it, how to fix it and the official documentation - built from [`catalog.check_catalogue()`](catalog.py), the same function `/catalogue` renders |
+| `advisories` | The whole advisory database a scan is rated against, from [`advisories.advisory_catalogue()`](advisories.py) |
+
+`catalogue` and `advisories` are a knowledge base rather than a contract: an
+agent can explain what a finding id means, or see what the scanner would
+catch, without ever submitting a target. Reusing the same functions the
+`/catalogue` page calls is deliberate - a resource and a page describing the
+same check by id cannot come to disagree about what it means.
 
 Six prompts name the tasks people actually ask for, so a client offers the job
 rather than a menu of verbs. Their wording lives in [`prompts.py`](prompts.py),

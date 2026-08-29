@@ -37,6 +37,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   TLS-parity check, and the dashboard notes why instead of reporting the
   instance's IPv6 side as unreachable for a limitation of the deployment
   rather than of the instance.
+- **The MCP endpoint is now a knowledge base as well as an execution layer**:
+  two new resources, `catalogue` and `advisories`, publish the same
+  hardening/check explanations and advisory database the `/catalogue` page
+  renders - built from the same functions, so a resource can never disagree
+  with the page about what a check id means. An agent can now explain a
+  finding, or see what the scanner would catch, without submitting a scan.
+- **`GET /agents.txt`**: the same allow/disallow list as `/robots.txt`,
+  published under the filename some agent frameworks look for by convention,
+  and naming the discovery document, the OpenAPI/Arazzo contracts and the
+  MCP endpoint alongside it.
 
 ## [1.13.0] - 2026-08-28
 

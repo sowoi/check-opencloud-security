@@ -376,6 +376,35 @@ MESSAGES: dict[str, str] = {
         '<a href="/how-it-works">how the scan works</a> lists what it reads, and '
         "every result page repeats the limits underneath the grade."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "What the scanner checks",
+    "catalogue.description": (
+        "Every hardening flag, security header, TLS check and known advisory "
+        "this scanner can report, independent of any single scan result."
+    ),
+    "catalogue.kicker": "Reference",
+    "catalogue.lede": (
+        "This is the whole set: every check below can appear on a result page, "
+        "and every advisory below is one a scan is rated against. Nothing here "
+        "depends on a particular instance."
+    ),
+    "catalogue.checks.kicker": "Checks",
+    "catalogue.checks.heading": "Every check, by category",
+    "catalogue.checks.lede": (
+        "Grouped by what they are about rather than how badly they can fail - "
+        "severity depends on the instance being scanned, so it is not shown here."
+    ),
+    "catalogue.checks.not_configurable": "not configurable",
+    "catalogue.advisories.kicker": "Advisories",
+    "catalogue.advisories.heading": "Known advisories",
+    "catalogue.advisories.lede": (
+        "Every advisory in the database a scan is rated against, refreshed "
+        "daily from the public feed."
+    ),
+    "catalogue.advisories.empty.tag": "None known",
+    "catalogue.advisories.empty.body": "The advisory database is currently empty.",
+    "catalogue.advisories.fixed_in": "Fixed in {version}",
+    "catalogue.advisories.unfixed": "No fix published yet",
     # -------------------------------------------------- how the scan works
     "how.title": "How the scan works",
     "how.description": (
@@ -909,6 +938,11 @@ MESSAGES: dict[str, str] = {
     "search.page.grades.title": "What the grades mean",
     "search.page.grades.summary": (
         "The A+ to F rating scale and the fixes that improve each grade."
+    ),
+    "search.page.catalogue.title": "What the scanner checks",
+    "search.page.catalogue.summary": (
+        "Every hardening flag, header and TLS check the scanner runs, and "
+        "every known advisory."
     ),
     "search.page.documentation.title": "CLI documentation",
     "search.page.documentation.summary": (

@@ -114,6 +114,7 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    AGENTS_TXT_PATH,
     LEGAL_NOTICE_PATH,
     LLMS_FULL_PATH,
     LLMS_PATH,
@@ -121,6 +122,7 @@ from .seo import (
     SECURITY_CONTACT_EMAIL,
     SECURITY_TXT_PATH,
     SITE_NAME,
+    agents_txt,
     canonical_url,
     is_indexable,
     robots_txt,
@@ -886,6 +888,19 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         origin = site_origin(str(request.base_url), settings.public_base_url)
         return PlainTextResponse(
             robots_txt(origin, allow_indexing=settings.allow_indexing),
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @app.get(AGENTS_TXT_PATH, include_in_schema=False)
+    async def agents(request: Request) -> Response:
+        """The same allow-list as robots.txt, plus where the tools are."""
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return PlainTextResponse(
+            agents_txt(
+                origin,
+                allow_indexing=settings.allow_indexing,
+                mcp_enabled=mcp_enabled,
+            ),
             headers={"Cache-Control": "public, max-age=3600"},
         )
 
