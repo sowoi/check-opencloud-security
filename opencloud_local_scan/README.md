@@ -27,8 +27,10 @@ meaning.
 
 Two endpoints are unauthenticated in OpenCloud, and both are needed:
 
-- **`/status.php`** - product, edition, `productversion`, `maintenance`,
-  `needsDbUpgrade`
+- **`/status.php`** - product, edition, `productversion`. It also carries
+  `maintenance`, `installed` and `needsDbUpgrade`, but OpenCloud's own handler
+  hardcodes all three rather than reading real state, so this package does not
+  check them - see [`docs/status-php.md`](../docs/status-php.md).
 - **`/ocs/v1.php/cloud/capabilities`** - the feature flags the hardening
   section below is derived from
 

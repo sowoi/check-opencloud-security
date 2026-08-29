@@ -503,6 +503,13 @@
       <span class="hint">{{ t('result.export.json.hint') }}</span>
     </li>
   </ul>
+  {% if summary.passedChecks %}
+  <h3 class="section-gap">{{ t('result.export.passed.heading') }}</h3>
+  <p class="hint">{{ t('result.export.passed.note') }}</p>
+  <ul class="pill-list">
+    {% for name in summary.passedChecks %}<li>{{ name }}</li>{% endfor %}
+  </ul>
+  {% endif %}
   <p class="hint section-gap">
     {{ t('result.feedback.prompt') }}
     <a href="{{ project_url }}/issues" rel="noopener noreferrer">{{ t('result.feedback.link') }}</a>.

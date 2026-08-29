@@ -15,6 +15,17 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#the-payload-in-short" lang="en">The payload, in short</a>
+  <a href="#a-generic-receiver" lang="en">A generic receiver</a>
+  <a href="#uptime-kuma" lang="en">Uptime Kuma</a>
+  <a href="#slack-mattermost-discord" lang="en">Slack, Mattermost, Discord</a>
+  <a href="#ntfy" lang="en">ntfy</a>
+  <a href="#alertmanager" lang="en">Alertmanager</a>
+  <a href="#testing-a-receiver-without-an-instance" lang="en">Testing a receiver without an instance</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The <a href="/documentation/reference#webhook-notifications">webhook</a> posts the plugin's own JSON
 document by default. That is deliberate: it carries the whole verdict, not a

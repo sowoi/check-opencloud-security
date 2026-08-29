@@ -256,9 +256,24 @@
     </div>
   </footer>
 
+  {#
+    A plain anchor to #main - the skip link's own target - so the native,
+    reduced-motion-aware smooth scroll in app.css does the actual work.
+    Hidden without back-to-top.js, the same way the collapsed nav is hidden
+    without nav.js: nothing is lost, since Home or a plain scroll still reach
+    the top on every browser.
+  #}
+  <a class="back-to-top" href="#main" hidden aria-label="{{ t('chrome.back_to_top') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
+    </svg>
+  </a>
+
   <script src="/static/js/nav.js" defer></script>
   <script src="/static/js/lang.js" defer></script>
   <script src="/static/js/reveal.js" defer></script>
+  <script src="/static/js/back-to-top.js" defer></script>
   {% block scripts %}{% endblock %}
   {% include "_webmcp.html" %}
 </body>

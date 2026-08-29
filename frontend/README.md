@@ -1,7 +1,7 @@
 # The frontend
 
 Everything the browser sees: twelve hand-written templates, the generated CLI
-documentation templates, one stylesheet, five small scripts, the SVGs drawn
+documentation templates, one stylesheet, six small scripts, the SVGs drawn
 for this project and the three self-hosted typefaces.
 No framework, no build step, no
 `node_modules`, and nothing loaded from anywhere but `/static`.
@@ -48,6 +48,7 @@ frontend/
     ├── js/scan.js   polls the scan until it settles, then reloads once
     ├── js/docs.js   starts Swagger UI, which may not be started inline
     ├── js/reveal.js marks blocks below the fold as they scroll into view
+    ├── js/back-to-top.js  reveals the pinned #main link past one viewport
     ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
     │                og-image.png rendered from it
     ├── fonts/       Space Grotesk, Inter and JetBrains Mono, self-hosted,
@@ -249,6 +250,15 @@ fold to above it between two frames, which the observer sees as no crossing at
 all, so a scrolled page also sweeps up whatever it has already passed and a
 block can never be stranded invisible. A browser without the observer gets no
 attribute and therefore a page that hides nothing.
+
+`back-to-top.js` (23 lines) removes the `hidden` attribute from the pinned
+link at the end of `base.html` once the page has scrolled past one viewport,
+and puts it back below that. The link itself is a plain anchor to `#main` -
+the skip link's own target - so the click needs no script, and the smooth
+scroll behind it is the same reduced-motion-aware one `app.css` already gives
+every anchor jump. Without scripting the link stays `hidden` for good, the
+same way the collapsed nav stays open for good without `nav.js`: nothing on
+the page depends on it.
 
 All of them are plain ES5-era JavaScript in an IIFE, because there is no
 bundler and there does not need to be one.

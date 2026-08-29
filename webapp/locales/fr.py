@@ -17,6 +17,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secondaire",
     "chrome.search.label": "Rechercher dans la documentation",
     "chrome.search.placeholder": "Rechercher",
+    "chrome.back_to_top": "Retour en haut",
     "nav.new_scan": "Nouvelle analyse",
     "nav.how_it_works": "Fonctionnement",
     "nav.grades": "Notes",
@@ -548,6 +549,15 @@ MESSAGES: dict[str, str] = {
         '<a href="/cli">une seule commande Docker</a> sur votre propre '
         "machine, sans limite et sans site web intermédiaire."
     ),
+    "how.faq.q6": "Un scan m'indique-t-il si une mise à jour d'OpenCloud est en attente ?",
+    "how.faq.a6": (
+        "Oui. Chaque scan compare la version signalée au flux des versions "
+        "d'OpenCloud et signale une mise à jour en attente ou une version qui "
+        "n'est plus prise en charge, de la même façon qu'il signale un "
+        'en-tête manquant - voir <a href="/documentation/reference#update-check">'
+        "la vérification des mises à jour</a> pour savoir comment la version "
+        "recommandée est déterminée."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Ce que ce serveur conserve",
     "privacy.description": (
@@ -1045,6 +1055,8 @@ MESSAGES: dict[str, str] = {
         "disponible qu'en anglais. La page qui l'entoure est traduite ; le "
         "texte ci-dessous ne l'est pas."
     ),
+    "docs.guide.toc.heading": "Sur cette page",
+    "docs.guide.toc.aria": "Sur cette page",
     # ----------------------------------------------------------------- search
     "search.title": "Recherche",
     "search.description": (
@@ -1437,6 +1449,11 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "Pour un tableau de bord d'analyse de code.",
     "result.export.json": "JSON",
     "result.export.json.hint": "Le document brut qu'évalue le plugin.",
+    "result.export.passed.heading": "Ce qui est déjà en règle",
+    "result.export.passed.note": (
+        "Ces contrôles sont revenus propres, ils n'apparaissent donc pas dans le "
+        "plan ci-dessus."
+    ),
     "result.feedback.prompt": "Vous pensez que l'analyse s'est trompée ?",
     "result.feedback.link": "Signaler un faux positif ou un faux négatif",
     "result.expiry.one": (

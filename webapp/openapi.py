@@ -425,6 +425,7 @@ def _schemas() -> dict[str, Any]:
                 "missingHeaders": {"type": "array", "items": {"type": "object"}},
                 "remediation": {"$ref": "#/components/schemas/RemediationPlan"},
                 "passedCount": {"type": "integer"},
+                "passedChecks": {"type": "array", "items": {"type": "string"}},
                 "https": {"type": "object", "additionalProperties": True},
                 "tls": {"$ref": "#/components/schemas/TlsDetail"},
                 "identityProvider": {"type": "object", "additionalProperties": True},

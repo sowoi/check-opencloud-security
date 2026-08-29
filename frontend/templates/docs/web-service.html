@@ -15,6 +15,23 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#contents" lang="en">Contents</a>
+  <a href="#starting-it" lang="en">Starting it</a>
+  <a href="#what-a-visitor-can-ask-for" lang="en">What a visitor can ask for</a>
+  <a href="#configuration" lang="en">Configuration</a>
+  <a href="#how-a-scan-flows-through-it" lang="en">How a scan flows through it</a>
+  <a href="#queueing-rather-than-refusing" lang="en">Queueing rather than refusing</a>
+  <a href="#isolation-between-scans" lang="en">Isolation between scans</a>
+  <a href="#the-ssrf-guard" lang="en">The SSRF guard</a>
+  <a href="#rate-limiting" lang="en">Rate limiting</a>
+  <a href="#what-gets-logged" lang="en">What gets logged</a>
+  <a href="#putting-it-behind-a-reverse-proxy" lang="en">Putting it behind a reverse proxy</a>
+  <a href="#the-http-api" lang="en">The HTTP API</a>
+  <a href="#layout" lang="en">Layout</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>A web application that runs the built-in scanner for anyone who visits it,
 grades the instance from <strong>A+</strong> to <strong>F</strong>, and forgets the whole thing an hour

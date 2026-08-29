@@ -113,6 +113,56 @@
       "summary": "Secure, size, and operate the Redis instance that queues OpenCloud security scans."
     },
     {
+      "path": "/documentation/output-formats",
+      "title": "Machine-readable OpenCloud scan output: JSON, SARIF and JUnit",
+      "summary": "Compare --format json, sarif and junit and wire each into a CI pipeline or dashboard."
+    },
+    {
+      "path": "/documentation/csp",
+      "title": "Content-Security-Policy checks explained",
+      "summary": "What the OpenCloud Security Scanner's two CSP checks look for, and why unsafe-inline fails."
+    },
+    {
+      "path": "/documentation/tls",
+      "title": "TLS and certificate checks explained",
+      "summary": "Every TLS and certificate check the OpenCloud Security Scanner runs, and why each one matters."
+    },
+    {
+      "path": "/documentation/status-php",
+      "title": "Why OpenCloud still answers /status.php",
+      "summary": "The PHP-era compatibility endpoint OpenCloud still serves, its hardcoded fields, and what this scanner reads from it."
+    },
+    {
+      "path": "/documentation/cookies",
+      "title": "Cookie attribute checks explained",
+      "summary": "The Secure, HttpOnly and SameSite checks the OpenCloud Security Scanner runs against observed cookies."
+    },
+    {
+      "path": "/documentation/authentication",
+      "title": "Authentication checks explained",
+      "summary": "How the OpenCloud Security Scanner tests protected endpoints, HTTP Basic auth, demo accounts and password policy."
+    },
+    {
+      "path": "/documentation/sharing",
+      "title": "Public link sharing checks explained",
+      "summary": "The password and expiration checks the OpenCloud Security Scanner runs against public share links."
+    },
+    {
+      "path": "/documentation/exposure",
+      "title": "Exposed path and debug endpoint checks explained",
+      "summary": "The deployment files, debug endpoints and ports the OpenCloud Security Scanner checks are not publicly reachable."
+    },
+    {
+      "path": "/documentation/embedding",
+      "title": "Iframe embedding checks explained",
+      "summary": "The origin-restriction checks the OpenCloud Security Scanner runs against embedding OpenCloud's web client in an iframe."
+    },
+    {
+      "path": "/documentation/lifecycle",
+      "title": "Version and lifecycle disclosure checks explained",
+      "summary": "How the OpenCloud Security Scanner checks that a version was determined at all, and whether it leaks in a header or webfinger."
+    },
+    {
       "path": "/documentation/troubleshooting",
       "title": "Troubleshoot the OpenCloud Security Scanner",
       "summary": "Resolve OpenCloud security scan errors and interpret the exit-code reference."

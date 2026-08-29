@@ -16,6 +16,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Sekundär",
     "chrome.search.label": "Dokumentation durchsuchen",
     "chrome.search.placeholder": "Suchen",
+    "chrome.back_to_top": "Nach oben",
     "nav.new_scan": "Neuer Scan",
     "nav.how_it_works": "So funktioniert es",
     "nav.grades": "Noten",
@@ -35,7 +36,7 @@ MESSAGES: dict[str, str] = {
     # ------------------------------------------------------------- footer
     "footer.note.title": "Ein stiller Dienst, mit Absicht.",
     "footer.note.body": (
-        "Scans laufen von diesem Server gegen die von Ihnen eingegebene Adresse. "
+        "Scans laufen von diesem Server gegen die von dir eingegebene Adresse. "
         "Ergebnisse liegen {minutes} Minuten im Speicher und sind danach weg. "
         "Basiert auf dem <code>check-opencloud-security</code>-Scanner - kein "
         "Tracking, keine Konten, keine Analyse."
@@ -53,7 +54,7 @@ MESSAGES: dict[str, str] = {
         "dass die Instanz sicher ist. Alles hinter der Anmeldung, der Server, auf "
         "dem sie läuft, das Netzwerk drumherum, die Daten darin und die Personen "
         "mit Konten darauf liegen außerhalb dessen, was ein nicht angemeldeter "
-        "Scan sehen kann. Behandeln Sie das Ergebnis als einen Faktor unter "
+        "Scan sehen kann. Behandle das Ergebnis als einen Faktor unter "
         "mehreren, niemals als Sicherheitsaudit oder Penetrationstest."
     ),
     "footer.legal.trademark": (
@@ -93,7 +94,7 @@ MESSAGES: dict[str, str] = {
     "pagenav.ai.blurb": "Discovery, OpenAPI, Arazzo-Workflows und der MCP-Endpunkt.",
     "pagenav.cli.title": "Selbst ausführen, in einer Zeile",
     "pagenav.cli.blurb": (
-        "Ein Docker-Befehl, auf Ihrer eigenen Maschine, ohne Ratenlimit und ohne "
+        "Ein Docker-Befehl, auf deiner eigenen Maschine, ohne Ratenlimit und ohne "
         "Website dazwischen."
     ),
     "pagenav.privacy.title": "Was dieser Server speichert",
@@ -121,7 +122,7 @@ MESSAGES: dict[str, str] = {
         "Scan ist verschwunden: Ergebnisse werden {minutes} Minuten gehalten und "
         "dann verworfen, sodass ein Link von heute Morgen nicht mehr öffnet. Eine "
         "Kennung, die nie existiert hat, sieht von hier aus genau gleich aus - "
-        "dieser Dienst kann Ihnen nicht sagen, welcher Fall vorliegt, und "
+        "dieser Dienst kann dir nicht sagen, welcher Fall vorliegt, und "
         "versucht es bewusst auch nicht."
     ),
     "notfound.action": "Neuen Scan starten",
@@ -134,11 +135,11 @@ MESSAGES: dict[str, str] = {
     ),
     "index.eyebrow": "Unabhängig &middot; air-gapped &middot; nichts wird gespeichert",
     "index.headline": (
-        'Wie sicher ist Ihre <em class="swash">OpenCloud-Instanz</em>?'
+        'Wie sicher ist deine <em class="swash">OpenCloud-Instanz</em>?'
     ),
     "index.lede": (
-        "Geben Sie die Adresse einer Instanz ein, für die Sie verantwortlich "
-        "sind. Dieser Server spricht sie über HTTPS an, wie es jeder Besucher "
+        "Gib die Adresse einer Instanz ein, für die du verantwortlich bist. "
+        "Dieser Server spricht sie über HTTPS an, wie es jeder Besucher "
         "täte, liest, was sie ohne Anmeldung veröffentlicht, und benotet das "
         "Ergebnis von <strong>A+</strong> bis <strong>F</strong>."
     ),
@@ -146,8 +147,8 @@ MESSAGES: dict[str, str] = {
     "index.form.hint": "Ein paar Sekunden &middot; keine Anmeldung",
     "index.error.self_host": (
         "Nichts für ungut - die Grenzen halten diesen kleinen Dienst am Laufen. "
-        "Der Scanner ist Open Source, Sie können diese exakte Prüfung also selbst "
-        "ausführen, so oft Sie möchten:"
+        "Der Scanner ist Open Source, du kannst diese exakte Prüfung also selbst "
+        "ausführen, so oft du möchtest:"
     ),
     "index.field.label": "Adresse der Instanz",
     "index.field.title": (
@@ -159,8 +160,8 @@ MESSAGES: dict[str, str] = {
         "Der Hostname allein genügt - <code>https://</code> wird angenommen. Ein "
         "Unterordner wie <code>/opencloud</code> wird unterstützt; Queries, "
         "Fragmente, Parameter und Pfad-Traversierung werden abgelehnt. Nur "
-        "öffentliche Adressen, und nur Instanzen, die Sie betreiben oder für "
-        "deren Test Sie eine Erlaubnis haben."
+        "öffentliche Adressen, und nur Instanzen, die du betreibst oder für "
+        "deren Test du eine Erlaubnis hast."
     ),
     "index.submit": "Prüfung starten",
     "index.submit.busy": "Prüfung wird gestartet...",
@@ -238,8 +239,8 @@ MESSAGES: dict[str, str] = {
         "bestanden."
     ),
     "grade.5.improve": (
-        "Hier bleiben: Achten Sie auf das nächste Release auf Ihrem Track, und "
-        "führen Sie den Scan nach jeder Änderung am Reverse Proxy oder der "
+        "Hier bleiben: Achte auf das nächste Release auf deinem Track, und "
+        "führe den Scan nach jeder Änderung am Reverse Proxy oder der "
         "Anmeldung erneut aus."
     ),
     "grade.4.headline": "Ein Update wartet",
@@ -249,7 +250,7 @@ MESSAGES: dict[str, str] = {
         "einfach nicht die neueste."
     ),
     "grade.4.improve": (
-        "Installieren Sie das anstehende Update. Es ist dieselbe Release-Linie, "
+        "Installiere das anstehende Update. Es ist dieselbe Release-Linie, "
         "also das kleinstmögliche Upgrade."
     ),
     "grade.3.headline": "Eine Release-Linie zurück",
@@ -259,8 +260,8 @@ MESSAGES: dict[str, str] = {
         "dort, wo Fixes zuerst ankommen."
     ),
     "grade.3.improve": (
-        "Wechseln Sie zur aktuellen Linie Ihres Tracks. Der Scan nennt, welche "
-        "das ist, und weist nie auf einen Track hin, den Sie nicht gewählt haben."
+        "Wechsle zur aktuellen Linie deines Tracks. Der Scan nennt, welche "
+        "das ist, und weist nie auf einen Track hin, den du nicht gewählt hast."
     ),
     "grade.2.headline": "Advisories treffen auf diese Version zu",
     "grade.2.meaning": (
@@ -269,7 +270,7 @@ MESSAGES: dict[str, str] = {
         "einzige Grund ist, warum es nicht niedriger ausfällt."
     ),
     "grade.2.improve": (
-        "Aktualisieren Sie auf die behobene Version für Ihre Release-Linie. Die "
+        "Aktualisiere auf die behobene Version für deine Release-Linie. Die "
         "Ergebnisseite nennt sie - eine Advisory kann auf mehreren Linien separat "
         "behoben werden."
     ),
@@ -280,7 +281,7 @@ MESSAGES: dict[str, str] = {
         "veröffentlichter und behobener Weg hinein."
     ),
     "grade.1.improve": (
-        "Aktualisieren Sie jetzt, vor allem anderen auf der Seite. Nichts anderes, "
+        "Aktualisiere jetzt, vor allem anderen auf der Seite. Nichts anderes, "
         "was sich ändern lässt, hebt die Note über dieses Niveau."
     ),
     "grade.0.headline": "Nicht mehr unterstützt",
@@ -291,7 +292,7 @@ MESSAGES: dict[str, str] = {
         "ordentlich ihre Header sind."
     ),
     "grade.0.improve": (
-        "Wechseln Sie zu einer unterstützten Release-Linie. Welche Linien wie "
+        "Wechsle zu einer unterstützten Release-Linie. Welche Linien wie "
         "lange unterstützt werden, steht im Release-Zeitplan, den der Scan liest."
     ),
     # ---------------------------------------------------------- grades page
@@ -355,14 +356,14 @@ MESSAGES: dict[str, str] = {
     "grades.improve.plan": (
         "<strong>Ein Sanierungsplan, in Reihenfolge des Nutzens.</strong> Jeder "
         "Schritt sagt, was zu ändern ist und welche Note die Instanz halten "
-        "würde, sobald dieser Schritt und alles darüber erledigt ist - so können "
-        "Sie aufhören, wo sich der Aufwand nicht mehr lohnt."
+        "würde, sobald dieser Schritt und alles darüber erledigt ist - so kannst "
+        "du aufhören, wo sich der Aufwand nicht mehr lohnt."
     ),
     "grades.improve.release": (
         '<strong>Das genaue Release, zu dem gewechselt werden sollte.</strong> '
         "Nicht \"aktualisieren\": die Version, die die Advisory <em>auf der "
-        "Linie behebt, auf der Sie tatsächlich sind</em>, und nie ein Sprung auf "
-        "einen Track, den Sie nicht gewählt haben."
+        "Linie behebt, auf der du tatsächlich bist</em>, und nie ein Sprung auf "
+        "einen Track, den du nicht gewählt hast."
     ),
     "grades.improve.explained": (
         "<strong>Jede fehlgeschlagene Prüfung, erklärt.</strong> Was gemessen "
@@ -370,14 +371,14 @@ MESSAGES: dict[str, str] = {
         "OpenCloud-Dokumentation für die dahinterstehende Einstellung."
     ),
     "grades.improve.waiver": (
-        "<strong>Ein Waiver für die, mit denen Sie zu leben entschieden "
-        "haben.</strong> Eine ausgesetzte Prüfung bleibt im Bericht und bleibt "
+        "<strong>Ein Waiver für die, mit denen du zu leben entschieden "
+        "hast.</strong> Eine ausgesetzte Prüfung bleibt im Bericht und bleibt "
         "sichtbar - sie hört nur auf, die Note zu deckeln, sodass eine bewusste "
         "Entscheidung nicht für immer wie ein Fehlschlag aussieht. Sie kann keine "
         "bestandene Prüfung verstecken und kein End-of-Life-Release retten."
     ),
     "grades.improve.rerun": (
-        "Führen Sie ihn danach erneut aus. Dieselbe Instanz, derselbe Scan, und "
+        "Führe ihn danach erneut aus. Dieselbe Instanz, derselbe Scan, und "
         "der Buchstabe ändert sich - was der einzige Beweis ist, dass irgendetwas "
         "davon funktioniert hat."
     ),
@@ -389,7 +390,7 @@ MESSAGES: dict[str, str] = {
         "Penetrationstest. Alles hinter der Anmeldung, das Betriebssystem, die "
         "Container-Laufzeit, die Backups, die Konten und die Personen, die sie "
         "innehaben, liegen außerhalb dessen, was ein nicht angemeldeter Scan "
-        "sehen kann. Behandeln Sie den Buchstaben als einen Faktor unter mehreren "
+        "sehen kann. Behandle den Buchstaben als einen Faktor unter mehreren "
         '- <a href="/how-it-works">wie der Scan funktioniert</a> listet auf, was '
         "er liest, und jede Ergebnisseite wiederholt die Grenzen unterhalb der "
         "Note."
@@ -436,7 +437,7 @@ MESSAGES: dict[str, str] = {
     "how.kicker": "Die Methode",
     "how.lede": (
         "Alles, was dieser Dienst meldet, findet er selbst heraus, indem er die "
-        "von Ihnen eingegebene Adresse über HTTPS anspricht, wie es jeder "
+        "von dir eingegebene Adresse über HTTPS anspricht, wie es jeder "
         "Besucher täte. Niemand Drittes wird gefragt, und niemand meldet sich an."
     ),
     "how.tests.heading": "Was geprüft wird",
@@ -460,12 +461,12 @@ MESSAGES: dict[str, str] = {
         "was der Welt die Version verkündet."
     ),
     "how.pipeline.kicker": "Die Pipeline",
-    "how.pipeline.heading": "Was passiert, wenn Sie den Button drücken",
+    "how.pipeline.heading": "Was passiert, wenn du den Button drückst",
     "how.pipeline.lede": (
         "Vier Schritte, und beim dritten kommt die Warteschlange ins Spiel."
     ),
     "how.pipeline.step1": (
-        "<strong>Ihre Adresse wird geprüft.</strong> Private, lokale und "
+        "<strong>Deine Adresse wird geprüft.</strong> Private, lokale und "
         "Cloud-Metadaten-Adressen werden abgelehnt, bevor überhaupt eine "
         "Verbindung aufgebaut wird."
     ),
@@ -476,8 +477,8 @@ MESSAGES: dict[str, str] = {
     ),
     "how.pipeline.step3": (
         "<strong>Er wartet, bis er an der Reihe ist.</strong> Eine feste Anzahl "
-        "von Scans läuft gleichzeitig. Sind alle beschäftigt, reiht sich Ihrer "
-        "ein, und Ihnen wird Ihre Position in der Reihe genannt - nichts wird "
+        "von Scans läuft gleichzeitig. Sind alle beschäftigt, reiht sich deiner "
+        "ein, und dir wird deine Position in der Reihe genannt - nichts wird "
         "abgelehnt, nur weil der Dienst beliebt ist."
     ),
     "how.pipeline.step4": (
@@ -503,13 +504,13 @@ MESSAGES: dict[str, str] = {
         "die ohne Anmeldung sichtbar sind. Alles hinter dem Login, der Server, "
         "auf dem sie läuft, das Netzwerk drumherum und die Personen mit Konten "
         "darauf liegen außerhalb dessen, was ein nicht authentifizierter Scan "
-        "sehen kann. Betrachten Sie ein Ergebnis als einen Baustein unter "
+        "sehen kann. Betrachte ein Ergebnis als einen Baustein unter "
         "mehreren, niemals als Sicherheitsaudit oder Penetrationstest."
     ),
-    "how.faq.q3": "Wie lange bewahren Sie das Ergebnis eines Scans auf?",
+    "how.faq.q3": "Wie lange bewahrst du das Ergebnis eines Scans auf?",
     "how.faq.a3": (
         "Nur im Speicher, für {minutes} Minuten, danach ist es weg. Keine "
-        "Konten, keine Analyse, kein Tracking - den Rest lesen Sie unter "
+        "Konten, keine Analyse, kein Tracking - den Rest liest du unter "
         '<a href="/privacy">Was dieser Server speichert</a>.'
     ),
     "how.faq.q4": "Gibt es ein Ratenlimit?",
@@ -521,9 +522,18 @@ MESSAGES: dict[str, str] = {
     ),
     "how.faq.q5": "Kann ich ohne Ratenlimit scannen?",
     "how.faq.a5": (
-        "Ja - der Scanner ist Open Source. Führen Sie ihn mit "
-        '<a href="/cli">einem einzigen Docker-Befehl</a> auf Ihrer eigenen '
+        "Ja - der Scanner ist Open Source. Führe ihn mit "
+        '<a href="/cli">einem einzigen Docker-Befehl</a> auf deiner eigenen '
         "Maschine aus, ohne Limit und ohne Website dazwischen."
+    ),
+    "how.faq.q6": "Sagt mir ein Scan, ob ein OpenCloud-Update ansteht?",
+    "how.faq.a6": (
+        "Ja. Jeder Scan vergleicht die gemeldete Version mit dem "
+        "OpenCloud-Release-Feed und meldet ein anstehendes Update oder eine "
+        "nicht mehr unterstützte Version genauso wie einen fehlenden Header - "
+        'sieh dir <a href="/documentation/reference#update-check">den '
+        "Update-Check</a> an, um zu sehen, wie die empfohlene Version "
+        "ermittelt wird."
     ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Was dieser Server speichert",
@@ -536,17 +546,17 @@ MESSAGES: dict[str, str] = {
     "privacy.retention.kicker": "Speicherdauer",
     "privacy.retention.heading": "Solange ein Scan lebt",
     "privacy.retention.body": (
-        "Die von Ihnen übermittelte Adresse, die Prüfungen, die Sie zu ignorieren "
-        "wählten, und das Ergebnis liegen {minutes} Minuten im Speicher, unter "
-        "einem Schlüssel, der aus der zufälligen Kennung Ihres Scans abgeleitet "
+        "Die von dir übermittelte Adresse, die Prüfungen, die du zu ignorieren "
+        "wähltest, und das Ergebnis liegen {minutes} Minuten im Speicher, unter "
+        "einem Schlüssel, der aus der zufälligen Kennung deines Scans abgeleitet "
         "ist, und werden dann vom Speicher selbst verworfen. Das Betriebslog "
         "vermerkt, dass ein Scan erstellt, gestartet und beendet wurde, "
         "ausschließlich anhand dieser zufälligen Kennung - nicht die Adresse, "
-        "nicht das Ergebnis und nicht Ihre IP-Adresse, die nur als "
+        "nicht das Ergebnis und nicht deine IP-Adresse, die nur als "
         "Einweg-Fingerabdruck für die Ratenbegrenzung gezählt wird."
     ),
     "privacy.self_host": (
-        "Möchten Sie es lieber selbst betreiben? Derselbe Scanner ist eine "
+        "Möchtest du es lieber selbst betreiben? Derselbe Scanner ist eine "
         "Kommandozeilenprüfung und ein Python-Paket. In keinem der beiden Fälle "
         "spricht hier irgendetwas mit einem Drittanbieterdienst."
     ),
@@ -597,10 +607,10 @@ MESSAGES: dict[str, str] = {
     "about.project.kicker": "Das Projekt",
     "about.project.heading": "Über diesen Scanner",
     "about.project.body": (
-        "Alles, was Sie hier sehen, wird von <code>check-opencloud-security</code> "
+        "Alles, was du hier siehst, wird von <code>check-opencloud-security</code> "
         "erzeugt, einem Nagios- und Icinga-Plugin mit einer Scanner-Bibliothek "
         "dahinter. Diese Seite ist eine Möglichkeit, es zu nutzen; ein Befehl auf "
-        "Ihrer eigenen Maschine, ohne Ratenlimit und ohne Warteschlange, ist die "
+        "deiner eigenen Maschine, ohne Ratenlimit und ohne Warteschlange, ist die "
         "andere."
     ),
     "about.project.origin": (
@@ -646,8 +656,8 @@ MESSAGES: dict[str, str] = {
     "api.limits.no_cooldown": "keine Abkühlzeit pro Ziel",
     "api.limits.none": "Dieses Deployment setzt kein Ratenlimit.",
     "api.limits.self_host": (
-        "Wenn Sie eines treffen und lieber nicht warten möchten: Das Ganze läuft "
-        'auch auf Ihrer eigenen Maschine: <a href="{project}" '
+        "Wenn du eines triffst und lieber nicht warten möchtest: Das Ganze läuft "
+        'auch auf deiner eigenen Maschine: <a href="{project}" '
         'rel="noopener noreferrer">das Projekt ist auf GitHub</a>.'
     ),
     "api.schema.kicker": "Das Schema",
@@ -775,7 +785,7 @@ MESSAGES: dict[str, str] = {
     "ai.clients.body": (
         "Ausgearbeitete Konfigurationen für Claude Code, Claude Desktop, GitHub "
         "Copilot in VS Code und der CLI, Cursor, Zed und Windsurf - gegen dieses "
-        "Deployment oder ein eigenes - finden Sie in "
+        "Deployment oder ein eigenes - findest du in "
         '<a href="{project}/blob/main/docs/mcp.md" rel="noopener noreferrer">'
         "der MCP-Anleitung</a>."
     ),
@@ -785,23 +795,23 @@ MESSAGES: dict[str, str] = {
         "Die Regeln sind für einen Agenten dieselben wie für jeden anderen. Ein "
         "Scan ist asynchron, und die UUID ist der einzige Weg zurück zu ihm; "
         "ein <code>429</code> ist eine Einladung, langsamer zu machen, keine "
-        "Ablehnung; und wenn Sie mehr als eine Handvoll Instanzen prüfen, "
-        'bitte <a href="{project}" rel="noopener noreferrer">führen Sie den '
-        "Scanner selbst aus</a> - es ist derselbe Code, auf Ihrer eigenen "
+        "Ablehnung; und wenn du mehr als eine Handvoll Instanzen prüfst, "
+        'bitte <a href="{project}" rel="noopener noreferrer">führe den '
+        "Scanner selbst aus</a> - es ist derselbe Code, auf deiner eigenen "
         "Maschine, ohne Grenzen."
     ),
     # ---------------------------------------------------------------- Docker
     "cli.title": "Selbst ausführen, in einer Zeile",
     "cli.description": (
         "Dieselbe Prüfung als einzelner Docker-Befehl: keine Website "
-        "dazwischen, kein Ratenlimit, und niemand außer Ihnen erfährt, welche "
-        "Instanz Sie betreuen."
+        "dazwischen, kein Ratenlimit, und niemand außer dir erfährt, welche "
+        "Instanz du betreust."
     ),
     "cli.kicker": "Ohne diese Website",
     "cli.lede": (
         "Einem fremden Server eine Adresse anzuvertrauen ist ein vernünftiger "
-        "Grund zum Zögern. Sie müssen es nicht: Diese Seite ist dieselbe "
-        "Prüfung, als ein Befehl auf Ihrer eigenen Maschine."
+        "Grund zum Zögern. Du musst es nicht: Diese Seite ist dieselbe "
+        "Prüfung, als ein Befehl auf deiner eigenen Maschine."
     ),
     "cli.oneliner.kicker": "Die Einzeiler",
     "cli.oneliner.heading": "Ein Befehl, nichts installiert",
@@ -811,7 +821,7 @@ MESSAGES: dict[str, str] = {
         "und jede fehlgeschlagene Prüfung - und beendet sich mit dem "
         "Nagios-Statuscode, sodass dieselbe Zeile in einem Skript, einer "
         "Pipeline oder einem Cron-Job funktioniert. Nichts wird irgendwohin "
-        "gesendet: Der Container spricht mit Ihrer Instanz und mit niemandem "
+        "gesendet: Der Container spricht mit deiner Instanz und mit niemandem "
         "sonst."
     ),
     "cli.json.kicker": "Als JSON",
@@ -822,14 +832,14 @@ MESSAGES: dict[str, str] = {
         "<strong>Aufgelöst zu</strong> - die IPv4- und IPv6-Adressen, auf die "
         "der Name während des Scans zeigte."
     ),
-    "cli.private.kicker": "Ihr eigenes Netzwerk",
+    "cli.private.kicker": "Dein eigenes Netzwerk",
     "cli.private.heading": "Die Instanzen, die diese Website nicht scannt",
     "cli.private.body": (
         "Ein öffentlicher Dienst, der private Adressen scannen würde, ist ein "
         "öffentlicher Dienst, der auf das interne Netzwerk eines anderen "
-        "gerichtet werden kann, deshalb lehnt dieser hier ab. Ihre eigene "
+        "gerichtet werden kann, deshalb lehnt dieser hier ab. Deine eigene "
         "Maschine hat dieses Problem nicht: eine Staging-Box, ein Name, den nur "
-        "Ihr Resolver kennt, oder eine Instanz, die das LAN nie verlässt, "
+        "dein Resolver kennt, oder eine Instanz, die das LAN nie verlässt, "
         "funktionieren alle über die Kommandozeile."
     ),
     "cli.nodocker.kicker": "Kein Docker?",
@@ -842,14 +852,14 @@ MESSAGES: dict[str, str] = {
     "cli.more.kicker": "Weiterlesen",
     "cli.more.heading": "Jede Variante, aufgeschrieben",
     "cli.more.body": (
-        "Einen Befund aussetzen, mit dem Sie zu leben entschieden haben, einen "
+        "Einen Befund aussetzen, mit dem du zu leben entschieden hast, einen "
         "Release-Track wählen, jede Prüfung mit <code>--debug</code> erklären "
         "lassen, den Befehl in eine Shell-Funktion verwandeln oder ihn auf einen "
         'Timer legen: <a href="{project}/blob/main/docs/docker-oneliner.md" '
         'rel="noopener noreferrer">die Einzeiler-Dokumentation</a> deckt all '
         'das ab, und <a href="{project}" rel="noopener noreferrer">das '
         "Repository</a> trägt den Rest - diese Website eingeschlossen, falls "
-        "Sie die Seiten ebenfalls betreiben möchten."
+        "du die Seiten ebenfalls betreiben möchtest."
     ),
     # ------------------------------------------------ CLI documentation index
     "docs.index.title": "CLI-Dokumentation",
@@ -859,11 +869,11 @@ MESSAGES: dict[str, str] = {
         "gesammelt."
     ),
     "docs.index.kicker": "Dokumentation",
-    "docs.index.heading": "Den Scanner von Ihrem Terminal aus ausführen",
+    "docs.index.heading": "Den Scanner von deinem Terminal aus ausführen",
     "docs.index.lede": (
         "Die praktische CLI-Referenz, zusammengetragen aus dem "
-        "Projekt-README und den Anleitungen unter <code>docs/</code>. Beginnen "
-        "Sie mit einem Befehl; heben Sie sich den Rest auf, bis die Prüfung Teil "
+        "Projekt-README und den Anleitungen unter <code>docs/</code>. Beginne "
+        "mit einem Befehl; heb dir den Rest auf, bis die Prüfung Teil "
         "von Monitoring, CI oder einer Flotte wird."
     ),
     "docs.index.toc.aria": "Auf dieser Seite",
@@ -879,7 +889,7 @@ MESSAGES: dict[str, str] = {
         "Eine Prüfung, ohne irgendetwas zu installieren"
     ),
     "docs.index.quickstart.container": (
-        "Oder nutzen Sie den veröffentlichten Container. Er führt dasselbe "
+        "Oder nutze den veröffentlichten Container. Er führt dasselbe "
         "Plugin aus und liefert denselben Nagios/Icinga-Exit-Code:"
     ),
     "docs.index.quickstart.note": (
@@ -917,7 +927,7 @@ MESSAGES: dict[str, str] = {
         "Erklären, wo die Bewertung begann und was sie nach unten drückte."
     ),
     "docs.index.option.insecure": (
-        "Zertifikatsprüfung für eine Instanz überspringen, die Sie kontrollieren."
+        "Zertifikatsprüfung für eine Instanz überspringen, die du kontrollierst."
     ),
     "docs.index.option.thresholds": (
         "Die Bewertungsschwellen wählen, die auf Monitoring-Zustände abbilden."
@@ -1005,6 +1015,8 @@ MESSAGES: dict[str, str] = {
         "nur auf Englisch verfügbar. Die Seite drumherum ist übersetzt; der Text "
         "unten ist es nicht."
     ),
+    "docs.guide.toc.heading": "Auf dieser Seite",
+    "docs.guide.toc.aria": "Auf dieser Seite",
     # ----------------------------------------------------------------- search
     "search.title": "Suche",
     "search.description": (
@@ -1022,7 +1034,7 @@ MESSAGES: dict[str, str] = {
     "search.placeholder": "TLS, Docker, Waiver...",
     "search.submit": "Suchen",
     "search.status.idle": (
-        "Geben Sie einen Begriff ein, um die Dokumentation dieses Releases zu "
+        "Gib einen Begriff ein, um die Dokumentation dieses Releases zu "
         "durchsuchen."
     ),
     "search.status.results": "{count} Ergebnis(se) in diesem Release.",
@@ -1087,16 +1099,16 @@ MESSAGES: dict[str, str] = {
         "mit serverseitigen Einstellungen."
     ),
     "error.rate_limit.client": (
-        "Das sind viele Scans aus Ihrem Netzwerk in kurzer Zeit. Warten Sie eine "
-        "Minute und versuchen Sie es erneut."
+        "Das sind viele Scans aus deinem Netzwerk in kurzer Zeit. Warte eine "
+        "Minute und versuche es erneut."
     ),
     "error.rate_limit.target": (
-        "Diese Instanz wurde erst vor kurzem gescannt. Bitte geben Sie ihr ein "
+        "Diese Instanz wurde erst vor kurzem gescannt. Bitte gib ihr ein "
         "paar Minuten."
     ),
     "error.target.invalid": "Diese Adresse kann nicht gescannt werden.",
     "error.target.empty": (
-        "Geben Sie die Adresse der zu scannenden OpenCloud-Instanz ein."
+        "Gib die Adresse der zu scannenden OpenCloud-Instanz ein."
     ),
     "error.target.too_long": "Diese Adresse ist zu lang.",
     "error.target.characters": (
@@ -1110,7 +1122,7 @@ MESSAGES: dict[str, str] = {
         "Zugangsdaten in der Adresse werden nicht akzeptiert."
     ),
     "error.target.address_only": (
-        "Geben Sie nur die Basisadresse der Instanz ein. Ein einfacher "
+        "Gib nur die Basisadresse der Instanz ein. Ein einfacher "
         "Unterordner wird akzeptiert, Queries, Fragmente, Parameter und "
         "Pfad-Traversierung jedoch nicht."
     ),
@@ -1144,7 +1156,7 @@ MESSAGES: dict[str, str] = {
     "result.progress.kicker": "In Bearbeitung",
     "result.progress.queued.title": "Wartet auf einen Scanner-Worker",
     "result.progress.queued.detail": (
-        "Gerade sind alle Worker beschäftigt. Ihr Scan behält seinen Platz in "
+        "Gerade sind alle Worker beschäftigt. Dein Scan behält seinen Platz in "
         "der Reihe und startet, sobald einer frei ist."
     ),
     "result.progress.running.title": "Die Instanz wird gescannt",
@@ -1157,7 +1169,7 @@ MESSAGES: dict[str, str] = {
     "result.progress.step.running": "Läuft",
     "result.progress.step.done": "Ergebnis",
     "result.progress.noscript": (
-        "Diese Seite aktualisiert sich mit JavaScript. Ohne dieses laden Sie "
+        "Diese Seite aktualisiert sich mit JavaScript. Ohne dieses lädst du "
         "die Seite in ein paar Sekunden neu, um das Ergebnis zu sehen."
     ),
     "result.progress.queue.position": (
@@ -1165,7 +1177,7 @@ MESSAGES: dict[str, str] = {
         "{length}."
     ),
     "result.progress.queue.next": (
-        "Scan in Warteschlange. Sie sind als Nächstes dran."
+        "Scan in Warteschlange. Du bist als Nächstes dran."
     ),
     "result.progress.queue.waiting": (
         "Wartet darauf, dass ein Scanner-Worker dies übernimmt."
@@ -1178,7 +1190,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.failed.fallback": "Der Scan konnte nicht abgeschlossen werden.",
     "result.failed.body": (
-        "Es wurde nichts benotet, weil nichts Brauchbares zurückkam. Prüfen Sie, "
+        "Es wurde nichts benotet, weil nichts Brauchbares zurückkam. Prüfe, "
         "ob die Adresse stimmt, ob die Instanz aus dem öffentlichen Internet "
         "erreichbar ist, und ob es sich um eine OpenCloud-Instanz handelt."
     ),
@@ -1246,7 +1258,7 @@ MESSAGES: dict[str, str] = {
     "result.fix": "Fix:",
     "result.documentation": "Dokumentation",
     "result.plan.kicker": "Sanierungsplan",
-    "result.plan.heading": "Was Sie zu {label} bringt",
+    "result.plan.heading": "Was dich zu {label} bringt",
     "result.plan.then": "dann {label}",
     "result.plan.still": "immer noch {label}",
     "result.plan.note": (
@@ -1283,7 +1295,7 @@ MESSAGES: dict[str, str] = {
     "result.findings.heading": "Fehlgeschlagene Prüfungen",
     "result.findings.lede": (
         "Jeder deckelt die Note auf dem Niveau, das sein Schweregrad zulässt. "
-        "Beheben Sie zuerst die kritischen: Sie drücken die Punktzahl am "
+        "Behebe zuerst die kritischen: Sie drücken die Punktzahl am "
         "stärksten nach unten."
     ),
     "result.findings.allclear.tag": "Alles klar",
@@ -1301,7 +1313,7 @@ MESSAGES: dict[str, str] = {
     "result.header.tag": "Header",
     "result.excluded.kicker": "Ausgeschlossen",
     "result.excluded.heading": "Gemeldet, aber nicht gezählt",
-    "result.excluded.waived.heading": "Sie baten darum, diese zu ignorieren",
+    "result.excluded.waived.heading": "Du batest darum, diese zu ignorieren",
     "result.excluded.waived.note": (
         "Sie sind trotzdem fehlgeschlagen. Sie haben die Note nur nicht mehr "
         "nach unten gedrückt."
@@ -1385,8 +1397,8 @@ MESSAGES: dict[str, str] = {
     "result.export.kicker": "Export",
     "result.export.heading": "Dieses Ergebnis mitnehmen",
     "result.export.lede": (
-        "Derselbe Scan, auf vier Arten dargestellt. Jede wird erzeugt, wenn Sie "
-        "danach fragen, und verschwindet mit dem Scan selbst."
+        "Derselbe Scan, auf vier Arten dargestellt. Jede wird erzeugt, wenn du "
+        "danach fragst, und verschwindet mit dem Scan selbst."
     ),
     "result.export.pdf": "PDF-Bericht",
     "result.export.pdf.hint": "Für ein Ticket, eine Überprüfung oder einen Ausdruck.",
@@ -1396,7 +1408,11 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "Für ein Code-Scanning-Dashboard.",
     "result.export.json": "JSON",
     "result.export.json.hint": "Das rohe Dokument, das das Plugin auswertet.",
-    "result.feedback.prompt": "Glauben Sie, dass der Scan etwas falsch bewertet hat?",
+    "result.export.passed.heading": "Was bereits bestanden hat",
+    "result.export.passed.note": (
+        "Diese Prüfungen waren unauffällig und stehen deshalb nicht im Plan oben."
+    ),
+    "result.feedback.prompt": "Glaubst du, dass der Scan etwas falsch bewertet hat?",
     "result.feedback.link": "Falsch positives oder falsch negatives Ergebnis melden",
     "result.expiry.one": (
         "Diese Seite läuft in etwa 1 Minute ab, danach funktioniert der Link "

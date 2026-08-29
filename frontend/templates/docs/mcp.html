@@ -15,6 +15,26 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#what-the-agent-gets" lang="en">What the agent gets</a>
+  <a href="#claude-code" lang="en">Claude Code</a>
+  <a href="#claude-desktop" lang="en">Claude Desktop</a>
+  <a href="#github-copilot-in-vs-code" lang="en">GitHub Copilot in VS Code</a>
+  <a href="#github-copilot-cli" lang="en">GitHub Copilot CLI</a>
+  <a href="#cursor" lang="en">Cursor</a>
+  <a href="#zed" lang="en">Zed</a>
+  <a href="#windsurf" lang="en">Windsurf</a>
+  <a href="#any-other-client" lang="en">Any other client</a>
+  <a href="#clients-that-only-speak-stdio" lang="en">Clients that only speak stdio</a>
+  <a href="#running-your-own-endpoint" lang="en">Running your own endpoint</a>
+  <a href="#turning-mcp-off" lang="en">Turning MCP off</a>
+  <a href="#erasure-needs-a-credential" lang="en">Erasure needs a credential</a>
+  <a href="#when-the-endpoint-asks-you-to-sign-in" lang="en">When the endpoint asks you to sign in</a>
+  <a href="#limits-and-being-a-good-guest" lang="en">Limits, and being a good guest</a>
+  <a href="#checking-that-it-works" lang="en">Checking that it works</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The web application in this repository speaks the
 <a href="https://modelcontextprotocol.io">Model Context Protocol</a> at <code>/mcp</code>, so an

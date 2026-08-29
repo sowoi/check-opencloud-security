@@ -454,8 +454,9 @@ def summarise(
         if not passed
     ]
 
-    passed_count = sum(1 for _, passed in _flags(hardenings) if passed)
-    passed_count += sum(1 for _, passed in _flags(headers) if passed)
+    passed_checks = [name for name, passed in _flags(hardenings) if passed]
+    passed_checks += [name for name, passed in _flags(headers) if passed]
+    passed_count = len(passed_checks)
 
     return {
         "rating": rating,
@@ -479,6 +480,7 @@ def summarise(
         "missingHardenings": missing_hardenings,
         "missingHeaders": missing_headers,
         "passedCount": passed_count,
+        "passedChecks": passed_checks,
         "https": https,
         "tls": result.get("tls") or {},
         "tlsOverview": _tls_overview(result, translate),

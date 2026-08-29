@@ -67,15 +67,19 @@
 <!-- TOC -->
 
 # check-opencloud-security
-Check the security level of your [OpenCloud](https://opencloud.eu/), instance from your own monitoring
-system.
+Check the security level of your [OpenCloud](https://opencloud.eu/) instance
+from your own monitoring system - misconfigurations, weak hardening, known
+vulnerabilities, **and whether a security update is pending**.
 
 This plugin ships its own **built-in scanner** and runs **every check
 locally**: it talks to the instance directly, reads the
 endpoints OpenCloud exposes without authentication, probes for the
-misconfigurations that actually occur in OpenCloud deployments, and rates the
-result on a `0`-`5` scale. The ratings follow the scale of the Nextcloud scan
-API, so existing thresholds, graphs and alert rules keep their meaning.
+misconfigurations that actually occur in OpenCloud deployments, checks the
+running release against the [OpenCloud release feed](#update-check) so a
+pending update or an end-of-life release shows up like any other finding, and
+rates the result on a `0`-`5` scale. The ratings follow the scale of the
+Nextcloud scan API, so existing thresholds, graphs and alert rules keep their
+meaning.
 
 **Important:** The scanner is not exhaustive. Its rating does not mean an
 OpenCloud instance is completely secure or that no vulnerability,
@@ -139,18 +143,20 @@ For a permanent setup (Icinga2, systemd timer, cron, Docker, ...) see
 - **No API, no third party.** Every check runs in the plugin process, against
   your instance. IP addresses, custom ports and internal hostnames all work,
   and there are no rate limits
+- **Pending-update and end-of-life detection** against the [OpenCloud release
+  feed](#update-check): whether a newer release is out on your track, and
+  whether the running one still receives security fixes - with offline
+  `pinned` and `bundled` modes for air-gapped monitoring
 - **OpenCloud-specific checks**: unauthenticated Graph/WebDAV/OCS endpoints,
   exposed `opencloud.yaml`, `proxy/server.key` and boltdb files, reachable
   service debug ports (`/metrics`, `/config`, `/debug/pprof`), enabled basic
-  auth, version disclosure and maintenance mode
+  auth and version disclosure
 - **TLS inspection**: handshake, protocol version, certificate expiry and
   trust, plus an automatic HTTPS -> HTTP fallback that reports the downgrade
-  instead of hiding it
+  instead of hiding it - see [TLS and certificates](docs/tls.md)
 - **Hardening derived from what the instance actually reports**, not guessed
   from its version number: HSTS strength, CSP quality, public-link password
   and expiry enforcement, user-enumeration and password-policy settings
-- **Update check** against the OpenCloud release feed, with offline `pinned`
-  and `bundled` modes
 - Configuration from a YAML file, environment variables or a secret provider
   (Docker/Kubernetes secrets, files, environment, commands)
 - Standard Nagios/Icinga exit codes (OK, WARNING, CRITICAL, UNKNOWN) and
@@ -701,6 +707,9 @@ keeps a non-zero exit from failing the step before the upload runs:
 For a JUnit-reporting CI system, the same pattern with `--format junit` and
 whatever step turns a JUnit file into a check-run summary.
 
+See [`docs/output-formats.md`](docs/output-formats.md) for a table comparing
+every `--format` value, including `nagios` and `prometheus`.
+
 # Environment variables
 Every option has a `COS_`-prefixed environment variable equivalent (see the
 table above). This is especially useful for Docker, systemd, and cron, where
@@ -739,10 +748,13 @@ below describes what the built-in scanner does and how to tune it.
 
 Read from the instance itself:
 
-- product, `productversion` and edition from `/status.php`, plus
-  `maintenance` and `needsDbUpgrade`; a server whose product name says
-  ownCloud or Nextcloud is refused rather than rated, because it serves the
-  same endpoint but is not the same software
+- product, `productversion` and edition from `/status.php`; a server whose
+  product name says ownCloud or Nextcloud is refused rather than rated,
+  because it serves the same endpoint but is not the same software. `/status.php`
+  also carries `maintenance`, `installed` and `needsDbUpgrade`, but OpenCloud's
+  own handler for it hardcodes all three (`false`, `true`, `false`) rather than
+  reading real state, so this scanner does not check them - see
+  [`docs/status-php.md`](docs/status-php.md).
 - the IPv4 and IPv6 addresses the name resolved to while the scan ran,
   reported as `addresses` in the result document and shown as **Resolved to**
   on a web result page - context, never a finding, and empty when a name
@@ -752,7 +764,9 @@ Read from the instance itself:
 - the security headers `Strict-Transport-Security`, `Content-Security-Policy`,
   `X-Content-Type-Options`, `X-Frame-Options`,
   `X-Permitted-Cross-Domain-Policies`, `X-Robots-Tag`, `X-XSS-Protection` and
-  `Referrer-Policy`, reported as `setup.headers`
+  `Referrer-Policy`, reported as `setup.headers` - see
+  [`docs/csp.md`](docs/csp.md) for what the `Content-Security-Policy` checks
+  look for and why
 - `hardenings` derived from those headers and capabilities
 - known vulnerabilities from the [advisory database](#advisory-database) and
   the resulting rating (`0`-`5`)
@@ -788,11 +802,16 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `identityProviderDetected`                                                                                                                 | low           | No OpenID Connect discovery document and no redirect from it, so who signs users in cannot be established   |
 | `reverseProxyDetected`                                                                                                                     | low           | Nothing suggests a reverse proxy in front of the instance                                                   |
 | `versionDisclosure:Server`, `webfingerVersionDisclosure`                                                                                   | low           | Exact versions leaked to unauthenticated callers                                                            |
-| `maintenanceMode`, `databaseUpgrade`                                                                                                       | medium/high   | Instance in maintenance mode or waiting for a database upgrade                                              |
 
 A failed additional check caps the rating (critical -> `D`, high -> `C`, medium
 -> `A`, low -> `A+`); set `scanner.extra_checks_rating: false` to report them
-without touching the rating.
+without touching the rating. For the reasoning behind each group of checks
+above, see [`docs/cookies.md`](docs/cookies.md),
+[`docs/authentication.md`](docs/authentication.md),
+[`docs/sharing.md`](docs/sharing.md), [`docs/exposure.md`](docs/exposure.md),
+[`docs/embedding.md`](docs/embedding.md) and
+[`docs/lifecycle.md`](docs/lifecycle.md), alongside
+[`docs/csp.md`](docs/csp.md) and [`docs/tls.md`](docs/tls.md) above.
 
 OpenCloud is a single Go binary that serves its web frontend from embedded
 assets, and its frontend is a single-page application: unknown paths return the
@@ -927,7 +946,9 @@ reading the wrong field.
 
 OpenCloud's proxy terminates TLS itself on port 9200, and `opencloud init`
 generates a self-signed certificate for it. Many deployments then put a reverse
-proxy with a real certificate in front; many others do not.
+proxy with a real certificate in front; many others do not. See
+[`docs/tls.md`](docs/tls.md) for every TLS and certificate check this scanner
+runs and why each one matters.
 
 The scanner handles both without needing to be told which one it is looking at:
 
@@ -1499,7 +1520,8 @@ still lists them, with the explanation.
 That one *is* changeable, so it is reported rather than excused - but be aware
 that the web interface currently relies on inline scripts and styles, so a
 strict policy is likely to break the UI and any connected office or IDP
-service. Test before rolling it out.
+service. Test before rolling it out. See [`docs/csp.md`](docs/csp.md) for the
+full explanation of both CSP checks.
 
 The capability-derived rows only appear when the instance actually reports the
 corresponding capability, so an older release does not accumulate phantom
