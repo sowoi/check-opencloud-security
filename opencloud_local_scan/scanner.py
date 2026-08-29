@@ -53,6 +53,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
 
+from .caa import check_caa_record
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
 from .remediation import SEVERITY_RATING_CAP as _SEVERITY_RATING_CAP
 from .remediation import plan as remediation_plan
@@ -1973,6 +1974,7 @@ def _collect_extra_findings(
     reverse_proxy: Mapping[str, Any] | None = None,
     tls_inspection: TlsInspection | None = None,
     address_parity: Finding | None = None,
+    caa_finding: Finding | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -1986,6 +1988,8 @@ def _collect_extra_findings(
                 verification_required=verification_required,
             )
         )
+    if caa_finding is not None:
+        findings.append(caa_finding)
     if address_parity is not None:
         findings.append(address_parity)
     findings.extend(_cookie_findings(root_response))
@@ -2183,6 +2187,15 @@ def scan(
         and addresses["ipv6"]
         else {}
     )
+    # CAA is a DNS record, not a TLS handshake property, but it answers the
+    # same "who may issue this instance a certificate" question the TLS
+    # findings above do, so it is gated and reported alongside them.
+    caa_check = (
+        check_caa_record(hostname, settings.timeout)
+        if settings.extra_checks and probe.base_url.startswith("https://")
+        else None
+    )
+    caa_finding = Finding(*caa_check) if caa_check is not None else None
     findings = (
         _collect_extra_findings(
             probe,
@@ -2197,6 +2210,7 @@ def scan(
             reverse_proxy,
             tls_inspection,
             _address_parity_finding(address_tls),
+            caa_finding,
             verification_required=verification_required,
         )
         if settings.extra_checks

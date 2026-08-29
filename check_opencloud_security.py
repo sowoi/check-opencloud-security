@@ -1617,6 +1617,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--webhook-format",
+        choices=("generic", "slack", "discord"),
+        default=_env("WEBHOOK_FORMAT") or DEFAULT_WEBHOOK_FORMAT,
+        help=(
+            "Shape of the webhook body: the plugin's own flat JSON document "
+            "('generic'), or a payload a Slack or Discord incoming webhook "
+            "accepts directly. Mattermost and the common Matrix webhook "
+            "bridges also accept 'slack'. "
+            f"Default: {DEFAULT_WEBHOOK_FORMAT} (env: {ENV_PREFIX}WEBHOOK_FORMAT)."
+        ),
+    )
+    parser.add_argument(
         "--webhook-header",
         action="append",
         default=None,

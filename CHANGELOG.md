@@ -12,6 +12,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **CAA record check (`tlsCaaRecord`)**: The built-in scanner now reports
+  whether the scanned name has a DNS CAA record restricting which
+  certificate authorities may issue for it. The lookup is dependency-free
+  and only ever queries the system's own configured resolver - never a
+  public one - so nothing new is sent to a third party.
+
 ## [1.13.0] - 2026-08-28
 
 ### Added

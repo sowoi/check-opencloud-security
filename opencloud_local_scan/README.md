@@ -571,6 +571,7 @@ nothing about ratings. Beyond the handshake and trust it reports:
 | `tlsCipherSuite` | Is the cipher suite negotiated by this scan modern and forward-secret? |
 | `tlsCertificatePolicy` | Does the certificate use an adequately sized key and a modern signature? |
 | `tlsAddressParity` | Do the published IPv4 and IPv6 endpoints present the same usable TLS identity? |
+| `tlsCaaRecord` | Does the name have a DNS CAA record naming at least one authorized issuer? |
 | `cookieSecure`, `cookieHttpOnly`, `cookieSameSite` | Do cookies actually observed on the public response carry these attributes? |
 | `tlsOcspStapling` | Is a revocation response stapled to the handshake? |
 

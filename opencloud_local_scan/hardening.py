@@ -500,6 +500,26 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_TLS,
     ),
+    "tlsCaaRecord": Hardening(
+        id="tlsCaaRecord",
+        title="No CAA record restricts who may issue a certificate",
+        meaning=(
+            "The domain has no CAA (Certification Authority Authorization) "
+            "record naming an 'issue' or 'issuewild' property, so any "
+            "publicly trusted certificate authority can be asked to issue a "
+            "certificate for it - not just the one actually used. This "
+            "checks only the exact name scanned, not the RFC 8659 "
+            "parent-domain fallback chain, and it never judges which CA a "
+            "record names, only whether one restricts issuance at all."
+        ),
+        remediation=(
+            "Add a CAA record at the DNS zone naming the certificate "
+            "authority already in use, e.g. "
+            "'example.com. CAA 0 issue \"letsencrypt.org\"'. This is a DNS "
+            "change at the domain's own zone, not an OpenCloud setting."
+        ),
+        reference=DOCS_TLS,
+    ),
     "tlsAddressParity": Hardening(
         id="tlsAddressParity",
         title="IPv4 and IPv6 do not present the same TLS service",
