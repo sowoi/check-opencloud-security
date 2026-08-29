@@ -45,10 +45,10 @@ def test_json_format_is_always_an_array_even_for_one_host():
 
 
 def test_json_format_combines_several_hosts_into_one_array():
-    healthy = InstanceBehaviour()
+    healthy_instance = InstanceBehaviour()
     broken = InstanceBehaviour()
     broken.status_payload["productversion"] = "2.0.0"
-    with FakeOpenCloud(healthy) as good, FakeOpenCloud(broken) as bad:
+    with FakeOpenCloud(healthy_instance) as good, FakeOpenCloud(broken) as bad:
         result = run_plugin("-H", f"{good.host},{bad.host}", "--format", "json")
 
     assert result.returncode == CRITICAL, result.stdout
@@ -148,7 +148,7 @@ def test_junit_format_combines_several_hosts():
     assert names == {first.host, second.host}
 
 
-def test_exit_code_keeps_its_nagios_meaning_under_every_machine_format(healthy):
+def test_exit_code_keeps_its_nagios_meaning_under_every_machine_format(healthy):  # noqa: F811
     for fmt in ("json", "sarif", "junit"):
         result = run_plugin("-H", healthy.host, "--format", fmt)
         assert result.returncode == OK, (fmt, result.stdout)

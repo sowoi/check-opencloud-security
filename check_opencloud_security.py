@@ -524,9 +524,8 @@ def check_vulnerabilities(
         extra_failures=extra_failures,
         baseline_diff=baseline_diff,
     )
-    if _webhook_should_fire(context, exit_code):
-        if not _send_webhook(context, payload):
-            detail_lines.append("Webhook delivery failed (see debug log)")
+    if _webhook_should_fire(context, exit_code) and not _send_webhook(context, payload):
+        detail_lines.append("Webhook delivery failed (see debug log)")
 
     _RESULT_PAYLOAD.set({"payload": payload, "scan": response_scan})
 
@@ -953,13 +952,11 @@ def _notify_and_fail(
     """
     payload = _build_base_payload(context, message, exit_code)
     _RESULT_PAYLOAD.set({"payload": payload, "scan": None})
-    if _webhook_should_fire(context, exit_code):
-        if not _send_webhook(context, payload):
-            _fail(
-                _safe_monitoring_text(message)
-                + "\nWebhook delivery failed (see debug log)",
-                exit_code,
-            )
+    if _webhook_should_fire(context, exit_code) and not _send_webhook(context, payload):
+        _fail(
+            _safe_monitoring_text(message) + "\nWebhook delivery failed (see debug log)",
+            exit_code,
+        )
     _fail(_safe_monitoring_text(message), exit_code)
 
 
