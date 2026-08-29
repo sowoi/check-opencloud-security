@@ -172,7 +172,7 @@ def test_check_caa_record_ip_literal_is_never_queried():
 
 
 def test_check_caa_record_no_resolver_is_unknown(monkeypatch):
-    monkeypatch.setattr(caa, "_system_nameservers", lambda: [])
+    monkeypatch.setattr(caa, "_system_nameservers", list)
     assert caa.check_caa_record("example.com", TIMEOUT) is None
 
 

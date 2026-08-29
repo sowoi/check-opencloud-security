@@ -11,7 +11,14 @@ import json
 import xml.etree.ElementTree as ET
 
 from tests.fake_opencloud import DEFAULT_CSP_UNSAFE, FakeOpenCloud, InstanceBehaviour
-from tests.test_e2e_cli import CRITICAL, OK, UNKNOWN, WARNING, healthy, run_plugin  # noqa: F401
+from tests.test_e2e_cli import (  # noqa: F401
+    CRITICAL,
+    OK,
+    UNKNOWN,
+    WARNING,
+    healthy,
+    run_plugin,
+)
 
 
 def test_json_format_is_an_array_of_the_webhook_payload_shape():
@@ -155,7 +162,7 @@ def test_webhook_still_fires_alongside_a_machine_format(monkeypatch):
     received: list[bytes] = []
 
     class _Handler(BaseHTTPRequestHandler):
-        def do_POST(self):  # noqa: N802 - stdlib naming
+        def do_POST(self):
             length = int(self.headers.get("Content-Length", 0))
             received.append(self.rfile.read(length))
             self.send_response(204)

@@ -24,7 +24,6 @@ import socket
 import sys
 import threading
 import time
-import xml.etree.ElementTree as ElementTree
 from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -35,6 +34,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, NoReturn, TypeVar
 from urllib.parse import urlsplit
+from xml.etree import ElementTree
 
 import requests
 
