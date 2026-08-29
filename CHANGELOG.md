@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-08-29
+
 ### Changed
 
 - **Check catalogue order**: The catalogue page now lists OpenCloud's own
