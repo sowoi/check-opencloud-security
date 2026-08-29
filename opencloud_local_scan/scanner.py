@@ -20,8 +20,8 @@ What is inspected:
   sharing/password policy from the capabilities document.
 * ``extraChecks`` - TLS state, authentication on the protected endpoints,
   exposed configuration or data paths, reachable service debug ports,
-  the documented demo accounts of the built-in identity provider,
-  version disclosure and maintenance mode.
+  the documented demo accounts of the built-in identity provider, and
+  version disclosure.
 * ``vulnerabilities`` from the local advisory database and ``rating`` (0-5).
 * ``lifecycle`` - which release line the instance runs, whether that line is
   rolling, production or LTS, and how long it is still supported. See
@@ -1705,24 +1705,6 @@ def _webfinger_finding(probe: _Probe) -> Finding | None:
     )
 
 
-def _status_findings(status: Mapping[str, Any]) -> list[Finding]:
-    """Report maintenance mode, pending upgrades and an unfinished setup."""
-    findings: list[Finding] = []
-    if status.get("maintenance"):
-        findings.append(
-            Finding("maintenanceMode", "medium", False, "Instance is in maintenance mode")
-        )
-    if status.get("needsDbUpgrade"):
-        findings.append(
-            Finding("databaseUpgrade", "high", False, "Instance needs a database upgrade")
-        )
-    if status.get("installed") is False:
-        findings.append(
-            Finding("installed", "critical", False, "Instance reports that it is not installed")
-        )
-    return findings
-
-
 def _version_findings(status: Mapping[str, Any], version: str | None) -> list[Finding]:
     """Report that the real release could not be determined."""
     if version:
@@ -2100,7 +2082,6 @@ def _collect_extra_findings(
     webfinger = _webfinger_finding(probe)
     if webfinger is not None:
         findings.append(webfinger)
-    findings.extend(_status_findings(status))
     findings.extend(_version_findings(status, version))
     return findings
 

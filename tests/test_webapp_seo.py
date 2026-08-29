@@ -358,7 +358,7 @@ def test_how_it_works_declares_an_faqpage_matching_the_visible_accordion():
     body = response.text
     faq = next(d for d in _ld_json_documents(body) if d["@type"] == "FAQPage")
 
-    assert len(faq["mainEntity"]) == 5
+    assert len(faq["mainEntity"]) == 6
     for entry in faq["mainEntity"]:
         assert entry["@type"] == "Question"
         assert f"<summary>{escape(entry['name'])}</summary>" in body

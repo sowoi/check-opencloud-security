@@ -15,6 +15,36 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#quick-start" lang="en">Quick start</a>
+  <a href="#features" lang="en">Features</a>
+  <a href="#prerequisites" lang="en">Prerequisites</a>
+  <a href="#installation" lang="en">Installation</a>
+  <a href="#cli-usage" lang="en">CLI Usage</a>
+  <a href="#options" lang="en">Options:</a>
+  <a href="#checking-multiple-hosts" lang="en">Checking multiple hosts</a>
+  <a href="#prometheus-kubernetes-integration" lang="en">Prometheus &amp; Kubernetes integration</a>
+  <a href="#machine-readable-output-for-ci-jsonsarifjunit" lang="en">Machine-readable output for CI (json/sarif/junit)</a>
+  <a href="#environment-variables" lang="en">Environment variables</a>
+  <a href="#the-built-in-scanner" lang="en">The built-in scanner</a>
+  <a href="#update-check" lang="en">Update check</a>
+  <a href="#configuration-file-and-secrets" lang="en">Configuration file and secrets</a>
+  <a href="#rating-thresholds" lang="en">Rating thresholds</a>
+  <a href="#hardening-checks" lang="en">Hardening checks</a>
+  <a href="#explaining-a-rating" lang="en">Explaining a rating</a>
+  <a href="#what-would-raise-the-rating" lang="en">What would raise the rating</a>
+  <a href="#webhook-notifications" lang="en">Webhook notifications</a>
+  <a href="#reporting-only-what-changed" lang="en">Reporting only what changed</a>
+  <a href="#is-the-plugin-itself-up-to-date" lang="en">Is the plugin itself up to date?</a>
+  <a href="#retries-and-backoff" lang="en">Retries and backoff</a>
+  <a href="#performance-data" lang="en">Performance data</a>
+  <a href="#caching" lang="en">Caching</a>
+  <a href="#example-output" lang="en">Example output</a>
+  <a href="#deployment-guides" lang="en">Deployment guides</a>
+  <a href="#examples" lang="en">Examples</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <h2 id="quick-start">Quick start</h2>
 <p>Install the plugin and run a check - one command each:</p>
@@ -33,18 +63,20 @@ certificate against the instance:</p>
 <li><strong>No API, no third party.</strong> Every check runs in the plugin process, against
   your instance. IP addresses, custom ports and internal hostnames all work,
   and there are no rate limits</li>
+<li><strong>Pending-update and end-of-life detection</strong> against the <a href="#update-check">OpenCloud release
+  feed</a>: whether a newer release is out on your track, and
+  whether the running one still receives security fixes - with offline
+  <code>pinned</code> and <code>bundled</code> modes for air-gapped monitoring</li>
 <li><strong>OpenCloud-specific checks</strong>: unauthenticated Graph/WebDAV/OCS endpoints,
   exposed <code>opencloud.yaml</code>, <code>proxy/server.key</code> and boltdb files, reachable
   service debug ports (<code>/metrics</code>, <code>/config</code>, <code>/debug/pprof</code>), enabled basic
-  auth, version disclosure and maintenance mode</li>
+  auth and version disclosure</li>
 <li><strong>TLS inspection</strong>: handshake, protocol version, certificate expiry and
   trust, plus an automatic HTTPS -&gt; HTTP fallback that reports the downgrade
-  instead of hiding it</li>
+  instead of hiding it - see <a href="/documentation/tls">TLS and certificates</a></li>
 <li><strong>Hardening derived from what the instance actually reports</strong>, not guessed
   from its version number: HSTS strength, CSP quality, public-link password
   and expiry enforcement, user-enumeration and password-policy settings</li>
-<li><strong>Update check</strong> against the OpenCloud release feed, with offline <code>pinned</code>
-  and <code>bundled</code> modes</li>
 <li>Configuration from a YAML file, environment variables or a secret provider
   (Docker/Kubernetes secrets, files, environment, commands)</li>
 <li>Standard Nagios/Icinga exit codes (OK, WARNING, CRITICAL, UNKNOWN) and
@@ -731,6 +763,8 @@ keeps a non-zero exit from failing the step before the upload runs:</p>
 </code></pre>
 <p>For a JUnit-reporting CI system, the same pattern with <code>--format junit</code> and
 whatever step turns a JUnit file into a check-run summary.</p>
+<p>See <a href="/documentation/output-formats"><code>docs/output-formats.md</code></a> for a table comparing
+every <code>--format</code> value, including <code>nagios</code> and <code>prometheus</code>.</p>
 <h2 id="environment-variables">Environment variables</h2>
 <p>Every option has a <code>COS_</code>-prefixed environment variable equivalent (see the
 table above). This is especially useful for Docker, systemd, and cron, where
@@ -760,10 +794,13 @@ below describes what the built-in scanner does and how to tune it.</p>
 <h3 id="what-the-scanner-checks">What the scanner checks</h3>
 <p>Read from the instance itself:</p>
 <ul>
-<li>product, <code>productversion</code> and edition from <code>/status.php</code>, plus
-  <code>maintenance</code> and <code>needsDbUpgrade</code>; a server whose product name says
-  ownCloud or Nextcloud is refused rather than rated, because it serves the
-  same endpoint but is not the same software</li>
+<li>product, <code>productversion</code> and edition from <code>/status.php</code>; a server whose
+  product name says ownCloud or Nextcloud is refused rather than rated,
+  because it serves the same endpoint but is not the same software. <code>/status.php</code>
+  also carries <code>maintenance</code>, <code>installed</code> and <code>needsDbUpgrade</code>, but OpenCloud's
+  own handler for it hardcodes all three (<code>false</code>, <code>true</code>, <code>false</code>) rather than
+  reading real state, so this scanner does not check them - see
+  <a href="/documentation/status-php"><code>docs/status-php.md</code></a>.</li>
 <li>the IPv4 and IPv6 addresses the name resolved to while the scan ran,
   reported as <code>addresses</code> in the result document and shown as <strong>Resolved to</strong>
   on a web result page - context, never a finding, and empty when a name
@@ -773,7 +810,9 @@ below describes what the built-in scanner does and how to tune it.</p>
 <li>the security headers <code>Strict-Transport-Security</code>, <code>Content-Security-Policy</code>,
   <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>,
   <code>X-Permitted-Cross-Domain-Policies</code>, <code>X-Robots-Tag</code>, <code>X-XSS-Protection</code> and
-  <code>Referrer-Policy</code>, reported as <code>setup.headers</code></li>
+  <code>Referrer-Policy</code>, reported as <code>setup.headers</code> - see
+  <a href="/documentation/csp"><code>docs/csp.md</code></a> for what the <code>Content-Security-Policy</code> checks
+  look for and why</li>
 <li><code>hardenings</code> derived from those headers and capabilities</li>
 <li>known vulnerabilities from the <a href="#advisory-database">advisory database</a> and
   the resulting rating (<code>0</code>-<code>5</code>)</li>
@@ -919,16 +958,17 @@ below describes what the built-in scanner does and how to tune it.</p>
 <td>low</td>
 <td>Exact versions leaked to unauthenticated callers</td>
 </tr>
-<tr>
-<td><code>maintenanceMode</code>, <code>databaseUpgrade</code></td>
-<td>medium/high</td>
-<td>Instance in maintenance mode or waiting for a database upgrade</td>
-</tr>
 </tbody>
 </table>
 <p>A failed additional check caps the rating (critical -&gt; <code>D</code>, high -&gt; <code>C</code>, medium
 -&gt; <code>A</code>, low -&gt; <code>A+</code>); set <code>scanner.extra_checks_rating: false</code> to report them
-without touching the rating.</p>
+without touching the rating. For the reasoning behind each group of checks
+above, see <a href="/documentation/cookies"><code>docs/cookies.md</code></a>,
+<a href="/documentation/authentication"><code>docs/authentication.md</code></a>,
+<a href="/documentation/sharing"><code>docs/sharing.md</code></a>, <a href="/documentation/exposure"><code>docs/exposure.md</code></a>,
+<a href="/documentation/embedding"><code>docs/embedding.md</code></a> and
+<a href="/documentation/lifecycle"><code>docs/lifecycle.md</code></a>, alongside
+<a href="/documentation/csp"><code>docs/csp.md</code></a> and <a href="/documentation/tls"><code>docs/tls.md</code></a> above.</p>
 <p>OpenCloud is a single Go binary that serves its web frontend from embedded
 assets, and its frontend is a single-page application: unknown paths return the
 app shell with HTTP 200 rather than a 404. A naive "does <code>/opencloud.yaml</code>
@@ -1033,7 +1073,9 @@ reading the wrong field.</p>
 <h3 id="tls-and-self-signed-certificates">TLS and self-signed certificates</h3>
 <p>OpenCloud's proxy terminates TLS itself on port 9200, and <code>opencloud init</code>
 generates a self-signed certificate for it. Many deployments then put a reverse
-proxy with a real certificate in front; many others do not.</p>
+proxy with a real certificate in front; many others do not. See
+<a href="/documentation/tls"><code>docs/tls.md</code></a> for every TLS and certificate check this scanner
+runs and why each one matters.</p>
 <p>The scanner handles both without needing to be told which one it is looking at:</p>
 <ol>
 <li>HTTPS with certificate verification. If that works, everything is fine.</li>
@@ -1761,7 +1803,8 @@ still lists them, with the explanation.</p>
 That one <em>is</em> changeable, so it is reported rather than excused - but be aware
 that the web interface currently relies on inline scripts and styles, so a
 strict policy is likely to break the UI and any connected office or IDP
-service. Test before rolling it out.</p>
+service. Test before rolling it out. See <a href="/documentation/csp"><code>docs/csp.md</code></a> for the
+full explanation of both CSP checks.</p>
 <p>The capability-derived rows only appear when the instance actually reports the
 corresponding capability, so an older release does not accumulate phantom
 findings.</p>

@@ -32,7 +32,22 @@ places this check tends to end up.
 |:-----|:---------------|
 | [Prometheus and Grafana](prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
 | [Webhook recipes](webhook-recipes.md) | The payload, and adapters for Slack, Discord, ntfy and Alertmanager |
+| [Machine-readable output](output-formats.md) | `--format json`, `sarif` and `junit`: one document per run, and how each shape is meant to be consumed |
 | [Uptime Kuma](../README.md#uptime-kuma) | The webhook as a Push monitor - in the main README |
+
+## What the scanner checks, in depth
+
+| Page | What it covers |
+|:-----|:---------------|
+| [Content-Security-Policy](csp.md) | The two independent CSP checks, why `unsafe-inline` fails on a stock instance, and how to fix it |
+| [TLS and certificates](tls.md) | Every transport and certificate check: protocol version, trust, chain, lifetime, cipher suite, CAA, OCSP stapling, and self-signed handling |
+| [Why OpenCloud still answers `/status.php`](status-php.md) | The PHP-era compatibility endpoint, its hardcoded fields, and what this scanner reads from it |
+| [Cookie attributes](cookies.md) | The Secure, HttpOnly and SameSite checks run against every cookie actually observed on the public response |
+| [Authentication](authentication.md) | Protected-endpoint probes, HTTP Basic auth, the documented demo accounts, account search and the link password policy |
+| [Public link sharing](sharing.md) | The password and expiration checks run against OpenCloud's public capabilities document |
+| [Exposed paths and debug endpoints](exposure.md) | Deployment files, directory listings, debug endpoints and ports that must never answer on the public address |
+| [Embedding in an iframe](embedding.md) | The origin-restriction checks behind embedding OpenCloud's web client in a third-party page |
+| [Version and lifecycle disclosure](lifecycle.md) | Whether a real version could be determined at all, and where it leaks besides `/status.php` |
 
 ## Running it at scale
 

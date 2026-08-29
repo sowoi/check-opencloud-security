@@ -808,6 +808,37 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 .nav-toggle[aria-expanded="true"] .icon-open { opacity: 0; transform: rotate(90deg) scale(.7); }
 .nav-toggle[aria-expanded="true"] .icon-close { opacity: 1; transform: none; }
 
+/*
+ * Same hairline-button idiom as .nav-toggle, pinned instead of inline.
+ * back-to-top.js is what removes the `hidden` attribute past one viewport of
+ * scroll; there is no entrance animation to reduce, on purpose - motion here
+ * stays inside the five movements DESIGN.md allows, so this only ever swaps
+ * `display` the way the collapsed nav panel already does.
+ */
+.back-to-top {
+    position: fixed;
+    right: 1.15rem;
+    bottom: 1.15rem;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    color: var(--ink-soft);
+    background: var(--card-solid);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-decoration: none;
+    transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.back-to-top[hidden] { display: none; }
+.back-to-top:hover, .back-to-top:focus-visible { color: var(--brand-deep); border-color: var(--brand); }
+.back-to-top svg { width: 20px; height: 20px; }
+@media (max-width: 620px) {
+    .back-to-top { right: .75rem; bottom: .75rem; width: 2.5rem; height: 2.5rem; }
+}
+
 main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 
 .search-panel {

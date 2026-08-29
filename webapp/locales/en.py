@@ -32,6 +32,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secondary",
     "chrome.search.label": "Search documentation",
     "chrome.search.placeholder": "Search",
+    "chrome.back_to_top": "Back to top",
     "nav.new_scan": "New scan",
     "nav.how_it_works": "How it works",
     "nav.grades": "Grades",
@@ -135,8 +136,8 @@ MESSAGES: dict[str, str] = {
     "index.title": "OpenCloud Security Scanner",
     "index.description": (
         "Check an OpenCloud instance for known vulnerabilities, missing "
-        "hardening and weak security headers. Free, independent and nothing is "
-        "stored."
+        "hardening, weak security headers, and a pending update. Free, "
+        "independent and nothing is stored."
     ),
     "index.eyebrow": "Independent &middot; air-gapped &middot; nothing stored",
     "index.headline": 'OpenCloud <em class="swash">Security Scanner</em>',
@@ -495,6 +496,14 @@ MESSAGES: dict[str, str] = {
         "Yes - the scanner is open source. Run it yourself with "
         '<a href="/cli">one Docker command</a> on your own machine, with no '
         "limit and no third party in the middle."
+    ),
+    "how.faq.q6": "Does a scan tell me about a pending OpenCloud update?",
+    "how.faq.a6": (
+        "Yes. Every scan compares the reported release against the OpenCloud "
+        "release feed and reports a pending update or an unsupported release "
+        "the same way it reports a missing header - see "
+        '<a href="/documentation/reference#update-check">the update check</a> '
+        "for how the recommended release is worked out."
     ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "What this server keeps",
@@ -942,6 +951,8 @@ MESSAGES: dict[str, str] = {
         "available in English only. The page around it is translated; the text "
         "below is not."
     ),
+    "docs.guide.toc.heading": "On this page",
+    "docs.guide.toc.aria": "On this page",
     # ----------------------------------------------------------------- search
     "search.title": "Search",
     "search.description": (
@@ -1288,6 +1299,10 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "For a code-scanning dashboard.",
     "result.export.json": "JSON",
     "result.export.json.hint": "The raw document the plugin evaluates.",
+    "result.export.passed.heading": "What already passed",
+    "result.export.passed.note": (
+        "These checks came back clean, so they are not in the plan above."
+    ),
     "result.feedback.prompt": "Think the scan got something wrong?",
     "result.feedback.link": "Report a false positive or false negative",
     "result.expiry.one": (

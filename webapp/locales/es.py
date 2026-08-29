@@ -17,6 +17,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secundaria",
     "chrome.search.label": "Buscar en la documentación",
     "chrome.search.placeholder": "Buscar",
+    "chrome.back_to_top": "Volver arriba",
     "nav.new_scan": "Nuevo análisis",
     "nav.how_it_works": "Cómo funciona",
     "nav.grades": "Calificaciones",
@@ -516,6 +517,15 @@ MESSAGES: dict[str, str] = {
         '<a href="/cli">un único comando de Docker</a> en tu propia máquina, '
         "sin límite y sin ningún sitio web de por medio."
     ),
+    "how.faq.q6": "¿Un escaneo me indica si hay una actualización de OpenCloud pendiente?",
+    "how.faq.a6": (
+        "Sí. Cada escaneo compara la versión indicada con el feed de versiones "
+        "de OpenCloud e informa de una actualización pendiente o una versión "
+        "sin soporte igual que informaría de un encabezado faltante - consulta "
+        '<a href="/documentation/reference#update-check">la verificación de '
+        "actualizaciones</a> para saber cómo se determina la versión "
+        "recomendada."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Qué conserva este servidor",
     "privacy.description": (
@@ -1001,6 +1011,8 @@ MESSAGES: dict[str, str] = {
         "solo está disponible en inglés. La página que la rodea está "
         "traducida; el texto de abajo no lo está."
     ),
+    "docs.guide.toc.heading": "En esta página",
+    "docs.guide.toc.aria": "En esta página",
     # ----------------------------------------------------------------- search
     "search.title": "Buscar",
     "search.description": (
@@ -1368,6 +1380,10 @@ MESSAGES: dict[str, str] = {
     "result.export.sarif.hint": "Para un panel de análisis de código.",
     "result.export.json": "JSON",
     "result.export.json.hint": "El documento en bruto que evalúa el complemento.",
+    "result.export.passed.heading": "Lo que ya ha pasado",
+    "result.export.passed.note": (
+        "Estas comprobaciones salieron limpias, así que no están en el plan de arriba."
+    ),
     "result.feedback.prompt": "¿Crees que el análisis se ha equivocado?",
     "result.feedback.link": "Informa de un falso positivo o un falso negativo",
     "result.expiry.one": (

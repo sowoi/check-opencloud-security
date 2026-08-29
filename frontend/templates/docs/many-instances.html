@@ -15,6 +15,17 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#one-command-several-hosts" lang="en">One command, several hosts</a>
+  <a href="#one-configuration-file-per-instance" lang="en">One configuration file per instance</a>
+  <a href="#a-loop-over-the-files" lang="en">A loop over the files</a>
+  <a href="#where-the-checks-should-run-from" lang="en">Where the checks should run from</a>
+  <a href="#keeping-the-waivers-honest" lang="en">Keeping the waivers honest</a>
+  <a href="#only-alerting-on-what-changed" lang="en">Only alerting on what changed</a>
+  <a href="#scheduling-the-whole-thing" lang="en">Scheduling the whole thing</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>One check per instance is simple until there are twenty of them, each with its
 own port, its own release track and its own list of accepted findings. This

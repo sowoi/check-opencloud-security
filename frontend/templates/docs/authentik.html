@@ -15,6 +15,24 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#how-it-works" lang="en">How it works</a>
+  <a href="#running-the-stack" lang="en">Running the stack</a>
+  <a href="#sending-mail" lang="en">Sending mail</a>
+  <a href="#what-the-blueprint-created" lang="en">What the blueprint created</a>
+  <a href="#pointing-the-scanner-at-it" lang="en">Pointing the scanner at it</a>
+  <a href="#adding-somebody-who-may-use-the-endpoint" lang="en">Adding somebody who may use the endpoint</a>
+  <a href="#getting-a-token" lang="en">Getting a token</a>
+  <a href="#configuring-an-agent" lang="en">Configuring an agent</a>
+  <a href="#erasure-which-is-a-different-credential" lang="en">Erasure, which is a different credential</a>
+  <a href="#behind-a-reverse-proxy" lang="en">Behind a reverse proxy</a>
+  <a href="#backing-it-up" lang="en">Backing it up</a>
+  <a href="#restoring-it" lang="en">Restoring it</a>
+  <a href="#when-it-does-not-work" lang="en">When it does not work</a>
+  <a href="#using-a-provider-that-is-not-authentik" lang="en">Using a provider that is not Authentik</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The scan service answers anybody, and for the public deployment that is the
 whole point of it. An estate running the service for itself usually wants the

@@ -15,6 +15,23 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#table-of-contents" lang="en">Table of contents</a>
+  <a href="#what-redis-is-used-for" lang="en">What Redis is used for</a>
+  <a href="#what-is-stored-and-for-how-long" lang="en">What is stored, and for how long</a>
+  <a href="#configuring-the-connection" lang="en">Configuring the connection</a>
+  <a href="#running-without-redis" lang="en">Running without Redis</a>
+  <a href="#the-password" lang="en">The password</a>
+  <a href="#network-isolation" lang="en">Network isolation</a>
+  <a href="#persistence-or-the-deliberate-lack-of-it" lang="en">Persistence, or the deliberate lack of it</a>
+  <a href="#memory-and-eviction" lang="en">Memory and eviction</a>
+  <a href="#an-external-or-managed-redis" lang="en">An external or managed Redis</a>
+  <a href="#kubernetes" lang="en">Kubernetes</a>
+  <a href="#health-and-monitoring" lang="en">Health and monitoring</a>
+  <a href="#troubleshooting" lang="en">Troubleshooting</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>Redis is the only moving part of the scan service that is not this project's
 own code, and the only place a scan exists between the moment somebody submits

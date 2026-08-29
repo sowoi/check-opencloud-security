@@ -87,7 +87,7 @@ def test_findings_of_one_severity_do_not_each_promise_the_same_gain():
             base_rating=5,
             caps=[
                 _cap("basicAuthDisabled", "medium", 4),
-                _cap("maintenanceMode", "medium", 4),
+                _cap("cookieSecure", "medium", 4),
             ],
         )
     )

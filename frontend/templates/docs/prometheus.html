@@ -15,6 +15,15 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#what-there-is-to-graph" lang="en">What there is to graph</a>
+  <a href="#node_exporter-textfile-collector" lang="en">node_exporter textfile collector</a>
+  <a href="#pushgateway" lang="en">Pushgateway</a>
+  <a href="#alerting-rules" lang="en">Alerting rules</a>
+  <a href="#grafana" lang="en">Grafana</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The plugin has a native Prometheus exporter. Run it with
 <code>--prometheus-listen-port 9102</code> to serve <code>/metrics</code>; it caches a scan for

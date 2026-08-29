@@ -127,16 +127,19 @@ class Hardening:
 # Every category a check can belong to, in the order the catalogue and the
 # dashboard show them. A category groups checks by subject - what they are
 # about - which is orthogonal to severity, which says how bad a failure is.
+# OpenCloud's own hardening - what an administrator can actually configure on
+# the instance - leads; the generic web checks that apply to any HTTPS service
+# follow, headers (including CSP) before transport/TLS.
 CATEGORIES: tuple[str, ...] = (
-    "transport",
     "cookies",
-    "headers",
     "authentication",
     "sharing",
     "exposure",
     "embedding",
     "lifecycle",
     "proxy",
+    "headers",
+    "transport",
 )
 
 
@@ -714,53 +717,6 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference="https://docs.opencloud.eu/docs/admin/resources/demo-user/",
         setting="IDM_CREATE_DEMO_USERS",
-    ),
-    "maintenanceMode": Hardening(
-        id="maintenanceMode",
-        category="lifecycle",
-        title="The instance is in maintenance mode",
-        meaning=(
-            "status.php reports maintenance mode, so the instance is not serving "
-            "users. Findings collected in this state describe an instance that "
-            "is only half up, and a scan repeated afterwards may look different."
-        ),
-        remediation=(
-            "Finish whatever is in progress and leave maintenance mode, then "
-            "scan again to get a picture of the running instance."
-        ),
-        reference=DOCS_REVERSE_PROXY,
-    ),
-    "databaseUpgrade": Hardening(
-        id="databaseUpgrade",
-        category="lifecycle",
-        title="The instance needs a database upgrade",
-        meaning=(
-            "status.php reports a pending upgrade, which usually means new "
-            "binaries are running against an old schema. That is an unfinished "
-            "update, and an unfinished update is where security fixes stop "
-            "halfway."
-        ),
-        remediation=(
-            "Run the pending upgrade and confirm status.php reports it done. "
-            "Take a backup first; a half-applied migration is worse than a "
-            "pending one."
-        ),
-        reference=DOCS_REVERSE_PROXY,
-    ),
-    "installed": Hardening(
-        id="installed",
-        category="lifecycle",
-        title="The instance reports that it is not installed",
-        meaning=(
-            "status.php says the instance has not completed its setup. An "
-            "unfinished installation reachable from the internet can sometimes "
-            "be completed by whoever finds it first."
-        ),
-        remediation=(
-            "Finish the installation immediately, and keep the instance off a "
-            "public address until it is done."
-        ),
-        reference=DOCS_REVERSE_PROXY,
     ),
     "versionDetection": Hardening(
         id="versionDetection",

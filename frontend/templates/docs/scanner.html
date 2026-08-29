@@ -15,6 +15,24 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#what-it-reads-from-the-instance" lang="en">What it reads from the instance</a>
+  <a href="#rating-algorithm" lang="en">Rating algorithm</a>
+  <a href="#what-would-raise-the-rating" lang="en">What would raise the rating</a>
+  <a href="#the-single-page-application-problem" lang="en">The single-page-application problem</a>
+  <a href="#end-of-life-detection" lang="en">End-of-life detection</a>
+  <a href="#update-check" lang="en">Update check</a>
+  <a href="#vulnerabilities" lang="en">Vulnerabilities</a>
+  <a href="#hardenings" lang="en">Hardenings</a>
+  <a href="#debug-ports" lang="en">Debug ports</a>
+  <a href="#concurrency" lang="en">Concurrency</a>
+  <a href="#tls" lang="en">TLS</a>
+  <a href="#what-this-package-does-not-do" lang="en">What this package does not do</a>
+  <a href="#using-it-directly" lang="en">Using it directly</a>
+  <a href="#comparing-a-scan-with-the-last-one" lang="en">Comparing a scan with the last one</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The scan engine behind <code>check-opencloud-security</code> and the
 <code>check-opencloud-scanner</code> service.</p>
@@ -70,8 +88,10 @@ meaning.</p>
 <h2 id="what-it-reads-from-the-instance">What it reads from the instance</h2>
 <p>Two endpoints are unauthenticated in OpenCloud, and both are needed:</p>
 <ul>
-<li><strong><code>/status.php</code></strong> - product, edition, <code>productversion</code>, <code>maintenance</code>,
-  <code>needsDbUpgrade</code></li>
+<li><strong><code>/status.php</code></strong> - product, edition, <code>productversion</code>. It also carries
+  <code>maintenance</code>, <code>installed</code> and <code>needsDbUpgrade</code>, but OpenCloud's own handler
+  hardcodes all three rather than reading real state, so this package does not
+  check them - see <a href="/documentation/status-php"><code>docs/status-php.md</code></a>.</li>
 <li><strong><code>/ocs/v1.php/cloud/capabilities</code></strong> - the feature flags the hardening
   section below is derived from</li>
 </ul>

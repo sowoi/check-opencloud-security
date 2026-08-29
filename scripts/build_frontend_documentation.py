@@ -95,6 +95,28 @@ def _escape_jinja(body: str) -> str:
     )
 
 
+# A page short enough to scan in one or two screens does not need a jump
+# list; one long enough to have this many top-level sections does.
+MIN_TOC_SECTIONS = 5
+
+
+def _table_of_contents(body: str) -> str:
+    """A jump list of a page's own top-level sections, or "" below the threshold."""
+    headings = re.findall(r'<h2 id="([^"]+)">(.*?)</h2>', body, flags=re.DOTALL)
+    if len(headings) < MIN_TOC_SECTIONS:
+        return ""
+    links = "\n".join(
+        f'  <a href="#{anchor}" lang="en">{text}</a>' for anchor, text in headings
+    )
+    return (
+        '<nav class="docs-toc card section-gap" '
+        "aria-label=\"{{ t('docs.guide.toc.aria') }}\" data-reveal>\n"
+        "  <p class=\"kicker\">{{ t('docs.guide.toc.heading') }}</p>\n"
+        f"{links}\n"
+        "</nav>\n"
+    )
+
+
 def render_page(slug: str) -> str:
     """Render one manifest entry as a complete Jinja template."""
     page = DOCUMENTATION_BY_SLUG[slug]
@@ -113,6 +135,8 @@ def render_page(slug: str) -> str:
     body = re.sub(r'\s+style="[^"]*"', "", body)
     body = _rewrite_relative_links(body, page.source)
     body = _escape_jinja(body)
+    toc = _table_of_contents(body)
+    toc_block = f"{toc}\n" if toc else ""
     # The chrome is translated from the catalogue; the guide itself is the
     # repository's own English Markdown, and the notice above it says so
     # rather than letting a reader assume the page failed to translate.
@@ -133,7 +157,7 @@ def render_page(slug: str) -> str:
 <p class="hint section-gap" lang="{{{{ locale }}}}">{{{{ t('docs.guide.english_notice') }}}}</p>
 {{% endif %}}
 
-<article class="docs-article card section-gap" data-reveal lang="en">
+{toc_block}<article class="docs-article card section-gap" data-reveal lang="en">
 {body}
 </article>
 
