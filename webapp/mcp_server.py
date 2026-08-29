@@ -19,6 +19,14 @@ The prompts are the tasks a *person* asks for - "audit this instance and
 write a remediation plan" - expressed once so every client sends the same
 well-formed request. Their wording lives in :mod:`webapp.prompts`; this
 module only binds it to the protocol.
+
+Two resources are the *knowledge base* rather than the execution layer: the
+check catalogue and the advisory database, the same reference material the
+``/catalogue`` page renders for a person. An agent can read them to explain a
+finding, or to know what the scanner would catch, without ever submitting a
+scan. They carry the same rule as the tools - one implementation, read here
+rather than restated - so a description in the catalogue and the sentence a
+result quotes it from can never disagree.
 """
 
 from __future__ import annotations
@@ -40,7 +48,9 @@ from opencloud_local_scan import __version__
 
 from . import prompts as pr
 from . import workflows as wf
+from .advisories import advisory_catalogue, stored_database
 from .arazzo import arazzo_document
+from .catalog import check_catalogue
 from .discovery import discovery_document
 from .mcp_auth import auth_required, auth_settings, build_token_verifier
 from .openapi import openapi_document
@@ -55,6 +65,12 @@ MCP_PATH = "/mcp"
 OPENAPI_RESOURCE = "spec://check-opencloud-security/openapi.json"
 ARAZZO_RESOURCE = "spec://check-opencloud-security/arazzo.json"
 DISCOVERY_RESOURCE = "spec://check-opencloud-security/ai.json"
+
+#: The knowledge base. Reference material rather than a protocol contract,
+#: but the same reasoning applies: a document an agent reads, not a call it
+#: makes, gets a resource URI rather than a tool.
+CATALOGUE_RESOURCE = "spec://check-opencloud-security/catalogue.json"
+ADVISORIES_RESOURCE = "spec://check-opencloud-security/advisories.json"
 
 #: Only these travel from the agent's request into the API call. An
 #: Authorization header is added explicitly where a tool needs one; nothing
@@ -270,6 +286,11 @@ def build_mcp_server(app: Any, settings: WebSettings) -> MCPServer:
             "auditing an instance and writing a remediation plan, reviewing a "
             "certificate, ranking an estate by risk. List them and use one "
             "rather than composing the sequence yourself.\n\n"
+            "The catalogue and advisories resources are a knowledge base, "
+            "not a scan: read the catalogue to explain what a hardening or "
+            "check id means and how to fix it, and the advisories resource "
+            "to see what the scanner would catch, both without submitting a "
+            "target.\n\n"
             f"{wf.REMOTE_NOTE}\n\n"
             "Not affiliated with, endorsed by or supported by OpenCloud GmbH."
         ),
@@ -677,6 +698,53 @@ def build_mcp_server(app: Any, settings: WebSettings) -> MCPServer:
 
         origin = (settings.public_base_url or "").rstrip("/")
         return json.dumps(discovery_document(origin or ""), indent=2)
+
+    @mcp.resource(
+        CATALOGUE_RESOURCE,
+        name="catalogue",
+        title="Every check the scanner runs, explained",
+        description=(
+            "The knowledge base behind a result, grouped by category: what "
+            "each hardening flag and extra check means, the OpenCloud "
+            "setting behind it where one exists, how to fix it, and a link "
+            "to the official OpenCloud documentation. This is the whole set "
+            "the scanner knows how to explain, not only the ones that "
+            "failed on one instance - read it to explain a finding by id, "
+            "or before ever running a scan. 'actionable: false' marks a "
+            "flag OpenCloud hardcodes, which no administrator can change; "
+            "such a finding is real but never worth recommending a fix for."
+        ),
+        mime_type="application/json",
+    )
+    def catalogue_resource() -> str:
+        import json
+        from dataclasses import asdict
+
+        return json.dumps(
+            [asdict(category) for category in check_catalogue()], indent=2
+        )
+
+    @mcp.resource(
+        ADVISORIES_RESOURCE,
+        name="advisories",
+        title="The advisory database a scan is rated against",
+        description=(
+            "Every OpenCloud security advisory this deployment currently "
+            "knows about: its severity, the affected version ranges and the "
+            "release each range is fixed in. This is the whole database, "
+            "not the subset that matched one instance's reported version - "
+            "read it to know what the scanner would catch before running "
+            "it. Refreshed once a day from the upstream feed; a refresh "
+            "only ever adds an advisory, so this list never shrinks between "
+            "reads."
+        ),
+        mime_type="application/json",
+    )
+    async def advisories_resource() -> str:
+        import json
+
+        database = await stored_database(app.state.backend, settings)
+        return json.dumps(advisory_catalogue(database), indent=2)
 
     return mcp
 

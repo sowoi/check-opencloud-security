@@ -824,10 +824,18 @@ limits, the SSRF guard and the purge authorisation a browser meets.</p>
 for - <code>audit_instance</code>, <code>audit_estate</code>, <code>explain_scan_result</code>,
 <code>triage_findings</code>, <code>review_transport_security</code> and <code>check_release_support</code> -
 so a client can offer "audit this instance and write a remediation plan" as
-one thing to pick. Three resources expose the OpenAPI, Arazzo and
-discovery documents under <code>spec://</code> URIs. The polling, retry and error
-semantics come from <code>webapp/workflows.py</code>, which is also what the Arazzo
-document is generated from, so the two cannot drift apart.</p>
+one thing to pick. Five resources are published under <code>spec://</code> URIs: the
+OpenAPI, Arazzo and discovery documents, and two that are a knowledge base
+rather than a contract - <code>catalogue</code>, every hardening flag and extra check
+the scanner runs explained, with the OpenCloud setting behind it, the fix and
+the official documentation; and <code>advisories</code>, the whole advisory database a
+scan is rated against. Both are built from the same functions the
+<code>/catalogue</code> page renders from, so an agent can explain a finding, or see
+what the scanner would catch, without ever submitting a target - and without
+a resource ever disagreeing with the page about what a check means. The
+polling, retry and error semantics come from <code>webapp/workflows.py</code>, which is
+also what the Arazzo document is generated from, so the two cannot drift
+apart.</p>
 <p><code>erase_instance_data</code> is marked destructive and needs the same
 <code>Authorization: Bearer</code> credential the HTTP endpoint does. The credential is
 read from the agent's request headers and never from a tool argument, so it is
@@ -897,21 +905,35 @@ Docker Compose passes it from the deployment environment. The application
 parses and escapes every pair instead of accepting raw HTML, and refuses
 duplicate names, names already owned by the page, or prohibited platform
 metadata. A literal semicolon is not supported in a value.</p>
-<h3 id="get-robotstxt-get-sitemapxml"><code>GET /robots.txt</code>, <code>GET /sitemap.xml</code></h3>
-<p>Both are generated, never files on disk. The sitemap lists the landing page,
-the nine explanation/index pages and every generated CLI document, and takes each
-<code>lastmod</code> from the template that renders it, so it cannot drift from the
-pages that actually exist. Neither ever mentions a result: the uuid is the
-whole of the authorisation, and a listing is exactly what this service does
-not have. <code>robots.txt</code> disallows <code>/scan/</code>, <code>/api/</code>, the schema and the health
-probe, and points at the sitemap.</p>
-<p><code>COS_WEB_PUBLIC_BASE_URL</code> decides the origin in both, together with the
+<h3 id="get-robotstxt-get-agentstxt-get-sitemapxml"><code>GET /robots.txt</code>, <code>GET /agents.txt</code>, <code>GET /sitemap.xml</code></h3>
+<p>All three are generated, never files on disk. The sitemap lists the landing
+page, the nine explanation/index pages and every generated CLI document, and
+takes each <code>lastmod</code> from the template that renders it, so it cannot drift
+from the pages that actually exist. None of them ever mentions a result: the
+uuid is the whole of the authorisation, and a listing is exactly what this
+service does not have. <code>robots.txt</code> disallows <code>/scan/</code>, <code>/api/</code>, the schema
+and the health probe, and points at the sitemap.</p>
+<p><code>agents.txt</code> follows the <a href="https://agents-txt.com">agents-txt.com</a> convention
+instead: capability blocks of <code>Key: value</code> directives rather than
+<code>robots.txt</code>'s allow-list, so a parser built against that convention reads
+this deployment's tools directly. It declares <code>MCP: &lt;url&gt;</code> and
+<code>WebMCP: &lt;url&gt;</code> when this deployment serves them, <code>Authorization: oauth2</code> and
+<code>Identity: required</code> only when the MCP endpoint itself asks for a bearer
+token, and nothing for <code>Protocols</code>/<code>Payments</code>/<code>A2A</code>/<code>Skills</code>/<code>UCP</code>, since none
+of those apply here. Like <code>/.well-known/ai.json</code>, it is an informal
+convention rather than a registered standard, and the OpenAPI, Arazzo and MCP
+contracts remain authoritative over anything it says.</p>
+<p><code>GET /agents.json</code> is the structured sibling the convention recommends
+alongside the plain-text file - the same document <code>/.well-known/ai.json</code>
+serves, published again under the name <code>agents.txt</code> points at.</p>
+<p><code>COS_WEB_PUBLIC_BASE_URL</code> decides the origin in all three, together with the
 canonical link on every page. Behind a proxy the service only sees its own
 internal address, and without that setting it would publish URLs nobody
 outside can reach.</p>
 <p><code>COS_WEB_ALLOW_INDEXING=false</code> turns the lot off: <code>robots.txt</code> becomes a flat
-refusal, <code>sitemap.xml</code> answers 404 and every page carries <code>noindex</code>. A result
-page carries <code>noindex</code> and an <code>X-Robots-Tag</code> either way.</p>
+refusal, <code>agents.txt</code> becomes the convention's own minimal file with no
+capability declared, <code>sitemap.xml</code> answers 404 and every page carries
+<code>noindex</code>. A result page carries <code>noindex</code> and an <code>X-Robots-Tag</code> either way.</p>
 <h2 id="layout">Layout</h2>
 <pre><code class="language-text">webapp/                 the service
 ├── app.py              routes, security headers, request validation
@@ -928,7 +950,7 @@ page carries <code>noindex</code> and an <code>X-Robots-Tag</code> either way.</
 ├── arazzo.py           the API described as executable workflows
 ├── documentation.py    the manifest for the generated browser documentation
 ├── purge.py            erasure on request, and the signed receipt for it
-├── seo.py              the public page list, robots.txt and sitemap.xml
+├── seo.py              the public page list, robots.txt, agents.txt and sitemap.xml
 └── catalog.py          the waiver allow-list and the dashboard grouping
 
 frontend/

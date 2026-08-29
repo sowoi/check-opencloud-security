@@ -104,6 +104,15 @@ class Hardening:
     document but is excluded from alert summaries and counts.
     """
 
+    category: str = ""
+    """
+    Which area of the instance this belongs to, one of :data:`CATEGORIES`.
+
+    This is what groups a finding on the dashboard and in the check
+    catalogue - "transport", "cookies" and so on - independent of severity,
+    which says how bad a failure is rather than what it is about.
+    """
+
     def describe(self) -> str:
         """Render the full explanation as a single indented block."""
         lines = [f"{self.id}: {self.title}", f"    {self.meaning}"]
@@ -115,9 +124,26 @@ class Hardening:
         return "\n".join(lines)
 
 
+# Every category a check can belong to, in the order the catalogue and the
+# dashboard show them. A category groups checks by subject - what they are
+# about - which is orthogonal to severity, which says how bad a failure is.
+CATEGORIES: tuple[str, ...] = (
+    "transport",
+    "cookies",
+    "headers",
+    "authentication",
+    "sharing",
+    "exposure",
+    "embedding",
+    "lifecycle",
+    "proxy",
+)
+
+
 HARDENINGS: dict[str, Hardening] = {
     "basicAuthDisabled": Hardening(
         id="basicAuthDisabled",
+        category="authentication",
         title="HTTP Basic authentication is enabled",
         meaning=(
             "The instance answers with a 'WWW-Authenticate: Basic' challenge, so "
@@ -140,26 +166,41 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "cspWithoutUnsafeInline": Hardening(
         id="cspWithoutUnsafeInline",
-        title="The Content-Security-Policy allows inline scripts",
+        category="headers",
+        title="The Content-Security-Policy allows inline scripts or eval",
         meaning=(
-            "The policy contains 'unsafe-inline', which removes most of the "
-            "protection a CSP gives against cross-site scripting: injected "
-            "markup may execute. Note that this is OpenCloud's shipped default, "
-            "so an instance failing this check is not misconfigured - it is "
-            "unmodified."
+            "The script-src directive (or default-src, when script-src is "
+            "absent) contains 'unsafe-inline' or 'unsafe-eval', which removes "
+            "most of the protection a CSP gives against cross-site scripting: "
+            "'unsafe-inline' lets injected markup or an event handler execute "
+            "outright, and 'unsafe-eval' lets a gadget already in loaded code "
+            "turn attacker-controlled input into code via eval() or the "
+            "Function constructor. Note that 'unsafe-inline' is OpenCloud's "
+            "shipped default, so an instance failing this check on that "
+            "keyword alone is not misconfigured - it is unmodified. A policy "
+            "that pairs 'unsafe-inline' with a nonce or a hash (the standard "
+            "'strict-dynamic' rollout pattern) does not fail this check: every "
+            "browser that understands nonces ignores 'unsafe-inline' in that "
+            "case, so the keyword is only a fallback for browsers old enough "
+            "to ignore the nonce too."
         ),
         remediation=(
             "Point PROXY_CSP_CONFIG_FILE_LOCATION at a csp.yaml without "
-            "'unsafe-inline' (or PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION to "
-            "replace the default outright). Test it first: the web interface "
-            "currently relies on inline scripts and styles, so a strict policy "
-            "is likely to break the UI and any connected office or IDP service."
+            "'unsafe-inline' or 'unsafe-eval' (or "
+            "PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION to replace the default "
+            "outright) - or, to keep supporting older browsers, move to a "
+            "nonce- or hash-based policy with 'strict-dynamic' instead of "
+            "dropping 'unsafe-inline' outright. Test it first: the web "
+            "interface currently relies on inline scripts and styles, so a "
+            "strict policy is likely to break the UI and any connected office "
+            "or IDP service."
         ),
         reference=DOCS_PROXY,
         setting="PROXY_CSP_CONFIG_FILE_LOCATION",
     ),
     "publicLinkPasswordEnforced": Hardening(
         id="publicLinkPasswordEnforced",
+        category="sharing",
         title="Public links can be created without a password",
         meaning=(
             "At least one kind of public link - read-only, upload-only or "
@@ -178,6 +219,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "publicLinkExpirationEnforced": Hardening(
         id="publicLinkExpirationEnforced",
+        category="sharing",
         title="Public links do not expire automatically (not configurable)",
         meaning=(
             "OpenCloud reports 'files_sharing.public.expire_date.enabled' as a "
@@ -195,6 +237,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "userEnumerationRestricted": Hardening(
         id="userEnumerationRestricted",
+        category="authentication",
         title="Account search is not restricted to shared groups",
         meaning=(
             "User search would let any account enumerate the whole directory. "
@@ -210,6 +253,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "passwordPolicyEnforced": Hardening(
         id="passwordPolicyEnforced",
+        category="authentication",
         title="The password policy is disabled or allows short passwords",
         meaning=(
             "The public capabilities show that the policy is disabled or its "
@@ -227,6 +271,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "hstsLongMaxAge": Hardening(
         id="hstsLongMaxAge",
+        category="transport",
         title="Strict-Transport-Security has a short max-age",
         meaning=(
             "The HSTS max-age is under a year, so a browser stops enforcing "
@@ -243,6 +288,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "hstsPreload": Hardening(
         id="hstsPreload",
+        category="transport",
         title="Strict-Transport-Security has no preload directive",
         meaning=(
             "Without 'preload' the host cannot enter the browser preload list, "
@@ -259,6 +305,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "httpsEnforced": Hardening(
         id="httpsEnforced",
+        category="transport",
         title="Plain HTTP is not redirected to HTTPS",
         meaning=(
             "The instance answers on http:// without redirecting, so a client "
@@ -273,6 +320,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "identityProviderDetected": Hardening(
         id="identityProviderDetected",
+        category="proxy",
         title="No identity provider could be found",
         meaning=(
             "The instance publishes no OpenID Connect discovery document at "
@@ -293,6 +341,7 @@ HARDENINGS: dict[str, Hardening] = {
     ),
     "reverseProxyDetected": Hardening(
         id="reverseProxyDetected",
+        category="proxy",
         title="No reverse proxy could be detected in front of the instance",
         meaning=(
             "Nothing in the response suggests a reverse proxy - no proxy-style "
@@ -322,6 +371,7 @@ HARDENINGS: dict[str, Hardening] = {
 CHECKS: dict[str, Hardening] = {
     "tlsHandshake": Hardening(
         id="tlsHandshake",
+        category="transport",
         title="The TLS handshake failed",
         meaning=(
             "No TLS connection could be established at all, even with "
@@ -339,6 +389,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsTrusted": Hardening(
         id="tlsTrusted",
+        category="transport",
         title="The certificate chain is not trusted",
         meaning=(
             "The certificate does not validate against the public trust store: "
@@ -359,6 +410,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsProtocol": Hardening(
         id="tlsProtocol",
+        category="transport",
         title="An outdated TLS protocol version was negotiated",
         meaning=(
             "The connection came up on something older than TLS 1.2. TLS 1.0 and "
@@ -375,6 +427,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsCertificate": Hardening(
         id="tlsCertificate",
+        category="transport",
         title="The certificate expires soon, or has expired",
         meaning=(
             "The remaining validity is below the configured threshold "
@@ -392,6 +445,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsDeprecatedProtocol": Hardening(
         id="tlsDeprecatedProtocol",
+        category="transport",
         title="TLS 1.0 or TLS 1.1 is still accepted",
         meaning=(
             "The server negotiated a current protocol with this scan and then "
@@ -411,6 +465,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsHostname": Hardening(
         id="tlsHostname",
+        category="transport",
         title="The certificate does not cover the name it is served for",
         meaning=(
             "No subject alternative name in the certificate matches the host "
@@ -429,6 +484,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsChain": Hardening(
         id="tlsChain",
+        category="transport",
         title="The server does not send a complete certificate chain",
         meaning=(
             "The certificates the server sent do not reach a root in the public "
@@ -447,6 +503,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsCertificateLifetime": Hardening(
         id="tlsCertificateLifetime",
+        category="transport",
         title="The certificate was issued for an unusually long time",
         meaning=(
             "Its validity period is longer than the 398 days the CA/Browser "
@@ -466,6 +523,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsCipherSuite": Hardening(
         id="tlsCipherSuite",
+        category="transport",
         title="The negotiated TLS cipher suite is weak",
         meaning=(
             "The TLS connection completed with a cipher suite that uses a "
@@ -485,6 +543,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsCertificatePolicy": Hardening(
         id="tlsCertificatePolicy",
+        category="transport",
         title="The certificate uses a weak key or signature",
         meaning=(
             "The presented certificate has an RSA key below 2048 bits, an EC "
@@ -500,8 +559,30 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_TLS,
     ),
+    "tlsCaaRecord": Hardening(
+        id="tlsCaaRecord",
+        category="transport",
+        title="No CAA record restricts who may issue a certificate",
+        meaning=(
+            "The domain has no CAA (Certification Authority Authorization) "
+            "record naming an 'issue' or 'issuewild' property, so any "
+            "publicly trusted certificate authority can be asked to issue a "
+            "certificate for it - not just the one actually used. This "
+            "checks only the exact name scanned, not the RFC 8659 "
+            "parent-domain fallback chain, and it never judges which CA a "
+            "record names, only whether one restricts issuance at all."
+        ),
+        remediation=(
+            "Add a CAA record at the DNS zone naming the certificate "
+            "authority already in use, e.g. "
+            "'example.com. CAA 0 issue \"letsencrypt.org\"'. This is a DNS "
+            "change at the domain's own zone, not an OpenCloud setting."
+        ),
+        reference=DOCS_TLS,
+    ),
     "tlsAddressParity": Hardening(
         id="tlsAddressParity",
+        category="transport",
         title="IPv4 and IPv6 do not present the same TLS service",
         meaning=(
             "The hostname publishes both address families, but their TLS "
@@ -518,6 +599,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "cookieSecure": Hardening(
         id="cookieSecure",
+        category="cookies",
         title="An observed cookie can travel over HTTP",
         meaning="A cookie sent by the public response lacks the Secure attribute.",
         remediation="Set Secure on every cookie the reverse proxy or application issues.",
@@ -525,6 +607,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "cookieHttpOnly": Hardening(
         id="cookieHttpOnly",
+        category="cookies",
         title="An observed cookie is readable by page scripts",
         meaning="A cookie sent by the public response lacks the HttpOnly attribute.",
         remediation="Set HttpOnly unless a browser script must deliberately read that cookie.",
@@ -532,6 +615,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "cookieSameSite": Hardening(
         id="cookieSameSite",
+        category="cookies",
         title="An observed cookie has no cross-site policy",
         meaning="A cookie sent by the public response lacks a SameSite attribute.",
         remediation="Set SameSite=Lax or Strict unless a documented cross-site flow needs None.",
@@ -539,6 +623,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "tlsOcspStapling": Hardening(
         id="tlsOcspStapling",
+        category="transport",
         title="No OCSP response is stapled to the handshake",
         meaning=(
             "The certificate names an OCSP responder, so revocation can be "
@@ -560,6 +645,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "httpsAvailable": Hardening(
         id="httpsAvailable",
+        category="transport",
         title="The instance is only reachable over plain HTTP",
         meaning=(
             "HTTPS could not be used at all, so the scan fell back to http://. "
@@ -574,6 +660,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "directoryListing": Hardening(
         id="directoryListing",
+        category="exposure",
         title="A web server is serving a directory index",
         meaning=(
             "An 'Index of /' page was returned. OpenCloud serves its own assets "
@@ -591,6 +678,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "webfingerVersionDisclosure": Hardening(
         id="webfingerVersionDisclosure",
+        category="lifecycle",
         title="The webfinger document publishes the exact version",
         meaning=(
             "The unauthenticated webfinger response contains the running "
@@ -606,6 +694,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "demoUsersDisabled": Hardening(
         id="demoUsersDisabled",
+        category="authentication",
         title="The documented demo accounts still sign in",
         meaning=(
             "IDM_CREATE_DEMO_USERS populates the built-in identity management "
@@ -628,6 +717,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "maintenanceMode": Hardening(
         id="maintenanceMode",
+        category="lifecycle",
         title="The instance is in maintenance mode",
         meaning=(
             "status.php reports maintenance mode, so the instance is not serving "
@@ -642,6 +732,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "databaseUpgrade": Hardening(
         id="databaseUpgrade",
+        category="lifecycle",
         title="The instance needs a database upgrade",
         meaning=(
             "status.php reports a pending upgrade, which usually means new "
@@ -658,6 +749,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "installed": Hardening(
         id="installed",
+        category="lifecycle",
         title="The instance reports that it is not installed",
         meaning=(
             "status.php says the instance has not completed its setup. An "
@@ -672,6 +764,7 @@ CHECKS: dict[str, Hardening] = {
     ),
     "versionDetection": Hardening(
         id="versionDetection",
+        category="lifecycle",
         title="The running version could not be determined",
         meaning=(
             "status.php returned only the legacy compatibility version, without "
@@ -696,6 +789,7 @@ CHECKS: dict[str, Hardening] = {
 _CHECK_FAMILIES: dict[str, Hardening] = {
     "exposed": Hardening(
         id="exposed",
+        category="exposure",
         title="A deployment file is publicly readable",
         meaning=(
             "A path that should never be served over HTTP answered with content. "
@@ -712,6 +806,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "authentication": Hardening(
         id="authentication",
+        category="authentication",
         title="A protected endpoint answered without demanding authentication",
         meaning=(
             "An endpoint that should require a session returned neither 401, 403 "
@@ -727,6 +822,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "debugEndpoint": Hardening(
         id="debugEndpoint",
+        category="exposure",
         title="A debug endpoint is publicly readable",
         meaning=(
             "A service debug path answered on the public address. Those "
@@ -743,6 +839,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "debugPort": Hardening(
         id="debugPort",
+        category="exposure",
         title="A service debug port is reachable",
         meaning=(
             "One of OpenCloud's per-service debug listeners accepted a "
@@ -760,6 +857,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "backendPortClosed": Hardening(
         id="backendPortClosed",
+        category="exposure",
         title="The direct OpenCloud backend port is publicly reachable",
         meaning=(
             "Port 9200 serves the same OpenCloud instance as the public address. "
@@ -776,6 +874,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "webEmbedMessageOriginRestricted": Hardening(
         id="webEmbedMessageOriginRestricted",
+        category="embedding",
         title="Embedded web messages trust every parent origin",
         meaning=(
             "The public web configuration sets the embed message origin to '*'. "
@@ -791,6 +890,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "webEmbedDelegatedAuthenticationRestricted": Hardening(
         id="webEmbedDelegatedAuthenticationRestricted",
+        category="embedding",
         title="Delegated iframe authentication accepts an unvalidated origin",
         meaning=(
             "Delegated authentication is enabled without naming the parent "
@@ -805,6 +905,7 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
     ),
     "versionDisclosure": Hardening(
         id="versionDisclosure",
+        category="lifecycle",
         title="A response header publishes a software version",
         meaning=(
             "The Server or X-Powered-By header carries a version number. It is "
@@ -870,6 +971,7 @@ def _header_hardening(name: str) -> Hardening:
     )
     return Hardening(
         id=name,
+        category="headers",
         title=f"The {name} header is missing or too weak",
         meaning=meaning,
         remediation=remediation,
@@ -887,6 +989,7 @@ def _family_hardening(family: Hardening, subject: str) -> Hardening:
         reference=family.reference,
         setting=family.setting,
         actionable=family.actionable,
+        category=family.category,
     )
 
 
@@ -919,6 +1022,20 @@ def describe(name: str) -> Hardening:
 def is_actionable(name: str) -> bool:
     """Whether an administrator can change the outcome of this flag."""
     return describe(name).actionable
+
+
+def all_checks() -> tuple[Hardening, ...]:
+    """
+    Every hardening flag and scan check this build knows how to explain.
+
+    This is the family entries themselves - ``exposed``, ``debugPort`` - not
+    every ``family:subject`` finding a scan could ever report, since the
+    subjects are open-ended paths and ports rather than a fixed catalogue.
+    Header names are not included: :data:`_HEADER_NOTES` has no ``Hardening``
+    of its own until :func:`_header_hardening` builds one, so callers that
+    want those too should also describe each name in it.
+    """
+    return (*HARDENINGS.values(), *CHECKS.values(), *_CHECK_FAMILIES.values())
 
 
 def explain(names: list[str]) -> list[str]:

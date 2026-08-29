@@ -104,9 +104,41 @@ credential</a>.</p>
 </tr>
 </tbody>
 </table>
-<p>and three resources, so an agent can read the contracts without leaving the
-protocol: the OpenAPI description, the Arazzo workflows and the discovery
-document.</p>
+<p>and five resources, so an agent can read the contracts - and the knowledge
+behind a finding - without leaving the protocol:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>openapi</code></td>
+<td>The OpenAPI 3.1 description of the REST API</td>
+</tr>
+<tr>
+<td><code>arazzo</code></td>
+<td>The Arazzo workflows those operations combine into</td>
+</tr>
+<tr>
+<td><code>discovery</code></td>
+<td>The <code>/.well-known/ai.json</code> document</td>
+</tr>
+<tr>
+<td><code>catalogue</code></td>
+<td>Every hardening flag and extra check the scanner runs, explained: what it means, the OpenCloud setting behind it, how to fix it, and a link to the official documentation. The same knowledge the <a href="https://scan.okxo.de/catalogue"><code>/catalogue</code></a> page renders</td>
+</tr>
+<tr>
+<td><code>advisories</code></td>
+<td>The whole advisory database a scan is rated against - not the subset that matched one instance</td>
+</tr>
+</tbody>
+</table>
+<p>The last two are a knowledge base rather than a contract: read <code>catalogue</code> to
+explain what a finding id means before or after a scan, and <code>advisories</code> to
+see what the scanner would catch, without ever submitting a target.</p>
 <p>Six prompts as well - the tasks people actually ask for, written out once so
 every client sends the same well-formed request:</p>
 <table>
@@ -265,7 +297,11 @@ transport, the answer is <em>streamable HTTP</em> (sometimes called "HTTP" or
 <p>An agent that has never heard of this service can find the endpoint itself:
 <code>https://scan.okxo.de/.well-known/ai.json</code> names it, alongside the OpenAPI and
 Arazzo documents. That is the whole point of the discovery document - see
-<a href="https://scan.okxo.de/ai">the page for agents</a>.</p>
+<a href="https://scan.okxo.de/ai">the page for agents</a>. <code>https://scan.okxo.de/agents.txt</code>
+and <code>https://scan.okxo.de/llms.txt</code> point at the same document for a fetcher
+that goes looking for one of those two filenames first, in the informal
+conventions some agent frameworks and crawlers already use - see <a href="https://github.com/sowoi/check-opencloud-security/blob/main/AGENTS.md#working-on-the-agent-facing-surfaces">Working on
+the agent-facing surfaces</a>.</p>
 <h2 id="clients-that-only-speak-stdio">Clients that only speak stdio</h2>
 <p>Some clients still launch a subprocess and talk to it over stdin and stdout.
 The community bridge <code>mcp-remote</code> connects such a client to a remote endpoint:</p>

@@ -207,6 +207,13 @@ services:
       # Connecting to extra ports on a host a stranger submitted is a port
       # scan. Off unless the targets are your own.
       COS_WEB_CHECK_DEBUG_PORTS: "false"
+      # Whether this container can dial an IPv6 address at all. Docker's
+      # default network is IPv4 only unless the host and this stack were
+      # both set up for IPv6, which most installs are not. False - the
+      # default - skips the IPv4/IPv6 TLS-parity check and notes why in the
+      # result instead of reporting an instance's IPv6 side as unreachable
+      # for a limitation of this deployment rather than of the instance.
+      COS_WEB_IPV6_ENABLED: "false"
       COS_WEB_RELEASES_MODE: "off"
       # Re-read the OpenCloud release lifecycle page once a day, so a
       # deployment that has been up for months does not rate instances

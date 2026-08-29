@@ -98,10 +98,24 @@ def test_the_public_preset_refuses_private_targets_and_runs_no_port_scan(
     worker = _compose(tmp_path)["services"]["arq_worker"]["environment"]
     assert worker["COS_WEB_ALLOW_PRIVATE_TARGETS"] == "false"
     assert worker["COS_WEB_CHECK_DEBUG_PORTS"] == "false"
+    # Docker's default network has no IPv6 route unless both the host and
+    # this stack were set up for it, which most installs are not: answering
+    # yes without checking would trade one wrong answer for another.
+    assert worker["COS_WEB_IPV6_ENABLED"] == "false"
 
     web = _compose(tmp_path)["services"]["web_app"]["environment"]
     assert web["COS_WEB_AUDIT_LOG"] == "false"
     assert web["COS_WEB_ALLOW_INDEXING"] == "true"
+
+
+def test_ipv6_connectivity_is_declared_rather_than_assumed(tmp_path: Path) -> None:
+    """An operator who has confirmed IPv6 works can turn the parity check back on."""
+    setup = wizard_module.Setup(ipv6_enabled=True)
+    compose = wizard_module.render_compose_file(setup, "compose.yml")
+
+    document = yaml.safe_load(compose)
+    worker = document["services"]["arq_worker"]["environment"]
+    assert worker["COS_WEB_IPV6_ENABLED"] == "true"
 
 
 def test_the_private_preset_scans_its_own_network_and_stays_out_of_search_engines(

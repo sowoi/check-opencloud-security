@@ -17,6 +17,7 @@
 * [Options:](#options)
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
+* [Machine-readable output for CI (json/sarif/junit)](#machine-readable-output-for-ci-jsonsarifjunit)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
@@ -545,7 +546,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--no-extra-checks`           | Only check product, version and security headers                                                                                             | *False*                                         | `COS_NO_EXTRA_CHECKS`           |
 | `--no-debug-ports`            | Skip probing the OpenCloud debug ports                                                                                                       | *False*                                         | `COS_NO_DEBUG_PORTS`            |
 | `--concurrency`               | Maximum parallel host workers; one is used per host up to this ceiling                                                                       | `5`                                             | `COS_CONCURRENCY`               |
-| `--format`                    | One-shot output format: `nagios` or `prometheus`                                                                                             | `nagios`                                        | `COS_FORMAT`                    |
+| `--format`                    | One-shot output format: `nagios`, `prometheus`, `json`, `sarif` or `junit`                                                                   | `nagios`                                        | `COS_FORMAT`                    |
 | `--prometheus-listen-port`    | Serve native `/metrics` on this port until stopped                                                                                           | disabled                                        | `COS_PROMETHEUS_LISTEN_PORT`    |
 | `--prometheus-listen-addr`    | Bind address for the native Prometheus exporter                                                                                              | `127.0.0.1`                                     | `COS_PROMETHEUS_LISTEN_ADDR`    |
 | `--scrape-interval`           | Seconds to cache exporter scan results (`0` scans on every scrape)                                                                           | `60`                                            | `COS_SCRAPE_INTERVAL`           |
@@ -563,6 +564,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--self-update-check`         | Note when a newer version of the plugin is published on PyPI; never changes the exit code                                                    | *False*                                         | `COS_SELF_UPDATE_CHECK`         |
 | `--webhook-url`               | Optional endpoint notified when the check reaches the configured state                                                                       | *None* (disabled)                               | `COS_WEBHOOK_URL`               |
 | `--webhook-on`                | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`)                                                          | `critical`                                      | `COS_WEBHOOK_ON`                |
+| `--webhook-format`            | Webhook body shape: `generic` (the plugin's own JSON), `slack`, or `discord`                                                                 | `generic`                                       | `COS_WEBHOOK_FORMAT`            |
 | `--webhook-header`            | Extra header for the webhook request, repeatable                                                                                             | *None*                                          | `COS_WEBHOOK_HEADERS`           |
 | `--webhook-timeout`           | HTTP timeout in seconds for the webhook call                                                                                                 | `10`                                            | `COS_WEBHOOK_TIMEOUT`           |
 | `--allow-private-webhooks`    | Permit webhooks to private, loopback, or link-local addresses                                                                                | *False*                                         | `COS_ALLOW_PRIVATE_WEBHOOKS`    |
@@ -657,6 +659,48 @@ thresholds at `3` (warning) and `1` (critical), graph
 [Prometheus and Grafana guide](docs/prometheus.md) for alerting and legacy
 textfile/Pushgateway patterns.
 
+# Machine-readable output for CI (json/sarif/junit)
+
+`--format json`, `--format sarif`, or `--format junit` print one combined
+document for every scanned host - never one per host, even for a single one,
+so the output is always valid JSON/SARIF/XML regardless of `--host` carrying
+one address or several. **The exit code keeps its Nagios meaning under every
+format** (`0`/`1`/`2`/`3`), so a CI step can gate on it exactly the way an
+Icinga check does; the document is a separate, additional artifact.
+
+- `json` is a JSON array of the same document described in
+  [Webhook notifications](#webhook-notifications) - one object per host,
+  always an array even for a single host.
+- `sarif` is SARIF 2.1.0, for a code-scanning dashboard. Findings come from
+  the same missing-hardening, failed-extra-check, vulnerability and
+  end-of-life facts as the plugin's own text output, so a SARIF result never
+  says anything the Nagios line would not.
+- `junit` is JUnit XML with one `<testsuite>` per host and one `<testcase>`
+  per finding, plus an always-present `rating` case so a clean host still
+  shows up rather than reporting zero tests.
+
+```shell
+check-opencloud-security --host opencloud.example.com --format sarif \
+  > opencloud-security.sarif
+```
+
+In GitHub Actions, upload the SARIF file to code scanning - `continue-on-error`
+keeps a non-zero exit from failing the step before the upload runs:
+
+```yaml
+- name: Scan OpenCloud
+  run: |
+    check-opencloud-security --host opencloud.example.com --format sarif \
+      > opencloud-security.sarif
+  continue-on-error: true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: opencloud-security.sarif
+```
+
+For a JUnit-reporting CI system, the same pattern with `--format junit` and
+whatever step turns a JUnit file into a check-run summary.
+
 # Environment variables
 Every option has a `COS_`-prefixed environment variable equivalent (see the
 table above). This is especially useful for Docker, systemd, and cron, where
@@ -727,6 +771,7 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `tlsCipherSuite`                                                                                                                           | medium        | The cipher suite negotiated by this scan is weak or lacks forward secrecy                                   |
 | `tlsCertificatePolicy`                                                                                                                     | medium        | The certificate has a weak key or an MD5/SHA-1 signature                                                    |
 | `tlsAddressParity`                                                                                                                          | medium        | IPv4 and IPv6 present different TLS services, or one is unreachable                                          |
+| `tlsCaaRecord`                                                                                                                             | low           | No DNS CAA record restricts which certificate authorities may issue for this name                            |
 | `cookieSecure`, `cookieHttpOnly`, `cookieSameSite`                                                                                        | high - low    | An observed cookie lacks Secure, HttpOnly or SameSite                                                        |
 | `tlsOcspStapling`                                                                                                                          | low           | No OCSP response stapled to the handshake, although the certificate names a responder                       |
 | `header:<name>`                                                                                                                            | high - low    | One of the headers above missing or too weak                                                                |
@@ -1635,6 +1680,19 @@ check-opencloud-security --host opencloud.example.com \
   state that triggers a notification. Each level includes the more severe ones:
   `critical`, `warning` (WARNING + CRITICAL), `unknown` (UNKNOWN + WARNING +
   CRITICAL) and `always`.
+- `--webhook-format` / `COS_WEBHOOK_FORMAT` (default `generic`) posts the
+  body as a Slack Block Kit attachment (`slack`, also accepted by Mattermost
+  and the common Matrix webhook bridges) or a Discord embed (`discord`)
+  instead of the plugin's own flat document. The default is unchanged, so
+  this is entirely opt-in:
+  ```shell
+  check-opencloud-security --host opencloud.example.com \
+    --webhook-url https://hooks.slack.com/services/... \
+    --webhook-format slack
+  ```
+  Anything else - ntfy, Alertmanager, a custom receiver - still wants the
+  `generic` document; [Webhook recipes](docs/webhook-recipes.md) has one for
+  each.
 - `--webhook-header` / `COS_WEBHOOK_HEADERS` adds request headers, e.g. for
   authentication. Repeat the flag, or separate entries with `;` in the
   environment variable: `COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"`.

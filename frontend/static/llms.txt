@@ -5,10 +5,12 @@
 ## Core Interfaces & Discovery
 
 - [/llms.txt](/llms.txt): This overview document.
+- [/agents.txt](/agents.txt): Capability declaration in the https://agents-txt.com format, published under the filename some agent frameworks look for by convention, naming the MCP/WebMCP endpoints and pointers to every interface below.
 - [/.well-known/ai.json](/.well-known/ai.json): Machine discovery for API, workflows, and Model Context Protocol (MCP) endpoints.
 - [/openapi.json](/openapi.json): OpenAPI 3.1 specification for operations and schemas.
 - [/arazzo.json](/arazzo.json): Arazzo specification for async scanning, polling, export, and erasure workflows.
-- [/mcp](/mcp): Server-side MCP endpoint (when enabled).
+- [/mcp](/mcp): Server-side MCP endpoint (when enabled). Six task tools, six prompts, and five resources - three specifications plus a two-part knowledge base, `catalogue` and `advisories` (see below).
+- [/catalogue](/catalogue): The human-readable page the two knowledge-base resources are built from.
 
 ## API Operations Summary
 
@@ -32,6 +34,14 @@ Supported browsers register page-scoped tools via [WebMCP](https://webmachinelea
 - **Result Page:** `get_scan_result`, `export_scan_report`
 
 *Note: WebMCP executes calls against the HTTP API (`Accept: application/json`) and enforces all rate limits, target cooldowns, and SSRF protections.*
+
+## MCP Knowledge Base
+
+Two of the five `/mcp` resources are reference material rather than a specification, readable without submitting a scan:
+- `spec://check-opencloud-security/catalogue.json`: Every hardening flag and extra check the scanner runs, grouped by category - what it means, the OpenCloud setting behind it where one exists, how to fix it, and a link to the official documentation.
+- `spec://check-opencloud-security/advisories.json`: The whole advisory database a scan is rated against - every known advisory's severity, affected version ranges, and fixed release - not only the ones that matched one instance.
+
+Both are built from the same functions the [/catalogue](/catalogue) page renders, so a resource and the page can never describe the same check id differently.
 
 ## Legal & Trademarks
 

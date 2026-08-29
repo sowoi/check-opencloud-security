@@ -53,6 +53,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
 
+from .caa import check_caa_record
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
 from .remediation import SEVERITY_RATING_CAP as _SEVERITY_RATING_CAP
 from .remediation import plan as remediation_plan
@@ -302,6 +303,16 @@ class ScannerSettings:
     port: int | None = None
     extra_checks: bool = True
     extra_checks_affect_rating: bool = True
+    ipv6_enabled: bool = True
+    """Whether this process itself has outbound IPv6 connectivity.
+
+    Guards the IPv4/IPv6 TLS-parity check, which dials an instance's IPv6
+    address directly: a host or container with no IPv6 route of its own
+    cannot reach that address at all, and reporting the resulting timeout as
+    a finding would penalise the rating for a limitation of the scanner
+    rather than of the target. False skips the probe instead - the address
+    is still listed under ``addresses``, just not dialled a second time.
+    """
     tls_min_days: int = DEFAULT_TLS_MIN_DAYS
     check_debug_ports: bool = True
     debug_ports: tuple[int, ...] = ()
@@ -702,6 +713,16 @@ def _address_tls_inspections(
     return inspections
 
 
+def _address_parity_may_run(settings: ScannerSettings, addresses: Mapping[str, list[str]]) -> bool:
+    """Whether the IPv4/IPv6 TLS-parity probe is worth dialling for this scan.
+
+    Needs both address families to compare, and needs a scanner that can
+    actually reach an IPv6 address in the first place - see
+    :attr:`ScannerSettings.ipv6_enabled`.
+    """
+    return settings.ipv6_enabled and bool(addresses["ipv4"]) and bool(addresses["ipv6"])
+
+
 def _address_parity_finding(inspections: Mapping[str, TlsInspection]) -> Finding | None:
     """Both DNS families must present the same usable TLS identity."""
     ipv4, ipv6 = inspections.get("ipv4"), inspections.get("ipv6")
@@ -828,6 +849,16 @@ def _fetch_capabilities(probe: _Probe) -> dict[str, Any] | None:
     return dict(data) if isinstance(data, Mapping) else None
 
 
+def _csp_restricts_framing(value: str | None) -> bool:
+    """Whether a CSP 'frame-ancestors' directive blocks being framed at all."""
+    if not value:
+        return False
+    sources = _csp_directive(value, "frame-ancestors")
+    if not sources:
+        return False
+    return "*" not in sources.split()
+
+
 def _check_headers(response: requests.Response | None) -> dict[str, bool]:
     """Evaluate the security headers OpenCloud sets by default."""
     if response is None:
@@ -843,6 +874,15 @@ def _check_headers(response: requests.Response | None) -> dict[str, bool]:
             result[name] = True
         else:
             result[name] = expected.lower() in value.lower()
+
+    if not result["X-Frame-Options"]:
+        # A CSP 'frame-ancestors' directive supersedes X-Frame-Options in every
+        # browser that honours it, and is the header OpenCloud's own docs
+        # recommend as the alternative - flagging it missing anyway would
+        # contradict that guidance and give a false clickjacking alarm.
+        result["X-Frame-Options"] = _csp_restricts_framing(
+            response.headers.get("Content-Security-Policy")
+        )
     return result
 
 
@@ -903,20 +943,66 @@ def _hsts_max_age(value: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _csp_directive(value: str, directive: str) -> str | None:
+    """Return the source list of one CSP directive, or None if absent."""
+    for part in value.split(";"):
+        name, _, sources = part.strip().partition(" ")
+        if name.strip().lower() == directive:
+            return sources
+    return None
+
+
+# CSP2+ browsers ignore 'unsafe-inline' outright whenever the same source
+# list carries a nonce or a hash - the keyword is left in only so that older,
+# nonce-unaware browsers still get *some* script-execution policy. A source
+# list is neutralised by either kind of source, so it is enough to recognise
+# the two prefixes rather than parse a full nonce/hash grammar.
+_HASH_SOURCE_PREFIXES = ("'sha256-", "'sha384-", "'sha512-")
+
+
+def _csp_has_nonce_or_hash(sources: str) -> bool:
+    """Whether a CSP source list carries a nonce-source or a hash-source."""
+    lowered = sources.lower()
+    if "'nonce-" in lowered:
+        return True
+    return any(prefix in lowered for prefix in _HASH_SOURCE_PREFIXES)
+
+
 def _csp_has_unsafe_inline(value: str | None) -> bool | None:
     """
-    Whether the CSP allows inline scripts.
+    Whether the CSP lets injected markup or a data: call execute as script.
+
+    Checks ``script-src`` for ``'unsafe-inline'`` and ``'unsafe-eval'``, the
+    two keywords that undo most of what a CSP is for: the first lets any
+    injected ``<script>`` or event handler run, the second lets a gadget in
+    already-loaded code turn a string into code via ``eval()`` or the
+    ``Function`` constructor. When there is no ``script-src``, CSP's own
+    fallback rule applies and ``default-src`` governs script execution
+    instead - style-only directives such as ``style-src 'unsafe-inline'``
+    must not be mistaken for this, which is why the whole header is never
+    scanned as one string.
+
+    ``'unsafe-inline'`` is exempted when the same source list also carries a
+    nonce or a hash: that is the standard 'strict-dynamic' rollout pattern
+    (``script-src 'nonce-xyz' 'strict-dynamic' 'unsafe-inline' https:;``), and
+    every browser that understands nonces also ignores 'unsafe-inline' in
+    that case per the CSP spec - the keyword there is a fallback for browsers
+    old enough to ignore the nonce too, not a real weakening of the policy.
+    'unsafe-eval' gets no such exemption: nothing about a nonce or hash makes
+    eval() safe again.
 
     None when there is no policy at all - that is already reported through
     ``setup.headers`` and must not be confused with a weak policy.
     """
     if not value:
         return None
-    for directive in value.split(";"):
-        name, _, sources = directive.strip().partition(" ")
-        if name.strip().lower() == "script-src":
-            return "'unsafe-inline'" in sources.lower()
-    return "'unsafe-inline'" in value.lower()
+    sources = _csp_directive(value, "script-src")
+    if sources is None:
+        sources = _csp_directive(value, "default-src") or ""
+    lowered = sources.lower()
+    if "'unsafe-eval'" in lowered:
+        return True
+    return "'unsafe-inline'" in lowered and not _csp_has_nonce_or_hash(sources)
 
 
 def _check_https(probe: _Probe, hostname: str) -> dict[str, Any]:
@@ -1973,6 +2059,7 @@ def _collect_extra_findings(
     reverse_proxy: Mapping[str, Any] | None = None,
     tls_inspection: TlsInspection | None = None,
     address_parity: Finding | None = None,
+    caa_finding: Finding | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -1986,6 +2073,8 @@ def _collect_extra_findings(
                 verification_required=verification_required,
             )
         )
+    if caa_finding is not None:
+        findings.append(caa_finding)
     if address_parity is not None:
         findings.append(address_parity)
     findings.extend(_cookie_findings(root_response))
@@ -2179,10 +2268,18 @@ def scan(
         _address_tls_inspections(hostname, port, settings, addresses)
         if settings.extra_checks
         and probe.base_url.startswith("https://")
-        and addresses["ipv4"]
-        and addresses["ipv6"]
+        and _address_parity_may_run(settings, addresses)
         else {}
     )
+    # CAA is a DNS record, not a TLS handshake property, but it answers the
+    # same "who may issue this instance a certificate" question the TLS
+    # findings above do, so it is gated and reported alongside them.
+    caa_check = (
+        check_caa_record(hostname, settings.timeout)
+        if settings.extra_checks and probe.base_url.startswith("https://")
+        else None
+    )
+    caa_finding = Finding(*caa_check) if caa_check is not None else None
     findings = (
         _collect_extra_findings(
             probe,
@@ -2197,6 +2294,7 @@ def scan(
             reverse_proxy,
             tls_inspection,
             _address_parity_finding(address_tls),
+            caa_finding,
             verification_required=verification_required,
         )
         if settings.extra_checks
@@ -2231,6 +2329,10 @@ def scan(
     result: dict[str, Any] = {
         "domain": hostname,
         "addresses": addresses,
+        # Whether this scanner could dial an IPv6 address at all; a
+        # deployment with no IPv6 route reports it here rather than as a
+        # failed - and rating-affecting - reachability check.
+        "ipv6Enabled": settings.ipv6_enabled,
         "url": f"{probe.base_url}{STATUS_PATH}",
         "product": product,
         "version": version or "",

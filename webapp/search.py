@@ -56,6 +56,14 @@ SEARCH_PAGES: tuple[SearchPage, ...] = (
         "search.page.grades.summary",
     ),
     SearchPage(
+        "/catalogue",
+        "What the scanner checks",
+        "Every hardening flag, header and TLS check the scanner runs, and every known advisory.",
+        "catalogue.html",
+        "search.page.catalogue.title",
+        "search.page.catalogue.summary",
+    ),
+    SearchPage(
         "/documentation",
         "CLI documentation",
         "Command-line quick start, configuration, monitoring, and deployment guides.",

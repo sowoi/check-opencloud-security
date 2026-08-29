@@ -35,6 +35,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "New scan",
     "nav.how_it_works": "How it works",
     "nav.grades": "Grades",
+    "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Search",
     "nav.api": "API",
@@ -88,6 +89,11 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.title": "What the grades mean",
     "pagenav.grades.blurb": (
         "Every step from A+ to F, what holds a grade down and how to move it up."
+    ),
+    "pagenav.catalogue.title": "What the scanner checks",
+    "pagenav.catalogue.blurb": (
+        "Every hardening flag, header and TLS check, and every known advisory - "
+        "independent of any one scan."
     ),
     "pagenav.docs.title": "CLI documentation",
     "pagenav.docs.blurb": "Install, configure and automate the scanner from a terminal.",
@@ -213,6 +219,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transport & TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "Security headers",
+    "category.authentication": "Authentication & accounts",
+    "category.sharing": "Sharing & links",
+    "category.exposure": "Network exposure",
+    "category.embedding": "Embedding",
+    "category.lifecycle": "Version & lifecycle",
+    "category.proxy": "Identity provider & proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "Nothing found",
     "grade.5.meaning": (
@@ -360,6 +376,35 @@ MESSAGES: dict[str, str] = {
         '<a href="/how-it-works">how the scan works</a> lists what it reads, and '
         "every result page repeats the limits underneath the grade."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "What the scanner checks",
+    "catalogue.description": (
+        "Every hardening flag, security header, TLS check and known advisory "
+        "this scanner can report, independent of any single scan result."
+    ),
+    "catalogue.kicker": "Reference",
+    "catalogue.lede": (
+        "This is the whole set: every check below can appear on a result page, "
+        "and every advisory below is one a scan is rated against. Nothing here "
+        "depends on a particular instance."
+    ),
+    "catalogue.checks.kicker": "Checks",
+    "catalogue.checks.heading": "Every check, by category",
+    "catalogue.checks.lede": (
+        "Grouped by what they are about rather than how badly they can fail - "
+        "severity depends on the instance being scanned, so it is not shown here."
+    ),
+    "catalogue.checks.not_configurable": "not configurable",
+    "catalogue.advisories.kicker": "Advisories",
+    "catalogue.advisories.heading": "Known advisories",
+    "catalogue.advisories.lede": (
+        "Every advisory in the database a scan is rated against, refreshed "
+        "daily from the public feed."
+    ),
+    "catalogue.advisories.empty.tag": "None known",
+    "catalogue.advisories.empty.body": "The advisory database is currently empty.",
+    "catalogue.advisories.fixed_in": "Fixed in {version}",
+    "catalogue.advisories.unfixed": "No fix published yet",
     # -------------------------------------------------- how the scan works
     "how.title": "How the scan works",
     "how.description": (
@@ -412,6 +457,44 @@ MESSAGES: dict[str, str] = {
         "<strong>The result expires.</strong> After {minutes} minutes the "
         "identifier stops working and the result is gone, with nothing written to "
         "disk."
+    ),
+    "how.faq.kicker": "Questions",
+    "how.faq.heading": "Frequently asked",
+    "how.faq.q1": "Is this official OpenCloud software?",
+    "how.faq.a1": (
+        "No. This is an independent community project, not affiliated with "
+        "OpenCloud GmbH and neither recommended nor supported by that company. "
+        '"OpenCloud" and its logo are trademarks of their respective owners, '
+        "used here solely to name the software this tool checks."
+    ),
+    "how.faq.q2": "Does a good grade mean an instance is secure?",
+    "how.faq.a2": (
+        "No. The scan reads only what a publicly reachable instance shows an "
+        "anonymous visitor - its version, the advisories against that version, "
+        "its transport, its headers and a set of settings visible without "
+        "logging in. Everything behind the login, the server it runs on, the "
+        "network around it and the people with accounts on it are outside what "
+        "any unauthenticated scan can see. Treat a result as one input, never "
+        "as a security audit or a penetration test."
+    ),
+    "how.faq.q3": "How long do you keep a scan's result?",
+    "how.faq.a3": (
+        "In memory only, for {minutes} minutes, and then it is gone. No "
+        "accounts, no analytics, no trackers - see "
+        '<a href="/privacy">what this server keeps</a> for the rest.'
+    ),
+    "how.faq.q4": "Is there a rate limit?",
+    "how.faq.a4": (
+        "Yes, per visitor and per scanned target, so one busy visitor cannot "
+        "crowd out another and the same instance is not scanned back to back. "
+        'The exact numbers for this deployment are on the '
+        '<a href="/api#api-limits">API page</a>.'
+    ),
+    "how.faq.q5": "Can I scan without a rate limit?",
+    "how.faq.a5": (
+        "Yes - the scanner is open source. Run it yourself with "
+        '<a href="/cli">one Docker command</a> on your own machine, with no '
+        "limit and no third party in the middle."
     ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "What this server keeps",
@@ -894,6 +977,11 @@ MESSAGES: dict[str, str] = {
     "search.page.grades.summary": (
         "The A+ to F rating scale and the fixes that improve each grade."
     ),
+    "search.page.catalogue.title": "What the scanner checks",
+    "search.page.catalogue.summary": (
+        "Every hardening flag, header and TLS check the scanner runs, and "
+        "every known advisory."
+    ),
     "search.page.documentation.title": "CLI documentation",
     "search.page.documentation.summary": (
         "Command-line quick start, configuration, monitoring, and deployment "
@@ -1014,6 +1102,11 @@ MESSAGES: dict[str, str] = {
     "result.verdict.dial": "Rating {label}, {rating} out of 5",
     "result.facts.instance": "Instance",
     "result.facts.resolved": "Resolved to",
+    "result.facts.ipv6.heading": "IPv6 reachability",
+    "result.facts.ipv6.note": (
+        "Not checked - this deployment has no outbound IPv6 connectivity, so "
+        "it is noted here rather than counted against the instance."
+    ),
     "result.facts.product": "Product",
     "result.facts.track": "Release track",
     "result.facts.track.unknown": "unknown",

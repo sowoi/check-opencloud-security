@@ -25,6 +25,7 @@ FRONTEND_PATHS = (
     "/",
     "/how-it-works",
     "/grades",
+    "/catalogue",
     "/documentation",
     "/search",
     "/api",

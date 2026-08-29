@@ -145,6 +145,7 @@ class Setup:
     allow_private_targets: bool = False
     check_debug_ports: bool = False
     allowed_hosts: str = ""
+    ipv6_enabled: bool = False
 
     # The public face.
     allow_indexing: bool = True
@@ -755,6 +756,23 @@ def build_sections(setup: Setup) -> list[Section]:
                     ),
                     example="opencloud.example.com;files.example.com",
                     validate=_hostname_list,
+                ),
+                Question(
+                    key="ipv6_enabled",
+                    prompt="Does this container have outbound IPv6 connectivity?",
+                    explain=(
+                        "Docker's default network is IPv4 only unless the host and this "
+                        "stack were both set up for IPv6, which most installs are not. "
+                        "Say yes only once you have confirmed the container can actually "
+                        "reach an IPv6 address - answering yes without that just trades "
+                        "one wrong answer for another. Left at 'no', a scan still lists "
+                        "an instance's IPv6 addresses, it just does not dial them: the "
+                        "IPv4/IPv6 TLS-parity check is skipped and the result notes why, "
+                        "rather than reporting the instance's IPv6 side as unreachable "
+                        "for a limitation of this deployment."
+                    ),
+                    example="no",
+                    kind="bool",
                 ),
             ],
         ),
@@ -1871,6 +1889,14 @@ def _worker_environment(setup: Setup) -> list[EnvEntry]:
             f'"{_bool(setup.check_debug_ports)}"',
             "Connecting to extra ports on a host somebody submitted is a port",
             "scan. Off unless the targets are your own.",
+        ),
+        _entry(
+            "COS_WEB_IPV6_ENABLED",
+            f'"{_bool(setup.ipv6_enabled)}"',
+            "Whether this container can dial an IPv6 address at all. False -",
+            "the default - skips the IPv4/IPv6 TLS-parity check and notes why",
+            "instead of reporting an instance's IPv6 side as unreachable for a",
+            "limitation of this deployment rather than of the instance.",
         ),
         _entry("COS_WEB_RELEASES_MODE", f'"{setup.releases_mode}"'),
     ]

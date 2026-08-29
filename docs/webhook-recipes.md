@@ -1,9 +1,10 @@
 # Webhook recipes
 
 The [webhook](../README.md#webhook-notifications) posts the plugin's own JSON
-document. That is deliberate: it carries the whole verdict, not a rendered
-sentence. Most chat systems want their own shape instead, so anything that is
-not a generic receiver needs a few lines of translation in between.
+document by default. That is deliberate: it carries the whole verdict, not a
+rendered sentence. `--webhook-format` can render it as Slack or Discord's own
+shape directly (see [below](#slack-mattermost-discord)); anything else still
+wants the generic document, and needs a few lines of translation in between.
 
 Two rules apply to every recipe here:
 
@@ -55,8 +56,25 @@ as a failure - which makes a check that stopped running visible.
 
 ## Slack, Mattermost, Discord
 
-These expect their own JSON, so point the webhook at a small adapter rather
-than at the chat system. The adapter below is the whole translation:
+These expect their own JSON. For the common case, `--webhook-format slack`
+or `--webhook-format discord` posts it directly - no adapter needed:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://hooks.slack.com/services/... \
+  --webhook-format slack
+```
+
+Mattermost accepts the `slack` format too, and so does the outbound webhook
+connector in the common Matrix bridge, [matrix-hookshot](https://matrix-org.github.io/matrix-hookshot/) -
+there is no separate `matrix` format because none of these has its own
+distinct webhook contract worth targeting instead. Discord also accepts the
+`slack` format at `<webhook-url>/slack`, if a plain attachment is preferred
+over an embed.
+
+The adapter below is for anything the built-in formats do not cover - a
+custom color scheme, extra fields, or a receiver that is *almost* Slack- or
+Discord-shaped but not quite:
 
 ```python
 #!/usr/bin/env python3

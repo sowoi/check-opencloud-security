@@ -17,9 +17,10 @@
 
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The <a href="/documentation/reference#webhook-notifications">webhook</a> posts the plugin's own JSON
-document. That is deliberate: it carries the whole verdict, not a rendered
-sentence. Most chat systems want their own shape instead, so anything that is
-not a generic receiver needs a few lines of translation in between.</p>
+document by default. That is deliberate: it carries the whole verdict, not a
+rendered sentence. <code>--webhook-format</code> can render it as Slack or Discord's own
+shape directly (see <a href="#slack-mattermost-discord">below</a>); anything else still
+wants the generic document, and needs a few lines of translation in between.</p>
 <p>Two rules apply to every recipe here:</p>
 <ul>
 <li><strong>A failing webhook never changes the check result.</strong> The plugin appends
@@ -87,8 +88,21 @@ ones: <code>critical</code>, <code>warning</code>, <code>unknown</code>, <code>a
 monitor is the one receiver that takes the payload as-is <em>and</em> treats silence
 as a failure - which makes a check that stopped running visible.</p>
 <h2 id="slack-mattermost-discord">Slack, Mattermost, Discord</h2>
-<p>These expect their own JSON, so point the webhook at a small adapter rather
-than at the chat system. The adapter below is the whole translation:</p>
+<p>These expect their own JSON. For the common case, <code>--webhook-format slack</code>
+or <code>--webhook-format discord</code> posts it directly - no adapter needed:</p>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://hooks.slack.com/services/... \
+  --webhook-format slack
+</code></pre>
+<p>Mattermost accepts the <code>slack</code> format too, and so does the outbound webhook
+connector in the common Matrix bridge, <a href="https://matrix-org.github.io/matrix-hookshot/">matrix-hookshot</a> -
+there is no separate <code>matrix</code> format because none of these has its own
+distinct webhook contract worth targeting instead. Discord also accepts the
+<code>slack</code> format at <code>&lt;webhook-url&gt;/slack</code>, if a plain attachment is preferred
+over an embed.</p>
+<p>The adapter below is for anything the built-in formats do not cover - a
+custom color scheme, extra fields, or a receiver that is <em>almost</em> Slack- or
+Discord-shaped but not quite:</p>
 <pre><code class="language-python">#!/usr/bin/env python3
 &quot;&quot;&quot;Forward a check-opencloud-security notification to a Slack-style webhook.&quot;&quot;&quot;
 import json

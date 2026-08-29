@@ -698,10 +698,18 @@ Six tools, one per user-level task rather than one per endpoint:
 for - `audit_instance`, `audit_estate`, `explain_scan_result`,
 `triage_findings`, `review_transport_security` and `check_release_support` -
 so a client can offer "audit this instance and write a remediation plan" as
-one thing to pick. Three resources expose the OpenAPI, Arazzo and
-discovery documents under `spec://` URIs. The polling, retry and error
-semantics come from `webapp/workflows.py`, which is also what the Arazzo
-document is generated from, so the two cannot drift apart.
+one thing to pick. Five resources are published under `spec://` URIs: the
+OpenAPI, Arazzo and discovery documents, and two that are a knowledge base
+rather than a contract - `catalogue`, every hardening flag and extra check
+the scanner runs explained, with the OpenCloud setting behind it, the fix and
+the official documentation; and `advisories`, the whole advisory database a
+scan is rated against. Both are built from the same functions the
+`/catalogue` page renders from, so an agent can explain a finding, or see
+what the scanner would catch, without ever submitting a target - and without
+a resource ever disagreeing with the page about what a check means. The
+polling, retry and error semantics come from `webapp/workflows.py`, which is
+also what the Arazzo document is generated from, so the two cannot drift
+apart.
 
 `erase_instance_data` is marked destructive and needs the same
 `Authorization: Bearer` credential the HTTP endpoint does. The credential is
@@ -783,24 +791,40 @@ parses and escapes every pair instead of accepting raw HTML, and refuses
 duplicate names, names already owned by the page, or prohibited platform
 metadata. A literal semicolon is not supported in a value.
 
-### `GET /robots.txt`, `GET /sitemap.xml`
+### `GET /robots.txt`, `GET /agents.txt`, `GET /sitemap.xml`
 
-Both are generated, never files on disk. The sitemap lists the landing page,
-the nine explanation/index pages and every generated CLI document, and takes each
-`lastmod` from the template that renders it, so it cannot drift from the
-pages that actually exist. Neither ever mentions a result: the uuid is the
-whole of the authorisation, and a listing is exactly what this service does
-not have. `robots.txt` disallows `/scan/`, `/api/`, the schema and the health
-probe, and points at the sitemap.
+All three are generated, never files on disk. The sitemap lists the landing
+page, the nine explanation/index pages and every generated CLI document, and
+takes each `lastmod` from the template that renders it, so it cannot drift
+from the pages that actually exist. None of them ever mentions a result: the
+uuid is the whole of the authorisation, and a listing is exactly what this
+service does not have. `robots.txt` disallows `/scan/`, `/api/`, the schema
+and the health probe, and points at the sitemap.
 
-`COS_WEB_PUBLIC_BASE_URL` decides the origin in both, together with the
+`agents.txt` follows the [agents-txt.com](https://agents-txt.com) convention
+instead: capability blocks of `Key: value` directives rather than
+`robots.txt`'s allow-list, so a parser built against that convention reads
+this deployment's tools directly. It declares `MCP: <url>` and
+`WebMCP: <url>` when this deployment serves them, `Authorization: oauth2` and
+`Identity: required` only when the MCP endpoint itself asks for a bearer
+token, and nothing for `Protocols`/`Payments`/`A2A`/`Skills`/`UCP`, since none
+of those apply here. Like `/.well-known/ai.json`, it is an informal
+convention rather than a registered standard, and the OpenAPI, Arazzo and MCP
+contracts remain authoritative over anything it says.
+
+`GET /agents.json` is the structured sibling the convention recommends
+alongside the plain-text file - the same document `/.well-known/ai.json`
+serves, published again under the name `agents.txt` points at.
+
+`COS_WEB_PUBLIC_BASE_URL` decides the origin in all three, together with the
 canonical link on every page. Behind a proxy the service only sees its own
 internal address, and without that setting it would publish URLs nobody
 outside can reach.
 
 `COS_WEB_ALLOW_INDEXING=false` turns the lot off: `robots.txt` becomes a flat
-refusal, `sitemap.xml` answers 404 and every page carries `noindex`. A result
-page carries `noindex` and an `X-Robots-Tag` either way.
+refusal, `agents.txt` becomes the convention's own minimal file with no
+capability declared, `sitemap.xml` answers 404 and every page carries
+`noindex`. A result page carries `noindex` and an `X-Robots-Tag` either way.
 
 ## Layout
 
@@ -820,7 +844,7 @@ webapp/                 the service
 ├── arazzo.py           the API described as executable workflows
 ├── documentation.py    the manifest for the generated browser documentation
 ├── purge.py            erasure on request, and the signed receipt for it
-├── seo.py              the public page list, robots.txt and sitemap.xml
+├── seo.py              the public page list, robots.txt, agents.txt and sitemap.xml
 └── catalog.py          the waiver allow-list and the dashboard grouping
 
 frontend/

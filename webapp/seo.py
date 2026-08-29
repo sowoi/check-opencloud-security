@@ -1,5 +1,6 @@
 """
-Discoverability: robots.txt, sitemap.xml and the canonical URL of a page.
+Discoverability: robots.txt, agents.txt, sitemap.xml and the canonical URL
+of a page.
 
 The service itself is not a secret. The landing page, its explanations and
 the generated operator documentation are public, and a person looking for a
@@ -29,9 +30,18 @@ SITE_NAME = "OpenCloud Security Scan"
 #: source this one is rendered from.
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
+AGENTS_TXT_PATH = "/agents.txt"
+#: The structured sibling agents-txt.com recommends, alongside the plain-text
+#: file. Same content as `/.well-known/ai.json`, served again under the name
+#: that convention looks for.
+AGENTS_JSON_PATH = "/agents.json"
 LLMS_PATH = "/llms.txt"
 LLMS_FULL_PATH = "/llms-full.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
+
+#: Speaks to a protocol rather than serving anything a `GET` returns, so it
+#: is named for an agent that reads `agents.txt` but never crawled for it.
+MCP_PATH = "/mcp"
 
 #: The legal notice belongs to whoever runs this particular deployment, not to
 #: the software. Only the host it was written for serves it, so a self-hosted
@@ -79,6 +89,7 @@ PUBLIC_PAGES: tuple[PublicPage, ...] = (
     PublicPage("/", "index.html", "weekly", "1.0"),
     PublicPage("/how-it-works", "how-it-works.html", "monthly", "0.8"),
     PublicPage("/grades", "grades.html", "monthly", "0.8"),
+    PublicPage("/catalogue", "catalogue.html", "monthly", "0.8"),
     PublicPage("/documentation", "documentation.html", "monthly", "0.8"),
     *(
         PublicPage(
@@ -100,9 +111,9 @@ PUBLIC_PAGES: tuple[PublicPage, ...] = (
 #: that includes every result, every export and every error page.
 INDEXABLE_PATHS = frozenset(page.path for page in PUBLIC_PAGES)
 
-# The files a crawler fetches before anything else, and the three documents
-# an agent is *meant* to find, must not be told to forget what they just read.
-_ROBOTS_EXEMPT = frozenset({ROBOTS_PATH, SITEMAP_PATH})
+# The files a crawler fetches before anything else, and the documents an
+# agent is *meant* to find, must not be told to forget what they just read.
+_ROBOTS_EXEMPT = frozenset({ROBOTS_PATH, SITEMAP_PATH, AGENTS_TXT_PATH})
 
 # Everything a crawler has no business in. `/api` is a page about the API and
 # stays crawlable; `/api/` and below is the API itself. `/mcp` speaks a
@@ -113,12 +124,12 @@ _DISALLOWED = (
     "/docs",
     "/redoc",
     "/healthz",
-    "/mcp",
+    MCP_PATH,
 )
 
-# The machine-readable contract, said out loud. These are the three documents
-# an agent needs in order to use this service without reading its source, and
-# a crawler that finds them has found what it came for.
+# The machine-readable contract, said out loud. These are the documents an
+# agent needs in order to use this service without reading its source, and a
+# crawler that finds them has found what it came for.
 _MACHINE_READABLE = (
     LLMS_PATH,
     "/.well-known/ai.json",
@@ -255,6 +266,60 @@ def robots_txt(origin: str, *, allow_indexing: bool) -> str:
     lines.extend(f"Disallow: {path}" for path in _DISALLOWED)
     lines.append("")
     lines.append(f"Sitemap: {origin}{SITEMAP_PATH}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def agents_txt(
+    origin: str,
+    *,
+    allow_indexing: bool,
+    mcp_enabled: bool,
+    mcp_auth_required: bool,
+) -> str:
+    """
+    What an autonomous agent may do here, in the format the
+    https://agents-txt.com convention specifies: capability blocks of
+    ``Key: value`` directives, separated by blank lines, rather than a
+    `robots.txt`-style allow-list - a parser built against that convention
+    reads this deployment's tools directly instead of guessing from
+    `robots.txt`.
+
+    Only capabilities this deployment actually has are declared: no
+    `Protocols`/`Payments` block, because scanning is free; no `A2A`, `Skills`
+    or `UCP` block, because none of those documents exist here yet. The
+    `Authorization` block only appears when the MCP endpoint itself asks for
+    a bearer token - a deployment that leaves it open has nothing to declare.
+    The `# JSON:` comment names `/agents.json`, the structured sibling the
+    convention recommends alongside this file.
+
+    Like `/.well-known/ai.json`, this is an informal convention rather than a
+    registered standard; the OpenAPI, Arazzo and MCP contracts remain
+    authoritative over anything said here. A deployment that opted out of
+    indexing gets the spec's own minimal file - no capability announced -
+    because an agent that should not find the site should not be handed a
+    list of its tools either.
+    """
+    lines = ["# agents.txt", "# Standard: https://agents-txt.com"]
+    if not allow_indexing:
+        return "\n".join(lines) + "\n"
+
+    lines.extend(
+        [
+            f"# JSON: {origin}{AGENTS_JSON_PATH}",
+            f"# Discovery: {origin}/.well-known/ai.json",
+            f"# Content map: {origin}{LLMS_PATH}",
+            f"# API: {origin}/openapi.json",
+            f"# Workflows: {origin}/arazzo.json",
+            f"# Sitemap: {origin}{SITEMAP_PATH}",
+            "",
+        ]
+    )
+    if mcp_enabled and mcp_auth_required:
+        lines.extend(["Authorization: oauth2", "Identity: required", ""])
+    if mcp_enabled:
+        lines.append(f"MCP: {origin}{MCP_PATH}")
+    lines.append(f"WebMCP: {origin}/")
     lines.append("")
     return "\n".join(lines)
 

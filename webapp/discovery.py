@@ -154,7 +154,9 @@ def discovery_document(
                 "Model Context Protocol endpoint. Initialize against this URL "
                 "and use the protocol's own tools/list, prompts/list and "
                 "resources/list to discover what it offers; the tools execute "
-                "the workflows described in the Arazzo document."
+                "the workflows described in the Arazzo document, and two of "
+                "the resources are a knowledge base - the check catalogue and "
+                "the advisory database - readable without submitting a scan."
             ),
             "prompts": prompt_capabilities(),
             "authentication": mcp_auth

@@ -20,6 +20,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "Nouvelle analyse",
     "nav.how_it_works": "Fonctionnement",
     "nav.grades": "Notes",
+    "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Rechercher",
     "nav.api": "API",
@@ -79,6 +80,12 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.blurb": (
         "Chaque échelon de A+ à F, ce qui plombe une note et comment la faire "
         "remonter."
+    ),
+    "pagenav.catalogue.title": "Ce que le scanner vérifie",
+    "pagenav.catalogue.blurb": (
+        "Chaque indicateur de durcissement, chaque en-tête et vérification "
+        "TLS, et chaque vulnérabilité connue - indépendamment d'une analyse "
+        "particulière."
     ),
     "pagenav.docs.title": "Documentation en ligne de commande",
     "pagenav.docs.blurb": (
@@ -224,6 +231,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "élevée",
     "severity.medium": "moyenne",
     "severity.low": "faible",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transport & TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "En-têtes de sécurité",
+    "category.authentication": "Authentification & comptes",
+    "category.sharing": "Partage & liens",
+    "category.exposure": "Exposition réseau",
+    "category.embedding": "Intégration",
+    "category.lifecycle": "Version & cycle de vie",
+    "category.proxy": "Fournisseur d'identité & proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "Rien à signaler",
     "grade.5.meaning": (
@@ -395,6 +412,39 @@ MESSAGES: dict[str, str] = {
         "l'analyse</a> énumère ce qu'elle lit, et chaque page de résultat "
         "rappelle les limites sous la note."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "Ce que le scanner vérifie",
+    "catalogue.description": (
+        "Chaque indicateur de durcissement, en-tête de sécurité, vérification "
+        "TLS et vulnérabilité connue que ce scanner peut signaler, "
+        "indépendamment d'un résultat d'analyse particulier."
+    ),
+    "catalogue.kicker": "Référence",
+    "catalogue.lede": (
+        "Voici l'ensemble complet : chaque contrôle ci-dessous peut "
+        "apparaître sur une page de résultat, et chaque vulnérabilité "
+        "ci-dessous est une de celles contre lesquelles une analyse est "
+        "évaluée. Rien ici ne dépend d'une instance particulière."
+    ),
+    "catalogue.checks.kicker": "Contrôles",
+    "catalogue.checks.heading": "Chaque contrôle, par catégorie",
+    "catalogue.checks.lede": (
+        "Regroupés par sujet plutôt que par gravité - la gravité dépend de "
+        "l'instance analysée, elle n'est donc pas indiquée ici."
+    ),
+    "catalogue.checks.not_configurable": "non configurable",
+    "catalogue.advisories.kicker": "Vulnérabilités",
+    "catalogue.advisories.heading": "Vulnérabilités connues",
+    "catalogue.advisories.lede": (
+        "Chaque vulnérabilité de la base contre laquelle une analyse est "
+        "évaluée, actualisée chaque jour depuis le flux public."
+    ),
+    "catalogue.advisories.empty.tag": "Aucune connue",
+    "catalogue.advisories.empty.body": (
+        "La base de données de vulnérabilités est actuellement vide."
+    ),
+    "catalogue.advisories.fixed_in": "Corrigé dans {version}",
+    "catalogue.advisories.unfixed": "Aucun correctif publié pour le moment",
     # -------------------------------------------------- how the scan works
     "how.title": "Comment fonctionne l'analyse",
     "how.description": (
@@ -455,6 +505,48 @@ MESSAGES: dict[str, str] = {
         "<strong>Le résultat expire.</strong> Après {minutes} minutes, "
         "l'identifiant cesse de fonctionner et le résultat disparaît, sans "
         "rien écrit sur le disque."
+    ),
+    "how.faq.kicker": "Questions",
+    "how.faq.heading": "Questions fréquentes",
+    "how.faq.q1": "S'agit-il du logiciel officiel d'OpenCloud ?",
+    "how.faq.a1": (
+        "Non. Il s'agit d'un projet communautaire indépendant, qui n'est pas "
+        "affilié à OpenCloud GmbH et que cette société ne recommande ni ne "
+        'prend en charge. "OpenCloud" et son logo sont des marques '
+        "appartenant à leurs détenteurs respectifs, utilisées ici uniquement "
+        "pour indiquer quel logiciel cet outil contrôle."
+    ),
+    "how.faq.q2": "Une bonne note signifie-t-elle qu'une instance est sécurisée ?",
+    "how.faq.a2": (
+        "Non. L'analyse lit uniquement ce qu'une instance accessible "
+        "publiquement montre à un visiteur anonyme : sa version, les avis de "
+        "sécurité concernant cette version, son transport, ses en-têtes et un "
+        "ensemble de réglages visibles sans connexion. Tout ce qui se trouve "
+        "derrière la connexion, le serveur sur lequel elle tourne, le réseau "
+        "qui l'entoure et les personnes disposant d'un compte en sont exclus - "
+        "une analyse non authentifiée ne peut pas les voir. Considérez un "
+        "résultat comme un élément parmi d'autres, jamais comme un audit de "
+        "sécurité ou un test d'intrusion."
+    ),
+    "how.faq.q3": "Combien de temps conservez-vous le résultat d'une analyse ?",
+    "how.faq.a3": (
+        "Uniquement en mémoire, pendant {minutes} minutes, puis il disparaît. "
+        "Aucun compte, aucune analyse statistique, aucun traceur - le reste se "
+        '<a href="/privacy">trouve sur ce que ce serveur conserve</a>.'
+    ),
+    "how.faq.q4": "Y a-t-il une limite de débit ?",
+    "how.faq.a4": (
+        "Oui, par visiteur et par cible analysée, afin qu'un visiteur trop "
+        "actif n'accapare pas la file d'attente et que la même instance ne "
+        "soit pas analysée coup sur coup. Les chiffres exacts de ce "
+        'déploiement figurent sur la <a href="/api#api-limits">page de '
+        "l'API</a>."
+    ),
+    "how.faq.q5": "Puis-je analyser sans limite de débit ?",
+    "how.faq.a5": (
+        "Oui - le scanner est open source. Exécutez-le vous-même avec "
+        '<a href="/cli">une seule commande Docker</a> sur votre propre '
+        "machine, sans limite et sans site web intermédiaire."
     ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Ce que ce serveur conserve",
@@ -995,6 +1087,11 @@ MESSAGES: dict[str, str] = {
         "L'échelle de notation de A+ à F et les correctifs qui améliorent "
         "chaque note."
     ),
+    "search.page.catalogue.title": "Ce que le scanner vérifie",
+    "search.page.catalogue.summary": (
+        "Chaque indicateur de durcissement, en-tête et vérification TLS du "
+        "scanner, et chaque vulnérabilité connue."
+    ),
     "search.page.documentation.title": "Documentation en ligne de commande",
     "search.page.documentation.summary": (
         "Démarrage rapide en ligne de commande, configuration, supervision "
@@ -1137,6 +1234,11 @@ MESSAGES: dict[str, str] = {
     "result.verdict.dial": "Note {label}, {rating} sur 5",
     "result.facts.instance": "Instance",
     "result.facts.resolved": "Résolu vers",
+    "result.facts.ipv6.heading": "Accessibilité IPv6",
+    "result.facts.ipv6.note": (
+        "Non vérifiée - ce déploiement n'a pas de connectivité IPv6 sortante, "
+        "c'est donc simplement noté ici plutôt que compté contre l'instance."
+    ),
     "result.facts.product": "Produit",
     "result.facts.track": "Canal de version",
     "result.facts.track.unknown": "inconnu",

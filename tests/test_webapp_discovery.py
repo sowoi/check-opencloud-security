@@ -37,6 +37,24 @@ def test_an_unauthenticated_client_can_read_the_discovery_document():
     assert document["mcp"]["url"].endswith("/mcp")
 
 
+def test_agents_json_serves_the_same_document_under_the_name_agents_txt_com_wants():
+    """
+    agents-txt.com recommends a structured sibling next to `agents.txt`.
+
+    Rather than maintain a second document, `/agents.json` serves exactly
+    what `/.well-known/ai.json` already does, so the two can never disagree.
+    """
+    served = client()
+
+    discovery = served.get(DISCOVERY_PATH)
+    agents_json = served.get("/agents.json")
+
+    assert agents_json.status_code == 200
+    assert agents_json.headers["content-type"].startswith("application/json")
+    assert agents_json.headers["access-control-allow-origin"] == "*"
+    assert agents_json.json() == discovery.json()
+
+
 def test_the_discovery_document_names_absolute_urls_that_this_service_serves():
     """A relative path in a document that got copied elsewhere is a dead end."""
     served = client(public_base_url=ORIGIN)

@@ -47,7 +47,7 @@ from fastapi.templating import Jinja2Templates
 
 from opencloud_local_scan import __version__
 
-from .advisories import advisory_state
+from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
     REASON_BATCH_TOO_LARGE,
@@ -61,6 +61,7 @@ from .audit import (
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
     SEVERITY_TAGS,
+    check_catalogue,
     grade_scale,
     release_track_options,
     sanitize_release_track,
@@ -113,6 +114,8 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    AGENTS_JSON_PATH,
+    AGENTS_TXT_PATH,
     LEGAL_NOTICE_PATH,
     LLMS_FULL_PATH,
     LLMS_PATH,
@@ -120,6 +123,7 @@ from .seo import (
     SECURITY_CONTACT_EMAIL,
     SECURITY_TXT_PATH,
     SITE_NAME,
+    agents_txt,
     canonical_url,
     is_indexable,
     robots_txt,
@@ -546,12 +550,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 if serves_legal_notice(request.url.hostname)
                 else None
             ),
-            "robots": "index, follow" if indexable else "noindex, nofollow",
+            # `max-image-preview:large`/`max-snippet:-1` opt back into the
+            # full-size thumbnail and snippet length Google caps by default
+            # since 2019 - no reason to take the smaller default on a page
+            # that is indexable at all.
+            "robots": (
+                "index, follow, max-image-preview:large, max-snippet:-1"
+                if indexable
+                else "noindex, nofollow"
+            ),
             # A canonical URL for a page nobody may index would only invite
             # one to be created.
             "canonical_url": (
                 canonical_url(origin, request.url.path) if indexable else None
             ),
+            "origin": origin,
             "og_image": f"{origin}{OG_IMAGE_PATH}",
             "limits": {
                 "client": settings.ip_rate_limit,
@@ -781,6 +794,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             },
         )
 
+    @app.get("/catalogue", response_class=HTMLResponse, include_in_schema=False)
+    async def catalogue(request: Request) -> Response:
+        translate = translator_for(request)
+        database = await stored_database(app.state.backend, settings)
+        return page(
+            request,
+            "catalogue.html",
+            {
+                "t": translate,
+                "categories": check_catalogue(translate),
+                "advisories": advisory_catalogue(database),
+                "severity_tags": SEVERITY_TAGS,
+            },
+        )
+
     @app.get("/documentation", response_class=HTMLResponse, include_in_schema=False)
     async def documentation(request: Request) -> Response:
         return page(
@@ -871,6 +899,43 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return PlainTextResponse(
             robots_txt(origin, allow_indexing=settings.allow_indexing),
             headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @app.get(AGENTS_TXT_PATH, include_in_schema=False)
+    async def agents(request: Request) -> Response:
+        """Capability declaration for autonomous agents, per agents-txt.com."""
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return PlainTextResponse(
+            agents_txt(
+                origin,
+                allow_indexing=settings.allow_indexing,
+                mcp_enabled=mcp_enabled,
+                mcp_auth_required=mcp_enabled and auth_required(settings),
+            ),
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    @app.get(AGENTS_JSON_PATH, include_in_schema=False)
+    async def agents_json(request: Request) -> Response:
+        """
+        The structured sibling agents-txt.com recommends alongside the
+        plain-text file - the same document `/.well-known/ai.json` serves,
+        under the name that convention looks for.
+        """
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return JSONResponse(
+            discovery_document(
+                origin,
+                mcp_enabled=mcp_enabled,
+                mcp_auth=discovery_authentication(settings),
+            ),
+            headers={
+                "Cache-Control": "public, max-age=300",
+                "Access-Control-Allow-Origin": "*",
+            },
         )
 
     @app.get(SECURITY_TXT_PATH, include_in_schema=False)

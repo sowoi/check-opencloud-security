@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from xml.dom import minidom  # nosec B408 - parses this server's own output
 
 import pytest
+from markupsafe import escape
 
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
@@ -31,6 +32,7 @@ NAV_PAGES = (
     "/",
     "/how-it-works",
     "/grades",
+    "/catalogue",
     "/documentation",
     "/api",
     "/ai",
@@ -123,6 +125,46 @@ def test_robots_points_at_the_sitemap_and_keeps_crawlers_out_of_the_results():
     assert "Disallow: /\n" not in body
 
 
+def test_agents_txt_follows_the_agents_txt_com_convention():
+    """
+    `agents.txt` is a capability declaration, in the ``Key: value`` directive
+    format https://agents-txt.com specifies, not a `robots.txt`-style
+    allow-list.
+    """
+    response = client().get("/agents.txt")
+    body = response.text
+
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert body.startswith("# agents.txt\n# Standard: https://agents-txt.com\n")
+    assert "# JSON: http://testserver/agents.json" in body
+    assert "# Discovery: http://testserver/.well-known/ai.json" in body
+    assert "# API: http://testserver/openapi.json" in body
+    assert "# Workflows: http://testserver/arazzo.json" in body
+    assert "# Sitemap: http://testserver/sitemap.xml" in body
+    assert "MCP: http://testserver/mcp" in body
+    assert "WebMCP: http://testserver/" in body
+    # No payment protocol, A2A, Skills or UCP support exists here.
+    assert "Protocols:" not in body
+    assert "A2A:" not in body
+    assert "Skills:" not in body
+    assert "UCP:" not in body
+
+
+def test_agents_txt_declares_authorization_only_when_mcp_requires_a_token():
+    """The default test deployment leaves `/mcp` open, so nothing to declare."""
+    body = client().get("/agents.txt").text
+
+    assert "Authorization:" not in body
+    assert "Identity:" not in body
+
+
+def test_agents_txt_is_the_spec_minimal_file_when_indexing_is_off():
+    """A private deployment should not hand an agent a list of its tools either."""
+    body = client(allow_indexing=False).get("/agents.txt").text
+
+    assert body == "# agents.txt\n# Standard: https://agents-txt.com\n"
+
+
 def test_indexing_can_be_turned_off_completely():
     """
     A private deployment should be able to disappear.
@@ -166,7 +208,10 @@ def test_a_public_page_is_indexable_and_names_itself_once():
     for path in CONTENT_PAGES:
         body = test_client.get(path).text
         expected = "http://testserver/" if path == "/" else f"http://testserver{path}"
-        assert '<meta name="robots" content="index, follow">' in body
+        assert (
+            '<meta name="robots" content='
+            '"index, follow, max-image-preview:large, max-snippet:-1">'
+        ) in body
         assert f'<link rel="canonical" href="{expected}">' in body
         assert f'<meta property="og:url" content="{expected}">' in body
         assert '<meta property="og:title"' in body
@@ -251,6 +296,74 @@ def test_structured_data_uses_valid_json_and_never_describes_private_results():
     identifier = _create(client()).json()["uuid"]
     private = client().get(f"/scan/{identifier}").text
     assert 'application/ld+json' not in private
+
+
+def _ld_json_documents(body: str) -> list[dict]:
+    return [
+        json.loads(match)
+        for match in re.findall(
+            r'<script type="application/ld\+json">\s*(.*?)\s*</script>',
+            body,
+            re.DOTALL,
+        )
+    ]
+
+
+def test_the_homepage_declares_a_searchaction_for_the_sitelinks_search_box():
+    """
+    The header's `/search` form already works; this just tells Google so.
+
+    Only the homepage carries it - a `SearchAction` on every page would say
+    the same thing nine times over for no benefit.
+    """
+    home = next(d for d in _ld_json_documents(client().get("/").text) if d["@type"] == "WebSite")
+
+    assert home["potentialAction"]["@type"] == "SearchAction"
+    assert home["potentialAction"]["target"]["urlTemplate"] == (
+        "http://testserver/search?q={search_term_string}"
+    )
+    assert home["potentialAction"]["query-input"] == "required name=search_term_string"
+
+    other_page = _ld_json_documents(client().get("/how-it-works").text)
+    assert not any(d["@type"] == "WebSite" for d in other_page)
+
+
+def test_documentation_pages_declare_a_breadcrumb_trail():
+    """
+    A guide page has a real place in the hierarchy - home, then the index,
+    then the guide itself - and only the guide pages need one drawn.
+    """
+    page = next(
+        d
+        for d in _ld_json_documents(client().get("/documentation/reference").text)
+        if d["@type"] == "BreadcrumbList"
+    )
+    positions = [item["position"] for item in page["itemListElement"]]
+    urls = [item["item"] for item in page["itemListElement"]]
+
+    assert positions == [1, 2, 3]
+    assert urls == [
+        "http://testserver/",
+        "http://testserver/documentation",
+        "http://testserver/documentation/reference",
+    ]
+
+    index_page = _ld_json_documents(client().get("/documentation").text)
+    assert not any(d["@type"] == "BreadcrumbList" for d in index_page)
+
+
+def test_how_it_works_declares_an_faqpage_matching_the_visible_accordion():
+    """The schema must say exactly what a reader sees, not a paraphrase of it."""
+    response = client().get("/how-it-works")
+    body = response.text
+    faq = next(d for d in _ld_json_documents(body) if d["@type"] == "FAQPage")
+
+    assert len(faq["mainEntity"]) == 5
+    for entry in faq["mainEntity"]:
+        assert entry["@type"] == "Question"
+        assert f"<summary>{escape(entry['name'])}</summary>" in body
+        assert entry["acceptedAnswer"]["@type"] == "Answer"
+        assert "<" not in entry["acceptedAnswer"]["text"]
 
 
 def test_every_page_has_a_title_and_a_description_of_its_own():

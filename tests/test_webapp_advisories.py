@@ -34,9 +34,11 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
     backend,
+    client,
     settings,
 )
 from webapp.advisories import (
+    advisory_catalogue,
     advisory_state,
     refresh_advisories,
     stored_database,
@@ -159,6 +161,57 @@ def test_an_advisory_published_today_reaches_a_scan_run_tomorrow():
     assert [advisory.id for advisory in matched] == ["TEST-9001"]
     assert matched[0].fixed == "9.0.4"
     assert after.matches("9.0.4") == [], "the fixed release must come back clean"
+
+
+def test_a_refreshed_advisory_reaches_the_public_catalogue_the_same_way():
+    """
+    The ``/catalogue`` page reads whatever ``stored_database`` returns, so an
+    advisory the daily refresh just added must show up there with no second
+    place to remember to update - the same guarantee the scan path above
+    already has, checked from the catalogue's side instead.
+    """
+    store = memory_backend(MEMORY_URL)
+    record = osv_record("TEST-9002", [("9.0.0", "9.0.4")])
+
+    with FakeAdvisoryFeed([record]) as feed:
+        outcome = run(
+            refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url))
+        )
+    assert outcome == "updated"
+
+    database = run(stored_database(store, refresh_settings()))
+    catalogue = advisory_catalogue(database)
+
+    assert "TEST-9002" in {entry["id"] for entry in catalogue}
+    assert len(catalogue) == len(database.advisories)
+
+
+def test_the_public_catalogue_never_renders_an_unsafe_advisory_url_as_a_link():
+    """
+    A feed-supplied reference URL is attacker-controlled once a feed is read.
+
+    Before an external feed was wired in, every advisory URL came from the
+    bundled, developer-controlled database, so its scheme was never worth
+    checking. Now a compromised or malformed OSV entry can carry a
+    'javascript:' reference straight through ``parse_document`` into
+    ``advisory.url``, and the public, unauthenticated ``/catalogue`` page
+    must never turn that into a clickable ``href`` - the same guard the scan
+    result page already applies to this exact field.
+    """
+    store = memory_backend(MEMORY_URL)
+    record = osv_record("TEST-9099", [("9.0.0", "9.0.4")])
+    record["references"] = [{"type": "ADVISORY", "url": "javascript:alert(document.cookie)"}]
+
+    with FakeAdvisoryFeed([record]) as feed:
+        outcome = run(
+            refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url))
+        )
+    assert outcome == "updated"
+
+    body = client(advisory_refresh=True).get("/catalogue").text
+
+    assert "TEST-9099" in body
+    assert "javascript:" not in body
 
 
 def test_an_advisory_with_two_patched_lines_flags_both_of_them():

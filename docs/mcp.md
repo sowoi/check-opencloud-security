@@ -50,9 +50,20 @@ Six tools, each a whole task rather than one HTTP endpoint:
 | `export_scan` | A finished scan as `json`, `csv`, `sarif` or `pdf` |
 | `erase_instance_data` | **Destructive.** Erase everything held about one hostname. Needs the operator's credential |
 
-and three resources, so an agent can read the contracts without leaving the
-protocol: the OpenAPI description, the Arazzo workflows and the discovery
-document.
+and five resources, so an agent can read the contracts - and the knowledge
+behind a finding - without leaving the protocol:
+
+| Resource | What it is |
+|:---------|:-----------|
+| `openapi` | The OpenAPI 3.1 description of the REST API |
+| `arazzo` | The Arazzo workflows those operations combine into |
+| `discovery` | The `/.well-known/ai.json` document |
+| `catalogue` | Every hardening flag and extra check the scanner runs, explained: what it means, the OpenCloud setting behind it, how to fix it, and a link to the official documentation. The same knowledge the [`/catalogue`](https://scan.okxo.de/catalogue) page renders |
+| `advisories` | The whole advisory database a scan is rated against - not the subset that matched one instance |
+
+The last two are a knowledge base rather than a contract: read `catalogue` to
+explain what a finding id means before or after a scan, and `advisories` to
+see what the scanner would catch, without ever submitting a target.
 
 Six prompts as well - the tasks people actually ask for, written out once so
 every client sends the same well-formed request:
@@ -223,7 +234,11 @@ transport, the answer is *streamable HTTP* (sometimes called "HTTP" or
 An agent that has never heard of this service can find the endpoint itself:
 `https://scan.okxo.de/.well-known/ai.json` names it, alongside the OpenAPI and
 Arazzo documents. That is the whole point of the discovery document - see
-[the page for agents](https://scan.okxo.de/ai).
+[the page for agents](https://scan.okxo.de/ai). `https://scan.okxo.de/agents.txt`
+and `https://scan.okxo.de/llms.txt` point at the same document for a fetcher
+that goes looking for one of those two filenames first, in the informal
+conventions some agent frameworks and crawlers already use - see [Working on
+the agent-facing surfaces](../AGENTS.md#working-on-the-agent-facing-surfaces).
 
 ## Clients that only speak stdio
 

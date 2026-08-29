@@ -165,6 +165,14 @@ class WebSettings:
     submitted is a port scan, and a public service should not run one
     uninvited. A private deployment scanning its own estate can turn it on."""
 
+    ipv6_enabled: bool = False
+    """Whether this deployment's containers have outbound IPv6 connectivity.
+    Off by default: Docker's default bridge network has no IPv6 route unless
+    the host and this stack were both set up for it, which most installs are
+    not. Left off, the IPv4/IPv6 TLS-parity check is skipped and the result
+    notes why instead of reporting a target's IPv6 side as unreachable for a
+    limitation of this deployment rather than of the target."""
+
     extra_hosts_allowed: tuple[str, ...] = field(default_factory=tuple)
     """Hostnames exempted from the SSRF guard, for on-premise deployments."""
 
@@ -358,6 +366,7 @@ class WebSettings:
             verify_tls=_env_bool("VERIFY_TLS", True),
             allow_private_targets=_env_bool("ALLOW_PRIVATE_TARGETS", False),
             check_debug_ports=_env_bool("CHECK_DEBUG_PORTS", False),
+            ipv6_enabled=_env_bool("IPV6_ENABLED", False),
             extra_hosts_allowed=_env_list("ALLOWED_HOSTS"),
             ip_rate_limit=_env_int("IP_RATE_LIMIT", DEFAULT_IP_RATE_LIMIT),
             ip_rate_window=_env_int(

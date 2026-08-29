@@ -54,10 +54,46 @@ from .settings import WebSettings
 LOGGER = logging.getLogger("check_opencloud.web.advisories")
 
 __all__ = [
+    "advisory_catalogue",
     "advisory_state",
     "refresh_advisories",
     "stored_database",
 ]
+
+# Worst first, so the catalogue page reads the same way the dashboard's own
+# severity ordering does.
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "moderate": 2, "medium": 2, "low": 3}
+
+
+def advisory_catalogue(database: VulnerabilityDatabase) -> list[dict[str, Any]]:
+    """
+    Every advisory the current database knows about, for the reference page.
+
+    Unlike a scan result this is not filtered to one version: it is the whole
+    database a scan is rated against, so a visitor can see what the scanner
+    would catch before ever running it.
+    """
+    return [
+        {
+            "id": advisory.id,
+            "title": advisory.title,
+            "description": advisory.description,
+            "severity": advisory.severity,
+            "url": advisory.url,
+            "cwe": advisory.cwe,
+            "ranges": [
+                {"introduced": introduced, "fixed": fixed}
+                for introduced, fixed in advisory.all_ranges()
+            ],
+        }
+        for advisory in sorted(
+            database.advisories,
+            key=lambda item: (
+                _SEVERITY_ORDER.get(item.severity.lower(), 9),
+                item.id,
+            ),
+        )
+    ]
 
 
 def _is_usable(document: dict[str, Any]) -> bool:

@@ -247,6 +247,114 @@ def test_unsafe_inline_csp_is_flagged():
     assert result["setup"]["headers"]["Content-Security-Policy"] is True
 
 
+def test_unsafe_eval_csp_is_flagged():
+    """'unsafe-eval' undoes CSP protection just as 'unsafe-inline' does."""
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is False
+
+
+def test_nonce_neutralised_unsafe_inline_is_not_flagged():
+    """
+    A nonce alongside 'unsafe-inline' is the standard strict-dynamic pattern.
+
+    Every browser that understands nonces ignores 'unsafe-inline' when one is
+    present, so 'unsafe-inline' there is a fallback for pre-CSP2 browsers,
+    not a real weakening of the policy, and must not be flagged.
+    """
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "script-src 'nonce-xyz123' 'strict-dynamic' 'unsafe-inline' https:; "
+        "style-src 'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is True
+
+
+def test_hash_neutralised_unsafe_inline_is_not_flagged():
+    """A hash-source in script-src neutralises 'unsafe-inline' just like a nonce."""
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "script-src 'sha256-abc123' 'unsafe-inline'; style-src 'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is True
+
+
+def test_unsafe_eval_is_still_flagged_alongside_a_nonce():
+    """A nonce neutralises 'unsafe-inline', not 'unsafe-eval'."""
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "script-src 'nonce-xyz123' 'strict-dynamic' 'unsafe-eval'; style-src 'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is False
+
+
+def test_style_only_unsafe_inline_does_not_flag_the_script_check():
+    """
+    'unsafe-inline' in style-src is not a script-execution weakness.
+
+    Without an explicit script-src, CSP falls back to default-src to govern
+    scripts - a naive substring search over the whole header would wrongly
+    catch style-src's 'unsafe-inline' too, which is a false positive.
+    """
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'self'; style-src 'self' 'unsafe-inline'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is True
+
+
+def test_csp_frame_ancestors_satisfies_the_clickjacking_check():
+    """
+    A CSP 'frame-ancestors' directive is a recognised X-Frame-Options alternative.
+
+    Modern browsers honour 'frame-ancestors' over X-Frame-Options, and the
+    hardening catalogue already documents it as an accepted substitute, so
+    the scanner must not raise a false clickjacking alarm when it is present.
+    """
+    behaviour = InstanceBehaviour()
+    del behaviour.headers["X-Frame-Options"]
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'self'; frame-ancestors 'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["setup"]["headers"]["X-Frame-Options"] is True
+
+
+def test_wildcard_frame_ancestors_does_not_satisfy_the_clickjacking_check():
+    """'frame-ancestors *' allows framing from anywhere, so it is not a pass."""
+    behaviour = InstanceBehaviour()
+    del behaviour.headers["X-Frame-Options"]
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'self'; frame-ancestors *"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["setup"]["headers"]["X-Frame-Options"] is False
+
+
 def test_short_hsts_max_age_is_flagged():
     """An HSTS header below one year is present but not strong."""
     behaviour = InstanceBehaviour()
@@ -995,3 +1103,35 @@ def test_address_parity_compares_the_tls_identity_from_both_dns_families():
     assert finding is not None
     assert finding.passed is False
     assert "protocol" in finding.detail
+
+
+def test_the_parity_probe_does_not_run_without_ipv6_of_its_own():
+    """
+    A scanner with no IPv6 route cannot reach an instance's IPv6 address at
+    all, so dialling it would only time out - and penalise the instance for a
+    limitation of the deployment running the scan.
+    """
+    addresses = {"ipv4": ["198.51.100.7"], "ipv6": ["2001:db8::7"]}
+
+    assert scanner_module._address_parity_may_run(
+        ScannerSettings(ipv6_enabled=True), addresses
+    )
+    assert not scanner_module._address_parity_may_run(
+        ScannerSettings(ipv6_enabled=False), addresses
+    )
+    # Nothing to compare either way when the name has no AAAA record.
+    assert not scanner_module._address_parity_may_run(
+        ScannerSettings(ipv6_enabled=True), {"ipv4": ["198.51.100.7"], "ipv6": []}
+    )
+
+
+def test_the_result_document_reports_whether_ipv6_was_available_to_check_with():
+    """The dashboard needs this to explain why the parity check is missing."""
+    default = run_scan(InstanceBehaviour())
+    assert default["ipv6Enabled"] is True
+
+    settings = ScannerSettings(
+        scheme="http", timeout=3, check_debug_ports=False, ipv6_enabled=False
+    )
+    disabled = run_scan(InstanceBehaviour(), settings=settings)
+    assert disabled["ipv6Enabled"] is False

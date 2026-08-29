@@ -20,6 +20,7 @@ MESSAGES: dict[str, str] = {
     "nav.new_scan": "Nuevo análisis",
     "nav.how_it_works": "Cómo funciona",
     "nav.grades": "Calificaciones",
+    "nav.catalogue": "Catálogo",
     "nav.docs": "Documentación",
     "nav.search": "Buscar",
     "nav.api": "API",
@@ -75,6 +76,11 @@ MESSAGES: dict[str, str] = {
     "pagenav.grades.title": "Qué significan las calificaciones",
     "pagenav.grades.blurb": (
         "Cada nivel de A+ a F, qué frena una calificación y cómo mejorarla."
+    ),
+    "pagenav.catalogue.title": "Qué comprueba el escáner",
+    "pagenav.catalogue.blurb": (
+        "Cada indicador de refuerzo, cabecera y comprobación TLS, y cada "
+        "vulnerabilidad conocida - independiente de un análisis concreto."
     ),
     "pagenav.docs.title": "Documentación de la CLI",
     "pagenav.docs.blurb": "Instala, configura y automatiza el escáner desde una terminal.",
@@ -205,6 +211,16 @@ MESSAGES: dict[str, str] = {
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "baja",
+    # ------------------------------------------------------------ category
+    "category.transport": "Transporte y TLS",
+    "category.cookies": "Cookies",
+    "category.headers": "Cabeceras de seguridad",
+    "category.authentication": "Autenticación y cuentas",
+    "category.sharing": "Uso compartido y enlaces",
+    "category.exposure": "Exposición de red",
+    "category.embedding": "Incrustación",
+    "category.lifecycle": "Versión y ciclo de vida",
+    "category.proxy": "Proveedor de identidad y proxy",
     # --------------------------------------------------------- grade scale
     "grade.5.headline": "No se ha encontrado nada",
     "grade.5.meaning": (
@@ -368,6 +384,39 @@ MESSAGES: dict[str, str] = {
         "análisis</a> enumera lo que lee, y cada página de resultados repite "
         "los límites justo debajo de la calificación."
     ),
+    # -------------------------------------------------------------- catalogue
+    "catalogue.title": "Qué comprueba el escáner",
+    "catalogue.description": (
+        "Cada indicador de refuerzo, cabecera de seguridad, comprobación TLS y "
+        "vulnerabilidad conocida que este escáner puede reportar, "
+        "independiente de un resultado de análisis concreto."
+    ),
+    "catalogue.kicker": "Referencia",
+    "catalogue.lede": (
+        "Este es el conjunto completo: cada comprobación de abajo puede "
+        "aparecer en una página de resultados, y cada vulnerabilidad de abajo "
+        "es una contra la que se evalúa un análisis. Nada aquí depende de una "
+        "instancia concreta."
+    ),
+    "catalogue.checks.kicker": "Comprobaciones",
+    "catalogue.checks.heading": "Cada comprobación, por categoría",
+    "catalogue.checks.lede": (
+        "Agrupadas por tema en lugar de por gravedad - la gravedad depende de "
+        "la instancia analizada, así que no se muestra aquí."
+    ),
+    "catalogue.checks.not_configurable": "no configurable",
+    "catalogue.advisories.kicker": "Vulnerabilidades",
+    "catalogue.advisories.heading": "Vulnerabilidades conocidas",
+    "catalogue.advisories.lede": (
+        "Cada vulnerabilidad de la base de datos contra la que se evalúa un "
+        "análisis, actualizada a diario desde el feed público."
+    ),
+    "catalogue.advisories.empty.tag": "Ninguna conocida",
+    "catalogue.advisories.empty.body": (
+        "La base de datos de vulnerabilidades está actualmente vacía."
+    ),
+    "catalogue.advisories.fixed_in": "Corregido en {version}",
+    "catalogue.advisories.unfixed": "Aún no hay corrección publicada",
     # -------------------------------------------------- how the scan works
     "how.title": "Cómo funciona el análisis",
     "how.description": (
@@ -425,6 +474,47 @@ MESSAGES: dict[str, str] = {
         "<strong>El resultado expira.</strong> Tras {minutes} minutos el "
         "identificador deja de funcionar y el resultado desaparece, sin que "
         "nada se haya escrito en disco."
+    ),
+    "how.faq.kicker": "Preguntas",
+    "how.faq.heading": "Preguntas frecuentes",
+    "how.faq.q1": "¿Es este el software oficial de OpenCloud?",
+    "how.faq.a1": (
+        "No. Este es un proyecto comunitario independiente, no afiliado a "
+        "OpenCloud GmbH y que la empresa ni recomienda ni respalda. "
+        '"OpenCloud" y su logotipo son marcas de sus respectivos titulares, '
+        "usadas aquí únicamente para indicar qué software comprueba esta "
+        "herramienta."
+    ),
+    "how.faq.q2": "¿Una buena calificación significa que una instancia es segura?",
+    "how.faq.a2": (
+        "No. El análisis solo lee lo que una instancia accesible públicamente "
+        "muestra a un visitante anónimo: su versión, los avisos de seguridad "
+        "contra esa versión, su transporte, sus cabeceras y un conjunto de "
+        "ajustes visibles sin iniciar sesión. Todo lo que hay detrás del inicio "
+        "de sesión, el servidor en el que se ejecuta, la red que la rodea y las "
+        "personas con cuentas en ella quedan fuera de lo que puede ver un "
+        "análisis sin autenticar. Trata un resultado como una señal más entre "
+        "varias, nunca como una auditoría de seguridad ni una prueba de "
+        "penetración."
+    ),
+    "how.faq.q3": "¿Cuánto tiempo conserváis el resultado de un análisis?",
+    "how.faq.a3": (
+        "Solo en memoria, durante {minutes} minutos, y luego desaparece. Sin "
+        "cuentas, sin analítica, sin rastreadores - el resto está en "
+        '<a href="/privacy">qué conserva este servidor</a>.'
+    ),
+    "how.faq.q4": "¿Hay un límite de frecuencia?",
+    "how.faq.a4": (
+        "Sí, por visitante y por objetivo analizado, para que ni un visitante "
+        "ocupado acapare la cola ni la misma instancia se analice una y otra "
+        "vez seguidas. Las cifras exactas de este despliegue están en la "
+        '<a href="/api#api-limits">página de la API</a>.'
+    ),
+    "how.faq.q5": "¿Puedo analizar sin límite de frecuencia?",
+    "how.faq.a5": (
+        "Sí: el escáner es de código abierto. Ejecútalo tú mismo con "
+        '<a href="/cli">un único comando de Docker</a> en tu propia máquina, '
+        "sin límite y sin ningún sitio web de por medio."
     ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Qué conserva este servidor",
@@ -948,6 +1038,11 @@ MESSAGES: dict[str, str] = {
         "La escala de calificación de A+ a F y las correcciones que mejoran "
         "cada nivel."
     ),
+    "search.page.catalogue.title": "Qué comprueba el escáner",
+    "search.page.catalogue.summary": (
+        "Cada indicador de refuerzo, cabecera y comprobación TLS del "
+        "escáner, y cada vulnerabilidad conocida."
+    ),
     "search.page.documentation.title": "Documentación de la CLI",
     "search.page.documentation.summary": (
         "Inicio rápido de línea de comandos, configuración, monitorización y "
@@ -1075,6 +1170,12 @@ MESSAGES: dict[str, str] = {
     "result.verdict.dial": "Calificación {label}, {rating} de 5",
     "result.facts.instance": "Instancia",
     "result.facts.resolved": "Resuelto a",
+    "result.facts.ipv6.heading": "Accesibilidad IPv6",
+    "result.facts.ipv6.note": (
+        "No comprobada - este despliegue no tiene conectividad IPv6 "
+        "saliente, así que solo se anota aquí en lugar de penalizar la "
+        "instancia."
+    ),
     "result.facts.product": "Producto",
     "result.facts.track": "Canal de publicación",
     "result.facts.track.unknown": "desconocido",
