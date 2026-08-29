@@ -3,6 +3,34 @@
 {% block title %}{{ t('how.title') }}{% endblock %}
 {% block description %}{{ t('how.description') }}{% endblock %}
 
+{% set faq_questions = ["how.faq.q1", "how.faq.q2", "how.faq.q3", "how.faq.q4", "how.faq.q5"] %}
+{% set faq_answers = ["how.faq.a1", "how.faq.a2", "how.faq.a3", "how.faq.a4", "how.faq.a5"] %}
+
+{% block head %}
+{% if canonical_url %}
+{# Built from the same catalogue keys the visible <details> below render, so
+   the markup and the schema can never say two different things. #}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for question in faq_questions %}
+    {
+      "@type": "Question",
+      "name": {{ t(question)|tojson }},
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": {{ t.html(faq_answers[loop.index0], minutes=result_ttl_minutes)|striptags|trim|tojson }}
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="page-head">
   <p class="kicker">{{ t('how.kicker') }}</p>
@@ -58,6 +86,18 @@
     <li><span>{{ t.html('how.pipeline.step3') }}</span></li>
     <li><span>{{ t.html('how.pipeline.step4', minutes=result_ttl_minutes) }}</span></li>
   </ol>
+</section>
+
+
+<section class="card section-gap" aria-labelledby="faq" data-reveal>
+  <p class="kicker">{{ t('how.faq.kicker') }}</p>
+  <h2 id="faq">{{ t('how.faq.heading') }}</h2>
+  {% for question in faq_questions %}
+  <details>
+    <summary>{{ t(question) }}</summary>
+    <p>{{ t.html(faq_answers[loop.index0], minutes=result_ttl_minutes) }}</p>
+  </details>
+  {% endfor %}
 </section>
 
 {% include "_page-nav.html" %}

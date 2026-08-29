@@ -31,6 +31,10 @@ SITE_NAME = "OpenCloud Security Scan"
 SITEMAP_PATH = "/sitemap.xml"
 ROBOTS_PATH = "/robots.txt"
 AGENTS_TXT_PATH = "/agents.txt"
+#: The structured sibling agents-txt.com recommends, alongside the plain-text
+#: file. Same content as `/.well-known/ai.json`, served again under the name
+#: that convention looks for.
+AGENTS_JSON_PATH = "/agents.json"
 LLMS_PATH = "/llms.txt"
 LLMS_FULL_PATH = "/llms-full.txt"
 OG_IMAGE_PATH = "/static/img/og-image.png"
@@ -266,35 +270,56 @@ def robots_txt(origin: str, *, allow_indexing: bool) -> str:
     return "\n".join(lines)
 
 
-def agents_txt(origin: str, *, allow_indexing: bool, mcp_enabled: bool) -> str:
+def agents_txt(
+    origin: str,
+    *,
+    allow_indexing: bool,
+    mcp_enabled: bool,
+    mcp_auth_required: bool,
+) -> str:
     """
-    What an autonomous agent may do here, in the convention some agent
-    frameworks look for by that name, alongside `robots.txt` and `llms.txt`.
+    What an autonomous agent may do here, in the format the
+    https://agents-txt.com convention specifies: capability blocks of
+    ``Key: value`` directives, separated by blank lines, rather than a
+    `robots.txt`-style allow-list - a parser built against that convention
+    reads this deployment's tools directly instead of guessing from
+    `robots.txt`.
 
-    `robots.txt` says which pages a crawler may fetch. This says the same
-    thing - the same allow-list, so the two documents cannot answer a path
-    differently - and adds what a crawling convention has no field for:
-    where the tools are, not only the pages. `/mcp` is disallowed above
-    because there is nothing a `GET` can fetch there, and named again here as
-    the place an agent that speaks the protocol should connect instead.
+    Only capabilities this deployment actually has are declared: no
+    `Protocols`/`Payments` block, because scanning is free; no `A2A`, `Skills`
+    or `UCP` block, because none of those documents exist here yet. The
+    `Authorization` block only appears when the MCP endpoint itself asks for
+    a bearer token - a deployment that leaves it open has nothing to declare.
+    The `# JSON:` comment names `/agents.json`, the structured sibling the
+    convention recommends alongside this file.
 
     Like `/.well-known/ai.json`, this is an informal convention rather than a
     registered standard; the OpenAPI, Arazzo and MCP contracts remain
-    authoritative over anything said here.
+    authoritative over anything said here. A deployment that opted out of
+    indexing gets the spec's own minimal file - no capability announced -
+    because an agent that should not find the site should not be handed a
+    list of its tools either.
     """
+    lines = ["# agents.txt", "# Standard: https://agents-txt.com"]
     if not allow_indexing:
-        return "User-agent: *\nDisallow: /\n"
-    lines = ["User-agent: *", "Allow: /"]
-    lines.extend(f"Allow: {path}" for path in _MACHINE_READABLE)
-    lines.extend(f"Disallow: {path}" for path in _DISALLOWED)
-    lines.append("")
-    lines.append(f"# Discovery: {origin}/.well-known/ai.json")
-    lines.append(f"# Content map: {origin}{LLMS_PATH}")
-    lines.append(f"# API: {origin}/openapi.json")
-    lines.append(f"# Workflows: {origin}/arazzo.json")
+        return "\n".join(lines) + "\n"
+
+    lines.extend(
+        [
+            f"# JSON: {origin}{AGENTS_JSON_PATH}",
+            f"# Discovery: {origin}/.well-known/ai.json",
+            f"# Content map: {origin}{LLMS_PATH}",
+            f"# API: {origin}/openapi.json",
+            f"# Workflows: {origin}/arazzo.json",
+            f"# Sitemap: {origin}{SITEMAP_PATH}",
+            "",
+        ]
+    )
+    if mcp_enabled and mcp_auth_required:
+        lines.extend(["Authorization: oauth2", "Identity: required", ""])
     if mcp_enabled:
-        lines.append(f"# Tools (Model Context Protocol): {origin}{MCP_PATH}")
-    lines.append(f"# Sitemap: {origin}{SITEMAP_PATH}")
+        lines.append(f"MCP: {origin}{MCP_PATH}")
+    lines.append(f"WebMCP: {origin}/")
     lines.append("")
     return "\n".join(lines)
 

@@ -64,7 +64,7 @@
           {% if range.fixed %}{{ t('catalogue.advisories.fixed_in', version=range.fixed) }}{% else %}{{ t('catalogue.advisories.unfixed') }}{% endif %}{% if not loop.last %}; {% endif %}
         {% endfor %}
       </p>
-      {% if advisory.url %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">{{ t('result.advisories.read') }}</a></p>{% endif %}
+      {% if advisory.url is safe_link %}<p class="fix"><a href="{{ advisory.url }}" rel="noopener noreferrer">{{ t('result.advisories.read') }}</a></p>{% endif %}
     </li>
     {% endfor %}
   </ul>

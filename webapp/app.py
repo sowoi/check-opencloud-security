@@ -114,6 +114,7 @@ from .reports import (
 )
 from .schedule import schedule_state
 from .seo import (
+    AGENTS_JSON_PATH,
     AGENTS_TXT_PATH,
     LEGAL_NOTICE_PATH,
     LLMS_FULL_PATH,
@@ -549,12 +550,21 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 if serves_legal_notice(request.url.hostname)
                 else None
             ),
-            "robots": "index, follow" if indexable else "noindex, nofollow",
+            # `max-image-preview:large`/`max-snippet:-1` opt back into the
+            # full-size thumbnail and snippet length Google caps by default
+            # since 2019 - no reason to take the smaller default on a page
+            # that is indexable at all.
+            "robots": (
+                "index, follow, max-image-preview:large, max-snippet:-1"
+                if indexable
+                else "noindex, nofollow"
+            ),
             # A canonical URL for a page nobody may index would only invite
             # one to be created.
             "canonical_url": (
                 canonical_url(origin, request.url.path) if indexable else None
             ),
+            "origin": origin,
             "og_image": f"{origin}{OG_IMAGE_PATH}",
             "limits": {
                 "client": settings.ip_rate_limit,
@@ -893,15 +903,39 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.get(AGENTS_TXT_PATH, include_in_schema=False)
     async def agents(request: Request) -> Response:
-        """The same allow-list as robots.txt, plus where the tools are."""
+        """Capability declaration for autonomous agents, per agents-txt.com."""
         origin = site_origin(str(request.base_url), settings.public_base_url)
         return PlainTextResponse(
             agents_txt(
                 origin,
                 allow_indexing=settings.allow_indexing,
                 mcp_enabled=mcp_enabled,
+                mcp_auth_required=mcp_enabled and auth_required(settings),
             ),
-            headers={"Cache-Control": "public, max-age=3600"},
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    @app.get(AGENTS_JSON_PATH, include_in_schema=False)
+    async def agents_json(request: Request) -> Response:
+        """
+        The structured sibling agents-txt.com recommends alongside the
+        plain-text file - the same document `/.well-known/ai.json` serves,
+        under the name that convention looks for.
+        """
+        origin = site_origin(str(request.base_url), settings.public_base_url)
+        return JSONResponse(
+            discovery_document(
+                origin,
+                mcp_enabled=mcp_enabled,
+                mcp_auth=discovery_authentication(settings),
+            ),
+            headers={
+                "Cache-Control": "public, max-age=300",
+                "Access-Control-Allow-Origin": "*",
+            },
         )
 
     @app.get(SECURITY_TXT_PATH, include_in_schema=False)

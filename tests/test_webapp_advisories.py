@@ -34,6 +34,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
     backend,
+    client,
     settings,
 )
 from webapp.advisories import (
@@ -183,6 +184,34 @@ def test_a_refreshed_advisory_reaches_the_public_catalogue_the_same_way():
 
     assert "TEST-9002" in {entry["id"] for entry in catalogue}
     assert len(catalogue) == len(database.advisories)
+
+
+def test_the_public_catalogue_never_renders_an_unsafe_advisory_url_as_a_link():
+    """
+    A feed-supplied reference URL is attacker-controlled once a feed is read.
+
+    Before an external feed was wired in, every advisory URL came from the
+    bundled, developer-controlled database, so its scheme was never worth
+    checking. Now a compromised or malformed OSV entry can carry a
+    'javascript:' reference straight through ``parse_document`` into
+    ``advisory.url``, and the public, unauthenticated ``/catalogue`` page
+    must never turn that into a clickable ``href`` - the same guard the scan
+    result page already applies to this exact field.
+    """
+    store = memory_backend(MEMORY_URL)
+    record = osv_record("TEST-9099", [("9.0.0", "9.0.4")])
+    record["references"] = [{"type": "ADVISORY", "url": "javascript:alert(document.cookie)"}]
+
+    with FakeAdvisoryFeed([record]) as feed:
+        outcome = run(
+            refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url))
+        )
+    assert outcome == "updated"
+
+    body = client(advisory_refresh=True).get("/catalogue").text
+
+    assert "TEST-9099" in body
+    assert "javascript:" not in body
 
 
 def test_an_advisory_with_two_patched_lines_flags_both_of_them():

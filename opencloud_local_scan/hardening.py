@@ -167,20 +167,33 @@ HARDENINGS: dict[str, Hardening] = {
     "cspWithoutUnsafeInline": Hardening(
         id="cspWithoutUnsafeInline",
         category="headers",
-        title="The Content-Security-Policy allows inline scripts",
+        title="The Content-Security-Policy allows inline scripts or eval",
         meaning=(
-            "The policy contains 'unsafe-inline', which removes most of the "
-            "protection a CSP gives against cross-site scripting: injected "
-            "markup may execute. Note that this is OpenCloud's shipped default, "
-            "so an instance failing this check is not misconfigured - it is "
-            "unmodified."
+            "The script-src directive (or default-src, when script-src is "
+            "absent) contains 'unsafe-inline' or 'unsafe-eval', which removes "
+            "most of the protection a CSP gives against cross-site scripting: "
+            "'unsafe-inline' lets injected markup or an event handler execute "
+            "outright, and 'unsafe-eval' lets a gadget already in loaded code "
+            "turn attacker-controlled input into code via eval() or the "
+            "Function constructor. Note that 'unsafe-inline' is OpenCloud's "
+            "shipped default, so an instance failing this check on that "
+            "keyword alone is not misconfigured - it is unmodified. A policy "
+            "that pairs 'unsafe-inline' with a nonce or a hash (the standard "
+            "'strict-dynamic' rollout pattern) does not fail this check: every "
+            "browser that understands nonces ignores 'unsafe-inline' in that "
+            "case, so the keyword is only a fallback for browsers old enough "
+            "to ignore the nonce too."
         ),
         remediation=(
             "Point PROXY_CSP_CONFIG_FILE_LOCATION at a csp.yaml without "
-            "'unsafe-inline' (or PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION to "
-            "replace the default outright). Test it first: the web interface "
-            "currently relies on inline scripts and styles, so a strict policy "
-            "is likely to break the UI and any connected office or IDP service."
+            "'unsafe-inline' or 'unsafe-eval' (or "
+            "PROXY_CSP_CONFIG_FILE_OVERRIDE_LOCATION to replace the default "
+            "outright) - or, to keep supporting older browsers, move to a "
+            "nonce- or hash-based policy with 'strict-dynamic' instead of "
+            "dropping 'unsafe-inline' outright. Test it first: the web "
+            "interface currently relies on inline scripts and styles, so a "
+            "strict policy is likely to break the UI and any connected office "
+            "or IDP service."
         ),
         reference=DOCS_PROXY,
         setting="PROXY_CSP_CONFIG_FILE_LOCATION",

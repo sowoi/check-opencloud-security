@@ -275,9 +275,11 @@ response (`error_self_host`) as well as the JSON one (`hint`,
 
 ## Working on the agent-facing surfaces
 
-`/llms.txt` gives an agent a short map, `/agents.txt` names the same map
-under the filename some agent frameworks look for by convention rather than
-crawling for, `/openapi.json` says which operations exist, `/arazzo.json` how
+`/llms.txt` gives an agent a short map, `/agents.txt` declares this
+deployment's capabilities in the [agents-txt.com](https://agents-txt.com)
+`Key: value` directive format under the filename some agent frameworks look
+for by convention rather than crawling for, `/openapi.json` says which
+operations exist, `/arazzo.json` how
 they combine into a task, `/mcp` lets an agent perform it - both to execute a
 task and, through its `catalogue` and `advisories` resources, to read the
 knowledge base behind a finding - and `/.well-known/ai.json` names the

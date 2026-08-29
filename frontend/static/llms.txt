@@ -5,7 +5,7 @@
 ## Core Interfaces & Discovery
 
 - [/llms.txt](/llms.txt): This overview document.
-- [/agents.txt](/agents.txt): The same allow-list as /robots.txt, published under the filename some agent frameworks look for by convention, plus pointers to every interface below.
+- [/agents.txt](/agents.txt): Capability declaration in the https://agents-txt.com format, published under the filename some agent frameworks look for by convention, naming the MCP/WebMCP endpoints and pointers to every interface below.
 - [/.well-known/ai.json](/.well-known/ai.json): Machine discovery for API, workflows, and Model Context Protocol (MCP) endpoints.
 - [/openapi.json](/openapi.json): OpenAPI 3.1 specification for operations and schemas.
 - [/arazzo.json](/arazzo.json): Arazzo specification for async scanning, polling, export, and erasure workflows.

@@ -153,7 +153,8 @@ A small surface, and this is all of it.
 | `GET` | `/arazzo.json` | The API as Arazzo workflows, beside the schema and behind the same switch |
 | `GET` | `/healthz` | Pings Redis, reads queue depth, and requires a live worker heartbeat; returns the aggregate depth or a 503 when unavailable |
 | `GET` | `/robots.txt` | Generated. Points at the sitemap and keeps crawlers out of `/scan/` and `/api/` |
-| `GET` | `/agents.txt` | Generated. Same allow/disallow list as `/robots.txt`, plus the discovery document, the contracts and the MCP endpoint |
+| `GET` | `/agents.txt` | Generated. Capability declaration in the [agents-txt.com](https://agents-txt.com) format: discovery document, contracts, MCP and WebMCP endpoints |
+| `GET` | `/agents.json` | The structured sibling `agents.txt` names - the same document `/.well-known/ai.json` serves |
 | `GET` | `/sitemap.xml` | Generated from the six public pages, with each `lastmod` taken from its template; **404** when `COS_WEB_ALLOW_INDEXING` is off |
 
 ### Starting a scan
@@ -361,7 +362,7 @@ COS_WEB_REDIS_URL=memory:// \
 - The workflows: <http://127.0.0.1:8811/arazzo.json>
 - The discovery document: <http://127.0.0.1:8811/.well-known/ai.json>
 - The short agent map: <http://127.0.0.1:8811/llms.txt>
-- The agent/crawler allow-list: <http://127.0.0.1:8811/agents.txt>
+- The agent capability declaration: <http://127.0.0.1:8811/agents.txt>
 - The MCP endpoint: <http://127.0.0.1:8811/mcp>
 
 The last five need no switch at all. In Docker, set

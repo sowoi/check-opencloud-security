@@ -458,6 +458,44 @@ MESSAGES: dict[str, str] = {
         "identifier stops working and the result is gone, with nothing written to "
         "disk."
     ),
+    "how.faq.kicker": "Questions",
+    "how.faq.heading": "Frequently asked",
+    "how.faq.q1": "Is this official OpenCloud software?",
+    "how.faq.a1": (
+        "No. This is an independent community project, not affiliated with "
+        "OpenCloud GmbH and neither recommended nor supported by that company. "
+        '"OpenCloud" and its logo are trademarks of their respective owners, '
+        "used here solely to name the software this tool checks."
+    ),
+    "how.faq.q2": "Does a good grade mean an instance is secure?",
+    "how.faq.a2": (
+        "No. The scan reads only what a publicly reachable instance shows an "
+        "anonymous visitor - its version, the advisories against that version, "
+        "its transport, its headers and a set of settings visible without "
+        "logging in. Everything behind the login, the server it runs on, the "
+        "network around it and the people with accounts on it are outside what "
+        "any unauthenticated scan can see. Treat a result as one input, never "
+        "as a security audit or a penetration test."
+    ),
+    "how.faq.q3": "How long do you keep a scan's result?",
+    "how.faq.a3": (
+        "In memory only, for {minutes} minutes, and then it is gone. No "
+        "accounts, no analytics, no trackers - see "
+        '<a href="/privacy">what this server keeps</a> for the rest.'
+    ),
+    "how.faq.q4": "Is there a rate limit?",
+    "how.faq.a4": (
+        "Yes, per visitor and per scanned target, so one busy visitor cannot "
+        "crowd out another and the same instance is not scanned back to back. "
+        'The exact numbers for this deployment are on the '
+        '<a href="/api#api-limits">API page</a>.'
+    ),
+    "how.faq.q5": "Can I scan without a rate limit?",
+    "how.faq.a5": (
+        "Yes - the scanner is open source. Run it yourself with "
+        '<a href="/cli">one Docker command</a> on your own machine, with no '
+        "limit and no third party in the middle."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "What this server keeps",
     "privacy.description": (

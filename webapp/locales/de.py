@@ -485,6 +485,46 @@ MESSAGES: dict[str, str] = {
         "funktioniert die Kennung nicht mehr und das Ergebnis ist weg, ohne dass "
         "etwas auf Festplatte geschrieben wurde."
     ),
+    "how.faq.kicker": "Fragen",
+    "how.faq.heading": "Häufig gestellte Fragen",
+    "how.faq.q1": "Ist das offizielle OpenCloud-Software?",
+    "how.faq.a1": (
+        "Nein. Dies ist ein unabhängiges Community-Projekt, das in keiner "
+        "Verbindung zur OpenCloud GmbH steht und von diesem Unternehmen weder "
+        'empfohlen noch unterstützt wird. "OpenCloud" und das zugehörige Logo '
+        "sind Marken ihrer jeweiligen Inhaber und werden hier ausschließlich "
+        "verwendet, um die geprüfte Software zu benennen."
+    ),
+    "how.faq.q2": "Bedeutet eine gute Note, dass eine Instanz sicher ist?",
+    "how.faq.a2": (
+        "Nein. Der Scan liest nur, was eine öffentlich erreichbare Instanz "
+        "einem anonymen Besucher zeigt - ihre Version, die Advisories zu dieser "
+        "Version, ihren Transport, ihre Header und eine Reihe von Einstellungen, "
+        "die ohne Anmeldung sichtbar sind. Alles hinter dem Login, der Server, "
+        "auf dem sie läuft, das Netzwerk drumherum und die Personen mit Konten "
+        "darauf liegen außerhalb dessen, was ein nicht authentifizierter Scan "
+        "sehen kann. Betrachten Sie ein Ergebnis als einen Baustein unter "
+        "mehreren, niemals als Sicherheitsaudit oder Penetrationstest."
+    ),
+    "how.faq.q3": "Wie lange bewahren Sie das Ergebnis eines Scans auf?",
+    "how.faq.a3": (
+        "Nur im Speicher, für {minutes} Minuten, danach ist es weg. Keine "
+        "Konten, keine Analyse, kein Tracking - den Rest lesen Sie unter "
+        '<a href="/privacy">Was dieser Server speichert</a>.'
+    ),
+    "how.faq.q4": "Gibt es ein Ratenlimit?",
+    "how.faq.a4": (
+        "Ja, pro Besucher und pro gescanntem Ziel, damit weder ein einzelner "
+        "Besucher die Warteschlange blockiert noch dieselbe Instanz Schlag auf "
+        "Schlag gescannt wird. Die genauen Werte für diese Installation stehen "
+        '<a href="/api#api-limits">auf der API-Seite</a>.'
+    ),
+    "how.faq.q5": "Kann ich ohne Ratenlimit scannen?",
+    "how.faq.a5": (
+        "Ja - der Scanner ist Open Source. Führen Sie ihn mit "
+        '<a href="/cli">einem einzigen Docker-Befehl</a> auf Ihrer eigenen '
+        "Maschine aus, ohne Limit und ohne Website dazwischen."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Was dieser Server speichert",
     "privacy.description": (

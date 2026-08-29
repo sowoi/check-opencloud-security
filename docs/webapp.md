@@ -801,25 +801,30 @@ uuid is the whole of the authorisation, and a listing is exactly what this
 service does not have. `robots.txt` disallows `/scan/`, `/api/`, the schema
 and the health probe, and points at the sitemap.
 
-`agents.txt` is the same allow/disallow list, published under the filename
-some agent frameworks look for by convention rather than crawling for -
-alongside `robots.txt` and `llms.txt`, and, like `/.well-known/ai.json`
-above, an informal one rather than a registered standard. Where `robots.txt`
-says
-what a `GET` may fetch, `agents.txt` adds where the tools are: the discovery
-document, the OpenAPI and Arazzo contracts, and the MCP endpoint when this
-deployment serves one - `/mcp` is disallowed above only because there is
-nothing a `GET` can fetch there, not because an agent should stay out of it.
+`agents.txt` follows the [agents-txt.com](https://agents-txt.com) convention
+instead: capability blocks of `Key: value` directives rather than
+`robots.txt`'s allow-list, so a parser built against that convention reads
+this deployment's tools directly. It declares `MCP: <url>` and
+`WebMCP: <url>` when this deployment serves them, `Authorization: oauth2` and
+`Identity: required` only when the MCP endpoint itself asks for a bearer
+token, and nothing for `Protocols`/`Payments`/`A2A`/`Skills`/`UCP`, since none
+of those apply here. Like `/.well-known/ai.json`, it is an informal
+convention rather than a registered standard, and the OpenAPI, Arazzo and MCP
+contracts remain authoritative over anything it says.
+
+`GET /agents.json` is the structured sibling the convention recommends
+alongside the plain-text file - the same document `/.well-known/ai.json`
+serves, published again under the name `agents.txt` points at.
 
 `COS_WEB_PUBLIC_BASE_URL` decides the origin in all three, together with the
 canonical link on every page. Behind a proxy the service only sees its own
 internal address, and without that setting it would publish URLs nobody
 outside can reach.
 
-`COS_WEB_ALLOW_INDEXING=false` turns the lot off: `robots.txt` and
-`agents.txt` both become a flat refusal, `sitemap.xml` answers 404 and every
-page carries `noindex`. A result page carries `noindex` and an
-`X-Robots-Tag` either way.
+`COS_WEB_ALLOW_INDEXING=false` turns the lot off: `robots.txt` becomes a flat
+refusal, `agents.txt` becomes the convention's own minimal file with no
+capability declared, `sitemap.xml` answers 404 and every page carries
+`noindex`. A result page carries `noindex` and an `X-Robots-Tag` either way.
 
 ## Layout
 

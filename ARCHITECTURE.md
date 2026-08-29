@@ -365,7 +365,7 @@ guess `/arazzo.json`, so one document names all of them:
 https://scan.okxo.de
         |
         +--> /llms.txt             short agent-readable map
-        +--> /agents.txt           the same map, by another name
+        +--> /agents.txt           capability declaration (agents-txt.com)
         |
         v
 /.well-known/ai.json --+--> /openapi.json   operations
@@ -377,10 +377,13 @@ https://scan.okxo.de
 `/llms.txt` is the short starting point for clients that look for that file.
 It names the contracts and interaction rules without containing a result,
 UUID, or credential. `/agents.txt` names the same interfaces under the
-filename some agent frameworks look for by convention instead - it reuses
-`/robots.txt`'s own allow/disallow list, so the two can never disagree about
-what is off limits, and is, like the discovery document, an informal
-convention rather than a registered standard. `/.well-known/ai.json` is
+filename some agent frameworks look for by convention instead, in the
+[agents-txt.com](https://agents-txt.com) capability-declaration format:
+`Key: value` directives for `MCP`, `WebMCP` and, only where the endpoint
+itself asks for a token, `Authorization`/`Identity` - not `/robots.txt`'s
+allow/disallow list, which stays that file's job alone. It is, like the
+discovery document, an informal convention rather than a registered
+standard. `/.well-known/ai.json` is
 *this application's* detailed discovery document and not a registered
 standard, which is why the code says so and the documentation does too. It
 lives under `/.well-known/` because that is where a well-behaved client

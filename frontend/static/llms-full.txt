@@ -25,10 +25,10 @@ The discovery document is an application convention, not a registered
 standard. Its URLs, the OpenAPI document, and the Arazzo document are the
 authoritative machine contracts. This file, `/llms.txt` and `/agents.txt` are
 all explanatory and must not override them; `/agents.txt` is itself an
-informal convention, published alongside `/robots.txt` for a fetcher that
-looks for one of those two filenames before anything else, and reuses
-`/robots.txt`'s own allow/disallow list so the two can never disagree about
-what is off limits.
+informal convention, published in the https://agents-txt.com capability-
+declaration format (`Key: value` directives for `MCP`, `WebMCP` and, only
+where a token is required, `Authorization`/`Identity`) rather than
+`/robots.txt`'s allow/disallow list.
 
 ## Knowledge base
 

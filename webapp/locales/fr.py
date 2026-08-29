@@ -506,6 +506,48 @@ MESSAGES: dict[str, str] = {
         "l'identifiant cesse de fonctionner et le résultat disparaît, sans "
         "rien écrit sur le disque."
     ),
+    "how.faq.kicker": "Questions",
+    "how.faq.heading": "Questions fréquentes",
+    "how.faq.q1": "S'agit-il du logiciel officiel d'OpenCloud ?",
+    "how.faq.a1": (
+        "Non. Il s'agit d'un projet communautaire indépendant, qui n'est pas "
+        "affilié à OpenCloud GmbH et que cette société ne recommande ni ne "
+        'prend en charge. "OpenCloud" et son logo sont des marques '
+        "appartenant à leurs détenteurs respectifs, utilisées ici uniquement "
+        "pour indiquer quel logiciel cet outil contrôle."
+    ),
+    "how.faq.q2": "Une bonne note signifie-t-elle qu'une instance est sécurisée ?",
+    "how.faq.a2": (
+        "Non. L'analyse lit uniquement ce qu'une instance accessible "
+        "publiquement montre à un visiteur anonyme : sa version, les avis de "
+        "sécurité concernant cette version, son transport, ses en-têtes et un "
+        "ensemble de réglages visibles sans connexion. Tout ce qui se trouve "
+        "derrière la connexion, le serveur sur lequel elle tourne, le réseau "
+        "qui l'entoure et les personnes disposant d'un compte en sont exclus - "
+        "une analyse non authentifiée ne peut pas les voir. Considérez un "
+        "résultat comme un élément parmi d'autres, jamais comme un audit de "
+        "sécurité ou un test d'intrusion."
+    ),
+    "how.faq.q3": "Combien de temps conservez-vous le résultat d'une analyse ?",
+    "how.faq.a3": (
+        "Uniquement en mémoire, pendant {minutes} minutes, puis il disparaît. "
+        "Aucun compte, aucune analyse statistique, aucun traceur - le reste se "
+        '<a href="/privacy">trouve sur ce que ce serveur conserve</a>.'
+    ),
+    "how.faq.q4": "Y a-t-il une limite de débit ?",
+    "how.faq.a4": (
+        "Oui, par visiteur et par cible analysée, afin qu'un visiteur trop "
+        "actif n'accapare pas la file d'attente et que la même instance ne "
+        "soit pas analysée coup sur coup. Les chiffres exacts de ce "
+        'déploiement figurent sur la <a href="/api#api-limits">page de '
+        "l'API</a>."
+    ),
+    "how.faq.q5": "Puis-je analyser sans limite de débit ?",
+    "how.faq.a5": (
+        "Oui - le scanner est open source. Exécutez-le vous-même avec "
+        '<a href="/cli">une seule commande Docker</a> sur votre propre '
+        "machine, sans limite et sans site web intermédiaire."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Ce que ce serveur conserve",
     "privacy.description": (

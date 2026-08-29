@@ -475,6 +475,47 @@ MESSAGES: dict[str, str] = {
         "identificador deja de funcionar y el resultado desaparece, sin que "
         "nada se haya escrito en disco."
     ),
+    "how.faq.kicker": "Preguntas",
+    "how.faq.heading": "Preguntas frecuentes",
+    "how.faq.q1": "¿Es este el software oficial de OpenCloud?",
+    "how.faq.a1": (
+        "No. Este es un proyecto comunitario independiente, no afiliado a "
+        "OpenCloud GmbH y que la empresa ni recomienda ni respalda. "
+        '"OpenCloud" y su logotipo son marcas de sus respectivos titulares, '
+        "usadas aquí únicamente para indicar qué software comprueba esta "
+        "herramienta."
+    ),
+    "how.faq.q2": "¿Una buena calificación significa que una instancia es segura?",
+    "how.faq.a2": (
+        "No. El análisis solo lee lo que una instancia accesible públicamente "
+        "muestra a un visitante anónimo: su versión, los avisos de seguridad "
+        "contra esa versión, su transporte, sus cabeceras y un conjunto de "
+        "ajustes visibles sin iniciar sesión. Todo lo que hay detrás del inicio "
+        "de sesión, el servidor en el que se ejecuta, la red que la rodea y las "
+        "personas con cuentas en ella quedan fuera de lo que puede ver un "
+        "análisis sin autenticar. Trata un resultado como una señal más entre "
+        "varias, nunca como una auditoría de seguridad ni una prueba de "
+        "penetración."
+    ),
+    "how.faq.q3": "¿Cuánto tiempo conserváis el resultado de un análisis?",
+    "how.faq.a3": (
+        "Solo en memoria, durante {minutes} minutos, y luego desaparece. Sin "
+        "cuentas, sin analítica, sin rastreadores - el resto está en "
+        '<a href="/privacy">qué conserva este servidor</a>.'
+    ),
+    "how.faq.q4": "¿Hay un límite de frecuencia?",
+    "how.faq.a4": (
+        "Sí, por visitante y por objetivo analizado, para que ni un visitante "
+        "ocupado acapare la cola ni la misma instancia se analice una y otra "
+        "vez seguidas. Las cifras exactas de este despliegue están en la "
+        '<a href="/api#api-limits">página de la API</a>.'
+    ),
+    "how.faq.q5": "¿Puedo analizar sin límite de frecuencia?",
+    "how.faq.a5": (
+        "Sí: el escáner es de código abierto. Ejecútalo tú mismo con "
+        '<a href="/cli">un único comando de Docker</a> en tu propia máquina, '
+        "sin límite y sin ningún sitio web de por medio."
+    ),
     # --------------------------------------------------------------- privacy
     "privacy.title": "Qué conserva este servidor",
     "privacy.description": (

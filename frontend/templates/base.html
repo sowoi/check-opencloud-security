@@ -68,6 +68,54 @@
   }
   </script>
   {% endif %}
+  {% if canonical_url and request.url.path == "/" %}
+  {# The sitelinks search box reads this once, from the homepage - the
+     `/search` form it points at already exists and works without scripting,
+     so this only tells Google the form is there. #}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": {{ site_name|default('OpenCloud Security Scan', true)|tojson }},
+    "url": {{ canonical_url|tojson }},
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": {{ (origin ~ "/search?q={search_term_string}")|tojson }}
+      },
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  {% endif %}
+  {% if canonical_url and request.url.path.startswith("/documentation/") %}
+  {# Only the individual guide pages have a real trail - the index page
+     itself is the second crumb, not a page that needs one drawn for it. #}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem", "position": 1,
+        "name": {{ site_name|default('OpenCloud Security Scan', true)|tojson }},
+        "item": {{ (origin ~ "/")|tojson }}
+      },
+      {
+        "@type": "ListItem", "position": 2,
+        "name": {{ t('nav.docs')|tojson }},
+        "item": {{ (origin ~ "/documentation")|tojson }}
+      },
+      {
+        "@type": "ListItem", "position": 3,
+        "name": {{ self.title()|tojson }},
+        "item": {{ canonical_url|tojson }}
+      }
+    ]
+  }
+  </script>
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 <body {% block body_attrs %}{% endblock %}>
