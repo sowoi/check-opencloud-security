@@ -563,6 +563,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--self-update-check`         | Note when a newer version of the plugin is published on PyPI; never changes the exit code                                                    | *False*                                         | `COS_SELF_UPDATE_CHECK`         |
 | `--webhook-url`               | Optional endpoint notified when the check reaches the configured state                                                                       | *None* (disabled)                               | `COS_WEBHOOK_URL`               |
 | `--webhook-on`                | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`)                                                          | `critical`                                      | `COS_WEBHOOK_ON`                |
+| `--webhook-format`            | Webhook body shape: `generic` (the plugin's own JSON), `slack`, or `discord`                                                                 | `generic`                                       | `COS_WEBHOOK_FORMAT`            |
 | `--webhook-header`            | Extra header for the webhook request, repeatable                                                                                             | *None*                                          | `COS_WEBHOOK_HEADERS`           |
 | `--webhook-timeout`           | HTTP timeout in seconds for the webhook call                                                                                                 | `10`                                            | `COS_WEBHOOK_TIMEOUT`           |
 | `--allow-private-webhooks`    | Permit webhooks to private, loopback, or link-local addresses                                                                                | *False*                                         | `COS_ALLOW_PRIVATE_WEBHOOKS`    |
@@ -1636,6 +1637,19 @@ check-opencloud-security --host opencloud.example.com \
   state that triggers a notification. Each level includes the more severe ones:
   `critical`, `warning` (WARNING + CRITICAL), `unknown` (UNKNOWN + WARNING +
   CRITICAL) and `always`.
+- `--webhook-format` / `COS_WEBHOOK_FORMAT` (default `generic`) posts the
+  body as a Slack Block Kit attachment (`slack`, also accepted by Mattermost
+  and the common Matrix webhook bridges) or a Discord embed (`discord`)
+  instead of the plugin's own flat document. The default is unchanged, so
+  this is entirely opt-in:
+  ```shell
+  check-opencloud-security --host opencloud.example.com \
+    --webhook-url https://hooks.slack.com/services/... \
+    --webhook-format slack
+  ```
+  Anything else - ntfy, Alertmanager, a custom receiver - still wants the
+  `generic` document; [Webhook recipes](docs/webhook-recipes.md) has one for
+  each.
 - `--webhook-header` / `COS_WEBHOOK_HEADERS` adds request headers, e.g. for
   authentication. Repeat the flag, or separate entries with `;` in the
   environment variable: `COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"`.

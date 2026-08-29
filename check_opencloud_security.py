@@ -122,6 +122,7 @@ _BASELINE_LOCK = threading.Lock()
 # accepted for --webhook-on.
 WEBHOOK_TRIGGERS: dict[str, frozenset["NagiosExitCode"]] = {}
 DEFAULT_WEBHOOK_ON = "critical"
+DEFAULT_WEBHOOK_FORMAT = "generic"
 DEFAULT_WEBHOOK_TIMEOUT_SECONDS = 10
 
 DEFAULT_RETRIES = 2
@@ -169,6 +170,7 @@ class ScanContext:
     check_hardening: bool = False
     webhook_url: str | None = None
     webhook_on: str = DEFAULT_WEBHOOK_ON
+    webhook_format: str = DEFAULT_WEBHOOK_FORMAT
     webhook_timeout: int = DEFAULT_WEBHOOK_TIMEOUT_SECONDS
     webhook_secret: str | None = None
     allow_private_webhooks: bool = False
@@ -691,6 +693,86 @@ def _build_webhook_payload(
     return payload
 
 
+# Matches the adapter script documented in docs/webhook-recipes.md, so
+# switching from that adapter to --webhook-format slack/discord changes
+# nothing a reader of the notification would notice.
+_WEBHOOK_STATUS_COLORS = {
+    "OK": "#2eb886",
+    "WARNING": "#daa038",
+    "CRITICAL": "#a30200",
+    "UNKNOWN": "#767676",
+}
+
+
+def _webhook_status_line(payload: dict[str, Any]) -> str:
+    """One human-readable line, shared by every chat-native webhook format."""
+    text = f"*{payload.get('host', '?')}* - {payload.get('status', 'UNKNOWN')}\n{payload.get('message', '')}"
+    if payload.get("rating_label"):
+        text += (
+            f"\nRating {payload['rating_label']}, "
+            f"OpenCloud {payload.get('product_version') or '?'}"
+        )
+    return text
+
+
+def _slack_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Render the result as a Slack Block Kit attachment.
+
+    Mattermost accepts this shape directly, and the common Matrix webhook
+    bridges (matrix-hookshot's outbound webhook connector) accept it too -
+    there is no single native Matrix webhook contract to target instead.
+    """
+    color = _WEBHOOK_STATUS_COLORS.get(str(payload.get("status")), "#767676")
+    return {"attachments": [{"color": color, "text": _webhook_status_line(payload)}]}
+
+
+def _discord_field(name: str, value: object) -> dict[str, Any] | None:
+    return {"name": name, "value": str(value), "inline": True} if value else None
+
+
+def _discord_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Render the result as a single Discord webhook embed."""
+    color = _WEBHOOK_STATUS_COLORS.get(str(payload.get("status")), "#767676")
+    update = payload.get("update") or {}
+    fields = [
+        field
+        for field in (
+            _discord_field("Rating", payload.get("rating_label")),
+            _discord_field("OpenCloud version", payload.get("product_version")),
+            _discord_field("Update available", update.get("availableVersion")),
+        )
+        if field is not None
+    ]
+    return {
+        "embeds": [
+            {
+                "title": f"{payload.get('host', '?')} - {payload.get('status', 'UNKNOWN')}",
+                "description": payload.get("message", ""),
+                "color": int(color.lstrip("#"), 16),
+                "fields": fields,
+            }
+        ]
+    }
+
+
+_WEBHOOK_FORMATTERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "slack": _slack_webhook_payload,
+    "discord": _discord_webhook_payload,
+}
+
+
+def _format_webhook_body(context: ScanContext, payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    The JSON body actually POSTed, in the format the operator selected.
+
+    The 'generic' default - the plugin's own flat document - is unchanged
+    from before this option existed; every other format is opt-in.
+    """
+    formatter = _WEBHOOK_FORMATTERS.get(context.webhook_format)
+    return formatter(payload) if formatter is not None else payload
+
+
 def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     """
     POST the payload to the configured webhook URL.
@@ -714,14 +796,19 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
             )
             return False
 
+    body = _format_webhook_body(context, payload)
+
     headers = {"Content-Type": "application/json"}
     headers.update(dict(context.webhook_headers))
 
     if context.webhook_secret:
-        payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        # Signed over what is actually sent: a receiver verifying the
+        # signature has to verify the body it received, not a document that
+        # was only ever an intermediate step for a chat-native format.
+        body_json = json.dumps(body, separators=(",", ":"), sort_keys=True)
         signature = hmac.new(
             context.webhook_secret.encode("utf-8"),
-            payload_json.encode("utf-8"),
+            body_json.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
         headers["X-COS-Signature"] = f"sha256={signature}"
@@ -744,7 +831,7 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
         response = requests.post(
             url,
-            json=payload,
+            json=body,
             headers=headers,
             proxies=_proxies(context),
             timeout=context.webhook_timeout,
@@ -1829,6 +1916,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         check_hardening=args.check_hardening,
         webhook_url=args.webhook_url,
         webhook_on=args.webhook_on,
+        webhook_format=args.webhook_format,
         webhook_timeout=args.webhook_timeout,
         webhook_secret=args.webhook_secret,
         allow_private_webhooks=args.allow_private_webhooks,

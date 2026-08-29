@@ -325,6 +325,18 @@ def optional_groups() -> list[Group]:
                     validate=_choice(("critical", "warning", "unknown", "always")),
                 ),
                 Question(
+                    key="webhook.format",
+                    prompt="Payload format",
+                    explain=(
+                        "'generic' posts the plugin's own flat JSON document. "
+                        "'slack' also works for Mattermost and the common "
+                        "Matrix webhook bridges; 'discord' posts a single embed."
+                    ),
+                    example="generic",
+                    default="generic",
+                    validate=_choice(("generic", "slack", "discord")),
+                ),
+                Question(
                     key="webhook.headers",
                     prompt="Extra headers",
                     explain=(

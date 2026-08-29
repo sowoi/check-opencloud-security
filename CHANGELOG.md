@@ -19,6 +19,11 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   certificate authorities may issue for it. The lookup is dependency-free
   and only ever queries the system's own configured resolver - never a
   public one - so nothing new is sent to a third party.
+- **Native Slack and Discord webhook formats**: `--webhook-format slack`
+  (also accepted by Mattermost and the common Matrix webhook bridges) or
+  `--webhook-format discord` posts the result already shaped for that
+  receiver, so the adapter script in `docs/webhook-recipes.md` is no longer
+  required for the common case. The default is unchanged.
 
 ## [1.13.0] - 2026-08-28
 

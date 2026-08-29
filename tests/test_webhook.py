@@ -377,3 +377,104 @@ def test_webhook_signature_format_is_sha256_hex(posts):
     
     pattern = r"^sha256=[0-9a-f]{64}$"
     assert re.match(pattern, sig_header), f"Invalid signature format: {sig_header}"
+
+
+def test_generic_webhook_format_is_the_default(posts):
+    """No behaviour changes for anyone not opting into the new formats."""
+    run(CRITICAL_RESULT, webhook_url="https://hooks.example.com/x")
+
+    _, kwargs = posts[0]
+    assert kwargs["json"]["status"] == "CRITICAL"
+    assert "attachments" not in kwargs["json"]
+    assert "embeds" not in kwargs["json"]
+
+
+def test_slack_webhook_format_is_a_block_kit_attachment(posts):
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_format="slack",
+    )
+
+    _, kwargs = posts[0]
+    body = kwargs["json"]
+    assert list(body.keys()) == ["attachments"]
+    attachment = body["attachments"][0]
+    assert attachment["color"] == "#a30200"  # CRITICAL, matches webhook-recipes.md
+    assert "cloud.example.com" in attachment["text"]
+    assert "CRITICAL" in attachment["text"]
+
+
+def test_slack_webhook_format_colors_every_status(posts):
+    run(OK_RESULT, webhook_url="https://x/", webhook_on="always", webhook_format="slack")
+    assert posts[0][1]["json"]["attachments"][0]["color"] == "#2eb886"
+
+
+def test_discord_webhook_format_is_a_single_embed(posts):
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_format="discord",
+    )
+
+    _, kwargs = posts[0]
+    body = kwargs["json"]
+    assert list(body.keys()) == ["embeds"]
+    embed = body["embeds"][0]
+    assert embed["title"].startswith("cloud.example.com - CRITICAL")
+    assert embed["color"] == 0xA30200
+    field_names = {field["name"] for field in embed["fields"]}
+    assert "Rating" in field_names
+
+
+def test_discord_webhook_format_omits_empty_fields(posts):
+    """A failed-scan payload carries only the common fields; nothing crashes on their absence."""
+    run(
+        {**CRITICAL_RESULT},
+        webhook_url="https://hooks.example.com/x",
+        webhook_format="discord",
+    )
+    embed = posts[0][1]["json"]["embeds"][0]
+    assert all(field["value"] for field in embed["fields"])
+
+
+def test_webhook_signature_is_computed_over_the_formatted_body(posts):
+    """A receiver verifying HMAC must verify what was actually sent, not the generic document."""
+    import hashlib
+    import hmac
+
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_format="slack",
+        webhook_secret="my-secret",
+    )
+
+    _, kwargs = posts[0]
+    body_json = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True)
+    expected_sig = hmac.new(b"my-secret", body_json.encode("utf-8"), hashlib.sha256).hexdigest()
+    assert kwargs["headers"]["X-COS-Signature"] == f"sha256={expected_sig}"
+
+
+def test_webhook_format_survives_a_failed_scan_payload(posts, monkeypatch):
+    """The base (failure-shaped) payload has no rating/product fields; formatting must not crash."""
+    from opencloud_local_scan.scanner import ScanError
+
+    def _raise_scan_error(*_args, **_kwargs):
+        raise ScanError("connection refused")
+
+    monkeypatch.setattr(plugin, "local_scan", _raise_scan_error)
+    context = plugin.ScanContext(
+        host="unreachable.example.com",
+        allow_private_webhooks=True,
+        webhook_url="https://hooks.example.com/x",
+        webhook_on="always",
+        webhook_format="discord",
+    )
+    with pytest.raises(SystemExit):
+        plugin.send_scan_request(context)
+
+    assert len(posts) == 1
+    embed = posts[0][1]["json"]["embeds"][0]
+    assert embed["title"].startswith("unreachable.example.com")
+    assert embed["fields"] == []
