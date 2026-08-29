@@ -24,6 +24,11 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   `--webhook-format discord` posts the result already shaped for that
   receiver, so the adapter script in `docs/webhook-recipes.md` is no longer
   required for the common case. The default is unchanged.
+- **`--format json`/`sarif`/`junit`**: one combined machine-readable document
+  for every scanned host, for CI pipelines - a JSON array of the existing
+  webhook payload shape, SARIF 2.1.0 for a code-scanning dashboard, or JUnit
+  XML with one testsuite per host. The exit code keeps its Nagios meaning
+  under every format.
 
 ## [1.13.0] - 2026-08-28
 

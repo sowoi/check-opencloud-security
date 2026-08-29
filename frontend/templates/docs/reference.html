@@ -453,7 +453,7 @@ OpenCloud instance.</p>
 </tr>
 <tr>
 <td><code>--format</code></td>
-<td>One-shot output format: <code>nagios</code> or <code>prometheus</code></td>
+<td>One-shot output format: <code>nagios</code>, <code>prometheus</code>, <code>json</code>, <code>sarif</code> or <code>junit</code></td>
 <td><code>nagios</code></td>
 <td><code>COS_FORMAT</code></td>
 </tr>
@@ -558,6 +558,12 @@ OpenCloud instance.</p>
 <td>Lowest state that triggers the webhook (<code>critical</code>, <code>warning</code>, <code>unknown</code>, <code>always</code>)</td>
 <td><code>critical</code></td>
 <td><code>COS_WEBHOOK_ON</code></td>
+</tr>
+<tr>
+<td><code>--webhook-format</code></td>
+<td>Webhook body shape: <code>generic</code> (the plugin's own JSON), <code>slack</code>, or <code>discord</code></td>
+<td><code>generic</code></td>
+<td><code>COS_WEBHOOK_FORMAT</code></td>
 </tr>
 <tr>
 <td><code>--webhook-header</code></td>
@@ -690,6 +696,41 @@ thresholds at <code>3</code> (warning) and <code>1</code> (critical), graph
 <code>opencloud_security_scrape_success == 0</code>. See the
 <a href="/documentation/prometheus">Prometheus and Grafana guide</a> for alerting and legacy
 textfile/Pushgateway patterns.</p>
+<h2 id="machine-readable-output-for-ci-jsonsarifjunit">Machine-readable output for CI (json/sarif/junit)</h2>
+<p><code>--format json</code>, <code>--format sarif</code>, or <code>--format junit</code> print one combined
+document for every scanned host - never one per host, even for a single one,
+so the output is always valid JSON/SARIF/XML regardless of <code>--host</code> carrying
+one address or several. <strong>The exit code keeps its Nagios meaning under every
+format</strong> (<code>0</code>/<code>1</code>/<code>2</code>/<code>3</code>), so a CI step can gate on it exactly the way an
+Icinga check does; the document is a separate, additional artifact.</p>
+<ul>
+<li><code>json</code> is a JSON array of the same document described in
+  <a href="#webhook-notifications">Webhook notifications</a> - one object per host,
+  always an array even for a single host.</li>
+<li><code>sarif</code> is SARIF 2.1.0, for a code-scanning dashboard. Findings come from
+  the same missing-hardening, failed-extra-check, vulnerability and
+  end-of-life facts as the plugin's own text output, so a SARIF result never
+  says anything the Nagios line would not.</li>
+<li><code>junit</code> is JUnit XML with one <code>&lt;testsuite&gt;</code> per host and one <code>&lt;testcase&gt;</code>
+  per finding, plus an always-present <code>rating</code> case so a clean host still
+  shows up rather than reporting zero tests.</li>
+</ul>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com --format sarif \
+  &gt; opencloud-security.sarif
+</code></pre>
+<p>In GitHub Actions, upload the SARIF file to code scanning - <code>continue-on-error</code>
+keeps a non-zero exit from failing the step before the upload runs:</p>
+<pre><code class="language-yaml">- name: Scan OpenCloud
+  run: |
+    check-opencloud-security --host opencloud.example.com --format sarif \
+      &gt; opencloud-security.sarif
+  continue-on-error: true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: opencloud-security.sarif
+</code></pre>
+<p>For a JUnit-reporting CI system, the same pattern with <code>--format junit</code> and
+whatever step turns a JUnit file into a check-run summary.</p>
 <h2 id="environment-variables">Environment variables</h2>
 <p>Every option has a <code>COS_</code>-prefixed environment variable equivalent (see the
 table above). This is especially useful for Docker, systemd, and cron, where
@@ -792,6 +833,11 @@ below describes what the built-in scanner does and how to tune it.</p>
 <td><code>tlsAddressParity</code></td>
 <td>medium</td>
 <td>IPv4 and IPv6 present different TLS services, or one is unreachable</td>
+</tr>
+<tr>
+<td><code>tlsCaaRecord</code></td>
+<td>low</td>
+<td>No DNS CAA record restricts which certificate authorities may issue for this name</td>
 </tr>
 <tr>
 <td><code>cookieSecure</code>, <code>cookieHttpOnly</code>, <code>cookieSameSite</code></td>
@@ -1859,6 +1905,18 @@ it activates only once <code>--webhook-url</code> (or <code>COS_WEBHOOK_URL</cod
   state that triggers a notification. Each level includes the more severe ones:
   <code>critical</code>, <code>warning</code> (WARNING + CRITICAL), <code>unknown</code> (UNKNOWN + WARNING +
   CRITICAL) and <code>always</code>.</li>
+<li><code>--webhook-format</code> / <code>COS_WEBHOOK_FORMAT</code> (default <code>generic</code>) posts the
+  body as a Slack Block Kit attachment (<code>slack</code>, also accepted by Mattermost
+  and the common Matrix webhook bridges) or a Discord embed (<code>discord</code>)
+  instead of the plugin's own flat document. The default is unchanged, so
+  this is entirely opt-in:
+  <code>shell
+  check-opencloud-security --host opencloud.example.com \
+    --webhook-url https://hooks.slack.com/services/... \
+    --webhook-format slack</code>
+  Anything else - ntfy, Alertmanager, a custom receiver - still wants the
+  <code>generic</code> document; <a href="/documentation/webhooks">Webhook recipes</a> has one for
+  each.</li>
 <li><code>--webhook-header</code> / <code>COS_WEBHOOK_HEADERS</code> adds request headers, e.g. for
   authentication. Repeat the flag, or separate entries with <code>;</code> in the
   environment variable: <code>COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"</code>.</li>

@@ -17,6 +17,7 @@
 * [Options:](#options)
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
+* [Machine-readable output for CI (json/sarif/junit)](#machine-readable-output-for-ci-jsonsarifjunit)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
@@ -545,7 +546,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--no-extra-checks`           | Only check product, version and security headers                                                                                             | *False*                                         | `COS_NO_EXTRA_CHECKS`           |
 | `--no-debug-ports`            | Skip probing the OpenCloud debug ports                                                                                                       | *False*                                         | `COS_NO_DEBUG_PORTS`            |
 | `--concurrency`               | Maximum parallel host workers; one is used per host up to this ceiling                                                                       | `5`                                             | `COS_CONCURRENCY`               |
-| `--format`                    | One-shot output format: `nagios` or `prometheus`                                                                                             | `nagios`                                        | `COS_FORMAT`                    |
+| `--format`                    | One-shot output format: `nagios`, `prometheus`, `json`, `sarif` or `junit`                                                                   | `nagios`                                        | `COS_FORMAT`                    |
 | `--prometheus-listen-port`    | Serve native `/metrics` on this port until stopped                                                                                           | disabled                                        | `COS_PROMETHEUS_LISTEN_PORT`    |
 | `--prometheus-listen-addr`    | Bind address for the native Prometheus exporter                                                                                              | `127.0.0.1`                                     | `COS_PROMETHEUS_LISTEN_ADDR`    |
 | `--scrape-interval`           | Seconds to cache exporter scan results (`0` scans on every scrape)                                                                           | `60`                                            | `COS_SCRAPE_INTERVAL`           |
@@ -657,6 +658,48 @@ thresholds at `3` (warning) and `1` (critical), graph
 `opencloud_security_scrape_success == 0`. See the
 [Prometheus and Grafana guide](docs/prometheus.md) for alerting and legacy
 textfile/Pushgateway patterns.
+
+# Machine-readable output for CI (json/sarif/junit)
+
+`--format json`, `--format sarif`, or `--format junit` print one combined
+document for every scanned host - never one per host, even for a single one,
+so the output is always valid JSON/SARIF/XML regardless of `--host` carrying
+one address or several. **The exit code keeps its Nagios meaning under every
+format** (`0`/`1`/`2`/`3`), so a CI step can gate on it exactly the way an
+Icinga check does; the document is a separate, additional artifact.
+
+- `json` is a JSON array of the same document described in
+  [Webhook notifications](#webhook-notifications) - one object per host,
+  always an array even for a single host.
+- `sarif` is SARIF 2.1.0, for a code-scanning dashboard. Findings come from
+  the same missing-hardening, failed-extra-check, vulnerability and
+  end-of-life facts as the plugin's own text output, so a SARIF result never
+  says anything the Nagios line would not.
+- `junit` is JUnit XML with one `<testsuite>` per host and one `<testcase>`
+  per finding, plus an always-present `rating` case so a clean host still
+  shows up rather than reporting zero tests.
+
+```shell
+check-opencloud-security --host opencloud.example.com --format sarif \
+  > opencloud-security.sarif
+```
+
+In GitHub Actions, upload the SARIF file to code scanning - `continue-on-error`
+keeps a non-zero exit from failing the step before the upload runs:
+
+```yaml
+- name: Scan OpenCloud
+  run: |
+    check-opencloud-security --host opencloud.example.com --format sarif \
+      > opencloud-security.sarif
+  continue-on-error: true
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: opencloud-security.sarif
+```
+
+For a JUnit-reporting CI system, the same pattern with `--format junit` and
+whatever step turns a JUnit file into a check-run summary.
 
 # Environment variables
 Every option has a `COS_`-prefixed environment variable equivalent (see the

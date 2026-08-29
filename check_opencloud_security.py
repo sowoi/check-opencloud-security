@@ -24,6 +24,7 @@ import socket
 import sys
 import threading
 import time
+import xml.etree.ElementTree as ElementTree
 from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -115,6 +116,12 @@ ENV_PREFIX = "COS_"
 # perfdata separate until the coordinator renders the ordered result blocks.
 _RESULT_BUFFER: contextvars.ContextVar[io.StringIO | None] = contextvars.ContextVar(
     "result_buffer", default=None
+)
+# The structured document behind the human-readable text above, for the
+# machine-readable --format choices (json/sarif/junit). Set right before
+# every place that terminates a scan, the same way _RESULT_BUFFER is.
+_RESULT_PAYLOAD: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "result_payload", default=None
 )
 _BASELINE_LOCK = threading.Lock()
 
@@ -333,14 +340,23 @@ def check_if_ip_or_host(host: str, context: ScanContext | None = None) -> None:
         candidate = candidate.split(":", 1)[0]
 
     if not candidate:
-        _fail(f"UNKNOWN: {host!r} is not a usable target address.")
+        _fail_invalid_host(host, context)
 
     with contextlib.suppress(ValueError):
         ipaddress.ip_address(candidate)
         return
 
     if any(character.isspace() for character in candidate) or "/" in candidate:
-        _fail(f"UNKNOWN: {host!r} is not a usable target address.")
+        _fail_invalid_host(host, context)
+
+
+def _fail_invalid_host(host: str, context: ScanContext | None) -> NoReturn:
+    """Report a target address that is neither a usable IP nor a hostname."""
+    message = f"UNKNOWN: {host!r} is not a usable target address."
+    if context is not None:
+        payload = _build_base_payload(context, message, NagiosExitCode.UNKNOWN)
+        _RESULT_PAYLOAD.set({"payload": payload, "scan": None})
+    _fail(message)
 
 
 def send_scan_request(context: ScanContext) -> ScanResult:
@@ -491,24 +507,28 @@ def check_vulnerabilities(
         support_days_left=_support_days_left(response_scan),
     )
 
+    # Built unconditionally: it is the same document whether it goes out over
+    # the webhook, gets read back for --format json/sarif/junit, or neither.
+    payload = _build_webhook_payload(
+        context,
+        scan_result=scan_result,
+        response_scan=response_scan,
+        message=msg,
+        exit_code=exit_code,
+        rating=rating,
+        rate=rate,
+        vulnerabilities=vulnerabilities,
+        missing_hardenings=actionable_hardenings,
+        duration_seconds=duration_seconds,
+        update_info=update_info,
+        extra_failures=extra_failures,
+        baseline_diff=baseline_diff,
+    )
     if _webhook_should_fire(context, exit_code):
-        payload = _build_webhook_payload(
-            context,
-            scan_result=scan_result,
-            response_scan=response_scan,
-            message=msg,
-            exit_code=exit_code,
-            rating=rating,
-            rate=rate,
-            vulnerabilities=vulnerabilities,
-            missing_hardenings=actionable_hardenings,
-            duration_seconds=duration_seconds,
-            update_info=update_info,
-            extra_failures=extra_failures,
-            baseline_diff=baseline_diff,
-        )
         if not _send_webhook(context, payload):
             detail_lines.append("Webhook delivery failed (see debug log)")
+
+    _RESULT_PAYLOAD.set({"payload": payload, "scan": response_scan})
 
     safe_message = _safe_monitoring_text(msg)
     safe_details = [_safe_monitoring_text(line) for line in detail_lines]
@@ -931,8 +951,9 @@ def _notify_and_fail(
     Used for aborts that happen before a scan result exists, so that an
     unreachable instance can raise an alert just like a vulnerable one.
     """
+    payload = _build_base_payload(context, message, exit_code)
+    _RESULT_PAYLOAD.set({"payload": payload, "scan": None})
     if _webhook_should_fire(context, exit_code):
-        payload = _build_base_payload(context, message, exit_code)
         if not _send_webhook(context, payload):
             _fail(
                 _safe_monitoring_text(message)
@@ -1593,10 +1614,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         dest="output_format",
-        choices=("nagios", "prometheus"),
+        choices=("nagios", "prometheus", "json", "sarif", "junit"),
         default=_env("FORMAT") or "nagios",
         help=(
-            "Output format for a one-shot scan: 'nagios' or Prometheus text exposition. "
+            "Output format for a one-shot scan: 'nagios', Prometheus text "
+            "exposition, or a machine-readable document for every host "
+            "combined - 'json' (an array of the webhook payload shape), "
+            "'sarif' (2.1.0, for a code-scanning dashboard) or 'junit' XML "
+            "(one testsuite per host). The exit code keeps its Nagios "
+            "meaning under every format. "
             f"Default: nagios (env: {ENV_PREFIX}FORMAT)."
         ),
     )
@@ -1982,6 +2008,43 @@ def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
     return buffer.getvalue().rstrip("\n"), exit_code
 
 
+def _collect_result_document(context: ScanContext) -> tuple[dict[str, Any], NagiosExitCode]:
+    """
+    Run the full scan-and-check flow for one host and capture its structured
+    result document instead of the human-readable text.
+
+    Directly parallel to _run_single_host_check, for the machine-readable
+    --format choices (json/sarif/junit): every place that terminates a scan
+    (check_if_ip_or_host, _notify_and_fail, check_vulnerabilities) sets
+    _RESULT_PAYLOAD before it does, so this only ever needs to read it back.
+    """
+    payload_token = _RESULT_PAYLOAD.set(None)
+    buffer_token = _RESULT_BUFFER.set(io.StringIO())
+    exit_code = NagiosExitCode.UNKNOWN
+    try:
+        check_if_ip_or_host(context.host, context)
+        start = time.perf_counter()
+        scan_result = send_scan_request(context)
+        duration_seconds = time.perf_counter() - start
+        check_vulnerabilities(context, scan_result, duration_seconds=duration_seconds)
+    except SystemExit as exc:
+        if isinstance(exc.code, int):
+            exit_code = NagiosExitCode(exc.code)
+    except Exception as exc:
+        LOGGER.exception("Unhandled scan failure for host %s", context.host)
+        message = _safe_monitoring_text(f"UNKNOWN: {context.host} Scan failed: {exc}")
+        _RESULT_PAYLOAD.set(
+            {"payload": _build_base_payload(context, message, exit_code), "scan": None}
+        )
+    document = _RESULT_PAYLOAD.get() or {
+        "payload": _build_base_payload(context, "UNKNOWN: no result produced", exit_code),
+        "scan": None,
+    }
+    _RESULT_PAYLOAD.reset(payload_token)
+    _RESULT_BUFFER.reset(buffer_token)
+    return document, exit_code
+
+
 def _summarize_multi_host_result(exit_codes: list[NagiosExitCode]) -> str:
     """Build a one-line summary of how many hosts ended up in each status."""
     counts = Counter(code.name for code in exit_codes)
@@ -2039,6 +2102,240 @@ def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> Nagios
     print("\n\n".join(blocks))
 
     return _aggregate_exit_code(exit_codes)
+
+
+# --------------------------------------------------------------------------
+# Machine-readable output: --format json/sarif/junit. One combined document
+# is printed for the whole run (never one per host, even for a single one)
+# because concatenating N independent JSON/SARIF/XML documents the way the
+# nagios/text path concatenates blocks would not parse as one.
+# --------------------------------------------------------------------------
+
+# SARIF has three levels that matter here, matching the mapping the webapp's
+# independent SARIF export already uses (webapp/reports.py) so a reader
+# comparing the two sees the same severities, not two different opinions.
+_SARIF_LEVELS = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "info": "note",
+}
+_SARIF_SCHEMA = (
+    "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/"
+    "sarif-2.1/schema/sarif-schema-2.1.0.json"
+)
+
+
+def _run_machine_format_checks(hosts: list[str], args: argparse.Namespace) -> int:
+    """
+    Run every host and print one combined json/sarif/junit document.
+
+    Every other flag - baseline diffing, webhooks, --warn-on-new - keeps
+    working exactly as it does for the nagios format, because this only
+    changes what is read back and printed, never how check_vulnerabilities
+    itself decides anything.
+    """
+    contexts = [_build_context(host, args) for host in hosts]
+    workers = _host_worker_count(hosts, args)
+
+    def _run(context: ScanContext) -> tuple[dict[str, Any], NagiosExitCode]:
+        return _collect_result_document(_serial_host_context(context))
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="opencloud-host") as pool:
+        results = list(pool.map(_run, contexts))
+
+    documents = [document for document, _ in results]
+    exit_codes = [exit_code for _, exit_code in results]
+
+    if args.output_format == "json":
+        print(json.dumps([document["payload"] for document in documents], indent=2))
+    elif args.output_format == "sarif":
+        print(json.dumps(_render_sarif(documents), indent=2))
+    else:
+        print(_render_junit(documents))
+
+    return int(_aggregate_exit_code(exit_codes))
+
+
+def _sarif_result(*, rule_id: str, level: str, message: str, host: str) -> dict[str, Any]:
+    return {
+        "ruleId": rule_id,
+        "level": level,
+        "message": {"text": message},
+        "locations": [
+            {"physicalLocation": {"artifactLocation": {"uri": host}}}
+        ],
+        "properties": {"host": host},
+    }
+
+
+def _extra_check_details(scan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """The raw extraChecks entries, keyed by id, for their severity and detail."""
+    return {
+        str(entry.get("id")): entry
+        for entry in scan.get("extraChecks") or []
+        if isinstance(entry, dict)
+    }
+
+
+def _host_findings(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Every finding for one host, in the same terms the Nagios text output and
+    the webhook payload already use: missing_hardenings, failed_extra_checks,
+    vulnerabilities and eol - not the remediation plan, which is deliberately
+    only the subset that would move the rating (see opencloud_local_scan.
+    remediation) and so under-reports on its own. Each item carries an id,
+    a SARIF level, a title and an optional longer detail.
+    """
+    payload = document["payload"]
+    scan = document.get("scan") or {}
+    details = _extra_check_details(scan)
+    findings: list[dict[str, Any]] = []
+
+    if payload.get("eol"):
+        findings.append(
+            {
+                "id": "eol",
+                "level": "error",
+                "title": "The instance is running an end-of-life release",
+                "detail": str(payload.get("message") or ""),
+            }
+        )
+
+    for entry in payload.get("vulnerabilities") or []:
+        findings.append(
+            {
+                "id": f"vulnerability:{entry}",
+                "level": "error",
+                "title": f"Known vulnerability {entry}",
+                "detail": "",
+            }
+        )
+
+    for name in payload.get("missing_hardenings") or []:
+        described = describe_hardening(name)
+        findings.append(
+            {
+                "id": name,
+                # Matches the level webapp/reports.py's own SARIF export
+                # already uses for every hardening/header finding.
+                "level": "note",
+                "title": described.title,
+                "detail": described.remediation,
+            }
+        )
+
+    for name in payload.get("failed_extra_checks") or []:
+        entry = details.get(name, {})
+        severity = str(entry.get("severity") or "")
+        findings.append(
+            {
+                "id": name,
+                "level": _SARIF_LEVELS.get(severity.lower(), "warning"),
+                "title": describe_hardening(name).title,
+                "detail": str(entry.get("detail") or ""),
+            }
+        )
+
+    return findings
+
+
+def _render_sarif(documents: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Render every host's result as one SARIF 2.1.0 run.
+
+    This is an independent implementation of the SARIF export
+    webapp/reports.py already has for a finished scan - the CLI plugin ships
+    with no dependency on the webapp (pyproject.toml excludes it from the
+    wheel), so the conventions (schema URL, level mapping, rule shape) are
+    mirrored rather than imported; see ADR 0026.
+    """
+    rules: dict[str, dict[str, Any]] = {}
+    results: list[dict[str, Any]] = []
+
+    def add_rule(rule_id: str, level: str, text: str, help_text: str = "") -> None:
+        if rule_id in rules:
+            return
+        rule: dict[str, Any] = {
+            "id": rule_id,
+            "name": rule_id,
+            "shortDescription": {"text": text[:120]},
+            "fullDescription": {"text": text},
+            "defaultConfiguration": {"level": level},
+        }
+        if help_text:
+            rule["help"] = {"text": help_text}
+        rules[rule_id] = rule
+
+    for document in documents:
+        host = str(document["payload"].get("host") or "")
+        for finding in _host_findings(document):
+            add_rule(finding["id"], finding["level"], finding["title"], finding["detail"])
+            message = (
+                f"{finding['title']}: {finding['detail']}"
+                if finding["detail"]
+                else finding["title"]
+            )
+            results.append(
+                _sarif_result(
+                    rule_id=finding["id"], level=finding["level"], message=message, host=host
+                )
+            )
+
+    return {
+        "$schema": _SARIF_SCHEMA,
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "check-opencloud-security",
+                        "version": __version__,
+                        "informationUri": "https://github.com/sowoi/check-opencloud-security",
+                        "rules": sorted(rules.values(), key=lambda rule: rule["id"]),
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+
+
+def _junit_testcases(document: dict[str, Any]) -> list[tuple[str, str | None]]:
+    """One (name, failure-message-or-None) pair per finding for one host."""
+    payload = document["payload"]
+    cases: list[tuple[str, str | None]] = [
+        ("rating", None if payload.get("status") == "OK" else str(payload.get("message") or ""))
+    ]
+    for finding in _host_findings(document):
+        message = (
+            f"{finding['title']}: {finding['detail']}" if finding["detail"] else finding["title"]
+        )
+        cases.append((finding["id"], message))
+    return cases
+
+
+def _render_junit(documents: list[dict[str, Any]]) -> str:
+    """Render every host's result as one JUnit XML document, one testsuite per host."""
+    root = ElementTree.Element("testsuites", name="check-opencloud-security")
+    for document in documents:
+        host = str(document["payload"].get("host") or "unknown")
+        cases = _junit_testcases(document)
+        failures = sum(1 for _, message in cases if message is not None)
+        suite = ElementTree.SubElement(
+            root, "testsuite", name=host, tests=str(len(cases)), failures=str(failures)
+        )
+        for name, message in cases:
+            case = ElementTree.SubElement(
+                suite, "testcase", classname="check-opencloud-security", name=name
+            )
+            if message is not None:
+                failure = ElementTree.SubElement(case, "failure", message=message[:500])
+                failure.text = message
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ElementTree.tostring(
+        root, encoding="unicode"
+    )
 
 
 def _prometheus_scan(context: ScanContext) -> str:
@@ -2276,6 +2573,9 @@ def main() -> None:
     if args.output_format == "prometheus":
         print(_prometheus_metrics(hosts, args), end="")
         return
+
+    if args.output_format in {"json", "sarif", "junit"}:
+        sys.exit(_run_machine_format_checks(hosts, args))
 
     if len(hosts) == 1:
         try:
