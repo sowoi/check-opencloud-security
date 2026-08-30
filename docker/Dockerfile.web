@@ -47,6 +47,14 @@ RUN set -eu \
     && rm -rf /tmp/*.whl /bin/uv \
     && useradd --no-create-home --shell /usr/sbin/nologin --uid 10001 scanner
 
+# Where COS_WEB_AUDIT_LOG_FILE points when a deployment asks for an audit trail
+# that survives the container. Nothing is written here unless it does - but the
+# directory has to exist, and has to be owned by the unprivileged user, before
+# the volume is mounted: Docker copies the mount point's ownership into a fresh
+# named volume, and a directory created by the mount instead would belong to
+# root and be unwritable by the process that needs it.
+RUN install -d -o 10001 -g 10001 -m 0700 /var/log/opencloud-scan
+
 WORKDIR /app
 
 # The two directories that are *not* in the wheel, copied in as application

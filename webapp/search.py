@@ -99,14 +99,6 @@ SEARCH_PAGES: tuple[SearchPage, ...] = (
         "search.page.ai.summary",
     ),
     SearchPage(
-        "/cli",
-        "Run the scanner with Docker",
-        "One-line Docker and uvx commands for scanning without the website.",
-        "cli.html",
-        "search.page.cli.title",
-        "search.page.cli.summary",
-    ),
-    SearchPage(
         "/privacy",
         "Privacy",
         "Result retention, request logging, rate limits, and third-party policy.",

@@ -66,7 +66,10 @@ services:
       # finding. The opposite default to the public stack, deliberately.
       COS_WEB_ALLOW_INDEXING: "false"
       COS_WEB_RELEASES_MODE: "off"
-      COS_WEB_ENABLE_DOCS: "true"
+      # Off for the same reason as the public stack: serving /docs and /redoc
+      # relaxes the content policy on those two paths. A sign-in in front of
+      # /mcp does not change that, because these two pages are not behind it.
+      COS_WEB_ENABLE_DOCS: "false"
       COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
       COS_WEB_MCP_ALLOWED_HOSTS: ""
       COS_WEB_MCP_MAX_CONCURRENT_WAITS: "8"
@@ -180,16 +183,21 @@ services:
     # Still a cache. Every key here has a TTL, and a dump file would be a copy
     # of everybody's scans sitting on a disk. Authentik's state is a different
     # service's problem, three down.
+    #
+    # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+    # unset and this behaves exactly as it did before. Redis answers whoever
+    # reaches it, and what it holds is every live scan and every result still
+    # inside its TTL, so set one on anything that is not a laptop.
+    #
+    # Every comment stays *outside* the block below: `>` is a folded scalar, so
+    # a `#` inside it is literal text rather than a comment, and the prose would
+    # be folded into the command line between the options.
     command: >
       redis-server
       --save ""
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
-      # unset and this behaves exactly as it did before. Redis answers whoever
-      # reaches it, and what it holds is every live scan and every result still
-      # inside its TTL, so set one on anything that is not a laptop.
       --requirepass "${COS_REDIS_PASSWORD:-}"
     environment:
       # redis-cli reads this, so the health check authenticates without the

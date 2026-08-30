@@ -10,6 +10,12 @@
   <p class="lede">{{ t('about.lede') }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#about-opencloud", "label": t('about.platform.heading')},
+  {"href": "#about-scanner", "label": t('about.project.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="about-opencloud" data-reveal>
   <p class="kicker">{{ t('about.platform.kicker') }}</p>
   <h2 id="about-opencloud">{{ t('about.platform.heading') }}</h2>

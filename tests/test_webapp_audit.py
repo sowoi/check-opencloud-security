@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import stat
 
 import pytest
 
@@ -22,6 +23,7 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     settings,
 )
 from webapp.audit import (
+    AUDIT_LOGGER,
     EVENT_RATE_LIMITED,
     EVENT_SCAN_REQUESTED,
     EVENT_SUBMISSION_REJECTED,
@@ -30,6 +32,7 @@ from webapp.audit import (
     REASON_TARGET_REJECTED,
     REASON_UNSUPPORTED_FIELDS,
     AuditLog,
+    configure_audit_file,
 )
 
 TARGET = "https://opencloud.example.com"
@@ -49,6 +52,24 @@ def audit_records(caplog):
         return [item for item in parsed if event is None or item["event"] == event]
 
     return records
+
+
+@pytest.fixture(autouse=True)
+def _restore_audit_logger():
+    """
+    Put the audit logger back the way it was found.
+
+    Pointing it at a file is a process-wide side effect - a handler and a
+    propagation flag - and a test that left one behind would send another
+    test's records into a file in a temporary directory that no longer exists.
+    """
+    yield
+    configure_audit_file(settings(audit_log=False))
+
+
+def _lines(path) -> list[dict]:
+    """The audit file, as the JSON objects it is supposed to be one per line."""
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def _create(test_client, target: str = TARGET, **body):
@@ -199,3 +220,182 @@ def test_a_submitted_field_name_cannot_forge_a_second_audit_record(audit_records
     # The name is kept, because the attempt is the interesting part - but the
     # newline that would have started a second record is gone.
     assert records[0]["fields"] == ["evilevent=scan_requested"]
+
+
+# --- keeping the trail past the container -----------------------------------
+def test_the_trail_can_be_written_to_a_file_that_outlives_the_container(tmp_path):
+    """A container's output ends with the container; an audit question does not."""
+    path = tmp_path / "audit.log"
+    test_client = client(audit_log=True, audit_log_file=str(path))
+
+    response = _create(test_client)
+
+    assert response.status_code == 202
+    records = _lines(path)
+    assert [item["event"] for item in records] == [EVENT_SCAN_REQUESTED]
+    assert records[0]["uuid"] == response.json()["uuid"]
+    # Still pseudonyms: writing the trail down does not change what is in it.
+    assert "opencloud.example.com" not in path.read_text(encoding="utf-8")
+
+
+def test_no_file_is_written_while_the_audit_log_is_off(tmp_path):
+    """A path is where the records would go, never a reason to start keeping them."""
+    path = tmp_path / "audit.log"
+
+    _create(client(audit_log=False, audit_log_file=str(path)))
+
+    assert not path.exists()
+
+
+def test_the_ordinary_log_carries_no_second_copy_of_the_audit_trail(tmp_path, audit_records):
+    """The lifecycle log is the one place kept free of targets and addresses."""
+    path = tmp_path / "audit.log"
+
+    _create(client(audit_log=True, audit_log_file=str(path)))
+
+    assert _lines(path)
+    # The records went to the file *instead of*, not as well as - or a
+    # deployment shipping its ordinary log somewhere would ship the trail too.
+    assert audit_records() == []
+
+
+def test_an_audit_file_is_readable_by_its_owner_only(tmp_path):
+    """A mounted volume is readable by whoever reaches the host it sits on."""
+    path = tmp_path / "audit.log"
+
+    _create(client(audit_log=True, audit_log_file=str(path)))
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_a_trail_that_cannot_be_written_stops_the_service_starting(tmp_path):
+    """Reporting an audit trail that goes nowhere is worse than keeping none."""
+    missing = tmp_path / "not-mounted" / "audit.log"
+
+    with pytest.raises(ValueError) as error:
+        client(audit_log=True, audit_log_file=str(missing))
+
+    assert "COS_WEB_AUDIT_LOG_FILE" in str(error.value)
+    # And the reverse: the same path works once the mount is there.
+    missing.parent.mkdir()
+    _create(client(audit_log=True, audit_log_file=str(missing)))
+    assert _lines(missing)
+
+
+def test_the_trail_is_rotated_so_it_cannot_fill_the_volume_it_sits_on(tmp_path):
+    """An audit log that grows without limit takes the service down with it."""
+    path = tmp_path / "audit.log"
+    test_client = client(
+        audit_log=True,
+        audit_log_file=str(path),
+        audit_log_max_bytes=200,
+        audit_log_backups=1,
+    )
+
+    for index in range(8):
+        _create(test_client, target=f"https://host{index}.example.com")
+
+    assert path.exists()
+    assert (tmp_path / "audit.log.1").exists()
+    # One generation was asked for, so that is all that is kept - the older
+    # ones are gone rather than accumulating under a different name.
+    assert not (tmp_path / "audit.log.2").exists()
+
+
+def test_configuring_a_file_twice_does_not_record_everything_twice(tmp_path):
+    """Two applications in one process are one trail, not a duplicated one."""
+    path = tmp_path / "audit.log"
+    client(audit_log=True, audit_log_file=str(path))
+    test_client = client(audit_log=True, audit_log_file=str(path))
+
+    _create(test_client)
+
+    assert len(_lines(path)) == 1
+
+
+def test_turning_the_file_off_again_leaves_the_logger_as_it_found_it(tmp_path):
+    """The handler is removed, or a later run writes into a directory that went."""
+    path = tmp_path / "audit.log"
+    client(audit_log=True, audit_log_file=str(path))
+
+    configure_audit_file(settings(audit_log=True))
+
+    assert AUDIT_LOGGER.propagate
+    assert not AUDIT_LOGGER.handlers
+
+
+def test_an_externally_rotated_trail_follows_the_file_logrotate_creates(tmp_path):
+    """
+    logrotate renames the file and makes a new one; the writer has to follow.
+
+    A process holding the old descriptor would go on filling a file nobody
+    can find any more, and the trail would appear to stop the first night the
+    rotation ran - which is exactly when an operator stops looking at it.
+    """
+    path = tmp_path / "audit.log"
+    test_client = client(
+        audit_log=True,
+        audit_log_file=str(path),
+        audit_log_rotation="external",
+    )
+    _create(test_client)
+    assert len(_lines(path)) == 1
+
+    # What logrotate does: move it aside, leave a fresh one in its place.
+    path.rename(tmp_path / "audit.log.1")
+    _create(test_client, target="https://other.example.org")
+
+    assert len(_lines(tmp_path / "audit.log.1")) == 1
+    assert len(_lines(path)) == 1
+    # The service rotates nothing itself in this mode, so a size limit that
+    # would have rolled the file over is not what created the second file.
+    assert not (tmp_path / "audit.log.2").exists()
+
+
+def test_the_service_does_not_also_rotate_a_trail_it_handed_over(tmp_path):
+    """Two rotators on one file is how a trail loses records."""
+    path = tmp_path / "audit.log"
+    test_client = client(
+        audit_log=True,
+        audit_log_file=str(path),
+        audit_log_rotation="external",
+        # Small enough that the service's own rotation would have fired many
+        # times over, had it been the thing in charge.
+        audit_log_max_bytes=100,
+        audit_log_backups=1,
+    )
+
+    for index in range(8):
+        _create(test_client, target=f"https://host{index}.example.com")
+
+    assert len(_lines(path)) == 8
+    assert not (tmp_path / "audit.log.1").exists()
+
+
+def test_an_unrecognised_rotation_setting_stops_the_service_starting(tmp_path):
+    """A typo here means either two rotators or none, and neither announces itself."""
+    with pytest.raises(ValueError) as error:
+        client(
+            audit_log=True,
+            audit_log_file=str(tmp_path / "audit.log"),
+            audit_log_rotation="logrotate",
+        )
+
+    assert "COS_WEB_AUDIT_LOG_ROTATION" in str(error.value)
+    # The two that are accepted still are.
+    for value in ("service", "external"):
+        _create(client(audit_log=True, audit_log_file=str(tmp_path / "audit.log"), audit_log_rotation=value))
+
+
+def test_a_file_created_by_logrotate_is_still_owner_only(tmp_path):
+    """The trail's permissions cannot depend on which generation you look at."""
+    path = tmp_path / "audit.log"
+    test_client = client(
+        audit_log=True, audit_log_file=str(path), audit_log_rotation="external"
+    )
+    _create(test_client)
+
+    path.rename(tmp_path / "audit.log.1")
+    _create(test_client, target="https://other.example.org")
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

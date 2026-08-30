@@ -942,13 +942,33 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
                 "(possible DNS rebinding attack); webhook blocked"
             )
 
+        # `allow_redirects=False` is the second half of the guard above. The
+        # address check applies to the URL the operator configured; a receiver
+        # answering `302 Location: http://169.254.169.254/` would otherwise
+        # have `requests` deliver the payload one hop past it, to an address
+        # the guard exists to refuse. What travels is not only the result:
+        # `X-COS-Signature` and every `--webhook-header` go with it, and
+        # `requests` drops `Authorization` across hosts but keeps the rest, so
+        # a receiver's own API key would be handed to whatever it points at.
         response = requests.post(
             url,
             data=body_bytes,
             headers=headers,
             proxies=_proxies(context),
             timeout=context.webhook_timeout,
+            allow_redirects=False,
         )
+        # `raise_for_status` passes a 3xx, so an unfollowed redirect would
+        # otherwise be reported as a delivered notification that never arrived.
+        # The status range rather than `response.is_redirect`: that property is
+        # also false for a 3xx carrying no Location, which is just as much a
+        # receiver that did not accept the payload.
+        if 300 <= response.status_code < 400:
+            raise ValueError(
+                f"Webhook URL answered {response.status_code} with a redirect, which is "
+                "not followed: the address is validated once, and a redirect would move "
+                "delivery to somewhere that was never checked. Configure the final URL."
+            )
         response.raise_for_status()
 
     try:
@@ -1019,10 +1039,21 @@ def _redact_url(url: str) -> str:
     return f"{parts.scheme}://{host}/<redacted>"
 
 
-# NAT64 prefixes: an IPv6 literal in this range decodes to an embedded IPv4
-# address, which `ipaddress` does not unwrap on its own - unlike the
-# `ipv4_mapped`/`sixtofour` cases below, which it exposes directly.
-_WEBHOOK_NAT64_NETWORKS = (
+# Ranges `ipaddress` does not classify as private, but which a webhook has no
+# business reaching. Kept deliberately in step with `BLOCKED_NETWORKS` in
+# `webapp/ssrf.py`: the two guards answer the same question about different
+# callers, and a range worth refusing for a scan target is worth refusing for
+# a delivery address.
+#
+# Carrier-grade NAT is the one that carries weight. A host behind
+# 100.64.0.0/10 shares that range with every other subscriber on the same
+# carrier, and it contains 100.100.100.200 - a cloud metadata endpoint, where
+# one successful request is already a breach. NAT64 is here because an IPv6
+# literal in those prefixes decodes to an embedded IPv4 address that
+# `ipaddress` does not unwrap on its own, unlike the `ipv4_mapped`/`sixtofour`
+# cases below, which it exposes directly.
+_WEBHOOK_BLOCKED_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.ip_network("100.64.0.0/10"),
     ipaddress.ip_network("64:ff9b::/96"),
     ipaddress.ip_network("64:ff9b:1::/48"),
 )
@@ -1041,8 +1072,12 @@ def _webhook_address_is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Ad
             return _webhook_address_is_public(address.ipv4_mapped)
         if address.sixtofour is not None:
             return _webhook_address_is_public(address.sixtofour)
-        if any(address in network for network in _WEBHOOK_NAT64_NETWORKS):
-            return False
+    if any(
+        address in network
+        for network in _WEBHOOK_BLOCKED_NETWORKS
+        if network.version == address.version
+    ):
+        return False
     return not (
         address.is_private
         or address.is_loopback

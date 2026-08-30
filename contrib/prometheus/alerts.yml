@@ -1,0 +1,133 @@
+# Alerting rules for the plugin's own Prometheus exporter.
+#
+# Load them with `rule_files:` in prometheus.yml. Every metric named here is
+# one `--format=prometheus` and `--prometheus-listen-port` actually emit;
+# tests/test_contrib_assets.py fails if that stops being true.
+#
+# The textfile-collector and Pushgateway recipes in docs/prometheus.md shape
+# their own metric names with `jq` and are *not* what these rules match.
+#
+# `for:` durations assume a scrape of a cached scan every minute or so. With
+# a scan scheduled once a day, shorten them: `for: 1h` never becomes true
+# when the value only changes once between long gaps of the same reading.
+
+groups:
+  - name: opencloud-security
+    rules:
+      # The scan itself. First, because a scan that stopped running looks
+      # exactly like a healthy instance - every other rule here goes quiet at
+      # the same moment, and silence is the failure that hides all others.
+      - alert: OpenCloudScanFailing
+        expr: opencloud_security_scrape_success == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The OpenCloud security scan of {{ $labels.host }} is failing"
+          description: >-
+            The exporter is answering, but the scan behind it did not
+            complete. Findings from before the failure are not re-published,
+            so this instance currently has no verdict at all.
+
+      - alert: OpenCloudScanAbsent
+        expr: absent(opencloud_security_scrape_success)
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No OpenCloud security scan is reporting at all"
+          description: >-
+            The exporter has not been scraped successfully for two hours.
+            Check the exporter, not the instance.
+
+      # Lifecycle. An unsupported release receives no security fixes at all,
+      # which is the one finding that gets worse every day on its own.
+      - alert: OpenCloudEndOfLife
+        expr: opencloud_security_end_of_life == 1
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.host }} runs an OpenCloud release that is past end of life"
+          description: >-
+            The {{ $labels.release_type }} release on this instance no longer
+            receives security fixes. Upgrading is the only remedy; no
+            hardening setting substitutes for it.
+
+      - alert: OpenCloudSupportRunningOut
+        expr: opencloud_security_support_days_remaining < 30
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }} loses support in {{ $value }} days"
+          description: >-
+            Plan the upgrade now. A release whose end of life is not dated yet
+            publishes no sample here at all, so this never fires on an
+            undated one.
+
+      # Known vulnerabilities in the version the instance reports.
+      - alert: OpenCloudCriticalVulnerability
+        expr: opencloud_security_vulnerabilities_total{severity=~"critical|high"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.host }} runs a version with {{ $value }} {{ $labels.severity }} advisories"
+          description: >-
+            The advisory database matched the version this instance reports.
+            The fixed release is named in the scan output and on the
+            /catalogue page.
+
+      # The grade. Mirrors the plugin's own default thresholds, so an alert
+      # here and a CRITICAL exit code mean the same thing.
+      - alert: OpenCloudRatingCritical
+        expr: opencloud_security_rating_score <= 1
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.host }} is rated {{ $value }}/5"
+          description: >-
+            Version {{ $labels.version }} of {{ $labels.product }}. Run the
+            check with --debug, or `check-opencloud-scanner scan`, for the
+            findings behind the number.
+
+      - alert: OpenCloudRatingDegraded
+        expr: opencloud_security_rating_score <= 3
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }} is rated {{ $value }}/5"
+
+      # A drop is worth its own rule: an instance that was A+ yesterday and is
+      # C today changed, and a change is news in a way a steady grade is not.
+      - alert: OpenCloudRatingDropped
+        expr: >-
+          opencloud_security_rating_score
+            < (min_over_time(opencloud_security_rating_score[7d]) + 1)
+          and
+          opencloud_security_rating_score
+            < max_over_time(opencloud_security_rating_score[7d])
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }} dropped to {{ $value }}/5 this week"
+          description: >-
+            Something changed on this instance rather than merely staying
+            imperfect. Compare the current scan with an archived one using
+            `check-opencloud-scanner diff before.json after.json`.
+
+      - alert: OpenCloudUpdateAvailable
+        expr: opencloud_security_update_available == 1
+        for: 7d
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.host }} has had {{ $labels.target_version }} available for a week"
+          description: >-
+            Informational: an available update is not a vulnerability. It
+            becomes one when the running release reaches end of life, which
+            OpenCloudEndOfLife covers.

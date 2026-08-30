@@ -39,7 +39,7 @@ credential](#erasure-needs-a-credential).
 
 ## What the agent gets
 
-Six tools, each a whole task rather than one HTTP endpoint:
+Seven tools, each a whole task rather than one HTTP endpoint:
 
 | Tool | What it does |
 |:-----|:-------------|
@@ -47,6 +47,7 @@ Six tools, each a whole task rather than one HTTP endpoint:
 | `scan_instances` | The same for a list of instances, in one batch |
 | `get_scan_result` | Read a scan by its uuid without waiting - what an agent polls with |
 | `plan_remediation` | The ordered fix list for a finished scan, with the grade each step reaches |
+| `compare_scans` | Two finished scans of one instance, compared: what was fixed, what is still open, what is new. Both must still be here |
 | `export_scan` | A finished scan as `json`, `csv`, `sarif` or `pdf` |
 | `erase_instance_data` | **Destructive.** Erase everything held about one hostname. Needs the operator's credential |
 
@@ -65,7 +66,7 @@ The last two are a knowledge base rather than a contract: read `catalogue` to
 explain what a finding id means before or after a scan, and `advisories` to
 see what the scanner would catch, without ever submitting a target.
 
-Six prompts as well - the tasks people actually ask for, written out once so
+Seven prompts as well - the tasks people actually ask for, written out once so
 every client sends the same well-formed request:
 
 | Prompt | What it asks for | Arguments |
@@ -76,6 +77,7 @@ every client sends the same well-formed request:
 | `triage_findings` | Turn a finished scan into one ticket per step of the plan | `uuid`, optionally `tracker` |
 | `review_transport_security` | The certificate, its expiry, the chain and the protocol, on their own | `target_url` |
 | `check_release_support` | Whether the release still gets security fixes, and what to upgrade to | `target_url`, optionally `release_track` |
+| `verify_remediation` | Rescan an instance that was fixed, and report what the changes actually achieved | `baseline_uuid`, `target_url` |
 
 In a client that lists them, "Audit an instance and write a remediation plan"
 is one entry to pick - Claude Code offers them as slash commands, VS Code

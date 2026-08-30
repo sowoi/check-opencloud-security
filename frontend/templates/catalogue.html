@@ -18,6 +18,12 @@
   <p class="lede">{{ t('catalogue.lede') }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#checks", "label": t('catalogue.checks.heading')},
+  {"href": "#advisories", "label": t('catalogue.advisories.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="checks" data-reveal>
   <p class="kicker">{{ t('catalogue.checks.kicker') }}</p>
   <h2 id="checks">{{ t('catalogue.checks.heading') }}</h2>

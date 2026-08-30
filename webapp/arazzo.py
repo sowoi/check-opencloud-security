@@ -37,6 +37,7 @@ WORKFLOW_SCAN = "scanOneInstance"
 WORKFLOW_AWAIT = "awaitScanResult"
 WORKFLOW_BATCH = "scanManyInstances"
 WORKFLOW_PLAN = "planRemediation"
+WORKFLOW_COMPARE = "compareScans"
 WORKFLOW_EXPORT = "exportFinishedScan"
 WORKFLOW_PURGE = "eraseInstanceData"
 
@@ -45,6 +46,7 @@ WORKFLOW_IDS = (
     WORKFLOW_AWAIT,
     WORKFLOW_BATCH,
     WORKFLOW_PLAN,
+    WORKFLOW_COMPARE,
     WORKFLOW_EXPORT,
     WORKFLOW_PURGE,
 )
@@ -437,6 +439,112 @@ def _plan_remediation() -> dict[str, Any]:
     }
 
 
+def _compare() -> dict[str, Any]:
+    return {
+        "workflowId": WORKFLOW_COMPARE,
+        "summary": "Check whether the fixes between two scans worked.",
+        "description": (
+            "The question after a remediation plan: did it help? Two finished "
+            "scans of the same instance are read as whole documents and the "
+            "later one is compared against the earlier.\n\n"
+            "Both have to still exist. This service keeps no history to look "
+            "an old scan up in - a comparison is of two live results, and a "
+            "uuid that has expired answers 404 like any unknown one. The "
+            "normal way to get a pair is to keep the uuid the plan was "
+            "written against and scan again once the changes are "
+            "deployed.\n\n"
+            "What counts as a new finding is the plugin's own baseline "
+            "arithmetic, the same one an operator's monitoring uses, so the "
+            "answer here and the answer their alerts give cannot disagree. A "
+            "grade that did not move is not a failed remediation: findings of "
+            "one severity share a single cap.\n\n"
+            + wf.CONFLICT_NOTE
+            + "\n\n"
+            + wf.EXPIRY_NOTE
+        ),
+        "inputs": {
+            "type": "object",
+            "required": ["baseline", "current"],
+            "properties": {
+                "baseline": _identifier_input(),
+                "current": _identifier_input(),
+            },
+        },
+        "steps": [
+            {
+                "stepId": "readBaselineDocument",
+                "description": (
+                    "The whole scanner document rather than the summary: a "
+                    "comparison is arithmetic over findings, and the summary "
+                    "does not carry all of them."
+                ),
+                "operationPath": _operation(
+                    "/paths/~1api~1scans~1{identifier}~1export~1{fmt}/get"
+                ),
+                "parameters": [
+                    {"name": "identifier", "in": "path", "value": "$inputs.baseline"},
+                    {"name": "fmt", "in": "path", "value": "json"},
+                ],
+                "successCriteria": [{"condition": "$statusCode == 200"}],
+                "onFailure": [
+                    {
+                        "name": "baselineNotFinished",
+                        "type": "retry",
+                        "retryAfter": wf.EXPORT_RETRY_SECONDS,
+                        "retryLimit": wf.EXPORT_MAX_ATTEMPTS,
+                        "criteria": [
+                            {"condition": f"$statusCode == {wf.NOT_FINISHED_STATUS}"}
+                        ],
+                    },
+                    {
+                        "name": "baselineUnknownOrExpired",
+                        "type": "end",
+                        "criteria": [{"condition": "$statusCode == 404"}],
+                    },
+                ],
+                "outputs": {"baselineRating": "$response.body#/rating"},
+            },
+            {
+                "stepId": "readCurrentDocument",
+                "description": (
+                    "The later scan, read the same way. Reached only once the "
+                    "earlier one is known to still exist, so an expired "
+                    "baseline is reported before a second scan is spent."
+                ),
+                "operationPath": _operation(
+                    "/paths/~1api~1scans~1{identifier}~1export~1{fmt}/get"
+                ),
+                "parameters": [
+                    {"name": "identifier", "in": "path", "value": "$inputs.current"},
+                    {"name": "fmt", "in": "path", "value": "json"},
+                ],
+                "successCriteria": [{"condition": "$statusCode == 200"}],
+                "onFailure": [
+                    {
+                        "name": "currentNotFinished",
+                        "type": "retry",
+                        "retryAfter": wf.EXPORT_RETRY_SECONDS,
+                        "retryLimit": wf.EXPORT_MAX_ATTEMPTS,
+                        "criteria": [
+                            {"condition": f"$statusCode == {wf.NOT_FINISHED_STATUS}"}
+                        ],
+                    },
+                    {
+                        "name": "currentUnknownOrExpired",
+                        "type": "end",
+                        "criteria": [{"condition": "$statusCode == 404"}],
+                    },
+                ],
+                "outputs": {"currentRating": "$response.body#/rating"},
+            },
+        ],
+        "outputs": {
+            "baselineRating": "$steps.readBaselineDocument.outputs.baselineRating",
+            "currentRating": "$steps.readCurrentDocument.outputs.currentRating",
+        },
+    }
+
+
 def _export() -> dict[str, Any]:
     return {
         "workflowId": WORKFLOW_EXPORT,
@@ -647,6 +755,7 @@ def arazzo_document(*, openapi_url: str = "/openapi.json") -> dict[str, Any]:
             _await_result(),
             _scan_many(),
             _plan_remediation(),
+            _compare(),
             _export(),
             _purge(),
         ],

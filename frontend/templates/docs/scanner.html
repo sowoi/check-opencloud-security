@@ -502,6 +502,26 @@ instance actually said:</p>
 <td><code>passwordPolicyEnforced</code></td>
 <td>Capabilities: policy enabled and minimum password length &gt;= 8</td>
 </tr>
+<tr>
+<td><code>passwordPolicyComplexity</code></td>
+<td>Capabilities: the policy still requires a lowercase letter, an uppercase letter, a digit and a special character</td>
+</tr>
+<tr>
+<td><code>oidcPkceSupported</code></td>
+<td>Discovery document: <code>code_challenge_methods_supported</code> contains <code>S256</code></td>
+</tr>
+<tr>
+<td><code>oidcImplicitFlowDisabled</code></td>
+<td>Discovery document: <code>response_types_supported</code> returns no token from the authorization endpoint (external providers only)</td>
+</tr>
+<tr>
+<td><code>oidcSigningAlgorithmStrong</code></td>
+<td>Discovery document: <code>id_token_signing_alg_values_supported</code> has neither <code>none</code> nor an <code>HS</code> algorithm</td>
+</tr>
+<tr>
+<td><code>oidcEndpointsUseHttps</code></td>
+<td>Discovery document: every published endpoint is <code>https://</code> (only measured when the instance itself answered over HTTPS)</td>
+</tr>
 </tbody>
 </table>
 <p>A key is omitted entirely when the corresponding evidence is unavailable - a

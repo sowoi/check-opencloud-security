@@ -26,7 +26,6 @@ MESSAGES: dict[str, str] = {
     "nav.search": "Rechercher",
     "nav.api": "API",
     "nav.ai": "IA",
-    "nav.docker": "Docker",
     "nav.privacy": "Confidentialité",
     "nav.about": "À propos",
     # --------------------------------------------------- language switcher
@@ -70,6 +69,9 @@ MESSAGES: dict[str, str] = {
         "ne sont utilisés ici que pour indiquer quel logiciel cet outil "
         "vérifie."
     ),
+    # --------------------------------------------------- the contents list
+    "toc.heading": "Sur cette page",
+    "toc.aria": "Sur cette page",
     # --------------------------------------------------------- cross-links
     "pagenav.kicker": "À lire aussi",
     "pagenav.aria": "En savoir plus sur ce service",
@@ -100,11 +102,6 @@ MESSAGES: dict[str, str] = {
     "pagenav.ai.blurb": (
         "Découverte, OpenAPI, flux de travail Arazzo et le point de terminaison "
         "MCP."
-    ),
-    "pagenav.cli.title": "Exécutez-le vous-même, en une seule ligne",
-    "pagenav.cli.blurb": (
-        "Une seule commande Docker, sur votre machine, sans limite de débit et "
-        "sans site web intermédiaire."
     ),
     "pagenav.privacy.title": "Ce que ce serveur conserve",
     "pagenav.privacy.blurb": (
@@ -830,14 +827,7 @@ MESSAGES: dict[str, str] = {
         "scanner vous-même</a> - c'est le même code, sur votre machine, sans "
         "aucune limite."
     ),
-    # ---------------------------------------------------------------- Docker
-    "cli.title": "Exécutez-le vous-même, en une seule ligne",
-    "cli.description": (
-        "Le même contrôle en une seule commande Docker : aucun site web "
-        "intermédiaire, aucune limite de débit, et personne d'autre que vous "
-        "n'apprend quelle instance vous surveillez."
-    ),
-    "cli.kicker": "Sans ce site web",
+    # -------------------------------- Docker one-liners, on /documentation
     "cli.lede": (
         "Confier une adresse au serveur d'un inconnu est une hésitation "
         "raisonnable. Vous n'y êtes pas obligé : cette page est le même "
@@ -879,18 +869,6 @@ MESSAGES: dict[str, str] = {
         "qu'<code>uv</code> ou <code>pipx</code> le récupèrent et l'exécutent "
         "sans rien installer de façon permanente."
     ),
-    "cli.more.kicker": "À lire aussi",
-    "cli.more.heading": "Chaque variante, documentée",
-    "cli.more.body": (
-        "Déroger un constat que vous avez décidé d'accepter, choisir un "
-        "canal de version, expliquer chaque contrôle avec <code>--debug</code>"
-        ", transformer la commande en fonction shell, ou la planifier avec un "
-        'minuteur : <a href="{project}/blob/main/docs/docker-oneliner.md" '
-        'rel="noopener noreferrer">la documentation de la commande unique</a> '
-        'couvre tout cela, et <a href="{project}" rel="noopener noreferrer">'
-        "le dépôt</a> porte le reste - ce site web y compris, si vous "
-        "souhaitez également exécuter les pages."
-    ),
     # ------------------------------------------------ CLI documentation index
     "docs.index.title": "Documentation en ligne de commande",
     "docs.index.description": (
@@ -907,8 +885,6 @@ MESSAGES: dict[str, str] = {
         "s'intègre à la supervision, à l'intégration continue ou à un parc "
         "de machines."
     ),
-    "docs.index.toc.aria": "Sur cette page",
-    "docs.index.toc.heading": "Sur cette page",
     "docs.index.toc.quickstart": "Démarrage rapide",
     "docs.index.toc.commands": "Commandes",
     "docs.index.toc.options": "Options utiles",
@@ -1118,11 +1094,6 @@ MESSAGES: dict[str, str] = {
     "search.page.ai.summary": (
         "OpenAPI, Arazzo, découverte, outils MCP et invites lisibles par "
         "machine."
-    ),
-    "search.page.cli.title": "Exécuter le scanner avec Docker",
-    "search.page.cli.summary": (
-        "Commandes Docker et uvx en une ligne pour analyser sans passer par "
-        "le site web."
     ),
     "search.page.privacy.title": "Confidentialité",
     "search.page.privacy.summary": (

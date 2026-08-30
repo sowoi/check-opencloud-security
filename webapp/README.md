@@ -61,9 +61,10 @@ webapp/
 frontend/
 ├── templates/        base.html, index.html, scan.html, 404.html,
 │                     how-it-works.html, grades.html, documentation.html,
-│                     api.html, ai.html, cli.html, privacy.html, about.html,
+│                     api.html, ai.html, privacy.html, about.html,
 │                     docs/*.html (generated from the Markdown guides),
-│                     _page-nav.html (the cross-links between them)
+│                     _page-nav.html (the cross-links between them),
+│                     _toc.html (the contents list a page carries)
 └── static/
     ├── css/app.css   the whole design system, hand-written
     ├── js/app.js     landing page niceties; the form works without it
@@ -141,7 +142,8 @@ A small surface, and this is all of it.
 | Method | Path | What it does |
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
-| `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/cli`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/cli` | **301** to `/documentation#oneliner`; the Docker one-liners moved onto that page |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |
 | `POST` | `/api/scans/batch` | Several targets at once; **202** with what started and what did not |
@@ -438,6 +440,7 @@ authorisation a browser does.
 | `scan_instances` | The same for a list, over the batch endpoint, waiting only on the accepted ones |
 | `get_scan_result` | Read one uuid once, without waiting |
 | `plan_remediation` | What would raise the grade, in order, with the rating each step reaches |
+| `compare_scans` | Two finished scans of one instance, compared: what was fixed, what is still open, what is new. Both must still be here |
 | `export_scan` | Download a finished result as `json`, `csv`, `sarif` or `pdf` |
 | `erase_instance_data` | **Destructive.** Erase everything held about one hostname. Needs the operator's credential |
 
@@ -476,6 +479,7 @@ prompt names tools, and the tools are what execute.
 | `triage_findings` | Turn a finished scan into one ticket per remediation step |
 | `review_transport_security` | The certificate and the handshake on their own |
 | `check_release_support` | Where the release sits in the lifecycle, and what to upgrade to |
+| `verify_remediation` | Rescan a fixed instance and compare it with the scan the plan was written against |
 
 They are advertised twice: over the protocol, and in the `mcp.prompts` block
 of `/.well-known/ai.json`, so an agent deciding whether this service is worth
@@ -599,7 +603,8 @@ The other standing restrictions:
 - **Nothing is stored.** Every key has a TTL, Redis persists nothing, and the
   log carries lifecycle markers and uuids - never a target, a client address
   or a result. An operator who needs an audit trail can turn one on with
-  `COS_WEB_AUDIT_LOG`; addresses stay fingerprints there too. See
+  `COS_WEB_AUDIT_LOG`, and keep it past the container with
+  `COS_WEB_AUDIT_LOG_FILE`; addresses stay fingerprints either way. See
   [What gets logged](../docs/webapp.md#what-gets-logged).
 
 ## Configuration
@@ -639,6 +644,7 @@ before the first deployment:
 | `COS_WEB_MCP_AUTH_RESOURCE_URL` | *(derived)* | The protected resource identifier. Defaults to `<public base URL>/mcp` |
 | `COS_WEB_MCP_AUTH_SCOPES` | *(empty)* | Scopes a token must carry, separated by `;` |
 | `COS_WEB_AUDIT_LOG` | `false` | An audit record per request, rejection and triggered limit, with fingerprints rather than addresses |
+| `COS_WEB_AUDIT_LOG_FILE` | *(the process output)* | Keep that trail in a file on a mount that outlives the container, owner-readable and rotated. A path it cannot write refuses to start |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge`. Unset means the endpoint is not there at all |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion, so a receipt can be checked long after the data went |
 | `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |

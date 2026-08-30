@@ -17,12 +17,19 @@ ones. If this module disagrees with the API, the API wins.
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid as uuidlib
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import quote
+
+# The one place this layer borrows arithmetic rather than driving the API:
+# what counts as a new finding must be the same question here, in the
+# plugin's --baseline and in `check-opencloud-scanner diff`.
+from opencloud_local_scan.baseline import Baseline, snapshot_of
 
 # ---------------------------------------------------------------------------
 # The semantics, as constants. Both the Arazzo document and the MCP tools read
@@ -654,6 +661,175 @@ async def plan_remediation(
         "blocked": plan.get("blocked") or [],
         "waived": plan.get("waived") or [],
         "untrusted": view.get("untrusted"),
+    }
+
+
+async def _result_document(
+    client: ApiClient,
+    identifier: str,
+    *,
+    sleep: Sleeper | None = None,
+    wait: bool = True,
+) -> dict[str, Any]:
+    """
+    The whole scanner document behind one uuid.
+
+    Deliberately not routed through :func:`export_scan`: that function's size
+    limit is a rule about what may be handed to a *model*, and this document
+    is read by arithmetic rather than shown to anybody. A comparison that
+    silently skipped the findings past forty thousand characters would be
+    wrong in the direction that looks like good news.
+    """
+    path = f"/api/scans/{_identifier(identifier)}/export/json"
+    attempts = EXPORT_MAX_ATTEMPTS if wait else 1
+    for attempt in range(1, attempts + 1):
+        response = await client.request("GET", path)
+        if response.status == 200:
+            body = response.body
+            if isinstance(body, str):
+                try:
+                    body = json.loads(body)
+                except ValueError as exc:  # pragma: no cover - defensive
+                    raise WorkflowError(
+                        "That scan's document could not be read.",
+                        status=502,
+                        retryable=False,
+                    ) from exc
+            if not isinstance(body, Mapping):  # pragma: no cover - defensive
+                raise WorkflowError(
+                    "That scan's document could not be read.",
+                    status=502,
+                    retryable=False,
+                )
+            return dict(body)
+        if response.status == NOT_FINISHED_STATUS:
+            if attempt < attempts:
+                await (sleep or default_sleep)(EXPORT_RETRY_SECONDS)
+                continue
+            raise WorkflowError(
+                f"Scan {identifier} exists but has not finished yet.",
+                status=NOT_FINISHED_STATUS,
+                retryable=True,
+            )
+        raise WorkflowError(
+            f"Scan {identifier} is unknown or has expired.",
+            status=response.status,
+            retryable=False,
+        )
+    raise WorkflowError(  # pragma: no cover - loop always returns or raises
+        "The scan never became readable.",
+        status=NOT_FINISHED_STATUS,
+        retryable=True,
+    )
+
+
+def _compared_side(identifier: str, document: Mapping[str, Any]) -> dict[str, Any]:
+    """How one of the two scans is named in the answer."""
+    scanned_at = document.get("scannedAt")
+    return {
+        "uuid": identifier,
+        "url": f"/scan/{identifier}",
+        "target": _safe_text(document.get("domain")),
+        "rating": document.get("rating"),
+        "version": _safe_token(document.get("version")),
+        "eol": bool(document.get("EOL")),
+        "scannedAt": _safe_token(
+            scanned_at.get("date") if isinstance(scanned_at, Mapping) else None
+        ),
+    }
+
+
+async def compare_scans(
+    client: ApiClient,
+    baseline_identifier: str,
+    current_identifier: str,
+    *,
+    sleep: Sleeper | None = None,
+    wait: bool = True,
+) -> dict[str, Any]:
+    """
+    What changed between two scans of the same instance.
+
+    The question after a remediation plan has been worked through: *did it
+    help?* Both scans have to still be here - a uuid outlives its result by
+    nothing, so this compares two live results and stores neither.
+
+    The arithmetic is the plugin's own baseline comparison, which is also what
+    ``--baseline`` spends on staying quiet and what
+    ``check-opencloud-scanner diff`` prints. Three surfaces, one definition of
+    "new finding": if this module decided for itself what counts as a
+    regression, an agent and an operator's own monitoring could disagree about
+    the same two scans.
+    """
+    if baseline_identifier == current_identifier:
+        raise WorkflowError(
+            "Both uuids name the same scan, so there is nothing to compare. "
+            "Scan the instance again and compare the new uuid with this one.",
+            status=422,
+            retryable=False,
+        )
+
+    before = await _result_document(client, baseline_identifier, sleep=sleep, wait=wait)
+    after = await _result_document(client, current_identifier, sleep=sleep, wait=wait)
+
+    baseline = Baseline(path=Path(os.devnull))
+    host = str(after.get("domain") or "")
+    baseline.record(
+        host, snapshot_of(before, waived=before.get("ignored") or ())
+    )
+    comparison = baseline.compare(
+        host, snapshot_of(after, waived=after.get("ignored") or ())
+    )
+
+    # Never None: the snapshot was recorded a line above the comparison.
+    previous = comparison.previous
+    assert previous is not None
+
+    same_target = str(before.get("domain") or "") == host
+    rated_before, rated_after = before.get("rating"), after.get("rating")
+    rating_change = (
+        rated_after - rated_before
+        if isinstance(rated_before, int) and isinstance(rated_after, int)
+        else None
+    )
+    if comparison.regressed:
+        verdict = "regressed"
+    elif comparison.resolved_findings or (rating_change or 0) > 0:
+        verdict = "improved"
+    else:
+        verdict = "unchanged"
+
+    return {
+        "ok": True,
+        "baseline": _compared_side(baseline_identifier, before),
+        "current": _compared_side(current_identifier, after),
+        # False means the two documents describe different instances. Not
+        # refused - comparing staging with production is a fair question - but
+        # said plainly, because every other number below then answers a
+        # different question than the caller probably asked.
+        "sameTarget": same_target,
+        "verdict": verdict,
+        "ratingChange": rating_change,
+        "resolved": list(comparison.resolved_findings),
+        "introduced": list(comparison.new_findings),
+        # Still open. Named because "nothing new" and "nothing wrong" are very
+        # different answers, and a comparison that only listed changes would
+        # let the second be read out of the first.
+        "unchanged": sorted(
+            set(comparison.current.findings) & set(previous.findings)
+        ),
+        "summary": comparison.summary(),
+        # The scanner's own itemised list: category and change, in the order
+        # the baseline reports them. Sanitised because a version string in it
+        # is whatever a stranger's status.php returned.
+        "changes": [
+            {
+                "category": _safe_text(item["category"]),
+                "change": _safe_text(item["change"]),
+            }
+            for item in comparison.items()
+        ],
+        "untrusted": {"fields": list(REMOTE_FIELDS), "note": REMOTE_NOTE},
     }
 
 

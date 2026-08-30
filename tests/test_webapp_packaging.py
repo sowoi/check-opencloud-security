@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shlex
 import subprocess  # nosec B404 - builds this project's own artefacts
 import sys
 import tarfile
@@ -247,6 +248,66 @@ def test_a_compose_file_builds_from_the_repository_root(compose):
     for line in text.splitlines():
         if line.strip().startswith("dockerfile:"):
             assert line.split(":", 1)[1].strip().startswith("docker/"), line
+
+
+STACKS_WITH_REDIS = (
+    "docker/docker-compose.yml",
+    "docker/docker-compose.dockerhub.yml",
+    "docker/docker-compose.authentik.yml",
+)
+
+
+def _service_commands(compose: str) -> dict[str, list[str]]:
+    """Every string `command:` in one compose file, split the way Compose does."""
+    import yaml
+
+    document = yaml.safe_load((ROOT / compose).read_text(encoding="utf-8"))
+    return {
+        name: shlex.split(service["command"])
+        for name, service in (document.get("services") or {}).items()
+        if isinstance(service.get("command"), str)
+    }
+
+
+@pytest.mark.parametrize("compose", STACKS_WITH_REDIS)
+def test_a_folded_command_block_carries_no_commentary(compose):
+    """
+    `command: >` is a folded scalar, so a '#' inside it is text, not a comment.
+
+    Prose written between the options is folded into the command line and handed
+    to the entrypoint as arguments. For Redis that put fifty words between
+    --maxmemory-policy and --requirepass, so the server either refuses the
+    directive outright or comes up with no password at all on a store holding
+    every live scan. The comments belong above the block; this asserts they
+    stayed there.
+    """
+    commands = _service_commands(compose)
+    assert commands, f"{compose} defines no string command to check"
+
+    for name, argv in commands.items():
+        assert "#" not in argv, (
+            f"{compose}: the {name} command carries a folded-in comment: {argv}"
+        )
+
+
+@pytest.mark.parametrize("compose", STACKS_WITH_REDIS)
+def test_the_redis_password_option_reaches_the_server(compose):
+    """
+    The one option in that block whose loss is silent rather than loud.
+
+    A missing --maxmemory shows up as memory growth. A missing --requirepass
+    shows up as nothing at all, on a Redis holding every result inside its TTL -
+    so it is asserted to be a directive of its own rather than merely a string
+    present somewhere in the command.
+    """
+    argv = _service_commands(compose)["redis"]
+
+    assert "--requirepass" in argv, compose
+    # Directly after the option before it: anything in between is a word that
+    # was folded in, which would make this an argument to that option instead.
+    assert argv[argv.index("--requirepass") - 1] == "allkeys-lru", compose
+    # And it takes exactly one value - the interpolation Compose fills in.
+    assert argv[argv.index("--requirepass") + 1 :] == ["${COS_REDIS_PASSWORD:-}"], compose
 
 
 def test_the_release_bundle_carries_the_signed_in_stack(tmp_path):

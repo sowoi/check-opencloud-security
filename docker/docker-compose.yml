@@ -90,7 +90,9 @@ services:
       # public: enabling them relaxes the content policy on those two paths.
       # /openapi.json, /arazzo.json and /.well-known/ai.json are public
       # whatever this says - a description nobody can fetch describes nothing.
-      COS_WEB_ENABLE_DOCS: "true"
+      # Set it to "true" to read the API in a browser; the value follows the
+      # sentence above rather than contradicting it.
+      COS_WEB_ENABLE_DOCS: "false"
       # The MCP endpoint at /mcp, which lets an AI agent run the same
       # workflows through the same rate limits. Needs the 'mcp' extra, which
       # the web image installs.
@@ -152,6 +154,25 @@ services:
       # COS_WEB_AUDIT_SALT means nothing correlates across a restart.
       COS_WEB_AUDIT_LOG: "false"
       COS_WEB_AUDIT_LOG_TARGETS: "false"
+      # Where that trail is kept. Unset, it goes to this container's output,
+      # which `docker compose down` takes with it - fine for reading along,
+      # useless when somebody asks in March about a scan in January. Set it to
+      # a path on a mount and the records go there instead, owner-readable and
+      # rotated at COS_WEB_AUDIT_LOG_MAX_BYTES with COS_WEB_AUDIT_LOG_BACKUPS
+      # generations kept, so the trail cannot fill the volume it sits on. The
+      # process refuses to start when it cannot write there, rather than
+      # reporting an audit trail that goes nowhere. `docker/setup-wizard.py`
+      # asks for this and adds the volume; by hand it is two lines:
+      #
+      #   COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      #   volumes:
+      #     - audit_log:/var/log/opencloud-scan
+      #
+      # plus `audit_log:` under a top-level `volumes:`. A bind mount works the
+      # same way but has to be owned by uid 10001, the user the image runs as.
+      # COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      # COS_WEB_AUDIT_LOG_MAX_BYTES: "10000000"
+      # COS_WEB_AUDIT_LOG_BACKUPS: "5"
       # Erasure on request: DELETE /api/purge answers 404 until a secret is
       # set here, because the call deletes results belonging to whoever is
       # currently reading them. The signing key makes the proof of deletion
@@ -265,16 +286,21 @@ services:
     restart: unless-stopped
     # No persistence: nothing here is worth surviving a restart, and a dump
     # file would be a copy of everybody's scans sitting on a disk.
+    #
+    # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+    # unset and this behaves exactly as it did before. Redis answers whoever
+    # reaches it, and what it holds is every live scan and every result still
+    # inside its TTL, so set one on anything that is not a laptop.
+    #
+    # Every comment stays *outside* the block below: `>` is a folded scalar, so
+    # a `#` inside it is literal text rather than a comment, and the prose would
+    # be folded into the command line between the options.
     command: >
       redis-server
       --save ""
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
-      # unset and this behaves exactly as it did before. Redis answers whoever
-      # reaches it, and what it holds is every live scan and every result still
-      # inside its TTL, so set one on anything that is not a laptop.
       --requirepass "${COS_REDIS_PASSWORD:-}"
     environment:
       # redis-cli reads this, so the health check authenticates without the

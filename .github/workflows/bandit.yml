@@ -17,6 +17,12 @@ on:
   schedule:
     - cron: '38 17 * * 3'
 
+# The default for anything added to this file later. The job below needs more
+# than this and says so; a job-level block replaces this one outright rather
+# than adding to it, so the grants there are unchanged.
+permissions:
+  contents: read
+
 jobs:
   bandit:
     permissions:
@@ -26,10 +32,10 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
 
       # Medium severity and medium confidence: the same thresholds the
       # marketplace action was configured with. Tests and secrets are excluded
@@ -47,8 +53,19 @@ jobs:
           --output bandit-results.sarif
           --exit-zero
 
+      # ref and sha are passed explicitly. Left to itself the action resolves
+      # the pull request's merge commit from the checkout, and GitHub may have
+      # recomputed refs/pull/N/merge between the event firing and this job
+      # running - the analysis then lands on a merge commit the pull request's
+      # code scanning check is not looking at, and the check reports "1
+      # configuration not found" even though the upload succeeded. Naming the
+      # ref and sha from the event pins the analysis to the commit the check
+      # expects. On push and schedule these are refs/heads/main and its commit,
+      # which is what the action would have derived anyway.
       - name: Upload the SARIF report
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           sarif_file: bandit-results.sarif
           category: bandit
+          ref: ${{ github.ref }}
+          sha: ${{ github.sha }}

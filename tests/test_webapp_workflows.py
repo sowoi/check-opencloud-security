@@ -496,3 +496,175 @@ def test_planning_names_the_instance_as_the_source_of_its_own_words():
     assert any(
         "remediation" in field for field in result["untrusted"]["fields"]
     )
+
+
+# --------------------------------------------------------------- comparing --
+# Two finished scans of one instance. Minimal but real in shape: the baseline
+# arithmetic reads extraChecks, hardenings, the rating and the EOL flag, and
+# those are the fields these documents carry.
+
+
+def _document(
+    *,
+    rating: int,
+    failures: tuple[str, ...] = (),
+    domain: str = "opencloud.example.com",
+    version: str = "7.2.3",
+    eol: bool = False,
+) -> wf.ApiResponse:
+    return wf.ApiResponse(
+        status=200,
+        headers={"content-type": "application/json"},
+        body={
+            "domain": domain,
+            "rating": rating,
+            "version": version,
+            "EOL": eol,
+            "scannedAt": {"date": "2026-08-01 09:00:00.000000"},
+            "hardenings": {},
+            "extraChecks": [
+                {"id": name, "severity": "high", "passed": False} for name in failures
+            ],
+            "vulnerabilities": [],
+        },
+    )
+
+
+def test_a_comparison_names_what_was_fixed_and_what_is_still_open():
+    """
+    The question after a remediation plan: did the work land?
+
+    Resolved and unchanged are reported separately because 'nothing new' and
+    'nothing wrong' are very different answers, and a list of changes alone
+    would let the second be read out of the first.
+    """
+    api = ScriptedApi(
+        _document(rating=2, failures=("tlsTrusted", "debugEndpoint")),
+        _document(rating=4, failures=("tlsTrusted",)),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["ok"] is True
+    assert answer["verdict"] == "improved"
+    assert answer["ratingChange"] == 2
+    assert answer["resolved"] == ["check:debugEndpoint"]
+    assert answer["introduced"] == []
+    assert answer["unchanged"] == ["check:tlsTrusted"]
+    assert answer["baseline"]["uuid"] == UUID
+    assert answer["current"]["uuid"] == OTHER_UUID
+
+
+def test_a_finding_that_appeared_between_the_two_scans_is_a_regression():
+    """A change that fixed one thing and broke another is the finding that matters."""
+    api = ScriptedApi(
+        _document(rating=4, failures=("tlsTrusted",)),
+        _document(rating=4, failures=("tlsTrusted", "basicAuthDisabled")),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["verdict"] == "regressed"
+    assert answer["introduced"] == ["check:basicAuthDisabled"]
+    assert answer["ratingChange"] == 0
+
+
+def test_two_documents_from_different_instances_are_answered_but_flagged():
+    """
+    Comparing staging with production is a fair question and a different one.
+
+    Refusing it would be wrong; answering it silently would be worse, because
+    every number in the answer then means something else.
+    """
+    api = ScriptedApi(
+        _document(rating=4, domain="staging.example.com"),
+        _document(rating=4, domain="opencloud.example.com"),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["ok"] is True
+    assert answer["sameTarget"] is False
+
+
+def test_comparing_a_scan_with_itself_is_refused_rather_than_answered():
+    """An empty diff of one scan against itself reads as 'nothing is wrong'."""
+    api = ScriptedApi(_document(rating=4))
+
+    with pytest.raises(wf.WorkflowError) as raised:
+        asyncio.run(wf.compare_scans(api, UUID, UUID, sleep=_instant))
+
+    assert raised.value.status == 422
+    assert raised.value.retryable is False
+    assert api.calls == [], "a refused comparison must not spend a request"
+
+
+def test_an_expired_baseline_is_final_and_names_which_scan_is_gone():
+    """
+    Results expire, and this service stores no history to look one up in.
+
+    A caller told only '404' cannot know whether to rescan the instance or
+    give up on the comparison, so the message says which uuid went missing.
+    """
+    api = ScriptedApi(wf.ApiResponse(status=404, body={}))
+
+    with pytest.raises(wf.WorkflowError) as raised:
+        asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert raised.value.status == 404
+    assert raised.value.retryable is False
+    assert UUID in str(raised.value)
+
+
+def test_a_scan_that_is_merely_unfinished_is_waited_for():
+    """409 and 404 mean opposite things here as everywhere else."""
+    api = ScriptedApi(
+        wf.ApiResponse(status=wf.NOT_FINISHED_STATUS, body={}),
+        _document(rating=3),
+        _document(rating=5),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["ok"] is True
+    assert answer["ratingChange"] == 2
+
+
+def test_the_whole_document_is_read_rather_than_the_truncated_export():
+    """
+    A comparison is arithmetic, not something shown to a model.
+
+    export_scan drops a document past its inline size limit, which would make
+    a large result's findings silently vanish - and vanished findings look
+    exactly like fixed ones.
+    """
+    api = ScriptedApi(
+        _document(rating=2, failures=tuple(f"check{index}" for index in range(400))),
+        _document(rating=2, failures=tuple(f"check{index}" for index in range(400))),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["verdict"] == "unchanged"
+    assert answer["resolved"] == []
+    assert len(answer["unchanged"]) == 400
+    assert all(path.endswith("/export/json") for _, path, _ in api.calls)
+
+
+def test_a_release_that_reached_end_of_life_is_never_reported_as_improved():
+    """
+    An instance with no security fixes at all is not an improvement.
+
+    The baseline refuses to forgive end of life no matter how long it has been
+    true, and a comparison that graded it as progress would be the one wrong
+    answer this tool must not give.
+    """
+    api = ScriptedApi(
+        _document(rating=1, failures=("tlsTrusted",), eol=True),
+        _document(rating=1, eol=True),
+    )
+
+    answer = asyncio.run(wf.compare_scans(api, UUID, OTHER_UUID, sleep=_instant))
+
+    assert answer["resolved"] == ["check:tlsTrusted"]
+    assert answer["verdict"] == "regressed"

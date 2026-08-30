@@ -480,6 +480,52 @@ def build_mcp_server(app: Any, settings: WebSettings) -> MCPServer:
             return _failed(exc)
 
     @mcp.tool(
+        name="compare_scans",
+        title="Check whether the fixes actually worked",
+        description=(
+            "Compare two finished scans of the same instance and say what "
+            "changed between them. The question after a remediation plan has "
+            "been worked through: did it help?\n\n"
+            "Input: baseline_uuid, the earlier scan, and current_uuid, the "
+            "later one. Both must still exist - a result expires, and the "
+            "comparison is of two live results, because this service stores "
+            "no history to look one up in. The normal way to get a pair is to "
+            "keep the uuid of the scan the plan was written against and call "
+            "scan_instance again after the changes are deployed.\n\n"
+            "Output: verdict, one of improved, unchanged or regressed; "
+            "resolved, the findings that are gone; introduced, the ones that "
+            "are new; unchanged, the ones still open; ratingChange; changes, "
+            "the itemised list including any movement in the version and the "
+            "support horizon; and both scans' ratings, versions and scan "
+            "times. sameTarget is false when the two documents describe "
+            "different instances - not refused, but every other number then "
+            "answers a different question.\n\n"
+            "A rating that did not move is not a failed remediation: findings "
+            "of one severity share a single cap, so several fixes can land "
+            "before the grade changes. Read resolved and introduced, not only "
+            "ratingChange. Report the lists as given - the arithmetic is the "
+            "same one the plugin's own monitoring uses, so do not recompute "
+            f"which findings are new.\n\n{wf.CONFLICT_NOTE} This tool does "
+            "that waiting for you. 404 names whichever uuid is gone and is "
+            "final; scan the instance again rather than retrying. Passing the "
+            "same uuid twice answers 422."
+        ),
+        annotations=ToolAnnotations(
+            read_only_hint=True, destructive_hint=False, open_world_hint=False
+        ),
+    )
+    async def compare_scans(
+        ctx: Context, baseline_uuid: str, current_uuid: str
+    ) -> dict[str, Any]:
+        try:
+            async with _wait_slot(waits) as granted:
+                return await wf.compare_scans(
+                    api(ctx), baseline_uuid, current_uuid, wait=granted
+                )
+        except wf.WorkflowError as exc:
+            return _failed(exc)
+
+    @mcp.tool(
         name="export_scan",
         title="Export a finished scan as a file",
         description=(
@@ -648,6 +694,21 @@ def build_mcp_server(app: Any, settings: WebSettings) -> MCPServer:
         ] = None,
     ) -> str:
         return pr.check_release_support(target_url, release_track)
+
+    @mcp.prompt(
+        name=pr.VERIFY_REMEDIATION.name,
+        title=pr.VERIFY_REMEDIATION.title,
+        description=pr.VERIFY_REMEDIATION.description,
+    )
+    def verify_remediation(
+        baseline_uuid: Annotated[
+            str, Field(description=_arg(pr.VERIFY_REMEDIATION, "baseline_uuid"))
+        ],
+        target_url: Annotated[
+            str, Field(description=_arg(pr.VERIFY_REMEDIATION, "target_url"))
+        ],
+    ) -> str:
+        return pr.verify_remediation(baseline_uuid, target_url)
 
     @mcp.resource(
         OPENAPI_RESOURCE,

@@ -9,6 +9,7 @@ it can be made to expire.
 * [Public link sharing: what this scanner checks, and why](#public-link-sharing-what-this-scanner-checks-and-why)
   * [1. Can a public link be created without a password: `publicLinkPasswordEnforced`](#1-can-a-public-link-be-created-without-a-password-publiclinkpasswordenforced)
   * [2. Do public links expire automatically: `publicLinkExpirationEnforced`](#2-do-public-links-expire-automatically-publiclinkexpirationenforced)
+  * [What else is in that document, and why none of it is checked](#what-else-is-in-that-document-and-why-none-of-it-is-checked)
   * [Severity and rating impact](#severity-and-rating-impact)
 <!-- TOC -->
 
@@ -61,6 +62,26 @@ to change. An expiry has to be set per share at creation time, or the link's
 effective lifetime governed by something outside OpenCloud entirely - for
 example a reverse-proxy rule or an external process that revokes shares on a
 schedule.
+
+## What else is in that document, and why none of it is checked
+
+The capabilities document lists a lot more about sharing than these two
+checks read, and it is worth writing down why the rest is not worth a flag -
+otherwise somebody re-derives it every year. Verified against
+`services/frontend/pkg/revaconfig/config.go` in
+[opencloud-eu/opencloud](https://github.com/opencloud-eu/opencloud):
+
+| Capability | Why there is no check |
+|:--|:--|
+| `auto_accept_share`, `share_with_group_members_only`, `share_with_membership_groups_only`, `group_sharing`, `sharing_roles`, `api_enabled` | Hardcoded constants in the capabilities map. Every instance reports the same value, so a check would say nothing about the deployment - the same reason `publicLinkExpirationEnforced` is never alerted on. |
+| `public.upload`, `public.send_mail`, `public.social_share`, `public.alias`, `public.multiple`, `public.supports_upload_only`, `public.can_edit` | Hardcoded the same way. |
+| `federation.incoming`, `federation.outgoing` | Configurable through `OC_ENABLE_OCM`, but OpenCloud's own description says changing it is **not supported** and that "the backend behaviour is not changed" - it governs what clients are told, not what the server does. A finding an operator cannot act on with any real effect is worse than none. |
+| `public.default_permissions` | Genuinely configurable (`FRONTEND_DEFAULT_LINK_PERMISSIONS`: `0` internal, `1` public viewer, default `1`). Not checked *yet*, because every default instance would begin failing it, and whether that trade is worth making is a judgement about noise rather than about evidence. |
+| `deny_access`, `search_min_length` | Configurable, but a deprecated experiment and a search-UX setting respectively, neither of which changes who can reach data. |
+
+The rule this table follows is the one in `AGENTS.md`: before adding a
+hardening check, verify against the OpenCloud source that an operator can
+actually change it.
 
 ## Severity and rating impact
 

@@ -10,6 +10,14 @@
   <p class="lede">{{ t('api.lede') }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#api", "label": t('api.submit.heading')},
+  {"href": "#api-limits", "label": t('api.limits.heading')},
+  {"href": "#api-schema", "label": t('api.schema.heading')},
+  {"href": "#api-agents", "label": t('api.agents.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="api" data-reveal>
   <p class="kicker">{{ t('api.submit.kicker') }}</p>
   <h2 id="api">{{ t('api.submit.heading') }}</h2>

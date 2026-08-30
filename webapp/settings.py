@@ -29,6 +29,18 @@ DEFAULT_IP_RATE_WINDOW_SECONDS = 60
 DEFAULT_TARGET_COOLDOWN_SECONDS = 300
 DEFAULT_MAX_BATCH_TARGETS = 10
 DEFAULT_MCP_MAX_CONCURRENT_WAITS = 8
+# An audit trail written to a file outlives the container, which is the point
+# of it and also the risk: a log nobody rotates fills the volume it sits on and
+# takes the service down with it. Ten megabytes and five generations is about
+# a week of a busy public deployment and bounded at 60 MB whatever happens.
+DEFAULT_AUDIT_LOG_MAX_BYTES = 10_000_000
+DEFAULT_AUDIT_LOG_BACKUPS = 5
+# Who rotates the audit file: this process, by size, or something on the host
+# that moves it aside and expects the writer to notice. The names are the
+# accepted values of COS_WEB_AUDIT_LOG_ROTATION.
+AUDIT_ROTATION_SERVICE = "service"
+AUDIT_ROTATION_EXTERNAL = "external"
+AUDIT_ROTATIONS = (AUDIT_ROTATION_SERVICE, AUDIT_ROTATION_EXTERNAL)
 _META_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9:._-]{0,63}$")
 _RESERVED_META_NAMES = frozenset(
     {
@@ -184,6 +196,16 @@ class WebSettings:
     """Read the client address from ``X-Forwarded-For``. Only behind a proxy
     that overwrites the header, otherwise the rate limit is trivially evaded."""
 
+    rate_limit_salt: str | None = None
+    """Salt for the rate-limit and cooldown fingerprints. Unset means a random
+    one per process, which is correct for a deployment running a single web
+    process and silently wrong for one running several: each derives a
+    different Redis key for the same address, so a client gets one allowance
+    per process and the limit stops being one. Set the same value everywhere
+    to make them count together. Like ``audit_salt`` it is a secret - the
+    address space is small enough to hash exhaustively - and rotating it
+    resets every counter rather than corrupting one."""
+
     public_base_url: str | None = None
     """The origin this service is reached at, for the canonical links and the
     sitemap. Unset means the address of the request is used, which is right
@@ -328,6 +350,32 @@ class WebSettings:
     fingerprints in the log are only pseudonyms for as long as it is unknown,
     since the address space is small enough to hash exhaustively."""
 
+    audit_log_file: str | None = None
+    """Write the audit records to this file instead of the process output.
+    Unset means they go where every other log line goes, which a container
+    keeps only for as long as the container lives - an audit trail that a
+    ``docker compose down`` erases is not one. A path here is expected to be
+    on a mount that outlives the container; the process refuses to start when
+    it cannot write there, because an audit trail that silently goes nowhere
+    is worse than one nobody asked for."""
+
+    audit_log_max_bytes: int = DEFAULT_AUDIT_LOG_MAX_BYTES
+    """Size at which the audit file is rotated. ``0`` never rotates, which
+    only makes sense when something outside this service does."""
+
+    audit_log_backups: int = DEFAULT_AUDIT_LOG_BACKUPS
+    """Rotated generations kept beside the audit file. With the size above
+    this is the whole of what the trail may ever occupy on disk."""
+
+    audit_log_rotation: str = AUDIT_ROTATION_SERVICE
+    """Who rotates that file. ``service`` is this process, by size, and needs
+    nothing installed on the host. ``external`` hands the job to whatever the
+    host already runs - logrotate, normally - and this process only notices
+    that the file it holds was moved out from under it and reopens the new
+    one. Two rotators on one file is how a trail loses records, so this is a
+    choice rather than a fallback, and an unrecognised value refuses to
+    start."""
+
     purge_token: str | None = None
     """Bearer token for ``DELETE /api/purge``. Unset means the endpoint does
     not exist at all: erasure walks the keyspace and deletes other people's
@@ -374,6 +422,7 @@ class WebSettings:
             ),
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
+            rate_limit_salt=_env("RATE_LIMIT_SALT"),
             public_base_url=_env("PUBLIC_BASE_URL"),
             index_meta_tags=_env_index_meta_tags(),
             allow_indexing=_env_bool("ALLOW_INDEXING", True),
@@ -408,6 +457,14 @@ class WebSettings:
             audit_log=_env_bool("AUDIT_LOG", False),
             audit_log_targets=_env_bool("AUDIT_LOG_TARGETS", False),
             audit_salt=_env("AUDIT_SALT"),
+            audit_log_file=_env("AUDIT_LOG_FILE"),
+            audit_log_max_bytes=_env_int(
+                "AUDIT_LOG_MAX_BYTES", DEFAULT_AUDIT_LOG_MAX_BYTES, minimum=0
+            ),
+            audit_log_backups=_env_int(
+                "AUDIT_LOG_BACKUPS", DEFAULT_AUDIT_LOG_BACKUPS, minimum=0
+            ),
+            audit_log_rotation=_env("AUDIT_LOG_ROTATION") or AUDIT_ROTATION_SERVICE,
             purge_token=_env("PURGE_TOKEN"),
             purge_signing_key=_env("PURGE_SIGNING_KEY"),
             export_signing_key=_env("EXPORT_SIGNING_KEY"),

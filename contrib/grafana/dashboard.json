@@ -1,0 +1,428 @@
+{
+  "__comment": [
+    "Grafana dashboard for the plugin's own Prometheus exporter. Import it in",
+    "Grafana under Dashboards - New - Import, and pick the Prometheus data",
+    "source that scrapes the exporter.",
+    "",
+    "Every metric referenced here is one --format=prometheus and",
+    "--prometheus-listen-port actually emit; tests/test_contrib_assets.py fails",
+    "if that stops being true. The textfile-collector and Pushgateway recipes",
+    "in docs/prometheus.md shape their own metric names with jq and are not",
+    "what this dashboard reads.",
+    "",
+    "Colour is Grafana's reserved status palette - green, yellow, orange, red -",
+    "and it is never used to tell one instance from another. Every panel that",
+    "carries a status also carries the word for it, so the state is legible",
+    "without seeing the colour at all: the rating tile prints the letter grade,",
+    "the lifecycle tile prints 'End of life' or 'Supported'. No categorical",
+    "palette is introduced, which is why there is none to validate."
+  ],
+  "title": "OpenCloud security",
+  "uid": "opencloud-security",
+  "tags": ["opencloud", "security"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5m",
+  "time": {"from": "now-30d", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Instance",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": "label_values(opencloud_security_scrape_success, host)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": {"text": "All", "value": "$__all"},
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Security rating",
+      "description": "The grade the scanner awarded, 0 to 5. The letter is the same one the plugin prints and the web report shows.",
+      "gridPos": {"h": 5, "w": 5, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_rating_score{host=~\"$host\"}",
+          "legendFormat": "{{host}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 5,
+          "mappings": [
+            {"type": "value", "options": {
+              "5": {"text": "A+", "color": "green", "index": 0},
+              "4": {"text": "A", "color": "green", "index": 1},
+              "3": {"text": "C", "color": "yellow", "index": 2},
+              "2": {"text": "D", "color": "orange", "index": 3},
+              "1": {"text": "E", "color": "red", "index": 4},
+              "0": {"text": "F", "color": "red", "index": 5}
+            }}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "orange", "value": 2},
+            {"color": "yellow", "value": 3},
+            {"color": "green", "value": 4}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Release lifecycle",
+      "description": "Whether the running release still receives security fixes. An end-of-life instance cannot be hardened back into support - only upgraded.",
+      "gridPos": {"h": 5, "w": 5, "x": 5, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_end_of_life{host=~\"$host\"}",
+          "legendFormat": "{{host}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {
+              "0": {"text": "Supported", "color": "green", "index": 0},
+              "1": {"text": "End of life", "color": "red", "index": 1}
+            }}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "red", "value": 1}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Support remaining",
+      "description": "Days until the running release reaches end of life. A release whose end of life is not dated yet publishes no sample at all, so an empty tile is 'not dated', never 'zero days'.",
+      "gridPos": {"h": 5, "w": 7, "x": 10, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_support_days_remaining{host=~\"$host\"}",
+          "legendFormat": "{{host}} ({{release_type}})",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "Not dated yet",
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "orange", "value": 30},
+            {"color": "yellow", "value": 90},
+            {"color": "green", "value": 180}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Scan health",
+      "description": "Whether the scan behind these numbers actually completed. A scan that stopped running looks exactly like a healthy instance, so read this tile first.",
+      "gridPos": {"h": 5, "w": 7, "x": 17, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_scrape_success{host=~\"$host\"}",
+          "legendFormat": "{{host}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {
+              "0": {"text": "Scan failed", "color": "red", "index": 0},
+              "1": {"text": "Scan completed", "color": "green", "index": 1}
+            }}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Rating over time",
+      "description": "The grade, per instance. A step down is news in a way a steady imperfect grade is not - it means something changed on the instance.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_rating_score{host=~\"$host\"}",
+          "legendFormat": "{{host}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 5,
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "pointSize": 8,
+            "showPoints": "never",
+            "axisLabel": "Rating"
+          },
+          "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}]},
+          "color": {"mode": "palette-classic"}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Open findings",
+      "description": "Missing hardening measures and failed additional checks. Both are counts of findings, so they share one axis; neither is a rating.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_hardenings_missing_total{host=~\"$host\"}",
+          "legendFormat": "{{host}} - missing hardenings"
+        },
+        {
+          "refId": "B",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_failed_extra_checks_total{host=~\"$host\"}",
+          "legendFormat": "{{host}} - failed checks"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "axisLabel": "Findings"
+          },
+          "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}]},
+          "color": {"mode": "palette-classic"}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Known vulnerabilities by severity",
+      "description": "Advisories matching the version each instance reports. Severity is a state, not a series identity, which is why these keep the status colours.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum by (severity) (opencloud_security_vulnerabilities_total{host=~\"$host\"})",
+          "legendFormat": "{{severity}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "orange", "value": 1}
+          ]}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "critical"},
+            "properties": [{"id": "thresholds", "value": {"mode": "absolute", "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "high"},
+            "properties": [{"id": "thresholds", "value": {"mode": "absolute", "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]}}]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Instances",
+      "description": "What is running where. The rating says something is wrong; the version is what tells you whether an upgrade is the answer.",
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_rating_score{host=~\"$host\"}",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "format": "table",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "opencloud_security_update_available{host=~\"$host\"}",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {"id": "joinByField", "options": {"byField": "host", "mode": "outer"}},
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true, "Time 1": true, "Time 2": true,
+              "__name__": true, "__name__ 1": true, "__name__ 2": true,
+              "job": true, "job 1": true, "job 2": true,
+              "instance": true, "instance 1": true, "instance 2": true
+            },
+            "renameByName": {
+              "host": "Instance",
+              "domain": "Domain",
+              "product": "Product",
+              "version": "Version",
+              "target_version": "Update to",
+              "Value #A": "Rating",
+              "Value #B": "Update available"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [{"displayName": "Rating", "desc": false}]
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Rating"},
+            "properties": [
+              {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+              {"id": "mappings", "value": [
+                {"type": "value", "options": {
+                  "5": {"text": "A+", "color": "green", "index": 0},
+                  "4": {"text": "A", "color": "green", "index": 1},
+                  "3": {"text": "C", "color": "yellow", "index": 2},
+                  "2": {"text": "D", "color": "orange", "index": 3},
+                  "1": {"text": "E", "color": "red", "index": 4},
+                  "0": {"text": "F", "color": "red", "index": 5}
+                }}
+              ]}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Update available"},
+            "properties": [
+              {"id": "mappings", "value": [
+                {"type": "value", "options": {
+                  "0": {"text": "Up to date", "index": 0},
+                  "1": {"text": "Update available", "index": 1}
+                }}
+              ]}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

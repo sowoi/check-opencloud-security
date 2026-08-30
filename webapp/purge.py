@@ -65,8 +65,36 @@ STATEMENT = (
 )
 
 
+#: The shortest credential this endpoint will accept at startup. The wizard
+#: generates 64 hex characters; anything under this is a token somebody typed,
+#: and a token somebody typed is one that can be guessed.
+MIN_TOKEN_LENGTH = 32
+
+
 class PurgeRejected(ValueError):
     """The target of an erasure request could not be understood."""
+
+
+def ensure_purge_token_ready(token: str | None) -> None:
+    """
+    Refuse to start when the erasure credential is weak enough to guess.
+
+    The endpoint answers 404 without a token at all, which is the safe state.
+    *With* one, that single string is the whole of the authorisation for the
+    one call that walks the keyspace and deletes results belonging to whoever
+    is currently reading them - so a memorable one is worse than none, and the
+    same reasoning that makes ``ensure_encryption_ready`` refuse to store
+    plaintext applies here.
+    """
+    if not token:
+        return
+    if len(token) < MIN_TOKEN_LENGTH:
+        raise ValueError(
+            f"COS_WEB_PURGE_TOKEN must be at least {MIN_TOKEN_LENGTH} characters. "
+            "It is the entire authorisation for an endpoint that deletes other "
+            "people's results; generate one with "
+            "`python -c 'import secrets; print(secrets.token_hex(32))'`."
+        )
 
 
 def normalise_target(raw: str | None) -> str:

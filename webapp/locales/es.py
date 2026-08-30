@@ -26,7 +26,6 @@ MESSAGES: dict[str, str] = {
     "nav.search": "Buscar",
     "nav.api": "API",
     "nav.ai": "IA",
-    "nav.docker": "Docker",
     "nav.privacy": "Privacidad",
     "nav.about": "Acerca de",
     # --------------------------------------------------- language switcher
@@ -67,6 +66,9 @@ MESSAGES: dict[str, str] = {
         "asociadas son propiedad de sus respectivos titulares y se usan aquí "
         "únicamente para indicar qué software comprueba esta herramienta."
     ),
+    # --------------------------------------------------- the contents list
+    "toc.heading": "En esta página",
+    "toc.aria": "En esta página",
     # --------------------------------------------------------- cross-links
     "pagenav.kicker": "Sigue leyendo",
     "pagenav.aria": "Más sobre este servicio",
@@ -89,11 +91,6 @@ MESSAGES: dict[str, str] = {
     "pagenav.api.blurb": "La API JSON, los límites de uso razonable y el esquema OpenAPI.",
     "pagenav.ai.title": "Para agentes de IA",
     "pagenav.ai.blurb": "Descubrimiento, OpenAPI, flujos de trabajo Arazzo y el endpoint MCP.",
-    "pagenav.cli.title": "Ejecútalo tú mismo, en una línea",
-    "pagenav.cli.blurb": (
-        "Un único comando de Docker, en tu máquina, sin límite de frecuencia y "
-        "sin ningún sitio web de por medio."
-    ),
     "pagenav.privacy.title": "Qué conserva este servidor",
     "pagenav.privacy.blurb": (
         "En memoria, durante {minutes} minutos, y qué queda fuera del registro."
@@ -796,14 +793,7 @@ MESSAGES: dict[str, str] = {
         'rel="noopener noreferrer">ejecuta el escáner tú mismo</a>: es el '
         "mismo código, en tu máquina, sin límites."
     ),
-    # ---------------------------------------------------------------- Docker
-    "cli.title": "Ejecútalo tú mismo, en una línea",
-    "cli.description": (
-        "La misma comprobación como un único comando de Docker: sin ningún "
-        "sitio web de por medio, sin límite de frecuencia, y nadie más que tú "
-        "se entera de qué instancia administras."
-    ),
-    "cli.kicker": "Sin este sitio web",
+    # -------------------------------- Docker one-liners, on /documentation
     "cli.lede": (
         "Es razonable dudar antes de entregar una dirección al servidor de "
         "un desconocido. No hace falta: esta página es la misma "
@@ -844,19 +834,6 @@ MESSAGES: dict[str, str] = {
         "<code>uv</code> o <code>pipx</code> lo descargarán y ejecutarán sin "
         "instalar nada de forma permanente."
     ),
-    "cli.more.kicker": "Sigue leyendo",
-    "cli.more.heading": "Todas las variantes, documentadas",
-    "cli.more.body": (
-        "Exceptuar un hallazgo que has decidido asumir, elegir un canal de "
-        "publicación, explicar cada comprobación con <code>--debug</code>, "
-        "convertir el comando en una función de shell, o programarlo con un "
-        'temporizador: <a href="{project}/blob/main/docs/docker-oneliner.md" '
-        'rel="noopener noreferrer">la documentación del comando de una '
-        'línea</a> lo cubre todo, y <a href="{project}" '
-        'rel="noopener noreferrer">el repositorio</a> contiene el resto, '
-        "incluido este sitio web, por si también quisieras ejecutar sus "
-        "páginas."
-    ),
     # ------------------------------------------------ CLI documentation index
     "docs.index.title": "Documentación de la CLI",
     "docs.index.description": (
@@ -872,8 +849,6 @@ MESSAGES: dict[str, str] = {
         "parte de la monitorización, la integración continua o una flota de "
         "instancias."
     ),
-    "docs.index.toc.aria": "En esta página",
-    "docs.index.toc.heading": "En esta página",
     "docs.index.toc.quickstart": "Inicio rápido",
     "docs.index.toc.commands": "Comandos",
     "docs.index.toc.options": "Opciones útiles",
@@ -1069,11 +1044,6 @@ MESSAGES: dict[str, str] = {
     "search.page.ai.summary": (
         "OpenAPI legible por máquina, Arazzo, descubrimiento, herramientas "
         "MCP y prompts."
-    ),
-    "search.page.cli.title": "Ejecuta el escáner con Docker",
-    "search.page.cli.summary": (
-        "Comandos de una línea con Docker y uvx para analizar sin pasar por "
-        "el sitio web."
     ),
     "search.page.privacy.title": "Privacidad",
     "search.page.privacy.summary": (

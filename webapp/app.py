@@ -53,10 +53,12 @@ from .audit import (
     REASON_BATCH_TOO_LARGE,
     REASON_PURGE_UNAUTHORISED,
     REASON_RATE_LIMIT_CLIENT,
+    REASON_RATE_LIMIT_PURGE,
     REASON_RATE_LIMIT_TARGET,
     REASON_TARGET_REJECTED,
     REASON_UNSUPPORTED_FIELDS,
     AuditLog,
+    configure_audit_file,
 )
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
@@ -100,7 +102,12 @@ from .mcp_auth import (
     protected_resource_metadata,
 )
 from .openapi import openapi_document
-from .purge import PurgeRejected, build_receipt, normalise_target
+from .purge import (
+    PurgeRejected,
+    build_receipt,
+    ensure_purge_token_ready,
+    normalise_target,
+)
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
 from .redis_backend import RedisUnavailable, create_backend
@@ -488,6 +495,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # And before anything can be served: a deployment that asked for a
     # sign-in on /mcp and cannot enforce one must not come up open.
     ensure_mcp_auth_ready(settings)
+    # And before the one destructive endpoint is served: a credential short
+    # enough to guess is worse than the 404 an unset one answers with.
+    ensure_purge_token_ready(settings.purge_token)
     app.state.store = ScanStore(
         backend=app.state.backend,
         ttl=settings.result_ttl,
@@ -498,11 +508,23 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         client_limit=settings.ip_rate_limit,
         client_window=settings.ip_rate_window,
         target_cooldown=settings.target_cooldown,
+        # Unset is a random pepper per process, which counts correctly only
+        # while there is one. A deployment behind several web processes sets
+        # the same value in each, or every client gets one allowance apiece.
+        salt=settings.rate_limit_salt,
     )
     app.state.queue = None
     app.state.audit = AuditLog.from_settings(settings)
+    # And before the first record: a deployment that asked for the trail to
+    # outlive the container must fail here rather than write it to a stream
+    # that ends with the container.
+    audit_file = configure_audit_file(settings)
     if settings.audit_log:
-        LOGGER.info("audit_log_enabled targets=%s", settings.audit_log_targets)
+        LOGGER.info(
+            "audit_log_enabled targets=%s file=%s",
+            settings.audit_log_targets,
+            audit_file or "-",
+        )
 
     async def queue() -> ScanQueue:
         if app.state.queue is None:
@@ -852,11 +874,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def ai_page(request: Request) -> Response:
         return page(request, "ai.html", {})
 
-    # For the visitor who would rather not hand an address to a stranger's
-    # server at all. It documents the command instead of running one.
-    @app.get("/cli", response_class=HTMLResponse, include_in_schema=False)
-    async def cli_page(request: Request) -> Response:
-        return page(request, "cli.html", {})
+    # The Docker page - for the visitor who would rather not hand an address
+    # to a stranger's server at all - is now the first half of /documentation,
+    # since somebody looking for how to run the check should not have to pick
+    # between two tabs that both answer that. The path stays as a permanent
+    # redirect: it is printed in released documentation and indexed.
+    @app.get("/cli", include_in_schema=False)
+    async def cli_page() -> Response:
+        return RedirectResponse("/documentation#oneliner", status_code=301)
 
     @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
     async def about(request: Request) -> Response:
@@ -1185,6 +1210,29 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if not settings.purge_token:
             return not_found(request)
 
+        # The only route where a secret is compared, and therefore the only one
+        # worth guessing at. Nothing else here counts attempts: a scan is not a
+        # credential, and its limit protects the service rather than a secret.
+        # Only wrong answers are counted, so an operator working through a list
+        # of erasure requests never meets this.
+        limiter_for_credential: RateLimiter = app.state.limiter
+        attempts = await limiter_for_credential.check_credential(address)
+        if not attempts.allowed:
+            audit.rate_limited(
+                client=address,
+                scope=REASON_RATE_LIMIT_PURGE,
+                retry_after=attempts.retry_after,
+            )
+            LOGGER.info("purge_throttled")
+            return JSONResponse(
+                {
+                    "detail": "Too many failed erasure attempts from your "
+                    "network. Wait, then try again."
+                },
+                status_code=429,
+                headers={"Retry-After": str(attempts.retry_after)},
+            )
+
         presented = _presented_token(request)
         # Encoded on both sides: a header can carry bytes that are not ASCII,
         # and comparing those as str raises instead of answering 401.
@@ -1192,6 +1240,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             presented.encode("utf-8", "surrogateescape"),
             settings.purge_token.encode("utf-8", "surrogateescape"),
         ):
+            await limiter_for_credential.record_failed_credential(address)
             audit.submission_rejected(
                 client=address, reason=REASON_PURGE_UNAUTHORISED, status=401
             )

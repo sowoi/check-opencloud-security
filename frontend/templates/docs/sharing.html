@@ -25,6 +25,7 @@ it can be made to expire.</p>
 <li><a href="#public-link-sharing-what-this-scanner-checks-and-why">Public link sharing: what this scanner checks, and why</a></li>
 <li><a href="#1-can-a-public-link-be-created-without-a-password-publiclinkpasswordenforced">1. Can a public link be created without a password: <code>publicLinkPasswordEnforced</code></a></li>
 <li><a href="#2-do-public-links-expire-automatically-publiclinkexpirationenforced">2. Do public links expire automatically: <code>publicLinkExpirationEnforced</code></a></li>
+<li><a href="#what-else-is-in-that-document-and-why-none-of-it-is-checked">What else is in that document, and why none of it is checked</a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
 <!-- TOC -->
@@ -70,6 +71,45 @@ to change. An expiry has to be set per share at creation time, or the link's
 effective lifetime governed by something outside OpenCloud entirely - for
 example a reverse-proxy rule or an external process that revokes shares on a
 schedule.</p>
+<h2 id="what-else-is-in-that-document-and-why-none-of-it-is-checked">What else is in that document, and why none of it is checked</h2>
+<p>The capabilities document lists a lot more about sharing than these two
+checks read, and it is worth writing down why the rest is not worth a flag -
+otherwise somebody re-derives it every year. Verified against
+<code>services/frontend/pkg/revaconfig/config.go</code> in
+<a href="https://github.com/opencloud-eu/opencloud">opencloud-eu/opencloud</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Why there is no check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auto_accept_share</code>, <code>share_with_group_members_only</code>, <code>share_with_membership_groups_only</code>, <code>group_sharing</code>, <code>sharing_roles</code>, <code>api_enabled</code></td>
+<td>Hardcoded constants in the capabilities map. Every instance reports the same value, so a check would say nothing about the deployment - the same reason <code>publicLinkExpirationEnforced</code> is never alerted on.</td>
+</tr>
+<tr>
+<td><code>public.upload</code>, <code>public.send_mail</code>, <code>public.social_share</code>, <code>public.alias</code>, <code>public.multiple</code>, <code>public.supports_upload_only</code>, <code>public.can_edit</code></td>
+<td>Hardcoded the same way.</td>
+</tr>
+<tr>
+<td><code>federation.incoming</code>, <code>federation.outgoing</code></td>
+<td>Configurable through <code>OC_ENABLE_OCM</code>, but OpenCloud's own description says changing it is <strong>not supported</strong> and that "the backend behaviour is not changed" - it governs what clients are told, not what the server does. A finding an operator cannot act on with any real effect is worse than none.</td>
+</tr>
+<tr>
+<td><code>public.default_permissions</code></td>
+<td>Genuinely configurable (<code>FRONTEND_DEFAULT_LINK_PERMISSIONS</code>: <code>0</code> internal, <code>1</code> public viewer, default <code>1</code>). Not checked <em>yet</em>, because every default instance would begin failing it, and whether that trade is worth making is a judgement about noise rather than about evidence.</td>
+</tr>
+<tr>
+<td><code>deny_access</code>, <code>search_min_length</code></td>
+<td>Configurable, but a deprecated experiment and a search-UX setting respectively, neither of which changes who can reach data.</td>
+</tr>
+</tbody>
+</table>
+<p>The rule this table follows is the one in <code>AGENTS.md</code>: before adding a
+hardening check, verify against the OpenCloud source that an operator can
+actually change it.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p>Both are hardening flags, reported only with <code>--check-hardening</code> (or always
 on the web result). <code>publicLinkPasswordEnforced</code> behaves like any other

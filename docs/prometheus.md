@@ -17,12 +17,66 @@ up by Icinga2's Graphite/InfluxDB writers directly.
 
 <!-- TOC -->
 * [Prometheus and Grafana](#prometheus-and-grafana)
+  * [The files to copy](#the-files-to-copy)
+  * [What the exporter publishes](#what-the-exporter-publishes)
   * [What there is to graph](#what-there-is-to-graph)
   * [node_exporter textfile collector](#node_exporter-textfile-collector)
   * [Pushgateway](#pushgateway)
   * [Alerting rules](#alerting-rules)
   * [Grafana](#grafana)
 <!-- TOC -->
+
+
+## The files to copy
+
+Two of them, both in [`contrib/`](../contrib/README.md), both reading the
+metric names the native exporter publishes:
+
+| File | What to do with it |
+|:--|:--|
+| [`contrib/prometheus/alerts.yml`](../contrib/prometheus/alerts.yml) | Copy into `/etc/prometheus/rules/` and add it to `rule_files:` |
+| [`contrib/grafana/dashboard.json`](../contrib/grafana/dashboard.json) | Grafana - Dashboards - New - Import, then pick the data source |
+
+```shell
+cp contrib/prometheus/alerts.yml /etc/prometheus/rules/opencloud-security.yml
+promtool check rules /etc/prometheus/rules/opencloud-security.yml
+```
+
+The dashboard has an `Instance` selector, so one copy serves every host you
+scrape. The rules assume a scrape of a cached scan every minute or so; with a
+scan scheduled once a day, shorten every `for:` - a one-hour `for:` never
+becomes true when the value only changes once between long gaps of the same
+reading.
+
+The sections after the next one are the *other* way to do this: a scheduled
+scan whose JSON is reshaped by `jq` into metric names of your own. Those names
+are shorter and deliberately different, and the two shipped files above do not
+match them.
+
+
+## What the exporter publishes
+
+| Metric | Labels | Meaning |
+|:--|:--|:--|
+| `opencloud_security_rating_score` | `host`, `domain`, `product`, `version` | The grade, `0`-`5`, `5` best |
+| `opencloud_security_end_of_life` | `host`, `release_type` | `1` once the release receives no more fixes |
+| `opencloud_security_support_days_remaining` | `host`, `release_type` | Days of support left; **no sample at all** when the end of life is not dated yet |
+| `opencloud_security_vulnerabilities_total` | `host`, `severity` | Advisories matching the reported version |
+| `opencloud_security_hardenings_missing_total` | `host` | Missing hardening measures |
+| `opencloud_security_failed_extra_checks_total` | `host` | Failed additional checks |
+| `opencloud_security_update_available` | `host`, `target_version` | `1` when a newer release exists |
+| `opencloud_security_scan_duration_seconds` | `host` | How long the scan took |
+| `opencloud_security_scrape_success` | `host` | `0` when the scan behind the numbers failed |
+
+A failed scan publishes only the last two. Findings from before the failure
+are **not** re-published, so an instance whose scan is broken has no verdict
+rather than a stale one - which is why `opencloud_security_scrape_success` is
+the first thing the dashboard shows.
+
+`opencloud_security_end_of_life` is a separate family rather than a negative
+day count on purpose. A rolling or production release whose end of life has
+not been announced reports no days at all, and "unknown" must not read as
+"expiring today" in the one alert nobody may miss.
 
 
 ## What there is to graph
@@ -117,6 +171,14 @@ curl -X DELETE http://pushgateway.example.com:9091/metrics/job/opencloud_securit
 
 ## Alerting rules
 
+For the native exporter, copy
+[`contrib/prometheus/alerts.yml`](../contrib/prometheus/alerts.yml) rather
+than the block below - it is maintained against the real metric names and
+tested against them.
+
+The rules below match the **`jq`-shaped** names from the two recipes above,
+which are shorter and different:
+
 ```yaml
 groups:
   - name: opencloud-security
@@ -156,14 +218,20 @@ first scrape after a bad result, which is the same thing as no `for:` at all.
 
 ## Grafana
 
-`opencloud_security_rating` is a `0`-`5` score where higher is better; a stat
-panel with thresholds at `3` (yellow) and `1` (red) mirrors the plugin's own
-defaults. Map the values to the letters the rest of the output uses with a
-value mapping: `5 → A+`, `4 → A`, `3 → C`, `2 → D`, `1 → E`, `0 → F`.
+Import [`contrib/grafana/dashboard.json`](../contrib/grafana/dashboard.json)
+and pick your Prometheus data source. It draws the scan-health tile first, the
+grade and the lifecycle beside it, then the grade over time, the open
+findings, the advisories by severity, and a table of what is running where.
 
-Put `opencloud_version_info` in a table panel next to it. The rating tells you
-that something is wrong; the version label is what tells you what to do about
-it.
+If you would rather build your own: the rating is a `0`-`5` score where higher
+is better, so a stat panel with thresholds at `3` (yellow) and `1` (red)
+mirrors the plugin's own defaults. Map the values to the letters the rest of
+the output uses: `5 → A+`, `4 → A`, `3 → C`, `2 → D`, `1 → E`, `0 → F` - a
+grade with no letter beside it gets read as a score out of five.
+
+Put the version in a table panel next to it. The rating tells you that
+something is wrong; the version is what tells you whether an upgrade is the
+answer.
 
 ---
 

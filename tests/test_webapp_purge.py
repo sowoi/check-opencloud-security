@@ -13,6 +13,8 @@ import hashlib
 import hmac
 import json
 
+import pytest
+
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
@@ -24,7 +26,9 @@ from webapp.purge import PurgeRejected, fingerprint, normalise_target, sign, ver
 from webapp.ratelimit import target_key
 from webapp.store import metadata_key, result_key, status_key
 
-TOKEN = "erasure-token-for-tests"
+# At least MIN_TOKEN_LENGTH characters, because the application refuses to
+# start with a credential short enough to guess and these tests start it.
+TOKEN = "erasure-token-for-tests-0123456789abcdef"
 SIGNING_KEY = "receipt-signing-key-for-tests"
 
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -322,3 +326,74 @@ def test_a_credential_with_non_ascii_bytes_is_refused_rather_than_crashing():
 
     assert response.status_code == 401
     assert test_client.get(f"/api/scans/{identifier}").status_code == 200
+
+
+def test_a_wrong_credential_is_only_guessable_five_times():
+    """
+    The purge token is the whole of the authorisation for the one destructive
+    call this service has, and it is compared on a route that counted nothing.
+    Constant-time comparison stops the token leaking a character at a time; it
+    does nothing about simply trying, which is what this covers.
+    """
+    test_client = _enabled_client()
+    wrong = {"Authorization": "Bearer not-the-token-but-long-enough-to-try"}
+
+    seen = [
+        test_client.request(
+            "DELETE", "/api/purge?target=forget.example.com", headers=wrong
+        ).status_code
+        for _ in range(7)
+    ]
+
+    # Five attempts are answered, the rest are refused without a comparison.
+    assert seen[:5] == [401] * 5
+    assert seen[5:] == [429, 429]
+
+
+def test_the_throttle_counts_wrong_answers_and_not_erasures():
+    """
+    An operator working through a list of erasure requests must not be locked
+    out by doing their job. Only a failure counts, so the right token stays
+    usable however many times it is presented.
+    """
+    test_client = _enabled_client()
+
+    for _ in range(8):
+        response = test_client.request(
+            "DELETE", "/api/purge?target=forget.example.com", headers=AUTH
+        )
+        assert response.status_code == 200, response.text
+
+
+def test_a_purge_token_short_enough_to_guess_refuses_to_start():
+    """
+    The same stance `ensure_encryption_ready` takes: a deployment whose
+    operator believes the endpoint is protected must not be served with a
+    credential that is not protection. Unset stays perfectly valid - that
+    answers 404 and deploys nothing.
+    """
+    from webapp.purge import MIN_TOKEN_LENGTH, ensure_purge_token_ready
+
+    ensure_purge_token_ready(None)
+    ensure_purge_token_ready("a" * MIN_TOKEN_LENGTH)
+
+    with pytest.raises(ValueError, match="at least"):
+        ensure_purge_token_ready("hunter2")
+
+
+def test_two_processes_sharing_a_salt_share_one_rate_limit_counter():
+    """
+    The pepper is per-process by default, so two web processes derive two
+    different Redis keys for the same address - a client silently gets one
+    allowance each and the limit stops being one. A configured salt is what
+    makes them count together, and nothing in a log would have said otherwise.
+    """
+    from webapp.ratelimit import client_key
+
+    # Two processes, same salt: one key, so one counter.
+    assert client_key("203.0.113.10", "shared") == client_key("203.0.113.10", "shared")
+    # The negative half - which is the bug, and the default.
+    assert client_key("203.0.113.10", "one") != client_key("203.0.113.10", "two")
+    assert client_key("203.0.113.10", "shared") != client_key("203.0.113.10")
+    # And a salt still separates different clients rather than collapsing them.
+    assert client_key("203.0.113.10", "shared") != client_key("203.0.113.11", "shared")

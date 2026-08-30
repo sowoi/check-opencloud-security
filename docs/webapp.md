@@ -233,6 +233,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again. `0` disables |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
+| `COS_WEB_RATE_LIMIT_SALT` | *(random per process)* | Salt for the rate-limit and cooldown keys. Required to be the **same value in every web process** of a deployment that runs more than one: without it each derives its own keys, and a client gets one allowance per process |
 | `COS_WEB_PUBLIC_BASE_URL` | *(required)* | The stable origin this service is reached at, used for canonical links, `sitemap.xml`, and machine discovery. An unset value refuses startup so an incoming `Host` header cannot publish attacker-controlled URLs |
 | `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 optional `name=content` metadata pairs on the landing page, separated by `;`. Names and content are escaped separately; raw HTML, duplicate or reserved names, and prohibited platform metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Let search engines index the landing page and its explanation pages. Result pages are never indexable whatever this says |
@@ -257,7 +258,11 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
 | `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
 | `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |
-| `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge` and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there |
+| `COS_WEB_AUDIT_LOG_FILE` | *(the process output)* | Write the audit records to this file instead, on a mount that outlives the container. Owner-readable only, and the ordinary log then carries no copy. A path that cannot be written refuses to start |
+| `COS_WEB_AUDIT_LOG_MAX_BYTES` | `10000000` | Size at which that file is rotated. `0` never rotates |
+| `COS_WEB_AUDIT_LOG_BACKUPS` | `5` | Rotated generations kept beside it. With the size above, the most the trail can occupy |
+| `COS_WEB_AUDIT_LOG_ROTATION` | `service` | Who rotates that file: `service` (this process, by size) or `external` (logrotate on the host; this process only reopens the file it replaces). An unrecognised value refuses to start |
+| `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge` and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there. At least 32 characters, or startup refuses: it is the whole authorisation for the one call that deletes other people's results. Five wrong answers from one address in five minutes are followed by `429` |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion. Unset still erases, but the receipt cannot be verified afterwards |
 | `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |
 | `COS_WEB_ENCRYPT_RESULTS` | `false` | Encrypt the stored result document with AES-256-GCM. Requires a key; a process asked to encrypt without one refuses to start |
@@ -470,6 +475,103 @@ The point of the design is what it still does not write down:
 
 Leaving it off changes nothing: the ordinary lifecycle log is exactly as
 above.
+
+#### Keeping the trail past the container
+
+By default those records go to the process output, which for a container means
+`docker logs` — and a `docker compose down` takes them with it. An audit
+question arrives months after the fact, so a deployment that wants an answer
+then has to put the trail somewhere that outlives the stack:
+
+```yaml
+services:
+  web_app:
+    environment:
+      COS_WEB_AUDIT_LOG: "true"
+      COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      # Rotated at this size, keeping this many generations. Together they are
+      # the most the trail can ever occupy: an audit log nobody rotates fills
+      # the volume it sits on and takes the service down with it.
+      COS_WEB_AUDIT_LOG_MAX_BYTES: "10000000"
+      COS_WEB_AUDIT_LOG_BACKUPS: "5"
+    volumes:
+      - audit_log:/var/log/opencloud-scan
+
+volumes:
+  audit_log:
+```
+
+Three things follow from that, and each is deliberate:
+
+- **The records go to the file instead of, not as well as, the output.** The
+  ordinary log is the one place this service keeps free of targets and client
+  fingerprints, and a deployment shipping it somewhere central should not find
+  the audit trail riding along.
+- **The file is owner-readable only**, rotated generations included. A mounted
+  volume is readable by whoever reaches the host it sits on.
+- **A file that cannot be written stops the process**, with the path in the
+  message. Reporting an audit trail that silently goes nowhere is worse than
+  keeping none, and it is the same reasoning as
+  [ADR 0008](../adr/0008-refuse-to-start-without-the-encryption-key.md).
+
+A named volume is the simplest answer and the one
+[`docker/setup-wizard.py`](../docker/setup-wizard.py) offers first. A bind
+mount to a host directory works identically — for existing log shipping or
+backups — but the directory has to exist and be owned by uid `10001`, the
+unprivileged user the image runs as, before the stack starts:
+
+```bash
+mkdir -p /srv/opencloud-scan/audit
+sudo chown 10001 /srv/opencloud-scan/audit
+```
+
+#### Letting the host's logrotate keep it
+
+A file on the host's filesystem is something the host already knows how to
+look after, and an estate with a retention policy would rather express it
+where every other log's is. `COS_WEB_AUDIT_LOG_ROTATION=external` hands the
+job over: the service stops rotating by size and instead notices that the file
+it holds has been moved aside and reopens the replacement.
+
+That is the half that lives in this process. The other half is a policy the
+host installs — `docker/setup-wizard.py` writes one beside the compose file
+when you choose it, and it looks like this:
+
+```
+/srv/opencloud-scan/audit/audit.log {
+    daily
+    rotate 30
+    dateext
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0600 10001 10001
+}
+```
+
+```bash
+sudo install -m 0644 -o root -g root opencloud-scan-audit.logrotate \
+    /etc/logrotate.d/opencloud-scan-audit
+sudo logrotate --debug /etc/logrotate.d/opencloud-scan-audit   # changes nothing
+```
+
+Two lines in that policy are load-bearing:
+
+- **`create 0600 10001 10001`.** logrotate renames the file and makes the
+  replacement itself, so the replacement has to be writable by the
+  container's unprivileged user and readable by nobody else.
+- **No `copytruncate`.** Truncating the file underneath a running writer loses
+  whatever was written between the copy and the truncation. Reopening on a
+  changed inode loses nothing, and this is a file whose entire purpose is to
+  be complete.
+
+**Exactly one thing may rotate the file.** Leaving
+`COS_WEB_AUDIT_LOG_ROTATION` at `service` and installing a policy as well
+gives you two, which is how a trail loses records; setting it to `external`
+and installing nothing gives you none, and the file grows until the disk is
+full. An unrecognised value refuses to start rather than guessing which you
+meant.
 
 ## Putting it behind a reverse proxy
 
@@ -692,13 +794,13 @@ execution layer, not a second implementation: every tool calls this
 application's own HTTP API in process, so an agent meets exactly the rate
 limits, the SSRF guard and the purge authorisation a browser meets.
 
-Six tools, one per user-level task rather than one per endpoint:
+Seven tools, one per user-level task rather than one per endpoint:
 `scan_instance`, `scan_instances`, `get_scan_result`, `plan_remediation`,
-`export_scan` and `erase_instance_data`. Six prompts name the tasks people ask
-for - `audit_instance`, `audit_estate`, `explain_scan_result`,
-`triage_findings`, `review_transport_security` and `check_release_support` -
-so a client can offer "audit this instance and write a remediation plan" as
-one thing to pick. Five resources are published under `spec://` URIs: the
+`compare_scans`, `export_scan` and `erase_instance_data`. Seven prompts name
+the tasks people ask for - `audit_instance`, `audit_estate`,
+`explain_scan_result`, `triage_findings`, `review_transport_security`,
+`check_release_support` and `verify_remediation` - so a client can offer
+"audit this instance and write a remediation plan" as one thing to pick. Five resources are published under `spec://` URIs: the
 OpenAPI, Arazzo and discovery documents, and two that are a knowledge base
 rather than a contract - `catalogue`, every hardening flag and extra check
 the scanner runs explained, with the OpenCloud setting behind it, the fix and
@@ -744,15 +846,15 @@ an AI agent](mcp.md), which also covers turning the endpoint off.
 The result page, the landing page, and a Redis-backed health probe that says
 nothing about any scan. The explanations the landing page used to carry sit on
 their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
-`GET /search`, `GET /api`, `GET /ai`, `GET /cli`, `GET /privacy` and
-`GET /about` - which
+`GET /search`, `GET /api`, `GET /ai`, `GET /privacy` and `GET /about` - which
 are HTML only and stay out of the OpenAPI schema. `/grades` explains the
 plugin's real 0-5 map and its remediation ceilings; `/documentation` is the
-local CLI quick reference and guide index. `GET /cli` is the one that points
-away from this service: the
-Docker one-liner that runs the same scan on the visitor's own machine, linked
-from the primary navigation and documented in
-[Scanning from the command line, in one line](docker-oneliner.md). `GET /healthz` returns 200 only after the configured
+local CLI quick reference and guide index, and it is also the page that points
+away from this service: the Docker one-liners that run the same scan on the
+visitor's own machine sit directly under its quick start, documented at length
+in [Scanning from the command line, in one line](docker-oneliner.md). They used
+to be a `/cli` tab of their own; that path is now a permanent redirect to
+`/documentation#oneliner`. `GET /healthz` returns 200 only after the configured
 backend answers `PING`, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate `queueDepth`
 and `worker: "ok"`; it returns a detail-free 503 while any dependency is

@@ -75,6 +75,18 @@ DOCS_REVERSE_PROXY = (
     "docker-compose/external-proxy"
 )
 
+# The OpenID Connect provider metadata the discovery document publishes is
+# specified by OpenID Connect Discovery 1.0 rather than by OpenCloud, and what
+# to do about a weak value is a question for whoever runs the provider.
+DOCS_OIDC_DISCOVERY = (
+    "https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata"
+)
+
+# PKCE is not part of OpenID Connect Discovery: providers publish
+# code_challenge_methods_supported in the same document, but the field is
+# defined by OAuth 2.0 Authorization Server Metadata.
+DOCS_OAUTH_METADATA = "https://www.rfc-editor.org/rfc/rfc8414.html#section-2"
+
 # Keeping the instance current is the one fix that raises the rating rather
 # than merely stopping it being lowered, so the remediation planner names it.
 DOCS_UPDATE = "https://docs.opencloud.eu/docs/admin/maintenance/upgrade/upgrade-guide"
@@ -276,6 +288,31 @@ HARDENINGS: dict[str, Hardening] = {
         reference=DOCS_LINK_PASSWORD,
         setting="OC_PASSWORD_POLICY_MIN_CHARACTERS",
     ),
+    "passwordPolicyComplexity": Hardening(
+        id="passwordPolicyComplexity",
+        category="authentication",
+        title="The password policy no longer requires mixed characters",
+        meaning=(
+            "OpenCloud requires at least one lowercase letter, one uppercase "
+            "letter, one digit and one special character in a public link "
+            "password by default. The capabilities document reports at least "
+            "one of those minimums as zero, so somebody lowered it - a "
+            "twelve-character policy that accepts 'aaaaaaaaaaaa' is a length "
+            "requirement rather than a password policy. Reported only when "
+            "the instance publishes the minimums at all, which a disabled "
+            "policy does not: that case is passwordPolicyEnforced's."
+        ),
+        remediation=(
+            "Set OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS, "
+            "OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS, "
+            "OC_PASSWORD_POLICY_MIN_DIGITS and "
+            "OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS back to 1 or more. "
+            "Each defaults to 1, so an instance that fails this had them "
+            "lowered deliberately."
+        ),
+        reference=DOCS_LINK_PASSWORD,
+        setting="OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS",
+    ),
     "hstsLongMaxAge": Hardening(
         id="hstsLongMaxAge",
         category="transport",
@@ -345,6 +382,96 @@ HARDENINGS: dict[str, Hardening] = {
             "make sure the reverse proxy forwards /.well-known/ to it."
         ),
         reference=DOCS_IDP,
+    ),
+    # The four below are read from the same discovery document
+    # identityProviderDetected already fetches, so they cost no extra request.
+    # Each is reported only when the document actually publishes the field it
+    # reads: an absent measurement stays an unknown here as everywhere else,
+    # and OpenCloud's built-in provider omits several of them outright.
+    "oidcPkceSupported": Hardening(
+        id="oidcPkceSupported",
+        category="authentication",
+        title="The identity provider does not offer PKCE with S256",
+        meaning=(
+            "The discovery document publishes code_challenge_methods_supported "
+            "without S256, so the authorization code flow runs without Proof "
+            "Key for Code Exchange. OpenCloud's desktop, mobile and web clients "
+            "are public clients that cannot keep a secret, and without PKCE an "
+            "authorization code intercepted on the redirect - by another app "
+            "registered for the same loopback port, or out of a proxy log - can "
+            "be exchanged for tokens by whoever took it. Reported only when the "
+            "provider publishes the field at all: OpenCloud's built-in provider "
+            "omits it, and an absent answer is not a failing one."
+        ),
+        remediation=(
+            "Require PKCE with S256 on the provider. In Keycloak the client's "
+            "Proof Key for Code Exchange setting is S256; in Authentik the "
+            "client type is public with PKCE required; in Authelia the client "
+            "carries require_pkce: true and pkce_challenge_method: S256."
+        ),
+        reference=DOCS_OAUTH_METADATA,
+    ),
+    "oidcImplicitFlowDisabled": Hardening(
+        id="oidcImplicitFlowDisabled",
+        category="authentication",
+        title="The identity provider still offers the implicit flow",
+        meaning=(
+            "response_types_supported offers a response type that returns a "
+            "token straight from the authorization endpoint ('token' or "
+            "'id_token'), which is the implicit flow. It puts access tokens in "
+            "the URL fragment, where they reach the browser history, the "
+            "Referer header and any script on the page; OAuth 2.1 removes it "
+            "for that reason. Reported only for an external provider: "
+            "OpenCloud's built-in provider offers these response types and "
+            "cannot be reconfigured, so the finding would name something its "
+            "operator cannot change."
+        ),
+        remediation=(
+            "Restrict the client to the authorization code flow. Keycloak's "
+            "client has Implicit flow and Standard flow as separate switches - "
+            "leave only Standard on; Authentik and Authelia list the allowed "
+            "response types or grant types per client."
+        ),
+        reference=DOCS_OIDC_DISCOVERY,
+    ),
+    "oidcSigningAlgorithmStrong": Hardening(
+        id="oidcSigningAlgorithmStrong",
+        category="authentication",
+        title="ID tokens may be signed with a weak or absent algorithm",
+        meaning=(
+            "id_token_signing_alg_values_supported offers 'none' or a symmetric "
+            "HMAC algorithm (HS256 and its siblings). 'none' means an unsigned "
+            "ID token is acceptable, so anybody can write one. An HMAC "
+            "algorithm signs with the client secret rather than a private key, "
+            "so every party holding that secret - including a public client "
+            "that cannot keep it - can forge a token for any user. OpenCloud's "
+            "built-in provider signs with PS256 and passes this."
+        ),
+        remediation=(
+            "Offer only asymmetric signing algorithms (RS256, PS256, ES256 or "
+            "EdDSA) for ID tokens and remove 'none' and the HS family from the "
+            "provider's list."
+        ),
+        reference=DOCS_OIDC_DISCOVERY,
+    ),
+    "oidcEndpointsUseHttps": Hardening(
+        id="oidcEndpointsUseHttps",
+        category="authentication",
+        title="The identity provider publishes an endpoint on plain HTTP",
+        meaning=(
+            "At least one URL in the discovery document - the issuer, or the "
+            "authorization, token, userinfo or JWKS endpoint - is an http:// "
+            "address. Every one of them carries either a credential, an "
+            "authorization code or the keys tokens are verified against, so a "
+            "plaintext hop is enough to read or rewrite a sign-in. OpenID "
+            "Connect requires TLS for these endpoints."
+        ),
+        remediation=(
+            "Publish the provider over HTTPS and set its issuer to the https:// "
+            "address. An http:// issuer usually means the provider is behind a "
+            "terminating proxy but has not been told its public URL."
+        ),
+        reference=DOCS_OIDC_DISCOVERY,
     ),
     "reverseProxyDetected": Hardening(
         id="reverseProxyDetected",

@@ -32,6 +32,11 @@ from webapp import mcp_auth
 from webapp import workflows as wf
 from webapp.app import create_app
 
+# Long enough that the application will start: a purge token short enough
+# to guess is refused at startup, since it is the whole authorisation for
+# the one call that deletes other people's results.
+PURGE_TOKEN = "erasure-token-for-tests-0123456789abcdef"
+
 ISSUER = "https://auth.example.com/application/o/opencloud-scanner"
 RESOURCE = "https://scanner.example.com/mcp"
 BASE = "https://scanner.example.com"
@@ -502,13 +507,13 @@ def test_the_purge_credential_moves_out_of_the_way_of_the_identity_token(
     deliberately not kept.
     """
     token = f"Bearer {_token(signing_key)}"
-    with _client(purge_token="s3cret") as served:
+    with _client(purge_token=PURGE_TOKEN) as served:
         refused = _erase(served, {"authorization": token})
         allowed = _erase(
             served,
             {
                 "authorization": token,
-                "x-purge-authorization": "Bearer s3cret",
+                "x-purge-authorization": f"Bearer {PURGE_TOKEN}",
             },
         )
 
@@ -529,7 +534,7 @@ def test_an_identity_token_is_never_accepted_as_an_erasure_credential(
     to delete everybody's results.
     """
     token = f"Bearer {_token(signing_key)}"
-    with _client(purge_token="s3cret") as served:
+    with _client(purge_token=PURGE_TOKEN) as served:
         result = _erase(
             served,
             {"authorization": token, "x-purge-authorization": token},

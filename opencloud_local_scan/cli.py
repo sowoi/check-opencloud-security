@@ -12,6 +12,12 @@ Command line entry point of the bundled scanner.
     Run the HTTP scan service. The plugin never talks to it - it always scans
     in process - but the service lets several consumers share one cached
     result, or lets scans run from a host closer to the instance.
+
+``diff``
+    Compare two result documents that were archived earlier and say what
+    changed between them. The plugin's ``--baseline`` spends the same
+    comparison on staying quiet; this spends it on telling somebody what
+    happened, which is the question after a change rather than during one.
 """
 
 from __future__ import annotations
@@ -19,10 +25,14 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
+from .baseline import Baseline, Comparison, Snapshot, snapshot_of
 from .completion import enable as enable_completion
 from .config import ConfigurationError, load_configuration
 from .factory import release_settings_from_config, scanner_settings_from_config
@@ -176,6 +186,51 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     refresh_parser.add_argument("--timeout", type=int, default=30)
 
+    diff_parser = sub.add_parser(
+        "diff",
+        help="Say what changed between two saved result documents.",
+        description=(
+            "Compare two result documents written by `scan` and report what "
+            "changed: findings that appeared, findings that were resolved, and "
+            "any movement in the rating, the version and the support horizon. "
+            "Reads files only - it never scans anything."
+        ),
+    )
+    diff_parser.add_argument(
+        "before", type=Path, help="The earlier result document (JSON)."
+    )
+    diff_parser.add_argument(
+        "after", type=Path, help="The later result document (JSON)."
+    )
+    diff_parser.add_argument(
+        "--format",
+        dest="diff_format",
+        choices=("text", "markdown", "json", "slack"),
+        default="text",
+        help=(
+            "How to render the comparison: readable lines, a Markdown table, "
+            "the structured document the webhook carries, or Slack Block Kit. "
+            "Default: text."
+        ),
+    )
+    diff_parser.add_argument(
+        "--allow-different-hosts",
+        action="store_true",
+        help=(
+            "Compare documents from two different instances. Off by default: "
+            "'did the fix work' is a question about one instance, and two "
+            "hosts silently compared is a wrong answer nobody notices."
+        ),
+    )
+    diff_parser.add_argument(
+        "--exit-zero",
+        action="store_true",
+        help=(
+            "Always exit 0. Without it, a comparison that got worse exits 1 so "
+            "a pipeline can gate on it."
+        ),
+    )
+
     enable_completion(parser)
     return parser
 
@@ -207,12 +262,141 @@ def _run_scan(args: argparse.Namespace, scanner_settings, release_settings) -> i
     return exit_code
 
 
+class DiffError(Exception):
+    """Raised when two documents cannot honestly be compared."""
+
+
+def _load_result_document(path: Path) -> dict[str, Any]:
+    """
+    Read one archived result document.
+
+    ``scan`` prints an array when it was given several hosts, so a
+    single-element array is accepted as the document it contains. Anything
+    longer is refused rather than guessed at: picking the first of four hosts
+    would produce a confident comparison of the wrong instance.
+    """
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise DiffError(f"Cannot read {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise DiffError(f"{path} is not valid JSON: {exc}") from exc
+
+    if isinstance(payload, list):
+        if len(payload) != 1:
+            raise DiffError(
+                f"{path} holds {len(payload)} result documents. Compare one "
+                "instance at a time; split the file first."
+            )
+        payload = payload[0]
+    if not isinstance(payload, dict):
+        raise DiffError(f"{path} does not contain a result document.")
+    if payload.get("error"):
+        raise DiffError(
+            f"{path} records a scan that failed ({payload['error']}), so there "
+            "is nothing in it to compare."
+        )
+    if "rating" not in payload:
+        raise DiffError(
+            f"{path} has no rating, so it is not a result document from "
+            "`check-opencloud-scanner scan`."
+        )
+    return payload
+
+
+def _document_host(document: dict[str, Any]) -> str:
+    """The instance a document describes, however that document names it."""
+    return str(document.get("domain") or document.get("host") or "unknown")
+
+
+def _archived_snapshot(document: dict[str, Any]) -> Snapshot:
+    """
+    One document as the baseline sees it, but timestamped when it was scanned.
+
+    ``snapshot_of`` stamps the current time, which is right when it is
+    recording a run that just happened and wrong here: these two documents were
+    written weeks ago, and when they were written is half of what the reader
+    wants to know.
+    """
+    snapshot = snapshot_of(document, waived=document.get("ignored") or ())
+    scanned_at = document.get("scannedAt")
+    if isinstance(scanned_at, dict) and scanned_at.get("date"):
+        return replace(snapshot, recorded_at=str(scanned_at["date"]))
+    return snapshot
+
+
+def _compare_documents(
+    before: dict[str, Any], after: dict[str, Any]
+) -> Comparison:
+    """
+    Compare two archived documents with the baseline's own arithmetic.
+
+    Deliberately routed through :class:`Baseline` rather than reimplemented:
+    what counts as a new finding here and what counts as one during monitoring
+    must be the same question, or the diff would tell an operator something
+    their alerts never will.
+    """
+    baseline = Baseline(path=Path(os.devnull))
+    host = _document_host(after)
+    baseline.record(host, _archived_snapshot(before))
+    return baseline.compare(host, _archived_snapshot(after))
+
+
+def _run_diff(args: argparse.Namespace) -> int:
+    """Report what changed between two saved result documents."""
+    try:
+        before = _load_result_document(args.before)
+        after = _load_result_document(args.after)
+    except DiffError as exc:
+        LOGGER.error("%s", exc)
+        return 2
+
+    if (
+        _document_host(before) != _document_host(after)
+        and not args.allow_different_hosts
+    ):
+        LOGGER.error(
+            "%s describes %s and %s describes %s. Pass "
+            "--allow-different-hosts if comparing two instances is what you "
+            "meant.",
+            args.before,
+            _document_host(before),
+            args.after,
+            _document_host(after),
+        )
+        return 2
+
+    comparison = _compare_documents(before, after)
+
+    if args.diff_format == "json":
+        print(json.dumps(comparison.as_dict(), indent=2))
+    elif args.diff_format == "slack":
+        print(json.dumps(comparison.slack_blocks(), indent=2))
+    else:
+        previous = comparison.previous
+        assert previous is not None  # a diff always has both sides
+        print(
+            f"{_document_host(after)}: {previous.recorded_at or 'unknown'} -> "
+            f"{comparison.current.recorded_at or 'unknown'}"
+        )
+        print(comparison.summary())
+        changes = comparison.render(args.diff_format)
+        if changes:
+            print(changes)
+
+    if args.exit_zero:
+        return 0
+    return 1 if comparison.regressed else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point of ``check-opencloud-scanner``."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
 
+    if args.command == "diff":
+        return _run_diff(args)
     if args.command == "configure":
         return run_setup(
             path=args.config,

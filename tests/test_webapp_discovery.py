@@ -84,6 +84,7 @@ def test_the_discovery_document_explains_the_rules_an_agent_has_to_follow():
         "scan_instances",
         "get_scan_result",
         "plan_remediation",
+        "compare_scans",
         "export_scan",
         "erase_instance_data",
     }
