@@ -22,19 +22,34 @@
   <a href="#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled" lang="en">3. Do the documented demo accounts still sign in: <code>demoUsersDisabled</code></a>
   <a href="#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted" lang="en">4. Is account search restricted to shared groups: <code>userEnumerationRestricted</code></a>
   <a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced" lang="en">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a>
+  <a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected" lang="en">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
-<p>Five checks look at how an instance authenticates requests: whether protected
+<p>Six checks look at how an instance authenticates requests: whether protected
 endpoints actually demand a session, whether HTTP Basic auth is still
 offered as a bypass around the identity provider, whether the documented demo
-accounts still work, and two properties OpenCloud's own capabilities document
-publishes about account search and password strength. None of them submit a
+accounts still work, two properties OpenCloud's own capabilities document
+publishes about account search and password strength, and whether the
+identity provider can be located at all. None of them submit a
 guessed credential anywhere - see <a href="/documentation/reference#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
 answer</a> for what is
 out of scope on principle, and the demo-account section below for the one
 documented exception.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#authentication-what-this-scanner-checks-and-why">Authentication: what this scanner checks, and why</a></li>
+<li><a href="#1-do-protected-endpoints-actually-require-a-session-authenticationpath">1. Do protected endpoints actually require a session: <code>authentication:&lt;path&gt;</code></a></li>
+<li><a href="#2-does-the-proxy-still-offer-http-basic-authentication-basicauthdisabled">2. Does the proxy still offer HTTP Basic authentication: <code>basicAuthDisabled</code></a></li>
+<li><a href="#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled">3. Do the documented demo accounts still sign in: <code>demoUsersDisabled</code></a></li>
+<li><a href="#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted">4. Is account search restricted to shared groups: <code>userEnumerationRestricted</code></a></li>
+<li><a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a></li>
+<li><a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-do-protected-endpoints-actually-require-a-session-authenticationpath">1. Do protected endpoints actually require a session: <code>authentication:&lt;path&gt;</code></h2>
 <p>Three endpoints that must never answer an unauthenticated request with
 content are requested without credentials:</p>
@@ -130,12 +145,40 @@ default, so this usually means something explicitly lowered it).
 <code>OC_PASSWORD_POLICY_MIN_{LOWERCASE,UPPERCASE,DIGITS,SPECIAL}_CHARACTERS</code> and a
 banned-password list tighten it further - see <a href="https://docs.opencloud.eu/docs/admin/configuration/link-password-policy">the link password policy
 docs</a>.</p>
+<h2 id="6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></h2>
+<p>Everything above asks whether a credential is accepted. This one asks the
+prior question - <em>who issues the tokens?</em> - and answers it by reading
+<code>/.well-known/openid-configuration</code> once, without following redirects:</p>
+<ul>
+<li>a <code>200</code> carrying JSON: the <code>issuer</code> field is taken;</li>
+<li>a redirect: the <code>Location</code> header is resolved against the instance and
+  taken instead, which is how a proxy that hands the well-known path to an
+  external provider is recognised;</li>
+<li>anything else, or an issuer that is not an absolute <code>http(s)</code> URL with a
+  hostname: the flag fails.</li>
+</ul>
+<p>Nothing is submitted to find this out. No login form is filled in and no
+credential is sent - working out who signs users in must not become an
+attempt to sign in.</p>
+<p>A failure is far more often a <strong>proxy not forwarding <code>/.well-known/</code></strong> than
+an instance with no sign-in at all, which is why it never caps the rating.</p>
+<p>The issuer that is found is also recorded as context rather than a verdict.
+An issuer on a different host than the instance is reported as an
+<strong>external</strong> provider - Keycloak, Authentik or Authelia in front of
+OpenCloud - and the vendor is named so the result can point at that project's
+security advisories. Using OpenCloud's own built-in provider is not a
+finding: neither arrangement is required, and neither fails anything.</p>
+<p><strong>If this fails:</strong> confirm the reverse proxy forwards <code>/.well-known/</code> to
+whatever issues tokens - see <a href="/documentation/reverse-proxy">Reverse proxies</a>. If sign-in
+genuinely is not configured, OpenCloud ships its own provider and can be
+pointed at an external one.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p><code>authentication:&lt;path&gt;</code> and <code>demoUsersDisabled</code> are <code>extraChecks</code>, reported
 and rating-capped whenever they run at all, at their own severities above -
 see the extra-checks table in <a href="/documentation/reference#what-the-scanner-checks">the main
 README</a>. <code>basicAuthDisabled</code>,
-<code>userEnumerationRestricted</code> and <code>passwordPolicyEnforced</code> are hardening flags,
+<code>userEnumerationRestricted</code>, <code>passwordPolicyEnforced</code> and
+<code>identityProviderDetected</code> are hardening flags,
 reported only with <code>--check-hardening</code> (or always on the web result); a
 failed hardening flag does not cap the rating by itself, it raises an
 otherwise-<code>OK</code> Icinga result to <code>WARNING</code> and is listed in the

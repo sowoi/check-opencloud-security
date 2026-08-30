@@ -5,6 +5,14 @@ for whatever it points at. Two checks read OpenCloud's public capabilities
 document to see what a link is allowed to do without a password, and whether
 it can be made to expire.
 
+<!-- TOC -->
+* [Public link sharing: what this scanner checks, and why](#public-link-sharing-what-this-scanner-checks-and-why)
+  * [1. Can a public link be created without a password: `publicLinkPasswordEnforced`](#1-can-a-public-link-be-created-without-a-password-publiclinkpasswordenforced)
+  * [2. Do public links expire automatically: `publicLinkExpirationEnforced`](#2-do-public-links-expire-automatically-publiclinkexpirationenforced)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Can a public link be created without a password: `publicLinkPasswordEnforced`
 
 The capabilities document reports, per share type, whether a password is

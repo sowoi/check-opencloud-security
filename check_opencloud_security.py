@@ -181,6 +181,10 @@ class ScanContext:
     webhook_timeout: int = DEFAULT_WEBHOOK_TIMEOUT_SECONDS
     webhook_secret: str | None = None
     allow_private_webhooks: bool = False
+    # One combined webhook per multi-host run instead of one per host.
+    # Meaningless for a single host, which never goes through the multi-host
+    # path in the first place.
+    webhook_digest: bool = False
     # Stored as a tuple of pairs so ScanContext stays hashable/frozen.
     webhook_headers: tuple[tuple[str, str], ...] = ()
     scanner_settings: ScannerSettings | None = None
@@ -524,10 +528,11 @@ def check_vulnerabilities(
         extra_failures=extra_failures,
         baseline_diff=baseline_diff,
     )
-    if _webhook_should_fire(context, exit_code) and not _send_webhook(context, payload):
+    delivered, fires = _send_or_defer_webhook(context, payload, exit_code)
+    if not delivered:
         detail_lines.append("Webhook delivery failed (see debug log)")
 
-    _RESULT_PAYLOAD.set({"payload": payload, "scan": response_scan})
+    _RESULT_PAYLOAD.set({"payload": payload, "scan": response_scan, "webhook_fires": fires})
 
     safe_message = _safe_monitoring_text(msg)
     safe_details = [_safe_monitoring_text(line) for line in detail_lines]
@@ -639,6 +644,26 @@ def _webhook_should_fire(context: ScanContext, exit_code: NagiosExitCode) -> boo
     if not context.webhook_url:
         return False
     return exit_code in WEBHOOK_TRIGGERS.get(context.webhook_on, frozenset())
+
+
+def _send_or_defer_webhook(
+    context: ScanContext, payload: dict[str, Any], exit_code: NagiosExitCode
+) -> tuple[bool, bool]:
+    """
+    Decide whether the webhook fires for this result, and send it now unless
+    --webhook-digest defers delivery to the multi-host orchestrator.
+
+    Returns (delivered_ok, fires). delivered_ok is False only when an
+    immediate send was attempted and failed - in digest mode nothing is sent
+    here, so it is always True. fires says whether this result met the
+    configured --webhook-on trigger at all; the caller stashes it alongside
+    the payload on _RESULT_PAYLOAD so _run_multi_host_checks knows which
+    per-host payloads belong in the combined send.
+    """
+    fires = _webhook_should_fire(context, exit_code)
+    if not fires or context.webhook_digest:
+        return True, fires
+    return _send_webhook(context, payload), fires
 
 
 def _build_base_payload(
@@ -780,15 +805,79 @@ _WEBHOOK_FORMATTERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "discord": _discord_webhook_payload,
 }
 
+# Reserve headroom under Discord's 25-field-per-embed cap for the "+more"
+# and "OK count" fields _discord_digest_webhook_payload adds after these.
+_DIGEST_HOST_LIMIT = 20
+
+
+def _slack_digest_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Render a --webhook-digest result as a single Slack Block Kit attachment.
+
+    Every host is in the 'generic'/JSON digest body already; a chat message
+    only lists the ones that are not OK, so a mostly-healthy fleet does not
+    bury its problem hosts in a wall of green lines.
+    """
+    color = _WEBHOOK_STATUS_COLORS.get(str(payload.get("status")), "#767676")
+    hosts = payload.get("hosts") or []
+    non_ok = [host for host in hosts if host.get("status") != "OK"]
+    ok_count = len(hosts) - len(non_ok)
+    lines = [f"*{len(hosts)} host(s) checked* - overall {payload.get('status', 'UNKNOWN')}"]
+    lines.extend(_webhook_status_line(host) for host in non_ok[:_DIGEST_HOST_LIMIT])
+    if len(non_ok) > _DIGEST_HOST_LIMIT:
+        lines.append(f"...and {len(non_ok) - _DIGEST_HOST_LIMIT} more")
+    if ok_count:
+        lines.append(f"{ok_count} host(s) OK, not shown")
+    return {"attachments": [{"color": color, "text": "\n\n".join(lines)}]}
+
+
+def _discord_digest_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Render a --webhook-digest result as a single Discord embed."""
+    color = _WEBHOOK_STATUS_COLORS.get(str(payload.get("status")), "#767676")
+    hosts = payload.get("hosts") or []
+    non_ok = [host for host in hosts if host.get("status") != "OK"]
+    ok_count = len(hosts) - len(non_ok)
+    fields = [
+        {
+            "name": f"{host.get('host', '?')} - {host.get('status', 'UNKNOWN')}",
+            "value": str(host.get("message") or "(no message)")[:1024],
+            "inline": False,
+        }
+        for host in non_ok[:_DIGEST_HOST_LIMIT]
+    ]
+    if len(non_ok) > _DIGEST_HOST_LIMIT:
+        fields.append(
+            {"name": "...", "value": f"+{len(non_ok) - _DIGEST_HOST_LIMIT} more", "inline": False}
+        )
+    if ok_count:
+        fields.append({"name": "OK", "value": f"{ok_count} host(s)", "inline": True})
+    return {
+        "embeds": [
+            {
+                "title": f"{len(hosts)} host(s) checked - {payload.get('status', 'UNKNOWN')}",
+                "color": int(color.lstrip("#"), 16),
+                "fields": fields,
+            }
+        ]
+    }
+
+
+_WEBHOOK_DIGEST_FORMATTERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "slack": _slack_digest_webhook_payload,
+    "discord": _discord_digest_webhook_payload,
+}
+
 
 def _format_webhook_body(context: ScanContext, payload: dict[str, Any]) -> dict[str, Any]:
     """
     The JSON body actually POSTed, in the format the operator selected.
 
-    The 'generic' default - the plugin's own flat document - is unchanged
-    from before this option existed; every other format is opt-in.
+    The 'generic' default - the plugin's own flat document, or the combined
+    digest shape built by _build_digest_webhook_payload - is unchanged from
+    before this option existed; every other format is opt-in.
     """
-    formatter = _WEBHOOK_FORMATTERS.get(context.webhook_format)
+    formatters = _WEBHOOK_DIGEST_FORMATTERS if payload.get("digest") else _WEBHOOK_FORMATTERS
+    formatter = formatters.get(context.webhook_format)
     return formatter(payload) if formatter is not None else payload
 
 
@@ -804,9 +893,9 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     if not url:
         return True
     
-    validated_ip: str | None = None
+    validated_addresses: tuple[str, ...] | None = None
     if not context.allow_private_webhooks:
-        is_safe, validated_ip = _resolve_and_validate_webhook_url(url)
+        is_safe, validated_addresses = _resolve_and_validate_webhook_url(url)
         if not is_safe:
             LOGGER.warning(
                 "Webhook URL points to a restricted private/local IP address "
@@ -817,6 +906,12 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
     body = _format_webhook_body(context, payload)
 
+    # Serialised once, here, and posted verbatim as `data=` below. Handing the
+    # object to `json=` instead would let requests re-serialise it with its own
+    # separators and key order, so the bytes a receiver hashes would not be the
+    # bytes that were signed and every signature would fail verification.
+    body_bytes = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+
     headers = {"Content-Type": "application/json"}
     headers.update(dict(context.webhook_headers))
 
@@ -824,10 +919,9 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
         # Signed over what is actually sent: a receiver verifying the
         # signature has to verify the body it received, not a document that
         # was only ever an intermediate step for a chat-native format.
-        body_json = json.dumps(body, separators=(",", ":"), sort_keys=True)
         signature = hmac.new(
             context.webhook_secret.encode("utf-8"),
-            body_json.encode("utf-8"),
+            body_bytes,
             hashlib.sha256,
         ).hexdigest()
         headers["X-COS-Signature"] = f"sha256={signature}"
@@ -841,7 +935,7 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
     def _post() -> None:
         if not context.allow_private_webhooks and _webhook_address_has_changed(
-            url, validated_ip
+            url, validated_addresses
         ):
             raise ValueError(
                 "Webhook URL DNS resolution changed between validation and delivery "
@@ -850,7 +944,7 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
 
         response = requests.post(
             url,
-            json=body,
+            data=body_bytes,
             headers=headers,
             proxies=_proxies(context),
             timeout=context.webhook_timeout,
@@ -873,6 +967,42 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     return True
 
 
+def _build_digest_webhook_payload(payloads: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Combine several hosts' webhook payloads into one --webhook-digest document.
+
+    Only ever called with the payloads _run_single_host_check already
+    determined met --webhook-on individually (see _send_or_defer_webhook) -
+    the digest reuses that per-host trigger decision rather than inventing a
+    separate aggregate one, so 'digest' changes only how many requests go
+    out, never which hosts a given --webhook-on would report on.
+    """
+    exit_codes = [NagiosExitCode(payload["exit_code"]) for payload in payloads]
+    overall = _aggregate_exit_code(exit_codes)
+    counts = Counter(code.name for code in exit_codes)
+    breakdown = ", ".join(
+        f"{counts[name]} {name}"
+        for name in ("CRITICAL", "WARNING", "UNKNOWN", "OK")
+        if counts.get(name)
+    )
+    return {
+        "plugin": "check-opencloud-security",
+        "plugin_version": __version__,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status": overall.name,
+        "exit_code": int(overall),
+        "message": f"{len(payloads)} host(s) met the webhook trigger ({breakdown})",
+        "digest": True,
+        "host_count": len(payloads),
+        "hosts": payloads,
+    }
+
+
+def _send_digest_webhook(context: ScanContext, payloads: list[dict[str, Any]]) -> bool:
+    """Send one combined webhook for --webhook-digest."""
+    return _send_webhook(context, _build_digest_webhook_payload(payloads))
+
+
 def _redact_url(url: str) -> str:
     """Scheme and host only.
 
@@ -889,33 +1019,77 @@ def _redact_url(url: str) -> str:
     return f"{parts.scheme}://{host}/<redacted>"
 
 
-def _resolve_webhook_address(url: str) -> str | None:
-    """Resolve webhook URL to an IP address, or None if unresolvable/invalid."""
+# NAT64 prefixes: an IPv6 literal in this range decodes to an embedded IPv4
+# address, which `ipaddress` does not unwrap on its own - unlike the
+# `ipv4_mapped`/`sixtofour` cases below, which it exposes directly.
+_WEBHOOK_NAT64_NETWORKS = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
+
+
+def _webhook_address_is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """
+    Whether an address is safe to let a webhook connect to.
+
+    An IPv6 literal can smuggle a private IPv4 address past a naive check by
+    encoding it as an IPv4-mapped, 6to4 or NAT64 address, so those are
+    unwrapped and checked as their embedded IPv4 form before anything else.
+    """
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            return _webhook_address_is_public(address.ipv4_mapped)
+        if address.sixtofour is not None:
+            return _webhook_address_is_public(address.sixtofour)
+        if any(address in network for network in _WEBHOOK_NAT64_NETWORKS):
+            return False
+    return not (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _resolve_webhook_addresses(url: str) -> tuple[str, ...] | None:
+    """
+    Resolve a webhook URL's hostname to every address it answers with.
+
+    Both IPv4 and IPv6 records are resolved - checking only the IPv4 address
+    while `requests` connects dual-stack would let a hostname with a safe A
+    record and a private AAAA record slip straight past the guard.
+    """
     try:
         hostname = urlsplit(url).hostname
         if not hostname:
             return None
-        return socket.gethostbyname(hostname)
+        infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except (ValueError, socket.gaierror):
         return None
+    addresses = sorted({str(info[4][0]) for info in infos})
+    return tuple(addresses) if addresses else None
 
 
-def _resolve_and_validate_webhook_url(url: str) -> tuple[bool, str | None]:
+def _resolve_and_validate_webhook_url(url: str) -> tuple[bool, tuple[str, ...] | None]:
     """
-    Validate that a webhook URL is safe and return the resolved IP.
-    
-    Returns (is_safe, resolved_ip) where:
-    - is_safe: True if the address is not private/loopback/link-local
-    - resolved_ip: The resolved IP address string, or None if unresolvable
+    Validate that a webhook URL is safe and return every address it resolves to.
+
+    Returns (is_safe, resolved_addresses) where:
+    - is_safe: True only if every resolved address (IPv4 and IPv6 alike) is public
+    - resolved_addresses: every address the hostname resolves to, or None if unresolvable
     """
-    resolved_ip = _resolve_webhook_address(url)
-    if not resolved_ip:
+    resolved = _resolve_webhook_addresses(url)
+    if not resolved:
         return False, None
-    
+
     try:
-        address = ipaddress.ip_address(resolved_ip)
-        is_safe = not (address.is_private or address.is_loopback or address.is_link_local)
-        return is_safe, resolved_ip
+        is_safe = all(
+            _webhook_address_is_public(ipaddress.ip_address(candidate))
+            for candidate in resolved
+        )
+        return is_safe, resolved
     except ValueError:
         return False, None
 
@@ -926,17 +1100,17 @@ def _is_safe_webhook_url(url: str) -> bool:
     return is_safe
 
 
-def _webhook_address_has_changed(url: str, original_ip: str | None) -> bool:
+def _webhook_address_has_changed(url: str, original_addresses: tuple[str, ...] | None) -> bool:
     """
     Check if a webhook URL's DNS resolution has changed since validation.
 
     Returns True if DNS has changed (rebinding attack detected or resolution failed).
-    Returns False if the address is the same.
+    Returns False if the address set is the same.
     This mitigates DNS rebinding attacks by detecting when a hostname resolves to
-    a different IP address between validation and actual webhook delivery.
+    a different set of addresses between validation and actual webhook delivery.
     """
-    current_ip = _resolve_webhook_address(url)
-    return current_ip != original_ip
+    current_addresses = _resolve_webhook_addresses(url)
+    return current_addresses != original_addresses
 
 
 def _notify_and_fail(
@@ -951,8 +1125,9 @@ def _notify_and_fail(
     unreachable instance can raise an alert just like a vulnerable one.
     """
     payload = _build_base_payload(context, message, exit_code)
-    _RESULT_PAYLOAD.set({"payload": payload, "scan": None})
-    if _webhook_should_fire(context, exit_code) and not _send_webhook(context, payload):
+    delivered, fires = _send_or_defer_webhook(context, payload, exit_code)
+    _RESULT_PAYLOAD.set({"payload": payload, "scan": None, "webhook_fires": fires})
+    if not delivered:
         _fail(
             _safe_monitoring_text(message) + "\nWebhook delivery failed (see debug log)",
             exit_code,
@@ -1778,6 +1953,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--webhook-digest",
+        action="store_true",
+        default=_env_bool("WEBHOOK_DIGEST"),
+        help=(
+            "With --host given several targets, send one combined webhook for "
+            "the whole run instead of one per host. Has no effect with a "
+            "single host, or when hosts are checked through separate "
+            "invocations (see docs/many-instances.md). "
+            f"Default: False (env: {ENV_PREFIX}WEBHOOK_DIGEST)."
+        ),
+    )
+    parser.add_argument(
         "--backoff-factor",
         type=float,
         default=_env_float("BACKOFF_FACTOR", DEFAULT_BACKOFF_FACTOR),
@@ -1943,6 +2130,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         webhook_timeout=args.webhook_timeout,
         webhook_secret=args.webhook_secret,
         allow_private_webhooks=args.allow_private_webhooks,
+        webhook_digest=args.webhook_digest,
         webhook_headers=_parse_webhook_headers(args.webhook_header),
         scanner_settings=scanner_settings,
         release_settings=release_settings,
@@ -1971,7 +2159,9 @@ def _aggregate_exit_code(exit_codes: list[NagiosExitCode]) -> NagiosExitCode:
     return max(exit_codes, key=lambda code: _STATUS_PRIORITY.get(code, 0))
 
 
-def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
+def _run_single_host_check(
+    context: ScanContext,
+) -> tuple[str, NagiosExitCode, dict[str, Any] | None]:
     """
     Run the full scan-and-check flow for a single host.
 
@@ -1979,9 +2169,18 @@ def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
     directly, this captures the printed result and exit code instead of
     terminating the process. Its ContextVar buffer is local to the worker, so
     parallel host checks cannot mix their detail lines or perfdata.
+
+    The third element is this host's webhook payload when it met the
+    configured --webhook-on trigger, for --webhook-digest to fold into one
+    combined send across hosts; otherwise None. Reading it back after the
+    pipeline raises SystemExit relies on the same _RESULT_PAYLOAD
+    set/run/get/reset bracketing _collect_result_document already uses for
+    the machine-readable formats - safe under ThreadPoolExecutor because the
+    set and the get both happen inside this same worker call.
     """
     buffer = io.StringIO()
-    token = _RESULT_BUFFER.set(buffer)
+    buffer_token = _RESULT_BUFFER.set(buffer)
+    payload_token = _RESULT_PAYLOAD.set(None)
     exit_code = NagiosExitCode.UNKNOWN
     try:
         check_if_ip_or_host(context.host, context)
@@ -2001,8 +2200,13 @@ def _run_single_host_check(context: ScanContext) -> tuple[str, NagiosExitCode]:
             file=buffer,
         )
     finally:
-        _RESULT_BUFFER.reset(token)
-    return buffer.getvalue().rstrip("\n"), exit_code
+        _RESULT_BUFFER.reset(buffer_token)
+    document = _RESULT_PAYLOAD.get()
+    _RESULT_PAYLOAD.reset(payload_token)
+    webhook_payload = (
+        document["payload"] if document and document.get("webhook_fires") else None
+    )
+    return buffer.getvalue().rstrip("\n"), exit_code, webhook_payload
 
 
 def _collect_result_document(context: ScanContext) -> tuple[dict[str, Any], NagiosExitCode]:
@@ -2077,12 +2281,16 @@ def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> Nagios
     (default five). Each worker captures its own output; after all workers
     finish, this coordinator prints result blocks in host input order and
     returns the worst status across them.
+
+    With --webhook-digest set, no worker sends its own webhook (see
+    _send_or_defer_webhook) - instead, every host's payload that met
+    --webhook-on is folded into one combined webhook, sent once here.
     """
     contexts = [_build_context(host, args) for host in hosts]
     workers = _host_worker_count(hosts, args)
     LOGGER.debug("Running %d host scans with %d worker(s)", len(hosts), workers)
 
-    def _run(context: ScanContext) -> tuple[str, NagiosExitCode]:
+    def _run(context: ScanContext) -> tuple[str, NagiosExitCode, dict[str, Any] | None]:
         LOGGER.debug("Starting scan for host: %s", context.host)
         # Host and probe pools must not nest. Scanner concurrency remains
         # available for single-host checks through scanner.concurrency.
@@ -2091,12 +2299,17 @@ def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> Nagios
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="opencloud-host") as pool:
         results = list(pool.map(_run, contexts))
 
-    blocks = [f"[{host}]\n{message}" for host, (message, _) in zip(hosts, results)]
-    exit_codes = [exit_code for _, exit_code in results]
+    blocks = [f"[{host}]\n{message}" for host, (message, _, _) in zip(hosts, results)]
+    exit_codes = [exit_code for _, exit_code, _ in results]
 
     print(_summarize_multi_host_result(exit_codes))
     print()
     print("\n\n".join(blocks))
+
+    if contexts and contexts[0].webhook_digest:
+        digest_payloads = [payload for _, _, payload in results if payload is not None]
+        if digest_payloads and not _send_digest_webhook(contexts[0], digest_payloads):
+            print("Webhook delivery failed (see debug log)")
 
     return _aggregate_exit_code(exit_codes)
 

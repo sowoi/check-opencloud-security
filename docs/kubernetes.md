@@ -11,6 +11,14 @@ The image is built from this repository; see
 than using `latest`: the release schedule and the newest known OpenCloud
 version ship *inside* the image, so which tag you run is part of the verdict.
 
+<!-- TOC -->
+* [Kubernetes](#kubernetes)
+  * [A scheduled scan](#a-scheduled-scan)
+  * [Sending the result somewhere](#sending-the-result-somewhere)
+  * [The scan service](#the-scan-service)
+<!-- TOC -->
+
+
 ## A scheduled scan
 
 A `CronJob` is the closest thing to the systemd timer in

@@ -15,6 +15,13 @@ before enabling it; the refresh command validates both documents and writes
 them atomically.
 - [`contrib/cron/check-opencloud-security.cron`](../contrib/cron/check-opencloud-security.cron)
 
+<!-- TOC -->
+* [Scheduling without Icinga2 / Nagios](#scheduling-without-icinga2--nagios)
+  * [systemd timer](#systemd-timer)
+  * [cron](#cron)
+<!-- TOC -->
+
+
 ## systemd timer
 ```shell
 sudo mkdir -p /etc/check-opencloud-security

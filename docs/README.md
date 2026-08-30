@@ -10,6 +10,24 @@ places this check tends to end up.
 > installation. [The public scan service](webapp.md) explains how to run your
 > own, without a rate limit.
 
+<!-- TOC -->
+* [Documentation](#documentation)
+  * [Background](#background)
+  * [Deploying it](#deploying-it)
+  * [Feeding the result somewhere](#feeding-the-result-somewhere)
+  * [What the scanner checks, in depth](#what-the-scanner-checks-in-depth)
+  * [Running it at scale](#running-it-at-scale)
+  * [Elsewhere in the repository](#elsewhere-in-the-repository)
+  * [Trademarks and affiliation](#trademarks-and-affiliation)
+<!-- TOC -->
+
+
+## Background
+
+| Page | What it covers |
+|:-----|:---------------|
+| [What OpenCloud is, and how it differs from ownCloud and Nextcloud](what-is-opencloud.md) | The fork history behind all three projects, and the architecture, storage and release differences that follow from it |
+
 ## Deploying it
 
 | Page | What it covers |

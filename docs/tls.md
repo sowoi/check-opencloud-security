@@ -6,6 +6,25 @@ front of it does), and this scanner reads what that transport actually
 negotiated - protocol version, certificate, chain, cipher suite - the same
 way a browser or a sync client would, without any special access.
 
+<!-- TOC -->
+* [TLS and certificates: what this scanner checks, and why](#tls-and-certificates-what-this-scanner-checks-and-why)
+  * [1. Can a TLS connection be made at all: `tlsHandshake`, `httpsAvailable`](#1-can-a-tls-connection-be-made-at-all-tlshandshake-httpsavailable)
+  * [2. Is the certificate trusted: `tlsTrusted`](#2-is-the-certificate-trusted-tlstrusted)
+  * [3. Is the protocol current: `tlsProtocol`, `tlsDeprecatedProtocol`](#3-is-the-protocol-current-tlsprotocol-tlsdeprecatedprotocol)
+  * [4. Does the certificate cover this name: `tlsHostname`](#4-does-the-certificate-cover-this-name-tlshostname)
+  * [5. Is the chain complete: `tlsChain`](#5-is-the-chain-complete-tlschain)
+  * [6. Is the certificate about to expire, or issued for too long](#6-is-the-certificate-about-to-expire-or-issued-for-too-long)
+  * [7. Is the negotiated cipher suite and certificate policy sound](#7-is-the-negotiated-cipher-suite-and-certificate-policy-sound)
+  * [8. Do IPv4 and IPv6 present the same service: `tlsAddressParity`](#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity)
+  * [9. Is certificate issuance restricted: `tlsCaaRecord`](#9-is-certificate-issuance-restricted-tlscaarecord)
+  * [10. Is revocation actually checkable: `tlsOcspStapling`](#10-is-revocation-actually-checkable-tlsocspstapling)
+  * [What is deliberately left unmeasured](#what-is-deliberately-left-unmeasured)
+  * [Self-signed instances](#self-signed-instances)
+  * [Severity and rating impact](#severity-and-rating-impact)
+  * [Reference](#reference)
+<!-- TOC -->
+
+
 ## 1. Can a TLS connection be made at all: `tlsHandshake`, `httpsAvailable`
 
 Before anything else, the scan tries to connect. Two ways to fail:
@@ -19,6 +38,11 @@ Before anything else, the scan tries to connect. Two ways to fail:
   TLS finding below rests on a connection that was made, so this one caps the
   scan: the instance is either not serving TLS on this port, or is serving
   something the client could not negotiate at all.
+
+Whether plain HTTP is *redirected* to HTTPS is a separate flag,
+`httpsEnforced`, decided at the proxy rather than in the TLS layer - see
+[Two findings decided here that are not
+headers](reverse-proxy.md#two-findings-decided-here-that-are-not-headers).
 
 ## 2. Is the certificate trusted: `tlsTrusted`
 

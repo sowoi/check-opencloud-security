@@ -30,6 +30,19 @@
 <p>One check per instance is simple until there are twenty of them, each with its
 own port, its own release track and its own list of accepted findings. This
 page covers the three shapes that scale, from smallest to largest.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#checking-a-fleet-of-instances">Checking a fleet of instances</a></li>
+<li><a href="#one-command-several-hosts">One command, several hosts</a></li>
+<li><a href="#one-configuration-file-per-instance">One configuration file per instance</a></li>
+<li><a href="#a-loop-over-the-files">A loop over the files</a></li>
+<li><a href="#where-the-checks-should-run-from">Where the checks should run from</a></li>
+<li><a href="#keeping-the-waivers-honest">Keeping the waivers honest</a></li>
+<li><a href="#only-alerting-on-what-changed">Only alerting on what changed</a></li>
+<li><a href="#scheduling-the-whole-thing">Scheduling the whole thing</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="one-command-several-hosts">One command, several hosts</h2>
 <p><code>--host</code> takes a comma-separated list. The plugin scans them in turn, prints a
 one-line summary followed by a block per host, and exits with the worst state
@@ -43,6 +56,15 @@ or a waiver the others do not, you have outgrown it.</p>
 <p>Aggregating also loses the per-host history your monitoring system would
 otherwise keep. If you want one red service per broken instance rather than
 one red service for the group, use one check per host instead.</p>
+<p>Add <code>--webhook-digest</code> here and the webhook fires at most once for the whole
+<code>--host</code> list, instead of once per host that meets <code>--webhook-on</code> - useful
+when a webhook receiver is a person who would rather get one message about
+three broken instances than three separate pings. It only combines what
+happens <em>inside this one process</em>: since it is one flag on one <code>ScanContext</code>,
+it has no effect on the "configuration file per instance" and "loop over the
+files" patterns below, where each instance runs as its own separate process
+with nothing to combine across - each of those still sends its own webhook
+per instance, exactly as without the flag.</p>
 <h2 id="one-configuration-file-per-instance">One configuration file per instance</h2>
 <p>Each instance gets a file, and the file carries everything that makes it
 different. Nothing is repeated on the command line, so a change is a change in

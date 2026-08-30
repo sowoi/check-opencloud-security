@@ -9,3 +9,21 @@ User=check-opencloud-security
 StateDirectory=check-opencloud-security
 ExecStart=/usr/bin/check-opencloud-scanner refresh-data --output-dir /var/lib/check-opencloud-security
 
+# Hardening. StateDirectory= already grants write access to
+# /var/lib/check-opencloud-security under ProtectSystem=strict, which is the
+# only place this unit writes to.
+# Run `systemd-analyze security check-opencloud-security-refresh.service` to
+# check the effect of these directives.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+SystemCallFilter=@system-service

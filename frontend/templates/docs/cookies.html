@@ -23,6 +23,16 @@ OpenCloud or its reverse proxy already sent are read.</p>
 <p>If the scanned response sets no cookie at all, none of these three checks
 appear in the result: there is nothing to grade, and a check that always
 passed because it never ran would be misleading.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#cookie-attributes-what-this-scanner-checks-and-why">Cookie attributes: what this scanner checks, and why</a></li>
+<li><a href="#1-does-the-cookie-require-https-cookiesecure">1. Does the cookie require HTTPS: <code>cookieSecure</code></a></li>
+<li><a href="#2-can-page-scripts-read-the-cookie-cookiehttponly">2. Can page scripts read the cookie: <code>cookieHttpOnly</code></a></li>
+<li><a href="#3-is-the-cookie-sent-on-cross-site-requests-cookiesamesite">3. Is the cookie sent on cross-site requests: <code>cookieSameSite</code></a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-does-the-cookie-require-https-cookiesecure">1. Does the cookie require HTTPS: <code>cookieSecure</code></h2>
 <p>A cookie without <code>Secure</code> will be sent over a plain HTTP connection if the
 browser ever makes one to the same host - a stray <code>http://</code> link, a mixed

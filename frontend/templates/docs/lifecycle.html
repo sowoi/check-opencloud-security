@@ -22,6 +22,16 @@ distinct from <a href="/documentation/reference#end-of-life-detection">end-of-li
 the update check, which decide whether a <em>known</em> version is still supported -
 these three exist upstream of that, because both depend on actually having a
 real version to reason about.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#version-and-lifecycle-disclosure-what-this-scanner-checks-and-why">Version and lifecycle disclosure: what this scanner checks, and why</a></li>
+<li><a href="#1-could-the-running-version-be-determined-at-all-versiondetection">1. Could the running version be determined at all: <code>versionDetection</code></a></li>
+<li><a href="#2-does-a-response-header-publish-the-version-versiondisclosureheader">2. Does a response header publish the version: <code>versionDisclosure:&lt;header&gt;</code></a></li>
+<li><a href="#3-does-the-webfinger-document-publish-the-version-webfingerversiondisclosure">3. Does the webfinger document publish the version: <code>webfingerVersionDisclosure</code></a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-could-the-running-version-be-determined-at-all-versiondetection">1. Could the running version be determined at all: <code>versionDetection</code></h2>
 <p><code>/status.php</code> reports up to three version-shaped fields, and only one of
 them is the real release - see <a href="/documentation/reference#reading-the-version-correctly">Reading the version

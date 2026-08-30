@@ -549,6 +549,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--port`                      | Port the instance listens on (OpenCloud's own proxy uses `9200`)                                                                             | from `--host`, else `443`                       | `COS_SCANNER_TARGET_PORT`       |
 | `--scheme`                    | `https` or `http`; `https` falls back to `http` automatically                                                                                | `https`                                         | `COS_SCANNER_SCHEME`            |
 | `--insecure`                  | Do not verify the instance's TLS certificate                                                                                                 | *False*                                         | `COS_INSECURE`                  |
+| `--ca-file`                   | PEM CA bundle used to verify an internal TLS certificate                                                                                     | *None* (system trust store)                     | `COS_SCANNER_TLS_CA_FILE`       |
 | `--no-extra-checks`           | Only check product, version and security headers                                                                                             | *False*                                         | `COS_NO_EXTRA_CHECKS`           |
 | `--no-debug-ports`            | Skip probing the OpenCloud debug ports                                                                                                       | *False*                                         | `COS_NO_DEBUG_PORTS`            |
 | `--concurrency`               | Maximum parallel host workers; one is used per host up to this ceiling                                                                       | `5`                                             | `COS_CONCURRENCY`               |
@@ -572,8 +573,10 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--webhook-on`                | Lowest state that triggers the webhook (`critical`, `warning`, `unknown`, `always`)                                                          | `critical`                                      | `COS_WEBHOOK_ON`                |
 | `--webhook-format`            | Webhook body shape: `generic` (the plugin's own JSON), `slack`, or `discord`                                                                 | `generic`                                       | `COS_WEBHOOK_FORMAT`            |
 | `--webhook-header`            | Extra header for the webhook request, repeatable                                                                                             | *None*                                          | `COS_WEBHOOK_HEADERS`           |
+| `--webhook-secret`            | Shared secret; signs each webhook body with HMAC-SHA256 in `X-COS-Signature`                                                                  | *None* (unsigned)                               | `COS_WEBHOOK_SECRET`            |
 | `--webhook-timeout`           | HTTP timeout in seconds for the webhook call                                                                                                 | `10`                                            | `COS_WEBHOOK_TIMEOUT`           |
 | `--allow-private-webhooks`    | Permit webhooks to private, loopback, or link-local addresses                                                                                | *False*                                         | `COS_ALLOW_PRIVATE_WEBHOOKS`    |
+| `--webhook-digest`            | With several `--host` targets, send one combined webhook instead of one per host                                                            | *False*                                         | `COS_WEBHOOK_DIGEST`            |
 | `--retries`                   | Retry attempts for transient network errors                                                                                                  | `2`                                             | `COS_RETRIES`                   |
 | `--backoff-factor`            | Exponential backoff factor (seconds) between retries                                                                                         | `0.5`                                           | `COS_BACKOFF_FACTOR`            |
 | `--config`                    | Path to the configuration file (`.json` as JSON, else YAML)                                                                                  | auto-discovered                                 | `COS_CONFIG_FILE`               |
@@ -750,7 +753,9 @@ Read from the instance itself:
 
 - product, `productversion` and edition from `/status.php`; a server whose
   product name says ownCloud or Nextcloud is refused rather than rated,
-  because it serves the same endpoint but is not the same software. `/status.php`
+  because it serves the same endpoint but is not the same software - see
+  [`docs/what-is-opencloud.md`](docs/what-is-opencloud.md) for where the three
+  projects came from and how they diverged. `/status.php`
   also carries `maintenance`, `installed` and `needsDbUpgrade`, but OpenCloud's
   own handler for it hardcodes all three (`false`, `true`, `false`) rather than
   reading real state, so this scanner does not check them - see

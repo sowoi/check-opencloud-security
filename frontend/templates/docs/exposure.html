@@ -38,6 +38,18 @@ single-page application, and unknown paths return the app shell with HTTP
 <code>200</code> rather than a <code>404</code> - a naive "does this path return <code>200</code>?" check
 would flag every healthy instance. Only a response that actually differs from
 that catch-all baseline counts as a hit, on every check below.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#exposed-paths-and-debug-endpoints-what-this-scanner-checks-and-why">Exposed paths and debug endpoints: what this scanner checks, and why</a></li>
+<li><a href="#1-is-a-directory-index-being-served-directorylisting">1. Is a directory index being served: <code>directoryListing</code></a></li>
+<li><a href="#2-is-a-specific-deployment-file-readable-exposedpath">2. Is a specific deployment file readable: <code>exposed:&lt;path&gt;</code></a></li>
+<li><a href="#3-is-a-debug-endpoint-publicly-readable-debugendpointpath">3. Is a debug endpoint publicly readable: <code>debugEndpoint:&lt;path&gt;</code></a></li>
+<li><a href="#4-is-a-service-debug-port-reachable-debugportport">4. Is a service debug port reachable: <code>debugPort:&lt;port&gt;</code></a></li>
+<li><a href="#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed">5. Is the backend reachable directly, bypassing the proxy: <code>backendPortClosed</code></a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-is-a-directory-index-being-served-directorylisting">1. Is a directory index being served: <code>directoryListing</code></h2>
 <p>An <code>Index of /</code>-style page was returned. OpenCloud never generates one, so
 this can only come from a plain web server pointed directly at the

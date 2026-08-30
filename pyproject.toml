@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.14.1"
+version = "1.14.2"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -16,7 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 # Shell completion. Optional on purpose: a monitoring host running this from
 # cron has no use for it, and the plugin works without it.
-completion = ["argcomplete>=3.6.2"]
+completion = ["argcomplete>=3.7.2"]
 # The public web application (see docs/webapp.md). Deliberately an extra and
 # never a dependency: the plugin on a monitoring host must stay small, and the
 # wheel on PyPI ships neither `webapp/` nor `frontend/`. The web app is
@@ -32,6 +32,11 @@ web = [
     "arq>=0.28.0",
     "cryptography>=50.0.0",
 ]
+# Signature verification for `check-opencloud-scanner refresh-data`. An extra
+# rather than a dependency for the same reason `completion` is: it pulls in a
+# dozen transitive packages, and a refresh without it still runs - it just
+# falls back to the structural guards and says so. See ADR 0027.
+signing = ["sigstore>=4.5.0"]
 # The agent-facing layer: an MCP server mounted on the web application, plus
 # the in-process HTTP client it drives the REST API with. Separate from `web`
 # because a deployment that only serves the website and the JSON API has no

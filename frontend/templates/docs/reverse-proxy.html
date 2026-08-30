@@ -37,6 +37,7 @@ this repository.</p>
 <li><a href="#reverse-proxies">Reverse proxies</a></li>
 <li><a href="#in-front-of-opencloud">In front of OpenCloud</a><ul>
 <li><a href="#the-headers-this-check-looks-for">The headers this check looks for</a></li>
+<li><a href="#two-findings-decided-here-that-are-not-headers">Two findings decided here that are not headers</a></li>
 <li><a href="#nginx">nginx</a></li>
 <li><a href="#apache-httpd">Apache httpd</a></li>
 <li><a href="#caddy">Caddy</a></li>
@@ -108,6 +109,39 @@ before OpenCloud does. Adding them again in the proxy fixes both.</p>
 </table>
 <p>Send them on the HTTPS listener only. <code>Strict-Transport-Security</code> on a plain
 HTTP response is ignored by browsers and tells an attacker nothing useful.</p>
+<h3 id="two-findings-decided-here-that-are-not-headers">Two findings decided here that are not headers</h3>
+<p>Both are hardening flags rather than extra checks, so neither lowers the
+grade on its own - they raise the state to WARNING and are waivable with
+<code>--ignore-hardening</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>What has to be true to pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>httpsEnforced</code></td>
+<td>A request to <code>http://</code> on port 80 answers with a redirect whose <code>Location</code> starts with <code>https://</code> - or port 80 does not answer at all</td>
+</tr>
+<tr>
+<td><code>reverseProxyDetected</code></td>
+<td>Something in the response looks like a proxy: a proxy-style <code>Server</code> header, or any <code>Via</code> header</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>httpsEnforced</code></strong> is measured without following redirects: the scan asks
+port 80 for <code>/</code> once and reads the <code>Location</code> it gets back. A redirect to
+another plain-HTTP address, a <code>200</code> that serves the interface, and a
+redirect chain that reaches HTTPS only on its second hop all fail. A closed
+or filtered port 80 <strong>passes</strong> - plain HTTP cannot be spoken at all, which is
+the stronger version of enforcing it.</p>
+<p><strong><code>reverseProxyDetected</code></strong> is deliberately best-effort and never changes the
+rating, because Traefik and HAProxy announce nothing by default. A
+well-configured deployment can fail it with nothing wrong; treat it as a
+prompt to confirm there is something in front, not as a defect. If there is
+not, the configuration below is the usual way to put one there.</p>
 <h3 id="nginx">nginx</h3>
 <pre><code class="language-nginx">server {
     listen 443 ssl http2;
@@ -271,7 +305,8 @@ backend opencloud
   guesswork. Overwrite it at the edge.</li>
 <li><strong>HTTP left open.</strong> A redirect is enough; this check follows it and grades
   the destination. What it will not forgive is a plain-HTTP listener that
-  serves the interface as well.</li>
+  serves the interface as well - that is the <code>httpsEnforced</code> flag
+  <a href="#two-findings-decided-here-that-are-not-headers">above</a>.</li>
 <li><strong>A self-signed or expired certificate.</strong> The scan refuses to establish a
   version over an untrusted connection, and no header can make up for that.</li>
 </ul>

@@ -37,6 +37,17 @@ scheduled scan is a better fit than a long-running exporter.</p>
 <p>If you already run Icinga2, you do not need any of this: the
 <a href="/documentation/reference#performance-data">performance data</a> the plugin prints is picked
 up by Icinga2's Graphite/InfluxDB writers directly.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#prometheus-and-grafana">Prometheus and Grafana</a></li>
+<li><a href="#what-there-is-to-graph">What there is to graph</a></li>
+<li><a href="#node_exporter-textfile-collector">node_exporter textfile collector</a></li>
+<li><a href="#pushgateway">Pushgateway</a></li>
+<li><a href="#alerting-rules">Alerting rules</a></li>
+<li><a href="#grafana">Grafana</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="what-there-is-to-graph">What there is to graph</h2>
 <p>Every run prints performance data after a <code>|</code>:</p>
 <pre><code>rating=5;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.234s;;;0;

@@ -27,6 +27,15 @@ client willing to trust?</strong></p>
 <p>If <code>/config.json</code> cannot be read, or does not publish an <code>embed</code> block at
 all, both checks pass - embedding is simply not configured, so there is
 nothing for either origin restriction to fail.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#embedding-opencloud-in-an-iframe-what-this-scanner-checks-and-why">Embedding OpenCloud in an iframe: what this scanner checks, and why</a></li>
+<li><a href="#1-does-the-embed-accept-messages-from-any-origin-webembedmessageoriginrestricted">1. Does the embed accept messages from any origin: <code>webEmbedMessageOriginRestricted</code></a></li>
+<li><a href="#2-does-delegated-authentication-accept-an-unvalidated-origin-webembeddelegatedauthenticationrestricted">2. Does delegated authentication accept an unvalidated origin: <code>webEmbedDelegatedAuthenticationRestricted</code></a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-does-the-embed-accept-messages-from-any-origin-webembedmessageoriginrestricted">1. Does the embed accept messages from any origin: <code>webEmbedMessageOriginRestricted</code></h2>
 <p><code>options.embed.messagesOrigin</code> in the public web configuration is read.
 <code>WEB_OPTION_EMBED_MESSAGES_ORIGIN=*</code> means the embedded client will exchange

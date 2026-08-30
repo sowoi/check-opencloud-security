@@ -13,6 +13,14 @@ If `/config.json` cannot be read, or does not publish an `embed` block at
 all, both checks pass - embedding is simply not configured, so there is
 nothing for either origin restriction to fail.
 
+<!-- TOC -->
+* [Embedding OpenCloud in an iframe: what this scanner checks, and why](#embedding-opencloud-in-an-iframe-what-this-scanner-checks-and-why)
+  * [1. Does the embed accept messages from any origin: `webEmbedMessageOriginRestricted`](#1-does-the-embed-accept-messages-from-any-origin-webembedmessageoriginrestricted)
+  * [2. Does delegated authentication accept an unvalidated origin: `webEmbedDelegatedAuthenticationRestricted`](#2-does-delegated-authentication-accept-an-unvalidated-origin-webembeddelegatedauthenticationrestricted)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Does the embed accept messages from any origin: `webEmbedMessageOriginRestricted`
 
 `options.embed.messagesOrigin` in the public web configuration is read.

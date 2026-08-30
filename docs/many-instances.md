@@ -4,6 +4,18 @@ One check per instance is simple until there are twenty of them, each with its
 own port, its own release track and its own list of accepted findings. This
 page covers the three shapes that scale, from smallest to largest.
 
+<!-- TOC -->
+* [Checking a fleet of instances](#checking-a-fleet-of-instances)
+  * [One command, several hosts](#one-command-several-hosts)
+  * [One configuration file per instance](#one-configuration-file-per-instance)
+  * [A loop over the files](#a-loop-over-the-files)
+  * [Where the checks should run from](#where-the-checks-should-run-from)
+  * [Keeping the waivers honest](#keeping-the-waivers-honest)
+  * [Only alerting on what changed](#only-alerting-on-what-changed)
+  * [Scheduling the whole thing](#scheduling-the-whole-thing)
+<!-- TOC -->
+
+
 ## One command, several hosts
 
 `--host` takes a comma-separated list. The plugin scans them in turn, prints a
@@ -22,6 +34,16 @@ or a waiver the others do not, you have outgrown it.
 Aggregating also loses the per-host history your monitoring system would
 otherwise keep. If you want one red service per broken instance rather than
 one red service for the group, use one check per host instead.
+
+Add `--webhook-digest` here and the webhook fires at most once for the whole
+`--host` list, instead of once per host that meets `--webhook-on` - useful
+when a webhook receiver is a person who would rather get one message about
+three broken instances than three separate pings. It only combines what
+happens *inside this one process*: since it is one flag on one `ScanContext`,
+it has no effect on the "configuration file per instance" and "loop over the
+files" patterns below, where each instance runs as its own separate process
+with nothing to combine across - each of those still sends its own webhook
+per instance, exactly as without the flag.
 
 ## One configuration file per instance
 

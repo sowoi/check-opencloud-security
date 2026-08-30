@@ -4,6 +4,14 @@ OpenCloud is a single Go binary. `/status.php` is not a PHP script running
 anywhere in it - the path is a compatibility shim, kept because the software
 OpenCloud replaced was PHP.
 
+<!-- TOC -->
+* [Why OpenCloud still answers `/status.php`](#why-opencloud-still-answers-statusphp)
+  * [Where the path comes from](#where-the-path-comes-from)
+  * [What the handler actually returns](#what-the-handler-actually-returns)
+  * [What this scanner reads from it, and what it does not](#what-this-scanner-reads-from-it-and-what-it-does-not)
+<!-- TOC -->
+
+
 ## Where the path comes from
 
 OpenCloud is the successor to ownCloud Infinite Scale (oCIS), built on the
@@ -16,7 +24,9 @@ lineage - ownCloud, Nextcloud (a fork), oCIS, and now OpenCloud - has kept
 answering it, because a large ecosystem of clients still probes it first. This
 scanner refuses to rate a server that answers `/status.php` as ownCloud or
 Nextcloud rather than OpenCloud, for exactly that reason - see
-[Troubleshooting](troubleshooting.md).
+[Troubleshooting](troubleshooting.md). [What OpenCloud is, and how it differs
+from ownCloud and Nextcloud](what-is-opencloud.md) tells that lineage in full,
+and what changed at each fork.
 
 In OpenCloud's own source, the route is registered in the vendored Reva
 package it builds on:

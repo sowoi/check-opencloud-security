@@ -6,6 +6,7 @@ This directory contains repository images used in project documentation:
 |:--|:--|
 | `opencloud-demo-scan-result.png` | Example scan-result documentation image |
 | `opencloud-scan-landing.png` | Example landing-page documentation image |
+| `architecture-*.png` | Rendered from the `` ```mermaid `` fences in [`ARCHITECTURE.md`](../ARCHITECTURE.md) by [`render-architecture-diagram.yml`](../.github/workflows/render-architecture-diagram.yml). Generated - do not hand-edit; change the Mermaid source instead. |
 
 Images must use `opencloud.example.com` or another reserved example address.
 Do not add screenshots containing real instance names, addresses, tokens,

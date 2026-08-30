@@ -30,7 +30,11 @@ ownCloud and Nextcloud serve the same <code>/status.php</code> - OpenCloud inher
 endpoint from them - so the address answered, just not for OpenCloud. Their
 releases, advisories and hardening defaults are different, and rating them
 against the OpenCloud release schedule would produce a confident answer about
-the wrong software, so the scan stops instead of guessing.</p>
+the wrong software, so the scan stops instead of guessing. See <a href="/documentation/what-is-opencloud#why-this-matters-for-a-security-scan">What OpenCloud
+is, and how it differs from ownCloud and
+Nextcloud</a> for why
+the three are close enough to share an endpoint but not close enough to share
+a rating.</p>
 <p><strong>Certificate errors on a fresh instance</strong>
 <code>opencloud init</code> creates a self-signed certificate. Pass <code>--insecure</code> (the
 untrusted chain is still reported, it just stops counting against the rating),

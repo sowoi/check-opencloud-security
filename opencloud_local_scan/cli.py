@@ -157,8 +157,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=Path("~/.cache/check-opencloud-security").expanduser(),
         help="Directory for the two JSON cache files.",
     )
-    refresh_parser.add_argument("--schedule-url", help="Lifecycle page or mirror URL.")
-    refresh_parser.add_argument("--advisory-url", help="OSV query endpoint or mirror URL.")
+    refresh_parser.add_argument(
+        "--schedule-url",
+        help=(
+            "Lifecycle page or mirror URL. Without it, the reviewed schedule "
+            "is read from this project's repository and its signature "
+            "verified; an explicit URL is fetched live and unverified."
+        ),
+    )
+    refresh_parser.add_argument(
+        "--advisory-url",
+        help=(
+            "OSV query endpoint or mirror URL. Without it, the reviewed "
+            "advisory database is read from this project's repository and "
+            "its signature verified; an explicit URL is fetched live and "
+            "unverified."
+        ),
+    )
     refresh_parser.add_argument("--timeout", type=int, default=30)
 
     enable_completion(parser)

@@ -19,6 +19,7 @@
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
   <a href="#the-payload-in-short" lang="en">The payload, in short</a>
   <a href="#a-generic-receiver" lang="en">A generic receiver</a>
+  <a href="#verifying-the-signature" lang="en">Verifying the signature</a>
   <a href="#uptime-kuma" lang="en">Uptime Kuma</a>
   <a href="#slack-mattermost-discord" lang="en">Slack, Mattermost, Discord</a>
   <a href="#ntfy" lang="en">ntfy</a>
@@ -41,6 +42,20 @@ wants the generic document, and needs a few lines of translation in between.</p>
   Use <code>COS_WEBHOOK_URL</code>, or <code>secret://</code> in the configuration file - see
   <a href="/documentation/reference#configuration-file-and-secrets">Configuration file and secrets</a>.</li>
 </ul>
+<!-- TOC -->
+<ul>
+<li><a href="#webhook-recipes">Webhook recipes</a></li>
+<li><a href="#the-payload-in-short">The payload, in short</a></li>
+<li><a href="#a-generic-receiver">A generic receiver</a></li>
+<li><a href="#verifying-the-signature">Verifying the signature</a></li>
+<li><a href="#uptime-kuma">Uptime Kuma</a></li>
+<li><a href="#slack-mattermost-discord">Slack, Mattermost, Discord</a></li>
+<li><a href="#ntfy">ntfy</a></li>
+<li><a href="#alertmanager">Alertmanager</a></li>
+<li><a href="#testing-a-receiver-without-an-instance">Testing a receiver without an instance</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="the-payload-in-short">The payload, in short</h2>
 <p>The fields most receivers care about, from the full example in
 <a href="/documentation/reference#webhook-notifications">Webhook notifications</a>:</p>
@@ -94,6 +109,50 @@ check-opencloud-security --host opencloud.example.com --webhook-on warning
 </code></pre>
 <p><code>--webhook-on</code> decides how much you hear. Each level includes the more severe
 ones: <code>critical</code>, <code>warning</code>, <code>unknown</code>, <code>always</code>.</p>
+<h2 id="verifying-the-signature">Verifying the signature</h2>
+<p>A webhook URL is usually the only thing standing between an endpoint and
+anyone who guesses it. <code>--webhook-secret</code> (or <code>COS_WEBHOOK_SECRET</code>) adds a
+shared-secret signature so a receiver can tell a real notification from an
+invented one:</p>
+<pre><code class="language-shell">export COS_WEBHOOK_SECRET='a-long-random-string'
+check-opencloud-security --host opencloud.example.com --webhook-on warning
+</code></pre>
+<p>Every POST then carries</p>
+<pre><code>X-COS-Signature: sha256=&lt;hex&gt;
+</code></pre>
+<p>where <code>&lt;hex&gt;</code> is the <strong>HMAC-SHA256 of the raw request body</strong>, keyed with the
+secret. The plugin serialises the body once and posts exactly those bytes, so
+a receiver verifies the bytes it received - it must not re-encode the parsed
+document first, because any difference in key order or spacing changes the
+hash.</p>
+<pre><code class="language-python">import hashlib
+import hmac
+
+def verify(raw_body: bytes, header: str, secret: str) -&gt; bool:
+    &quot;&quot;&quot;raw_body must be the untouched request body, not a re-serialised dict.&quot;&quot;&quot;
+    expected = &quot;sha256=&quot; + hmac.new(
+        secret.encode(&quot;utf-8&quot;), raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header or &quot;&quot;)
+</code></pre>
+<p>Use <code>hmac.compare_digest</code> rather than <code>==</code>; comparing hex digests with a
+short-circuiting comparison leaks how much of a guess was correct.</p>
+<p>In a Flask or FastAPI receiver, reach for the raw body rather than the parsed
+JSON - <code>await request.body()</code> in FastAPI, <code>request.get_data()</code> in Flask.
+Frameworks that only hand you a parsed object cannot verify this signature at
+all, and the honest fix is to read the body yourself before parsing.</p>
+<p>Three things worth knowing:</p>
+<ul>
+<li><strong>The signature covers whatever was sent</strong>, including the chat-native
+  documents <code>--webhook-format slack</code> and <code>discord</code> produce. Slack and Discord
+  ignore the header; it is there for receivers that check it.</li>
+<li><strong>No signature header is sent when no secret is set.</strong> A receiver that
+  requires one should reject the request rather than treat a missing header
+  as valid.</li>
+<li><strong>The secret is a credential.</strong> Keep it out of the command line the same way
+  the URL is kept out - see <a href="/documentation/reference#configuration-file-and-secrets">Configuration file and
+  secrets</a>.</li>
+</ul>
 <h2 id="uptime-kuma">Uptime Kuma</h2>
 <p>Covered in full in <a href="/documentation/reference#uptime-kuma">Uptime Kuma</a>, because its Push
 monitor is the one receiver that takes the payload as-is <em>and</em> treats silence

@@ -37,6 +37,13 @@ def posts(monkeypatch):
             pass
 
     def _post(url, **kwargs):
+        # The plugin posts pre-serialised bytes (`data=`) rather than handing
+        # requests an object, so that the bytes it signed are the bytes that go
+        # out. Parse them back under "json" so a test can talk about the
+        # document a receiver would see - and so every such assertion is made
+        # against what was actually transmitted.
+        if "data" in kwargs:
+            kwargs = {**kwargs, "json": json.loads(kwargs["data"])}
         recorded.append((url, kwargs))
         return _Response()
 
@@ -204,10 +211,19 @@ def test_webhook_uses_the_configured_proxy(posts):
     }
 
 
+def _fake_getaddrinfo(*addresses):
+    """Build a socket.getaddrinfo replacement that answers with fixed addresses."""
+
+    def _getaddrinfo(hostname, *args, **kwargs):
+        return [(None, None, None, "", (address, 0)) for address in addresses]
+
+    return _getaddrinfo
+
+
 def test_private_webhook_addresses_are_blocked(monkeypatch, caplog):
     """A webhook must not be usable to reach internal services by default."""
     posted = []
-    monkeypatch.setattr(plugin.socket, "gethostbyname", lambda hostname: "127.0.0.1")
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo("127.0.0.1"))
     monkeypatch.setattr(
         plugin.requests,
         "post",
@@ -227,7 +243,7 @@ def test_private_webhook_addresses_are_blocked(monkeypatch, caplog):
 def test_private_webhooks_require_an_explicit_opt_out(monkeypatch):
     """An intentional internal receiver remains available with an opt-out."""
     posted = []
-    monkeypatch.setattr(plugin.socket, "gethostbyname", lambda hostname: "127.0.0.1")
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo("127.0.0.1"))
 
     class _Response:
         def raise_for_status(self):
@@ -255,13 +271,47 @@ def test_private_webhooks_require_an_explicit_opt_out(monkeypatch):
 @pytest.mark.parametrize("url", ["not a URL", "https://unresolvable.example.com/x"])
 def test_invalid_or_unresolvable_webhook_urls_are_blocked(monkeypatch, url):
     """A malformed or unresolvable destination must fail closed."""
-    monkeypatch.setattr(
-        plugin.socket,
-        "gethostbyname",
-        lambda hostname: (_ for _ in ()).throw(plugin.socket.gaierror()),
-    )
+
+    def _raise(*args, **kwargs):
+        raise plugin.socket.gaierror()
+
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _raise)
 
     assert plugin._is_safe_webhook_url(url) is False
+
+
+def test_ipv6_private_address_is_blocked(monkeypatch):
+    """An IPv6 loopback/private/link-local address must be blocked too."""
+    for address in ("::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "64:ff9b::7f00:1"):
+        monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo(address))
+        assert plugin._is_safe_webhook_url("https://hooks.example.com/x") is False
+
+
+def test_dual_stack_hostname_with_a_public_ipv4_and_private_ipv6_is_blocked(monkeypatch, caplog):
+    """
+    A hostname can answer a validator's A-record check while its AAAA record,
+    the address `requests` may actually connect to, points somewhere private.
+
+    Checking only the IPv4 address here would let this through.
+    """
+    posted = []
+    monkeypatch.setattr(
+        plugin.socket, "getaddrinfo", _fake_getaddrinfo("8.8.8.8", "fd00::1")
+    )
+    monkeypatch.setattr(
+        plugin.requests,
+        "post",
+        lambda *args, **kwargs: posted.append((args, kwargs)),
+    )
+
+    sent = plugin._send_webhook(
+        ScanContext(host="cloud.example.com", webhook_url="https://hooks.example.com/x"),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is False
+    assert posted == []
+    assert "restricted private/local IP address" in caplog.text
 
 
 def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
@@ -274,13 +324,11 @@ def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
     resolve_count = 0
     posted = []
 
-    def _gethostbyname_rebinding(hostname: str) -> str:
+    def _getaddrinfo_rebinding(hostname, *args, **kwargs):
         nonlocal resolve_count
         resolve_count += 1
-        if resolve_count == 1:
-            return "8.8.8.8"
-        else:
-            return "127.0.0.1"
+        address = "8.8.8.8" if resolve_count == 1 else "127.0.0.1"
+        return [(None, None, None, "", (address, 0))]
 
     class _Response:
         def raise_for_status(self):
@@ -290,7 +338,7 @@ def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
         posted.append((url, kwargs))
         return _Response()
 
-    monkeypatch.setattr(plugin.socket, "gethostbyname", _gethostbyname_rebinding)
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _getaddrinfo_rebinding)
     monkeypatch.setattr(plugin.requests, "post", _post)
 
     sent = plugin._send_webhook(
@@ -307,11 +355,20 @@ def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
     assert "DNS rebinding attack" in caplog.text
 
 
-def test_webhook_signature_is_added_when_secret_is_set(posts):
-    """The X-COS-Signature header contains the HMAC-SHA256 of the payload."""
+def test_webhook_signature_verifies_against_the_bytes_actually_sent(posts):
+    """
+    A receiver verifies the raw body it received, so the signature has to be
+    the HMAC of exactly those bytes.
+
+    Recomputing it from the re-serialised *document* instead would pass even
+    if the plugin signed one encoding and transmitted another, which is
+    precisely the bug this guards: `json=` lets requests choose its own
+    separators and key order, so the hash a receiver computes would never
+    match the header.
+    """
     import hashlib
     import hmac
-    
+
     run(
         CRITICAL_RESULT,
         webhook_url="https://hooks.example.com/x",
@@ -320,15 +377,37 @@ def test_webhook_signature_is_added_when_secret_is_set(posts):
 
     assert len(posts) == 1
     _, kwargs = posts[0]
-    assert "X-COS-Signature" in kwargs["headers"]
-    
-    payload_json = json.dumps(kwargs["json"], separators=(",", ":"), sort_keys=True)
-    expected_sig = hmac.new(
-        b"my-secret",
-        payload_json.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+
+    sent_bytes = kwargs["data"]
+    assert isinstance(sent_bytes, bytes)
+
+    expected_sig = hmac.new(b"my-secret", sent_bytes, hashlib.sha256).hexdigest()
     assert kwargs["headers"]["X-COS-Signature"] == f"sha256={expected_sig}"
+
+    # The body must still be the JSON a receiver expects, and be sent as such.
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert json.loads(sent_bytes)["status"] == "CRITICAL"
+
+
+def test_webhook_signature_is_wrong_for_a_different_body(posts):
+    """
+    The negative half: a signature that verified against any body would be no
+    signature at all.
+    """
+    import hashlib
+    import hmac
+
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://hooks.example.com/x",
+        webhook_secret="my-secret",
+    )
+
+    _, kwargs = posts[0]
+    tampered = json.dumps({**json.loads(kwargs["data"]), "status": "OK"}).encode("utf-8")
+    forged = hmac.new(b"my-secret", tampered, hashlib.sha256).hexdigest()
+
+    assert kwargs["headers"]["X-COS-Signature"] != f"sha256={forged}"
 
 
 def test_webhook_signature_is_not_added_when_secret_is_not_set(posts):
@@ -478,3 +557,66 @@ def test_webhook_format_survives_a_failed_scan_payload(posts, monkeypatch):
     embed = posts[0][1]["json"]["embeds"][0]
     assert embed["title"].startswith("unreachable.example.com")
     assert embed["fields"] == []
+
+
+# --- webhook digest renderers (--webhook-digest) ---
+def _host_payload(host: str, status: str) -> dict:
+    return {
+        "host": host,
+        "status": status,
+        "exit_code": int(getattr(NagiosExitCode, status)),
+        "message": f"{status}: {host}",
+    }
+
+
+def test_build_digest_webhook_payload_is_flat_and_self_describing():
+    payloads = [
+        _host_payload("a.example.com", "CRITICAL"),
+        _host_payload("b.example.com", "OK"),
+    ]
+
+    document = plugin._build_digest_webhook_payload(payloads)
+
+    assert document["digest"] is True
+    assert document["host_count"] == 2
+    assert document["status"] == "CRITICAL"
+    assert document["exit_code"] == int(NagiosExitCode.CRITICAL)
+    assert document["hosts"] == payloads
+    json.dumps(document)  # must survive a round trip through a JSON transport
+
+
+def test_slack_digest_omits_ok_hosts_and_counts_them():
+    payload = plugin._build_digest_webhook_payload(
+        [_host_payload("bad.example.com", "CRITICAL"), _host_payload("ok.example.com", "OK")]
+    )
+
+    rendered = plugin._slack_digest_webhook_payload(payload)
+
+    text = rendered["attachments"][0]["text"]
+    assert "bad.example.com" in text
+    assert "ok.example.com" not in text
+    assert "1 host(s) OK, not shown" in text
+
+
+def test_discord_digest_truncates_a_large_non_ok_host_count():
+    """Discord embeds cap at 25 fields; a large fleet must not exceed that."""
+    payloads = [_host_payload(f"host{i}.example.com", "CRITICAL") for i in range(30)]
+    payload = plugin._build_digest_webhook_payload(payloads)
+
+    rendered = plugin._discord_digest_webhook_payload(payload)
+
+    fields = rendered["embeds"][0]["fields"]
+    assert len(fields) <= 25
+    assert fields[-1] == {"name": "...", "value": "+10 more", "inline": False}
+
+
+def test_discord_digest_reports_ok_count_as_a_field():
+    payload = plugin._build_digest_webhook_payload(
+        [_host_payload("bad.example.com", "CRITICAL"), _host_payload("ok.example.com", "OK")]
+    )
+
+    rendered = plugin._discord_digest_webhook_payload(payload)
+
+    fields = {field["name"]: field["value"] for field in rendered["embeds"][0]["fields"]}
+    assert fields["OK"] == "1 host(s)"
+    assert "bad.example.com - CRITICAL" in fields

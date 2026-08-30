@@ -7,6 +7,15 @@ the update check, which decide whether a *known* version is still supported -
 these three exist upstream of that, because both depend on actually having a
 real version to reason about.
 
+<!-- TOC -->
+* [Version and lifecycle disclosure: what this scanner checks, and why](#version-and-lifecycle-disclosure-what-this-scanner-checks-and-why)
+  * [1. Could the running version be determined at all: `versionDetection`](#1-could-the-running-version-be-determined-at-all-versiondetection)
+  * [2. Does a response header publish the version: `versionDisclosure:<header>`](#2-does-a-response-header-publish-the-version-versiondisclosureheader)
+  * [3. Does the webfinger document publish the version: `webfingerVersionDisclosure`](#3-does-the-webfinger-document-publish-the-version-webfingerversiondisclosure)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Could the running version be determined at all: `versionDetection`
 
 `/status.php` reports up to three version-shaped fields, and only one of

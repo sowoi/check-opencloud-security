@@ -9,6 +9,15 @@ If the scanned response sets no cookie at all, none of these three checks
 appear in the result: there is nothing to grade, and a check that always
 passed because it never ran would be misleading.
 
+<!-- TOC -->
+* [Cookie attributes: what this scanner checks, and why](#cookie-attributes-what-this-scanner-checks-and-why)
+  * [1. Does the cookie require HTTPS: `cookieSecure`](#1-does-the-cookie-require-https-cookiesecure)
+  * [2. Can page scripts read the cookie: `cookieHttpOnly`](#2-can-page-scripts-read-the-cookie-cookiehttponly)
+  * [3. Is the cookie sent on cross-site requests: `cookieSameSite`](#3-is-the-cookie-sent-on-cross-site-requests-cookiesamesite)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Does the cookie require HTTPS: `cookieSecure`
 
 A cookie without `Secure` will be sent over a plain HTTP connection if the

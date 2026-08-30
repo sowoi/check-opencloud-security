@@ -10,6 +10,15 @@ Icinga2 hosts, including the `CheckCommand` and `Service` objects described in
 This page is the short version. [`ansible/README.md`](../ansible/README.md) is
 the reference, and it is the file kept in step with the roles themselves.
 
+<!-- TOC -->
+* [Automated deployment with Ansible](#automated-deployment-with-ansible)
+  * [Which role to use](#which-role-to-use)
+  * [Quick start](#quick-start)
+  * [Configuring the check](#configuring-the-check)
+  * [Before you commit a change to the role](#before-you-commit-a-change-to-the-role)
+<!-- TOC -->
+
+
 ## Which role to use
 
 | Role | Installs | Use it when |
