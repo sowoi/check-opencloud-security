@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-08-30
+
 ### Added
 
 - **The Docker setup wizard can hand the audit file to the host's logrotate**,
