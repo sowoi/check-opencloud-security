@@ -153,6 +153,17 @@ class InstanceBehaviour:
     openid_redirect: bool = False
     # No discovery document at all.
     openid_configuration: bool = True
+    # What the discovery document publishes beyond the issuer and endpoints.
+    # None leaves the key out entirely, which is what OpenCloud's built-in
+    # provider does with code_challenge_methods_supported - and an absent key
+    # must read as an unknown rather than as a failure.
+    openid_code_challenge_methods: tuple[str, ...] | None = None
+    openid_response_types: tuple[str, ...] | None = None
+    openid_signing_algorithms: tuple[str, ...] | None = None
+    # Publish the endpoints on http:// even when the instance answers over
+    # HTTPS, the way a provider behind a terminating proxy that was never told
+    # its public URL does.
+    openid_insecure_endpoints: bool = False
     # App providers registered with the app registry, as /app/list reports
     # them. Empty means the endpoint answers with an empty list, which is what
     # an instance without an office integration does.
@@ -316,13 +327,26 @@ def _make_handler(behaviour: InstanceBehaviour):
                         {"Location": f"{issuer}/.well-known/openid-configuration"},
                     )
                     return
-                self._json(
-                    {
-                        "issuer": issuer,
-                        "authorization_endpoint": f"{issuer}/authorize",
-                        "token_endpoint": f"{issuer}/token",
-                    }
+                endpoint_base = issuer
+                if behaviour.openid_insecure_endpoints:
+                    endpoint_base = "http://" + issuer.split("://", 1)[-1]
+                document = {
+                    "issuer": endpoint_base,
+                    "authorization_endpoint": f"{endpoint_base}/authorize",
+                    "token_endpoint": f"{endpoint_base}/token",
+                }
+                optional = (
+                    ("code_challenge_methods_supported", behaviour.openid_code_challenge_methods),
+                    ("response_types_supported", behaviour.openid_response_types),
+                    (
+                        "id_token_signing_alg_values_supported",
+                        behaviour.openid_signing_algorithms,
+                    ),
                 )
+                for name, values in optional:
+                    if values is not None:
+                        document[name] = list(values)
+                self._json(document)
                 return
 
             if path in ("/status.php", "/status"):

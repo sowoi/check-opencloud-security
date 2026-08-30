@@ -14,6 +14,45 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Added
 
+- **Four hardening flags read from the OpenID Connect discovery document the
+  scan already fetches**, at the cost of no additional HTTP request. Finding
+  out who signs users in has always meant reading
+  `/.well-known/openid-configuration`; until now only `issuer` was kept and
+  the rest was thrown away, which left
+  [Securing a deployment](docs/secure-deployment.md) telling operators to
+  require PKCE with nothing able to check whether they had.
+
+  | Flag                         | Fails when                                                                   |
+  |:-----------------------------|:-----------------------------------------------------------------------------|
+  | `oidcPkceSupported`          | `code_challenge_methods_supported` does not offer `S256`                     |
+  | `oidcImplicitFlowDisabled`   | `response_types_supported` returns a token from the authorization endpoint   |
+  | `oidcSigningAlgorithmStrong` | `id_token_signing_alg_values_supported` contains `none` or an `HS` algorithm |
+  | `oidcEndpointsUseHttps`      | a published endpoint is an `http://` address                                 |
+
+  **Every one is skipped where the evidence is not published**, the same rule
+  `passwordPolicyComplexity` follows. That matters more here than usual:
+  OpenCloud's built-in provider ([libregraph/lico](https://github.com/libregraph/lico)) omits
+  `code_challenge_methods_supported` entirely, so reading its absence as "no
+  PKCE" would fail every stock instance for something its operator cannot
+  change. For the same reason `oidcImplicitFlowDisabled` is reported for an
+  **external** provider only - lico publishes `id_token token` and `id_token`
+  among its response types and cannot be reconfigured, and a finding an
+  operator cannot act on is worse than none. `oidcEndpointsUseHttps` is
+  measured only when the instance itself answered over HTTPS, so it reports
+  the disagreement worth reporting - a TLS instance whose provider still
+  advertises `http://` - rather than restating `httpsEnforced`.
+
+  [Authentication](docs/authentication.md) explains all four, and records
+  what else that document publishes and why none of the rest is checked -
+  including `token_endpoint_auth_methods_supported`, the obvious fifth
+  candidate, which is not a finding in either direction.
+
+  The result document's `identityProvider` block gains a `metadata` key
+  carrying the fields these flags were read from, so a reader can see the
+  evidence rather than only the verdict. `derive_hardenings()` takes the
+  identity-provider block as a fourth, optional argument; a caller that does
+  not pass one still gets every other flag.
+
 - **`passwordPolicyComplexity`: whether the link password policy still asks
   for more than a length.** OpenCloud's default policy requires one lowercase
   letter, one uppercase letter, one digit and one special character, and each
@@ -105,6 +144,22 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   guide it pointed at,
   [Scanning from the command line, in one line](docs/docker-oneliner.md), is
   already listed in the guide grid further down the same page.
+
+### Fixed
+
+- **A scan now closes the connections it opened.** `_Probe` pools its
+  HTTP connections in a `requests.Session` - one for the calling thread and
+  one per worker - and none of them were ever closed, so every scan left its
+  sockets held until the garbage collector happened to run. Over a fleet that
+  is one socket per host for no reason, and where the instance has gone away
+  in the meantime the response still sitting in the pool is finalised against
+  a socket somebody else already closed. On Python 3.14 that surfaces as
+  `ValueError: I/O operation on closed file` ignored in a destructor, blamed
+  on whatever unrelated code was running when the collector fired - in this
+  repository, a `PytestUnraisableExceptionWarning` pinned to an innocent test
+  in `tests/test_webapp_api.py`. `_Probe.close()` closes every session the
+  probe opened, including the ones worker threads made, and `scan()` calls it
+  in a `finally` so an exception partway through does not leak them either.
 
 ### Documentation
 

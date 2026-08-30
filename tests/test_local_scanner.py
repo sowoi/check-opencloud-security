@@ -12,6 +12,7 @@ import http.server
 import threading
 
 import pytest
+import requests
 
 import opencloud_local_scan.scanner as scanner_module
 from opencloud_local_scan.releases import ReleaseSettings
@@ -919,6 +920,244 @@ def test_an_instance_with_no_discoverable_provider_is_pointed_at_the_docs():
 
     found = run_scan(InstanceBehaviour())
     assert _check(found, "identityProviderDetected")["passed"] is True
+
+
+def _closed_sessions(monkeypatch) -> list[requests.Session]:
+    """Every session whose close() ran, recorded as it happens."""
+    closed: list[requests.Session] = []
+    original = requests.Session.close
+
+    def record(self) -> None:
+        closed.append(self)
+        original(self)
+
+    monkeypatch.setattr(requests.Session, "close", record)
+    return closed
+
+
+def _probes(monkeypatch) -> list:
+    """Every probe the scan opened, captured where the scan makes it."""
+    seen = []
+    original = scanner_module._open_instance
+
+    def record(host, settings):
+        opened = original(host, settings)
+        seen.append(opened[0])
+        return opened
+
+    monkeypatch.setattr(scanner_module, "_open_instance", record)
+    return seen
+
+
+def test_a_scan_closes_every_connection_it_opened(monkeypatch):
+    """
+    A pooled connection outliving the scan is a socket held for no reason.
+
+    Over a fleet that is one per host, kept until the collector happens to run,
+    and where the instance has gone away in the meantime the response still in
+    the pool is finalised against a socket somebody else already closed - which
+    surfaces as an ignored exception from a destructor, attributed to whatever
+    unrelated code was running at the time.
+    """
+    closed = _closed_sessions(monkeypatch)
+    probes = _probes(monkeypatch)
+
+    run_scan(InstanceBehaviour())
+
+    assert probes, "the scan opened no probe at all"
+    assert closed, "the scan closed no session at all"
+    assert probes[0].session in closed
+    # The probe has let go of them too, so a second close is a no-op rather
+    # than a second round of work on sessions somebody may have replaced.
+    assert probes[0]._opened == []
+
+
+def test_a_scan_that_fails_partway_still_closes_its_connections(monkeypatch):
+    """
+    The negative half: the close must not depend on reaching the last line.
+
+    A `finally` is the whole point - an exception raised anywhere in the scan
+    is exactly when a leaked socket is least likely to be noticed.
+    """
+    closed = _closed_sessions(monkeypatch)
+    probes = _probes(monkeypatch)
+
+    def explode(_result):
+        raise RuntimeError("remediation planning blew up")
+
+    monkeypatch.setattr(scanner_module, "remediation_plan", explode)
+
+    with pytest.raises(RuntimeError):
+        run_scan(InstanceBehaviour())
+
+    assert probes
+    assert probes[0].session in closed
+    assert probes[0]._opened == []
+
+
+# ------------------------------------- the discovery document, rated --------
+# The scan already fetches /.well-known/openid-configuration to work out who
+# signs users in, and used to read one field out of it. These check the rest,
+# and above all that a field the document does not publish stays an unknown:
+# OpenCloud's own provider omits several of them.
+
+EXTERNAL_KEYCLOAK = "https://id.example.com/realms/opencloud"
+
+
+def _hardening(result: dict, identifier: str):
+    """What the scan concluded about one hardening, or None if it said nothing."""
+    return result["hardenings"].get(identifier)
+
+
+def test_pkce_is_rated_only_when_the_provider_says_whether_it_offers_it():
+    """
+    OpenCloud's built-in provider publishes no code_challenge_methods at all.
+
+    Reading that absence as "PKCE is missing" would fail every stock instance
+    for something its operator cannot change, which is the opposite of what
+    the flag is for. The secure-deployment guide tells operators to require
+    S256 on an external provider; this is what finally checks that they did.
+    """
+    offered = run_scan(
+        InstanceBehaviour(
+            openid_issuer=EXTERNAL_KEYCLOAK,
+            openid_code_challenge_methods=("S256", "plain"),
+        )
+    )
+    assert _hardening(offered, "oidcPkceSupported") is True
+
+    # 'plain' is not PKCE worth having: the verifier travels in clear.
+    weak = run_scan(
+        InstanceBehaviour(
+            openid_issuer=EXTERNAL_KEYCLOAK, openid_code_challenge_methods=("plain",)
+        )
+    )
+    assert _hardening(weak, "oidcPkceSupported") is False
+
+    # The negative half: no key published, no finding either way.
+    silent = run_scan(InstanceBehaviour(openid_issuer=EXTERNAL_KEYCLOAK))
+    assert "oidcPkceSupported" not in silent["hardenings"]
+
+
+def test_the_implicit_flow_is_rated_for_an_external_provider_only():
+    """
+    The built-in provider offers implicit response types and cannot be changed.
+
+    libregraph/lico publishes 'id_token token' and 'id_token' in
+    response_types_supported, so rating every instance on this would mark down
+    a stock OpenCloud for its own shipped provider. Against Keycloak, where
+    Standard and Implicit really are separate switches, it is actionable.
+    """
+    implicit = run_scan(
+        InstanceBehaviour(
+            openid_issuer=EXTERNAL_KEYCLOAK,
+            openid_response_types=("code", "id_token token"),
+        )
+    )
+    assert _hardening(implicit, "oidcImplicitFlowDisabled") is False
+
+    code_only = run_scan(
+        InstanceBehaviour(
+            openid_issuer=EXTERNAL_KEYCLOAK, openid_response_types=("code",)
+        )
+    )
+    assert _hardening(code_only, "oidcImplicitFlowDisabled") is True
+
+    # The negative half: the same document from the instance's own provider
+    # produces no finding, however loudly it advertises the implicit flow.
+    built_in = run_scan(
+        InstanceBehaviour(openid_response_types=("id_token token", "id_token"))
+    )
+    assert built_in["identityProvider"]["external"] is False
+    assert "oidcImplicitFlowDisabled" not in built_in["hardenings"]
+
+
+@pytest.mark.parametrize(
+    ("algorithms", "expected"),
+    [
+        (("PS256",), True),
+        (("RS256", "ES256"), True),
+        (("RS256", "none"), False),
+        (("HS256",), False),
+        (("PS256", "HS512"), False),
+    ],
+)
+def test_an_id_token_signing_algorithm_is_rated_on_what_can_forge_a_token(
+    algorithms: tuple[str, ...], expected: bool
+):
+    """
+    'none' means anybody can write an ID token; HS means the client secret can.
+
+    An HMAC algorithm signs with the secret rather than a private key, and
+    OpenCloud's clients are public clients that cannot keep one - so every
+    party holding it can mint a token for any user. PS256, which OpenCloud's
+    built-in provider uses, passes.
+    """
+    result = run_scan(
+        InstanceBehaviour(
+            openid_issuer=EXTERNAL_KEYCLOAK, openid_signing_algorithms=algorithms
+        )
+    )
+
+    assert _hardening(result, "oidcSigningAlgorithmStrong") is expected
+
+
+def test_an_http_endpoint_is_rated_only_when_the_instance_itself_was_https():
+    """
+    An instance scanned over plain HTTP publishes http:// because it was asked to.
+
+    Reporting that would restate what setup.https already says, once, in the
+    right place. The finding worth having is the disagreement: an HTTPS
+    instance whose provider still advertises http://, which is a provider
+    behind a terminating proxy that was never told its public URL.
+    """
+    # The fake instance speaks plain HTTP, so nothing is measured at all.
+    plaintext = run_scan(InstanceBehaviour(openid_insecure_endpoints=True))
+    assert "oidcEndpointsUseHttps" not in plaintext["hardenings"]
+    assert plaintext["setup"]["https"]["used"] is False
+
+    # The positive half, which the fake instance cannot serve because it has
+    # no TLS: the same document read over HTTPS does produce the finding.
+    document = {
+        "issuer": "https://id.example.com",
+        "authorization_endpoint": "https://id.example.com/authorize",
+        "token_endpoint": "http://id.example.com/token",
+    }
+    provider = {
+        "detected": True,
+        "external": True,
+        "metadata": scanner_module._openid_metadata(document, over_https=True),
+    }
+    assert scanner_module._openid_hardenings(provider)["oidcEndpointsUseHttps"] is False
+
+    secure = dict(document, token_endpoint="https://id.example.com/token")
+    provider["metadata"] = scanner_module._openid_metadata(secure, over_https=True)
+    assert scanner_module._openid_hardenings(provider)["oidcEndpointsUseHttps"] is True
+
+
+def test_the_discovery_document_is_read_without_a_second_request():
+    """
+    These flags were the point of ADR 0022's bar: public evidence, already paid for.
+
+    The scan fetched /.well-known/openid-configuration once to find the issuer
+    long before it rated any of this, and adding four findings must not add a
+    request - so the count of times the instance was asked stays at one.
+    """
+    behaviour = InstanceBehaviour(
+        openid_issuer=EXTERNAL_KEYCLOAK,
+        openid_code_challenge_methods=("S256",),
+        openid_signing_algorithms=("PS256",),
+    )
+
+    result = run_scan(behaviour)
+
+    asked = [
+        entry
+        for entry in behaviour.seen
+        if entry[1] == "/.well-known/openid-configuration"
+    ]
+    assert len(asked) == 1
+    assert _hardening(result, "oidcPkceSupported") is True
 
 
 def test_the_documented_demo_accounts_fail_the_scan_critically():

@@ -24,17 +24,20 @@
   <a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced" lang="en">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a>
   <a href="#5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity" lang="en">5a. Does it still ask for more than length: <code>passwordPolicyComplexity</code></a>
   <a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected" lang="en">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a>
+  <a href="#7-what-the-discovery-document-says-about-how-sign-in-is-protected" lang="en">7. What the discovery document says about how sign-in is protected</a>
+  <a href="#what-else-is-in-that-document-and-why-none-of-it-is-checked" lang="en">What else is in that document, and why none of it is checked</a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
-<p>Six checks look at how an instance authenticates requests: whether protected
+<p>Ten checks look at how an instance authenticates requests: whether protected
 endpoints actually demand a session, whether HTTP Basic auth is still
 offered as a bypass around the identity provider, whether the documented demo
 accounts still work, two properties OpenCloud's own capabilities document
-publishes about account search and password strength, and whether the
-identity provider can be located at all. None of them submit a
-guessed credential anywhere - see <a href="/documentation/reference#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
+publishes about account search and password strength, whether the identity
+provider can be located at all, and four properties of the OpenID Connect
+discovery document that provider publishes. None of them submit a guessed
+credential anywhere - see <a href="/documentation/reference#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
 answer</a> for what is
 out of scope on principle, and the demo-account section below for the one
 documented exception.</p>
@@ -48,6 +51,8 @@ documented exception.</p>
 <li><a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a></li>
 <li><a href="#5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity">5a. Does it still ask for more than length: <code>passwordPolicyComplexity</code></a></li>
 <li><a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a></li>
+<li><a href="#7-what-the-discovery-document-says-about-how-sign-in-is-protected">7. What the discovery document says about how sign-in is protected</a></li>
+<li><a href="#what-else-is-in-that-document-and-why-none-of-it-is-checked">What else is in that document, and why none of it is checked</a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
 <!-- TOC -->
@@ -196,13 +201,118 @@ finding: neither arrangement is required, and neither fails anything.</p>
 whatever issues tokens - see <a href="/documentation/reverse-proxy">Reverse proxies</a>. If sign-in
 genuinely is not configured, OpenCloud ships its own provider and can be
 pointed at an external one.</p>
+<h2 id="7-what-the-discovery-document-says-about-how-sign-in-is-protected">7. What the discovery document says about how sign-in is protected</h2>
+<p>The request above is already paid for. The document it returns is public
+evidence in the sense <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0022-identity-provider-versions-require-public-evidence.md">ADR 0022</a>
+means it - unauthenticated, read-only, published on purpose - and four of its
+fields say something an operator can act on. Reading them costs <strong>no extra
+HTTP request</strong>: the same response that yielded the issuer yields all four.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Field</th>
+<th>Fails when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oidcPkceSupported</code></td>
+<td><code>code_challenge_methods_supported</code> [^rfc8414]</td>
+<td><code>S256</code> is not among the methods</td>
+</tr>
+<tr>
+<td><code>oidcImplicitFlowDisabled</code></td>
+<td><code>response_types_supported</code></td>
+<td>a type returns a token from the authorization endpoint (<code>token</code>, <code>id_token</code>)</td>
+</tr>
+<tr>
+<td><code>oidcSigningAlgorithmStrong</code></td>
+<td><code>id_token_signing_alg_values_supported</code></td>
+<td>it contains <code>none</code> or an <code>HS</code> algorithm</td>
+</tr>
+<tr>
+<td><code>oidcEndpointsUseHttps</code></td>
+<td><code>issuer</code> and the endpoint URLs</td>
+<td>any of them is an <code>http://</code> address</td>
+</tr>
+</tbody>
+</table>
+<p>[^rfc8414]: Providers publish it in the discovery document, but the field is
+    defined by <a href="https://www.rfc-editor.org/rfc/rfc8414.html#section-2">OAuth 2.0 Authorization Server Metadata</a>
+    rather than by OpenID Connect Discovery, which is why an OIDC-only provider
+    may legitimately omit it.</p>
+<p><strong>Every one of them is skipped when the document does not publish the field.</strong>
+That is the same rule as <code>passwordPolicyComplexity</code>: an absent measurement is
+an unknown, never a failure. It matters more here than usual, because
+OpenCloud's built-in provider omits <code>code_challenge_methods_supported</code>
+entirely - rating that absence as "no PKCE" would fail every stock instance
+for something its operator cannot change.</p>
+<p><strong><code>oidcImplicitFlowDisabled</code> is reported for an external provider only.</strong>
+OpenCloud's built-in provider (<a href="https://github.com/libregraph/lico">libregraph/lico</a>) publishes
+<code>response_types_supported</code> as <code>id_token token</code>, <code>id_token</code>, <code>code id_token</code>
+and <code>code id_token token</code> - implicit and hybrid, with no plain <code>code</code> - and
+none of that is configurable. A finding an operator cannot act on is worse
+than none, so it is raised only where it can be acted on: in front of
+Keycloak, Authentik or Authelia, where the flows really are separate
+switches. <a href="/documentation/secure-deployment#keycloak">Securing a deployment</a> already
+tells you to require PKCE and the code flow there; this is what finally
+checks that you did.</p>
+<p><strong><code>oidcEndpointsUseHttps</code> is measured only when the instance itself answered
+over HTTPS.</strong> An instance scanned over plain HTTP publishes <code>http://</code>
+endpoints because that is how it was asked, and reporting that would restate
+what <code>httpsEnforced</code> already says once, in the right place. The finding worth
+having is the disagreement: an HTTPS instance whose provider still advertises
+<code>http://</code>, which is a provider behind a terminating proxy that was never told
+its public URL.</p>
+<p><strong>Why these four and not the obvious fifth.</strong> <code>none</code> in
+<code>id_token_signing_alg_values_supported</code> means an unsigned ID token is
+acceptable, so anybody can write one; an <code>HS</code> algorithm signs with the client
+secret, and OpenCloud's clients are public clients that cannot keep a secret,
+so every party holding it can mint a token for any user. OpenCloud's built-in
+provider signs with <code>PS256</code> and passes.</p>
+<h2 id="what-else-is-in-that-document-and-why-none-of-it-is-checked">What else is in that document, and why none of it is checked</h2>
+<p>The discovery document publishes a good deal more than these four flags read.
+Verified against <a href="https://github.com/libregraph/lico">libregraph/lico</a>'s <code>oidc/provider/provider.go</code>
+(<code>InitializeMetadata</code>), which is what OpenCloud's built-in provider serves:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Why there is no check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>token_endpoint_auth_methods_supported</code></td>
+<td>The obvious candidate, and not a finding. Offering only <code>client_secret_basic</code> is not a weakness, and <code>none</code> - the value that looks alarming - is exactly what OpenCloud's public desktop, mobile and web clients need. lico publishes both. A flag here would either never fire or fire on every instance.</td>
+</tr>
+<tr>
+<td><code>request_object_signing_alg_values_supported</code></td>
+<td>lico lists <code>none</code> among them, but this governs signed <em>request objects</em>, not ID tokens. An unsigned request object is not an unsigned token, and OpenCloud's clients do not send request objects at all.</td>
+</tr>
+<tr>
+<td><code>scopes_supported</code>, <code>claims_supported</code></td>
+<td>Say what the provider can be asked for, not what it grants. Which scopes a <em>client</em> is allowed is per-client configuration the document does not show.</td>
+</tr>
+<tr>
+<td><code>subject_types_supported</code></td>
+<td>lico publishes <code>public</code> and nothing else. <code>pairwise</code> is a privacy feature for multi-tenant providers; requiring it of a single-tenant OpenCloud deployment would be noise.</td>
+</tr>
+<tr>
+<td><code>registration_endpoint</code></td>
+<td>Its presence does not mean open dynamic registration - whether registration needs an initial access token is not published. Guessing would be a confident claim from weak evidence, which is the thing <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0022-identity-provider-versions-require-public-evidence.md">ADR 0022</a> exists to forbid.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p><code>authentication:&lt;path&gt;</code> and <code>demoUsersDisabled</code> are <code>extraChecks</code>, reported
 and rating-capped whenever they run at all, at their own severities above -
 see the extra-checks table in <a href="/documentation/reference#what-the-scanner-checks">the main
 README</a>. <code>basicAuthDisabled</code>,
-<code>userEnumerationRestricted</code>, <code>passwordPolicyEnforced</code> and
-<code>identityProviderDetected</code> are hardening flags,
+<code>userEnumerationRestricted</code>, <code>passwordPolicyEnforced</code>,
+<code>passwordPolicyComplexity</code>, <code>identityProviderDetected</code> and the four <code>oidc*</code>
+flags are hardening flags,
 reported only with <code>--check-hardening</code> (or always on the web result); a
 failed hardening flag does not cap the rating by itself, it raises an
 otherwise-<code>OK</code> Icinga result to <code>WARNING</code> and is listed in the

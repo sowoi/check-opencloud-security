@@ -1592,6 +1592,26 @@ next to the finding.</p>
 <td>Account search is not limited to shared groups. OpenCloud hardcodes the restricted state, so this passes everywhere.</td>
 <td>None exists.</td>
 </tr>
+<tr>
+<td><code>oidcPkceSupported</code></td>
+<td>The identity provider's discovery document publishes <code>code_challenge_methods_supported</code> without <code>S256</code>, so the authorization code flow runs without PKCE. Only reported when the provider publishes the field - OpenCloud's built-in provider omits it, and an absent answer is not a failing one.</td>
+<td>Require PKCE with <code>S256</code> on the provider: Keycloak's <em>Proof Key for Code Exchange</em>, Authentik's public client with PKCE required, Authelia's <code>require_pkce</code>.</td>
+</tr>
+<tr>
+<td><code>oidcImplicitFlowDisabled</code></td>
+<td><code>response_types_supported</code> still offers a type that returns a token from the authorization endpoint (<code>token</code> or <code>id_token</code>), i.e. the implicit flow. <strong>External providers only</strong> - OpenCloud's built-in provider offers these and cannot be reconfigured.</td>
+<td>Restrict the client to the authorization code flow; in Keycloak, Standard flow on and Implicit flow off.</td>
+</tr>
+<tr>
+<td><code>oidcSigningAlgorithmStrong</code></td>
+<td><code>id_token_signing_alg_values_supported</code> offers <code>none</code> (an unsigned ID token anybody can write) or an <code>HS</code> algorithm (signed with the client secret, which a public client cannot keep). OpenCloud's built-in provider signs with <code>PS256</code> and passes.</td>
+<td>Offer only asymmetric algorithms - <code>RS256</code>, <code>PS256</code>, <code>ES256</code> or <code>EdDSA</code> - and remove <code>none</code> and the <code>HS</code> family.</td>
+</tr>
+<tr>
+<td><code>oidcEndpointsUseHttps</code></td>
+<td>An endpoint in the discovery document is an <code>http://</code> address. Only checked when the instance itself answered over HTTPS: an instance scanned over plain HTTP publishes <code>http://</code> because that is how it was asked, which <code>httpsEnforced</code> already reports.</td>
+<td>Publish the provider over HTTPS and set its issuer to the <code>https://</code> address; an <code>http://</code> issuer is usually a provider behind a terminating proxy that was never told its public URL.</td>
+</tr>
 </tbody>
 </table>
 <p>Two further entries can show up in the "Missing hardening" line: <code>httpsEnforced</code>

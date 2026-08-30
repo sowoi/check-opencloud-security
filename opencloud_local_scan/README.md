@@ -411,6 +411,10 @@ instance actually said:
 | `userEnumerationRestricted` | Capabilities: user search restricted |
 | `passwordPolicyEnforced` | Capabilities: policy enabled and minimum password length >= 8 |
 | `passwordPolicyComplexity` | Capabilities: the policy still requires a lowercase letter, an uppercase letter, a digit and a special character |
+| `oidcPkceSupported` | Discovery document: `code_challenge_methods_supported` contains `S256` |
+| `oidcImplicitFlowDisabled` | Discovery document: `response_types_supported` returns no token from the authorization endpoint (external providers only) |
+| `oidcSigningAlgorithmStrong` | Discovery document: `id_token_signing_alg_values_supported` has neither `none` nor an `HS` algorithm |
+| `oidcEndpointsUseHttps` | Discovery document: every published endpoint is `https://` (only measured when the instance itself answered over HTTPS) |
 
 A key is omitted entirely when the corresponding evidence is unavailable - a
 missing header or an instance whose capabilities endpoint does not report that

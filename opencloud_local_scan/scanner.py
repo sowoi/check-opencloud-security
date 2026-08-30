@@ -531,10 +531,42 @@ class _Probe:
     session: requests.Session = field(default_factory=requests.Session)
     _sessions: threading.local = field(default_factory=threading.local, repr=False)
     _owner: int = field(default_factory=threading.get_ident, repr=False)
+    # Every session opened for this probe, so that :meth:`close` can reach the
+    # ones a worker thread made: a threading.local cannot be enumerated from
+    # the thread that did not create the entry.
+    _opened: list[requests.Session] = field(default_factory=list, repr=False)
+    _opened_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
         """Mount the pinning adapter before the first request is made."""
         self._mount(self.session)
+        self._remember(self.session)
+
+    def _remember(self, session: requests.Session) -> None:
+        """Record a session so it can be closed with the rest."""
+        with self._opened_lock:
+            if session not in self._opened:
+                self._opened.append(session)
+
+    def close(self) -> None:
+        """
+        Close every session this probe opened.
+
+        A :class:`requests.Session` pools its connections and holds them open
+        until it is closed or collected. Left to the collector they outlive the
+        scan: in a plugin run over many hosts that is a socket per host held
+        for no reason, and where the far side has gone away in the meantime the
+        response still sitting in the pool is finalised against a socket that
+        is already closed, which surfaces as an ignored exception from a
+        destructor rather than anywhere useful.
+
+        Probes made by :meth:`derive` share this list, so closing any of them
+        closes the connections all of them were using.
+        """
+        with self._opened_lock:
+            sessions, self._opened[:] = list(self._opened), []
+        for session in sessions:
+            session.close()
 
     def _mount(self, session: requests.Session) -> None:
         pins = dict(self.settings.pinned_addresses)
@@ -581,6 +613,7 @@ class _Probe:
             session = requests.Session()
             self._mount(session)
             self._sessions.session = session
+            self._remember(session)
         return session
 
     def get(
@@ -1185,12 +1218,16 @@ def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
         "vendor": "",
         "version": "",
         "advisoryUrl": "",
+        # What the discovery document said about how sign-in is protected,
+        # kept so derive_hardenings can rate it without a second request.
+        "metadata": {},
     }
     response = probe.get(OPENID_CONFIGURATION_PATH, allow_redirects=False)
     if response is None:
         return provider
 
     issuer = ""
+    document: Any = None
     if response.is_redirect:
         issuer = urljoin(probe.base_url, response.headers.get("Location") or "")
     elif response.status_code == 200:
@@ -1215,7 +1252,131 @@ def _identity_provider(probe: _Probe, hostname: str) -> dict[str, Any]:
     )
     provider["vendor"] = _identity_provider_vendor(issuer)
     provider["advisoryUrl"] = IDP_SECURITY_ADVISORIES.get(provider["vendor"], "")
+    if isinstance(document, Mapping):
+        provider["metadata"] = _openid_metadata(
+            document, over_https=probe.base_url.lower().startswith("https://")
+        )
     return provider
+
+
+# The endpoints in a discovery document that carry a credential, an
+# authorization code, or the keys tokens are verified against. Every one of
+# them has to be reached over TLS for any of the rest to mean anything.
+OPENID_ENDPOINT_KEYS: tuple[str, ...] = (
+    "issuer",
+    "authorization_endpoint",
+    "token_endpoint",
+    "userinfo_endpoint",
+    "jwks_uri",
+)
+
+# Response types that hand a token straight back from the authorization
+# endpoint, in the URL fragment: the implicit flow. A response type is a
+# space-separated set, so 'code id_token' counts as much as 'id_token token'.
+OPENID_IMPLICIT_RESPONSE_TYPES = frozenset({"token", "id_token"})
+
+# Signing algorithms an ID token must not be acceptable under: 'none' is no
+# signature at all, and the HS family signs with the client secret, which a
+# public client cannot keep.
+OPENID_WEAK_SIGNING_PREFIXES = ("hs",)
+
+
+def _string_list(value: Any) -> tuple[str, ...]:
+    """The strings in a JSON array, ignoring anything that is not one."""
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, str))
+
+
+def _openid_metadata(
+    document: Mapping[str, Any], *, over_https: bool
+) -> dict[str, Any]:
+    """
+    Reduce a discovery document to the facts worth rating.
+
+    Only the fields the document actually publishes are carried, so a
+    provider that omits one produces no finding rather than a failing one -
+    OpenCloud's built-in provider omits ``code_challenge_methods_supported``
+    entirely, and reporting that as missing PKCE would fail every stock
+    instance for something its operator cannot change.
+
+    ``over_https`` says whether the scan itself reached the instance over TLS.
+    An instance scanned over plain HTTP publishes http:// endpoints because
+    that is how it was asked, and reporting those as insecure would restate
+    what ``setup.https`` already says. The interesting case is the one where
+    the two disagree: an HTTPS instance whose provider still advertises
+    http://, which is a provider behind a terminating proxy that was never
+    told its public URL.
+    """
+    metadata: dict[str, Any] = {}
+
+    challenge_methods = document.get("code_challenge_methods_supported")
+    if isinstance(challenge_methods, list):
+        metadata["codeChallengeMethods"] = [
+            method.upper() for method in _string_list(challenge_methods)
+        ]
+
+    response_types = document.get("response_types_supported")
+    if isinstance(response_types, list):
+        metadata["responseTypes"] = list(_string_list(response_types))
+
+    signing = document.get("id_token_signing_alg_values_supported")
+    if isinstance(signing, list):
+        metadata["idTokenSigningAlgorithms"] = [
+            algorithm.upper() for algorithm in _string_list(signing)
+        ]
+
+    published = [key for key in OPENID_ENDPOINT_KEYS if isinstance(document.get(key), str)]
+    if over_https and published:
+        metadata["insecureEndpoints"] = sorted(
+            key
+            for key in published
+            if str(document[key]).lower().startswith("http://")
+        )
+
+    return metadata
+
+
+def _openid_hardenings(provider: Mapping[str, Any] | None) -> dict[str, bool]:
+    """
+    Rate the discovery document the identity provider check already read.
+
+    Every one of these is skipped unless the document published the field it
+    reads. ``oidcImplicitFlowDisabled`` is skipped for the built-in provider
+    as well: it offers the implicit response types and cannot be reconfigured,
+    so the finding would name something the operator cannot act on.
+    """
+    if not isinstance(provider, Mapping) or not provider.get("detected"):
+        return {}
+    metadata = provider.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return {}
+
+    hardenings: dict[str, bool] = {}
+
+    methods = metadata.get("codeChallengeMethods")
+    if isinstance(methods, list):
+        hardenings["oidcPkceSupported"] = "S256" in methods
+
+    response_types = metadata.get("responseTypes")
+    if isinstance(response_types, list) and provider.get("external"):
+        offered = {token for entry in response_types for token in entry.split()}
+        hardenings["oidcImplicitFlowDisabled"] = not (
+            offered & OPENID_IMPLICIT_RESPONSE_TYPES
+        )
+
+    algorithms = metadata.get("idTokenSigningAlgorithms")
+    if isinstance(algorithms, list):
+        hardenings["oidcSigningAlgorithmStrong"] = not any(
+            algorithm == "NONE" or algorithm.lower().startswith(OPENID_WEAK_SIGNING_PREFIXES)
+            for algorithm in algorithms
+        )
+
+    insecure = metadata.get("insecureEndpoints")
+    if isinstance(insecure, list):
+        hardenings["oidcEndpointsUseHttps"] = not insecure
+
+    return hardenings
 
 
 def _integrations(probe: _Probe, capabilities: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -2024,6 +2185,7 @@ def derive_hardenings(
     root_response: requests.Response | None,
     capabilities: Mapping[str, Any] | None,
     challenge: str | None,
+    identity_provider: Mapping[str, Any] | None = None,
 ) -> dict[str, bool]:
     """
     Report the hardening measures that go beyond a header being present.
@@ -2031,6 +2193,10 @@ def derive_hardenings(
     ``setup.headers`` already answers "is the header there?". This block
     answers "is it any good?" - plus the settings only the instance itself
     can tell us about.
+
+    ``identity_provider`` is the result of :func:`_identity_provider`, whose
+    discovery document is read for the ``oidc*`` flags. It is optional so that
+    a caller with no provider information still gets every other flag.
     """
     headers = root_response.headers if root_response is not None else {}
 
@@ -2050,6 +2216,7 @@ def derive_hardenings(
         hardenings["basicAuthDisabled"] = "basic" not in challenge.lower()
 
     hardenings.update(_capability_hardenings(capabilities))
+    hardenings.update(_openid_hardenings(identity_provider))
     return dict(sorted(hardenings.items()))
 
 
@@ -2423,193 +2590,200 @@ def scan(
         https_unavailable,
     ) = _open_instance(host, settings)
 
-    # The instance answers these three independently of one another.
-    opening: list[Callable[[], Any]] = [
-        partial(probe.get, "/", allow_redirects=True),
-        partial(_fetch_capabilities, probe),
-        partial(_authentication_challenge, probe),
-        partial(_identity_provider, probe, hostname),
-    ]
-    root_response, capabilities, challenge, identity_provider = _run_all(
-        settings, opening
-    )
+    # The probe pools its connections; the scan owns them and closes them
+    # on the way out, however it leaves.
+    try:
+        # The instance answers these three independently of one another.
+        opening: list[Callable[[], Any]] = [
+            partial(probe.get, "/", allow_redirects=True),
+            partial(_fetch_capabilities, probe),
+            partial(_authentication_challenge, probe),
+            partial(_identity_provider, probe, hostname),
+        ]
+        root_response, capabilities, challenge, identity_provider = _run_all(
+            settings, opening
+        )
 
-    version = select_version(status) or select_version(_dig(capabilities, "version") or {})
-    product = str(status.get("productname") or status.get("product") or "OpenCloud")
-    edition = str(status.get("edition") or "")
+        version = select_version(status) or select_version(_dig(capabilities, "version") or {})
+        product = str(status.get("productname") or status.get("product") or "OpenCloud")
+        edition = str(status.get("edition") or "")
 
-    headers = _check_headers(root_response)
-    advisory_headers = _check_advisory_headers(root_response)
-    https = _check_https(probe, hostname)
-    hardenings = derive_hardenings(root_response, capabilities, challenge)
-    reverse_proxy = _reverse_proxy(root_response)
-    integrations = (
-        _integrations(probe, capabilities)
-        if settings.extra_checks
-        else {"office": {}, "calendar": {}}
-    )
+        headers = _check_headers(root_response)
+        advisory_headers = _check_advisory_headers(root_response)
+        https = _check_https(probe, hostname)
+        hardenings = derive_hardenings(
+            root_response, capabilities, challenge, identity_provider
+        )
+        reverse_proxy = _reverse_proxy(root_response)
+        integrations = (
+            _integrations(probe, capabilities)
+            if settings.extra_checks
+            else {"office": {}, "calendar": {}}
+        )
 
-    schedule = settings.release_schedule
-    if schedule is None:
-        schedule = load_release_schedule()
-    lifecycle = schedule.status_for(version, track=settings.release_track)
+        schedule = settings.release_schedule
+        if schedule is None:
+            schedule = load_release_schedule()
+        lifecycle = schedule.status_for(version, track=settings.release_track)
 
-    update_info: UpdateInfo = fetch_update_info(release_settings, version, lifecycle)
+        update_info: UpdateInfo = fetch_update_info(release_settings, version, lifecycle)
 
-    eol = bool(settings.use_release_schedule and lifecycle.eol)
+        eol = bool(settings.use_release_schedule and lifecycle.eol)
 
-    # "Behind the branch" means the instance has to leave its release line to
-    # get back into support, which is a bigger job than a patch update.
-    behind_line = False
-    latest_in_branch: bool | None = None
-    if update_info.available_version and version:
-        behind_line = release_line(update_info.available_version) != release_line(version)
-        latest_in_branch = behind_line or compare_versions(
-            version, update_info.available_version
-        ) >= 0
-    elif update_info.available is False:
-        latest_in_branch = True
+        # "Behind the branch" means the instance has to leave its release line to
+        # get back into support, which is a bigger job than a patch update.
+        behind_line = False
+        latest_in_branch: bool | None = None
+        if update_info.available_version and version:
+            behind_line = release_line(update_info.available_version) != release_line(version)
+            latest_in_branch = behind_line or compare_versions(
+                version, update_info.available_version
+            ) >= 0
+        elif update_info.available is False:
+            latest_in_branch = True
 
-    database = database or load_database(
-        extra_files=settings.vulnerability_files,
-        feed_url=settings.vulnerability_feed,
-        include_bundled=settings.include_bundled_db,
-        timeout=settings.timeout,
-        verify=settings.verify_tls,
-        proxies=settings.proxies,
-    )
-    vulnerabilities = [advisory.as_dict() for advisory in database.matches(version)]
+        database = database or load_database(
+            extra_files=settings.vulnerability_files,
+            feed_url=settings.vulnerability_feed,
+            include_bundled=settings.include_bundled_db,
+            timeout=settings.timeout,
+            verify=settings.verify_tls,
+            proxies=settings.proxies,
+        )
+        vulnerabilities = [advisory.as_dict() for advisory in database.matches(version)]
 
-    # The TLS layer is inspected once, before the findings are assembled, so
-    # that the full detail can be published beside them: the findings say what
-    # is wrong, the `tls` block says what was actually observed.
-    addresses = _resolved_addresses(hostname, settings)
-    tls_inspection = (
-        inspect_tls(
-            hostname,
-            port,
-            settings.timeout,
-            connect_host=next(
-                iter(
-                    dict(settings.pinned_addresses).get(
-                        hostname.strip("[]").lower().rstrip("."), ()
-                    )
+        # The TLS layer is inspected once, before the findings are assembled, so
+        # that the full detail can be published beside them: the findings say what
+        # is wrong, the `tls` block says what was actually observed.
+        addresses = _resolved_addresses(hostname, settings)
+        tls_inspection = (
+            inspect_tls(
+                hostname,
+                port,
+                settings.timeout,
+                connect_host=next(
+                    iter(
+                        dict(settings.pinned_addresses).get(
+                            hostname.strip("[]").lower().rstrip("."), ()
+                        )
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            ca_file=settings.tls_ca_file,
+                ca_file=settings.tls_ca_file,
+            )
+            if settings.extra_checks and probe.base_url.startswith("https://")
+            else None
         )
-        if settings.extra_checks and probe.base_url.startswith("https://")
-        else None
-    )
-    address_tls = (
-        _address_tls_inspections(hostname, port, settings, addresses)
-        if settings.extra_checks
-        and probe.base_url.startswith("https://")
-        and _address_parity_may_run(settings, addresses)
-        else {}
-    )
-    # CAA is a DNS record, not a TLS handshake property, but it answers the
-    # same "who may issue this instance a certificate" question the TLS
-    # findings above do, so it is gated and reported alongside them.
-    caa_check = (
-        check_caa_record(hostname, settings.timeout)
-        if settings.extra_checks and probe.base_url.startswith("https://")
-        else None
-    )
-    caa_finding = Finding(*caa_check) if caa_check is not None else None
-    findings = (
-        _collect_extra_findings(
-            probe,
-            hostname,
-            port,
-            settings,
-            status,
-            version,
-            root_response,
-            challenge,
-            identity_provider,
-            reverse_proxy,
-            tls_inspection,
-            _address_parity_finding(address_tls),
-            caa_finding,
-            verification_required=verification_required,
+        address_tls = (
+            _address_tls_inspections(hostname, port, settings, addresses)
+            if settings.extra_checks
+            and probe.base_url.startswith("https://")
+            and _address_parity_may_run(settings, addresses)
+            else {}
         )
-        if settings.extra_checks
-        else []
-    )
-    if settings.extra_checks and https_unavailable:
-        findings.insert(
-            0,
-            Finding(
-                "httpsAvailable", "critical", False, f"HTTPS unusable: {https_unavailable}"
-            ),
+        # CAA is a DNS record, not a TLS handshake property, but it answers the
+        # same "who may issue this instance a certificate" question the TLS
+        # findings above do, so it is gated and reported alongside them.
+        caa_check = (
+            check_caa_record(hostname, settings.timeout)
+            if settings.extra_checks and probe.base_url.startswith("https://")
+            else None
         )
-    if tls_untrusted:
-        LOGGER.debug("Scanned with certificate verification disabled: %s", tls_untrusted)
+        caa_finding = Finding(*caa_check) if caa_check is not None else None
+        findings = (
+            _collect_extra_findings(
+                probe,
+                hostname,
+                port,
+                settings,
+                status,
+                version,
+                root_response,
+                challenge,
+                identity_provider,
+                reverse_proxy,
+                tls_inspection,
+                _address_parity_finding(address_tls),
+                caa_finding,
+                verification_required=verification_required,
+            )
+            if settings.extra_checks
+            else []
+        )
+        if settings.extra_checks and https_unavailable:
+            findings.insert(
+                0,
+                Finding(
+                    "httpsAvailable", "critical", False, f"HTTPS unusable: {https_unavailable}"
+                ),
+            )
+        if tls_untrusted:
+            LOGGER.debug("Scanned with certificate verification disabled: %s", tls_untrusted)
 
-    # Waivers are applied last, so that every finding - including the ones
-    # added above - can be waived, and so that the rating below is computed
-    # from what the operator actually wants to be alerted about.
-    ignored_names = _apply_waivers(settings, findings, hardenings, headers, https)
+        # Waivers are applied last, so that every finding - including the ones
+        # added above - can be waived, and so that the rating below is computed
+        # from what the operator actually wants to be alerted about.
+        ignored_names = _apply_waivers(settings, findings, hardenings, headers, https)
 
-    explanation = _compute_rating(
-        eol=eol,
-        vulnerabilities=vulnerabilities,
-        update_available=update_info.available,
-        behind_line=behind_line,
-        findings=findings,
-        settings=settings,
-    )
-    rating = explanation.rating
+        explanation = _compute_rating(
+            eol=eol,
+            vulnerabilities=vulnerabilities,
+            update_available=update_info.available,
+            behind_line=behind_line,
+            findings=findings,
+            settings=settings,
+        )
+        rating = explanation.rating
 
-    scanned_at = datetime.now(timezone.utc)
-    result: dict[str, Any] = {
-        "domain": hostname,
-        "addresses": addresses,
-        # Whether this scanner could dial an IPv6 address at all; a
-        # deployment with no IPv6 route reports it here rather than as a
-        # failed - and rating-affecting - reachability check.
-        "ipv6Enabled": settings.ipv6_enabled,
-        "url": f"{probe.base_url}{STATUS_PATH}",
-        "product": product,
-        "version": version or "",
-        "legacyVersion": str(status.get("version") or ""),
-        "edition": edition,
-        "scannedAt": {
-            "date": scanned_at.strftime("%Y-%m-%d %H:%M:%S.%f"),
-            "timezone_type": 3,
-            "timezone": "UTC",
-        },
-        "rating": rating,
-        "ratingExplanation": explanation.as_dict(),
-        "EOL": eol,
-        "releaseType": lifecycle.release_type,
-        "lifecycle": lifecycle.as_dict(),
-        "ignored": ignored_names,
-        "latestVersionInBranch": latest_in_branch,
-        "vulnerabilities": vulnerabilities,
-        "hardenings": hardenings,
-        "setup": {
-            "https": https,
-            "headers": headers,
-            "advisoryHeaders": advisory_headers,
-        },
-        "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
-        "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},
-        "identityProvider": identity_provider,
-        "reverseProxy": reverse_proxy,
-        "integrations": integrations,
-        "scanner": "check-opencloud-security built-in scanner",
-        "updates": update_info.as_dict(),
-        "extraChecks": [finding.as_dict() for finding in findings],
-        "advisorySources": database.sources,
-        "capabilitiesAvailable": capabilities is not None,
-    }
-    # Derived from the document above and stored nowhere else: the plan is
-    # the rating's own arithmetic replayed with one finding removed at a time.
-    result["remediationPlan"] = remediation_plan(result)
-    return result
+        scanned_at = datetime.now(timezone.utc)
+        result: dict[str, Any] = {
+            "domain": hostname,
+            "addresses": addresses,
+            # Whether this scanner could dial an IPv6 address at all; a
+            # deployment with no IPv6 route reports it here rather than as a
+            # failed - and rating-affecting - reachability check.
+            "ipv6Enabled": settings.ipv6_enabled,
+            "url": f"{probe.base_url}{STATUS_PATH}",
+            "product": product,
+            "version": version or "",
+            "legacyVersion": str(status.get("version") or ""),
+            "edition": edition,
+            "scannedAt": {
+                "date": scanned_at.strftime("%Y-%m-%d %H:%M:%S.%f"),
+                "timezone_type": 3,
+                "timezone": "UTC",
+            },
+            "rating": rating,
+            "ratingExplanation": explanation.as_dict(),
+            "EOL": eol,
+            "releaseType": lifecycle.release_type,
+            "lifecycle": lifecycle.as_dict(),
+            "ignored": ignored_names,
+            "latestVersionInBranch": latest_in_branch,
+            "vulnerabilities": vulnerabilities,
+            "hardenings": hardenings,
+            "setup": {
+                "https": https,
+                "headers": headers,
+                "advisoryHeaders": advisory_headers,
+            },
+            "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
+            "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},
+            "identityProvider": identity_provider,
+            "reverseProxy": reverse_proxy,
+            "integrations": integrations,
+            "scanner": "check-opencloud-security built-in scanner",
+            "updates": update_info.as_dict(),
+            "extraChecks": [finding.as_dict() for finding in findings],
+            "advisorySources": database.sources,
+            "capabilitiesAvailable": capabilities is not None,
+        }
+        # Derived from the document above and stored nowhere else: the plan is
+        # the rating's own arithmetic replayed with one finding removed at a time.
+        result["remediationPlan"] = remediation_plan(result)
+        return result
+    finally:
+        probe.close()
 
 
 def failed_extra_checks(result: Mapping[str, Any]) -> list[str]:
