@@ -16,6 +16,15 @@ downstream has to special-case a single-host run.
 exit code exactly the way an Icinga check does; the document these flags
 produce is a separate, additional artifact, not a replacement for it.
 
+<!-- TOC -->
+* [Machine-readable output: `--format json`, `sarif`, `junit`](#machine-readable-output---format-json-sarif-junit)
+  * [`json`](#json)
+  * [`sarif`](#sarif)
+  * [`junit`](#junit)
+  * [Choosing a format](#choosing-a-format)
+<!-- TOC -->
+
+
 ## `json`
 
 A JSON array of the same result document described in [Webhook

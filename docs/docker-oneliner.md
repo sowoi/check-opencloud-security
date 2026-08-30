@@ -29,6 +29,17 @@ anything else around it.
 > related marks belong to their respective owners and are used here only to
 > identify the software being checked.
 
+<!-- TOC -->
+* [Scanning from the command line, in one line](#scanning-from-the-command-line-in-one-line)
+  * [What the image is](#what-the-image-is)
+  * [The same scan, as JSON](#the-same-scan-as-json)
+  * [Useful variations](#useful-variations)
+  * [Make it shorter](#make-it-shorter)
+  * [Without Docker](#without-docker)
+  * [Where to go next](#where-to-go-next)
+<!-- TOC -->
+
+
 ## What the image is
 
 [`okxo/opencloud-scanner`](https://hub.docker.com/r/okxo/opencloud-scanner) is

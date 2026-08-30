@@ -25,6 +25,15 @@ consumers share. They are independent - most people want only the first.</p>
 <code>registry.example.com/check-opencloud-security:1.1.0</code> below. Pin a tag rather
 than using <code>latest</code>: the release schedule and the newest known OpenCloud
 version ship <em>inside</em> the image, so which tag you run is part of the verdict.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#kubernetes">Kubernetes</a></li>
+<li><a href="#a-scheduled-scan">A scheduled scan</a></li>
+<li><a href="#sending-the-result-somewhere">Sending the result somewhere</a></li>
+<li><a href="#the-scan-service">The scan service</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="a-scheduled-scan">A scheduled scan</h2>
 <p>A <code>CronJob</code> is the closest thing to the systemd timer in
 <a href="/documentation/scheduling">Scheduling</a>. The exit code is what decides whether the job

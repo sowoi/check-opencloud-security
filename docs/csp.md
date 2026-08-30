@@ -7,6 +7,15 @@ even if an attacker manages to inject markup into a page OpenCloud serves, a
 correctly scoped CSP stops the browser from running it. This scanner checks
 CSP in two independent places.
 
+<!-- TOC -->
+* [Content-Security-Policy: what this scanner checks, and why](#content-security-policy-what-this-scanner-checks-and-why)
+  * [1. Is the header present at all](#1-is-the-header-present-at-all)
+  * [2. Is the policy actually restrictive: `cspWithoutUnsafeInline`](#2-is-the-policy-actually-restrictive-cspwithoutunsafeinline)
+  * [Fixing it](#fixing-it)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Is the header present at all
 
 `Content-Security-Policy` is one of the eight headers checked under

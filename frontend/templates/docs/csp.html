@@ -22,6 +22,16 @@ page. It is the browser-enforced backstop against cross-site scripting (XSS):
 even if an attacker manages to inject markup into a page OpenCloud serves, a
 correctly scoped CSP stops the browser from running it. This scanner checks
 CSP in two independent places.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#content-security-policy-what-this-scanner-checks-and-why">Content-Security-Policy: what this scanner checks, and why</a></li>
+<li><a href="#1-is-the-header-present-at-all">1. Is the header present at all</a></li>
+<li><a href="#2-is-the-policy-actually-restrictive-cspwithoutunsafeinline">2. Is the policy actually restrictive: <code>cspWithoutUnsafeInline</code></a></li>
+<li><a href="#fixing-it">Fixing it</a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-is-the-header-present-at-all">1. Is the header present at all</h2>
 <p><code>Content-Security-Policy</code> is one of the eight headers checked under
 <code>setup.headers</code> (with <code>--check-hardening</code>, or always in the web result). Its

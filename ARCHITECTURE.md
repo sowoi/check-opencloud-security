@@ -47,25 +47,20 @@ meaning.
 The boundaries between them are the design. A change that blurs one is in the
 wrong file, however small it looks.
 
-```text
-                 ┌────────────────────────────────────────┐
-   HTTP probes   │  opencloud_local_scan/   MEASURES      │
-   to the ───────┤  scan() → result document              │
-   instance      │  never decides what is acceptable      │
-                 └───────────────┬────────────────────────┘
-                                 │  result document
-              ┌──────────────────┴───────────────────┐
-              ▼                                      ▼
-┌────────────────────────────────┐   ┌────────────────────────────────┐
-│ check_opencloud_security.py    │   │ webapp/ + frontend/            │
-│ JUDGES                         │   │ SERVES                         │
-│ thresholds, exit code, alert   │   │ takes a URL from a stranger,   │
-│ line, perfdata, webhook        │   │ queues it, renders the answer  │
-└────────────────────────────────┘   └────────────────────────────────┘
-                                                  │
-                                       grades come from the plugin's
-                                       RATE_MAP - never decided here
+```mermaid
+flowchart TD
+    instance(["OpenCloud instance"])
+    measure["<b>opencloud_local_scan/</b><br/>MEASURES<br/>scan() → result document<br/><i>never decides what is acceptable</i>"]
+    judge["<b>check_opencloud_security.py</b><br/>JUDGES<br/>thresholds, exit code, alert line,<br/>perfdata, webhook"]
+    serve["<b>webapp/ + frontend/</b><br/>SERVES<br/>takes a URL from a stranger,<br/>queues it, renders the answer"]
+
+    instance -- HTTP probes --> measure
+    measure -- result document --> judge
+    measure -- result document --> serve
+    judge -. "RATE_MAP: grades come from<br/>here, never decided in serve" .-> serve
 ```
+
+![Three layers architecture diagram](img/architecture-three-layers.png)
 
 ### Measure: `opencloud_local_scan/`
 

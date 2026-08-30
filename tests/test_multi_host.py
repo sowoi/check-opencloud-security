@@ -1,5 +1,6 @@
 """Tests for host parsing, target validation, retries and multi-host runs."""
 
+import json
 import threading
 
 import pytest
@@ -185,10 +186,13 @@ def test_single_host_run_reports_its_own_state(scans, capsys):
     """One host is the common case and must not gain a summary line."""
     scans["a.example.com"] = {}
 
-    message, code = plugin._run_single_host_check(ScanContext(host="a.example.com"))
+    message, code, webhook_payload = plugin._run_single_host_check(
+        ScanContext(host="a.example.com")
+    )
 
     assert code is NagiosExitCode.OK
     assert "OpenCloud 7.2.0 on a.example.com" in message
+    assert webhook_payload is None
 
 
 def test_unexpected_worker_errors_cannot_inject_monitoring_framing(monkeypatch):
@@ -199,7 +203,7 @@ def test_unexpected_worker_errors_cannot_inject_monitoring_framing(monkeypatch):
 
     monkeypatch.setattr(plugin, "send_scan_request", fail)
 
-    message, code = plugin._run_single_host_check(
+    message, code, _webhook_payload = plugin._run_single_host_check(
         ScanContext(host="opencloud.example.com")
     )
 
@@ -310,6 +314,134 @@ def test_one_failing_host_does_not_abort_the_others(scans, capsys):
     assert "OpenCloud 7.2.0 on good.example.com" in output
 
 
+# --- webhook digest ---
+@pytest.fixture
+def posts(monkeypatch):
+    """Record every webhook POST instead of sending it."""
+    recorded = []
+
+    class _Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+    def _post(url, **kwargs):
+        # See the identical fixture in tests/test_webhook.py: the plugin posts
+        # pre-serialised bytes so that what it signed is what it sends, and
+        # these tests assert against the document parsed back out of them.
+        if "data" in kwargs:
+            kwargs = {**kwargs, "json": json.loads(kwargs["data"])}
+        recorded.append((url, kwargs))
+        return _Response()
+
+    monkeypatch.setattr(plugin.requests, "post", _post)
+    return recorded
+
+
+def test_webhook_digest_sends_one_combined_post(scans, posts):
+    """A fleet with several critical hosts must not fire one webhook each."""
+    scans["ok.example.com"] = {}
+    scans["critical-a.example.com"] = {"rating": 0, "EOL": True}
+    scans["critical-b.example.com"] = {"rating": 0, "EOL": True}
+
+    args = parse_args(
+        [
+            "-H",
+            "ok.example.com,critical-a.example.com,critical-b.example.com",
+            "--webhook-url",
+            "https://hooks.example.com/x",
+            "--webhook-digest",
+            "--allow-private-webhooks",
+        ]
+    )
+    code = plugin._run_multi_host_checks(
+        ["ok.example.com", "critical-a.example.com", "critical-b.example.com"], args
+    )
+
+    assert code is NagiosExitCode.CRITICAL
+    assert len(posts) == 1
+    url, kwargs = posts[0]
+    assert url == "https://hooks.example.com/x"
+    body = kwargs["json"]
+    assert body["digest"] is True
+    assert body["status"] == "CRITICAL"
+    assert body["host_count"] == 2
+    assert {host["host"] for host in body["hosts"]} == {
+        "critical-a.example.com",
+        "critical-b.example.com",
+    }
+
+
+def test_webhook_digest_does_not_fire_when_no_host_meets_the_trigger(scans, posts):
+    """Default --webhook-on critical must stay quiet for an all-OK fleet, digest or not."""
+    scans["a.example.com"] = {}
+    scans["b.example.com"] = {}
+
+    args = parse_args(
+        [
+            "-H",
+            "a.example.com,b.example.com",
+            "--webhook-url",
+            "https://hooks.example.com/x",
+            "--webhook-digest",
+            "--allow-private-webhooks",
+        ]
+    )
+    plugin._run_multi_host_checks(["a.example.com", "b.example.com"], args)
+
+    assert posts == []
+
+
+def test_without_digest_each_host_posts_its_own_webhook(scans, posts):
+    """The default (no --webhook-digest) must keep sending one webhook per host."""
+    scans["critical-a.example.com"] = {"rating": 0, "EOL": True}
+    scans["critical-b.example.com"] = {"rating": 0, "EOL": True}
+
+    args = parse_args(
+        [
+            "-H",
+            "critical-a.example.com,critical-b.example.com",
+            "--webhook-url",
+            "https://hooks.example.com/x",
+            "--allow-private-webhooks",
+        ]
+    )
+    plugin._run_multi_host_checks(["critical-a.example.com", "critical-b.example.com"], args)
+
+    assert len(posts) == 2
+    hosts_posted = {kwargs["json"]["host"] for _, kwargs in posts}
+    assert hosts_posted == {"critical-a.example.com", "critical-b.example.com"}
+
+
+def test_webhook_digest_slack_format_lists_only_non_ok_hosts(scans, posts):
+    """A chat-native digest must not bury the failing host in a wall of OK lines."""
+    scans["ok.example.com"] = {}
+    scans["critical.example.com"] = {"rating": 0, "EOL": True}
+
+    args = parse_args(
+        [
+            "-H",
+            "ok.example.com,critical.example.com",
+            "--webhook-url",
+            "https://hooks.example.com/x",
+            "--webhook-digest",
+            "--webhook-format",
+            "slack",
+            "--webhook-on",
+            "always",
+            "--allow-private-webhooks",
+        ]
+    )
+    plugin._run_multi_host_checks(["ok.example.com", "critical.example.com"], args)
+
+    assert len(posts) == 1
+    text = posts[0][1]["json"]["attachments"][0]["text"]
+    assert "critical.example.com" in text
+    assert "ok.example.com" not in text
+    assert "1 host(s) OK, not shown" in text
+
+
 def test_a_slow_host_does_not_prevent_a_fast_host_from_running(monkeypatch, capsys):
     """A timeout-bound worker must not serialize a healthy host behind it."""
     fast_started = threading.Event()
@@ -317,9 +449,9 @@ def test_a_slow_host_does_not_prevent_a_fast_host_from_running(monkeypatch, caps
     def _run(context):
         if context.host == "slow.example.com":
             assert fast_started.wait(timeout=1)
-            return "UNKNOWN: slow.example.com Scan failed: timed out", NagiosExitCode.UNKNOWN
+            return "UNKNOWN: slow.example.com Scan failed: timed out", NagiosExitCode.UNKNOWN, None
         fast_started.set()
-        return "OK: fast.example.com", NagiosExitCode.OK
+        return "OK: fast.example.com", NagiosExitCode.OK, None
 
     monkeypatch.setattr(plugin, "_run_single_host_check", _run)
     args = parse_args(["-H", "slow.example.com,fast.example.com"])

@@ -65,6 +65,10 @@ scanner:
   # quietly accepting it. Set it to false only for a knowingly self-signed
   # deployment.
   verify_tls: true
+  # Verify against your own CA instead of the system trust store - an internal
+  # certificate is then properly verified rather than waved through with
+  # verify_tls: false.
+  # tls_ca_file: /etc/check-opencloud-security/internal-ca.pem
   scheme: https                  # use http only for testing
   # target_port: 9200            # OpenCloud's own port when no proxy is in front
   extra_checks: true             # TLS, exposed paths, WebDAV, modern headers
@@ -150,6 +154,11 @@ webhook:
   # allow_private_webhooks: false
   # headers:
   #   - "X-Auth-Token: secret://webhook_token"
+  # A shared secret signs every webhook body with HMAC-SHA256 and sends the
+  # digest as X-COS-Signature, so a receiver can tell a real notification from
+  # one somebody invented after guessing the URL. The signature covers the raw
+  # request body exactly as sent - see docs/webhook-recipes.md for a receiver.
+  # secret: secret://webhook_secret
 
 # --- secret provider ---------------------------------------------------------
 secrets:

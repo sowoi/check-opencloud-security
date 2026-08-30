@@ -11,3 +11,28 @@ EnvironmentFile=/etc/check-opencloud-security/env
 # Adjust the path if you installed the plugin elsewhere (see README.md).
 ExecStart=/usr/local/bin/check-opencloud-security
 DynamicUser=yes
+# Only used if COS_BASELINE is set - see check-opencloud-security.env.example.
+# Declaring it unconditionally is harmless when baselining is unused: systemd
+# just owns an empty, unused directory.
+StateDirectory=check-opencloud-security
+
+# Hardening. The scan itself only ever reads its env file plus, when
+# configured, COS_CONFIG_FILE/COS_SCANNER_VULNERABILITY_DB under
+# /etc/check-opencloud-security/ (already read-only under ProtectSystem=strict)
+# and writes nothing unless COS_BASELINE is set - which must then point under
+# the StateDirectory= above, or ReadWritePaths= needs adding here too.
+# Run `systemd-analyze security check-opencloud-security.service` to check
+# the effect of these directives.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+SystemCallFilter=@system-service

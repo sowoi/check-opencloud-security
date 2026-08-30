@@ -10,6 +10,7 @@ published material. Run them from the repository root.
 | `build_web_bundle.py` | Builds `dist/check_opencloud_security_web.tar.gz` and its checksum for a web-service release. |
 | `check_documentation_links.py` | Checks documented OpenCloud links after merges and on a schedule. |
 | `release_notes.py` | Prepares release notes from the Unreleased changelog section. It rewrites release files, so use it on a scratch copy when previewing. |
+| `render_architecture_diagrams.py` | Points every `` ```mermaid `` fence in `ARCHITECTURE.md` at a rendered PNG under `img/`. Use `--check` in CI; rendering itself needs `mmdc` from `@mermaid-js/mermaid-cli`, run separately - see [`render-architecture-diagram.yml`](../.github/workflows/render-architecture-diagram.yml). |
 | `update_release_schedule.py` | Reads the OpenCloud lifecycle page and updates the bundled schedule plus the generated README release table. |
 | `update_vulnerability_db.py` | Reads OSV and adds advisory evidence to the bundled vulnerability database. |
 | `verify_export.py` | Verifies signed scan exports. |

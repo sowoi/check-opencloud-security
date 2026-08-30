@@ -19,6 +19,15 @@
 <p>OpenCloud is a single Go binary. <code>/status.php</code> is not a PHP script running
 anywhere in it - the path is a compatibility shim, kept because the software
 OpenCloud replaced was PHP.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#why-opencloud-still-answers-statusphp">Why OpenCloud still answers <code>/status.php</code></a></li>
+<li><a href="#where-the-path-comes-from">Where the path comes from</a></li>
+<li><a href="#what-the-handler-actually-returns">What the handler actually returns</a></li>
+<li><a href="#what-this-scanner-reads-from-it-and-what-it-does-not">What this scanner reads from it, and what it does not</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="where-the-path-comes-from">Where the path comes from</h2>
 <p>OpenCloud is the successor to ownCloud Infinite Scale (oCIS), built on the
 <a href="https://github.com/cs3org">CS3 APIs</a> and <a href="https://github.com/cs3org/reva">Reva</a>,
@@ -30,7 +39,9 @@ lineage - ownCloud, Nextcloud (a fork), oCIS, and now OpenCloud - has kept
 answering it, because a large ecosystem of clients still probes it first. This
 scanner refuses to rate a server that answers <code>/status.php</code> as ownCloud or
 Nextcloud rather than OpenCloud, for exactly that reason - see
-<a href="/documentation/troubleshooting">Troubleshooting</a>.</p>
+<a href="/documentation/troubleshooting">Troubleshooting</a>. <a href="/documentation/what-is-opencloud">What OpenCloud is, and how it differs
+from ownCloud and Nextcloud</a> tells that lineage in full,
+and what changed at each fork.</p>
 <p>In OpenCloud's own source, the route is registered in the vendored Reva
 package it builds on:</p>
 <pre><code class="language-go">// vendor/github.com/opencloud-eu/reva/v2/internal/http/services/owncloud/ocdav/ocdav.go

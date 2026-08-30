@@ -14,6 +14,17 @@ single-page application, and unknown paths return the app shell with HTTP
 would flag every healthy instance. Only a response that actually differs from
 that catch-all baseline counts as a hit, on every check below.
 
+<!-- TOC -->
+* [Exposed paths and debug endpoints: what this scanner checks, and why](#exposed-paths-and-debug-endpoints-what-this-scanner-checks-and-why)
+  * [1. Is a directory index being served: `directoryListing`](#1-is-a-directory-index-being-served-directorylisting)
+  * [2. Is a specific deployment file readable: `exposed:<path>`](#2-is-a-specific-deployment-file-readable-exposedpath)
+  * [3. Is a debug endpoint publicly readable: `debugEndpoint:<path>`](#3-is-a-debug-endpoint-publicly-readable-debugendpointpath)
+  * [4. Is a service debug port reachable: `debugPort:<port>`](#4-is-a-service-debug-port-reachable-debugportport)
+  * [5. Is the backend reachable directly, bypassing the proxy: `backendPortClosed`](#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
+
 ## 1. Is a directory index being served: `directoryListing`
 
 An `Index of /`-style page was returned. OpenCloud never generates one, so

@@ -21,6 +21,7 @@ this repository.
 * [Reverse proxies](#reverse-proxies)
   * [In front of OpenCloud](#in-front-of-opencloud)
     * [The headers this check looks for](#the-headers-this-check-looks-for)
+    * [Two findings decided here that are not headers](#two-findings-decided-here-that-are-not-headers)
     * [nginx](#nginx)
     * [Apache httpd](#apache-httpd)
     * [Caddy](#caddy)
@@ -59,6 +60,30 @@ before OpenCloud does. Adding them again in the proxy fixes both.
 
 Send them on the HTTPS listener only. `Strict-Transport-Security` on a plain
 HTTP response is ignored by browsers and tells an attacker nothing useful.
+
+### Two findings decided here that are not headers
+
+Both are hardening flags rather than extra checks, so neither lowers the
+grade on its own - they raise the state to WARNING and are waivable with
+`--ignore-hardening`.
+
+| Flag | What has to be true to pass |
+|:-----|:----------------------------|
+| `httpsEnforced` | A request to `http://` on port 80 answers with a redirect whose `Location` starts with `https://` - or port 80 does not answer at all |
+| `reverseProxyDetected` | Something in the response looks like a proxy: a proxy-style `Server` header, or any `Via` header |
+
+**`httpsEnforced`** is measured without following redirects: the scan asks
+port 80 for `/` once and reads the `Location` it gets back. A redirect to
+another plain-HTTP address, a `200` that serves the interface, and a
+redirect chain that reaches HTTPS only on its second hop all fail. A closed
+or filtered port 80 **passes** - plain HTTP cannot be spoken at all, which is
+the stronger version of enforcing it.
+
+**`reverseProxyDetected`** is deliberately best-effort and never changes the
+rating, because Traefik and HAProxy announce nothing by default. A
+well-configured deployment can fail it with nothing wrong; treat it as a
+prompt to confirm there is something in front, not as a defect. If there is
+not, the configuration below is the usual way to put one there.
 
 ### nginx
 
@@ -245,7 +270,8 @@ backend opencloud
   guesswork. Overwrite it at the edge.
 - **HTTP left open.** A redirect is enough; this check follows it and grades
   the destination. What it will not forgive is a plain-HTTP listener that
-  serves the interface as well.
+  serves the interface as well - that is the `httpsEnforced` flag
+  [above](#two-findings-decided-here-that-are-not-headers).
 - **A self-signed or expired certificate.** The scan refuses to establish a
   version over an untrusted connection, and no header can make up for that.
 

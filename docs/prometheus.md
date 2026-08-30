@@ -15,6 +15,16 @@ If you already run Icinga2, you do not need any of this: the
 [performance data](../README.md#performance-data) the plugin prints is picked
 up by Icinga2's Graphite/InfluxDB writers directly.
 
+<!-- TOC -->
+* [Prometheus and Grafana](#prometheus-and-grafana)
+  * [What there is to graph](#what-there-is-to-graph)
+  * [node_exporter textfile collector](#node_exporter-textfile-collector)
+  * [Pushgateway](#pushgateway)
+  * [Alerting rules](#alerting-rules)
+  * [Grafana](#grafana)
+<!-- TOC -->
+
+
 ## What there is to graph
 
 Every run prints performance data after a `|`:

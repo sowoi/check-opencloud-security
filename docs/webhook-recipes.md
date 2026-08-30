@@ -15,6 +15,19 @@ Two rules apply to every recipe here:
   Use `COS_WEBHOOK_URL`, or `secret://` in the configuration file - see
   [Configuration file and secrets](../README.md#configuration-file-and-secrets).
 
+<!-- TOC -->
+* [Webhook recipes](#webhook-recipes)
+  * [The payload, in short](#the-payload-in-short)
+  * [A generic receiver](#a-generic-receiver)
+  * [Verifying the signature](#verifying-the-signature)
+  * [Uptime Kuma](#uptime-kuma)
+  * [Slack, Mattermost, Discord](#slack-mattermost-discord)
+  * [ntfy](#ntfy)
+  * [Alertmanager](#alertmanager)
+  * [Testing a receiver without an instance](#testing-a-receiver-without-an-instance)
+<!-- TOC -->
+
+
 ## The payload, in short
 
 The fields most receivers care about, from the full example in
@@ -47,6 +60,62 @@ check-opencloud-security --host opencloud.example.com --webhook-on warning
 
 `--webhook-on` decides how much you hear. Each level includes the more severe
 ones: `critical`, `warning`, `unknown`, `always`.
+
+## Verifying the signature
+
+A webhook URL is usually the only thing standing between an endpoint and
+anyone who guesses it. `--webhook-secret` (or `COS_WEBHOOK_SECRET`) adds a
+shared-secret signature so a receiver can tell a real notification from an
+invented one:
+
+```shell
+export COS_WEBHOOK_SECRET='a-long-random-string'
+check-opencloud-security --host opencloud.example.com --webhook-on warning
+```
+
+Every POST then carries
+
+```
+X-COS-Signature: sha256=<hex>
+```
+
+where `<hex>` is the **HMAC-SHA256 of the raw request body**, keyed with the
+secret. The plugin serialises the body once and posts exactly those bytes, so
+a receiver verifies the bytes it received - it must not re-encode the parsed
+document first, because any difference in key order or spacing changes the
+hash.
+
+```python
+import hashlib
+import hmac
+
+def verify(raw_body: bytes, header: str, secret: str) -> bool:
+    """raw_body must be the untouched request body, not a re-serialised dict."""
+    expected = "sha256=" + hmac.new(
+        secret.encode("utf-8"), raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header or "")
+```
+
+Use `hmac.compare_digest` rather than `==`; comparing hex digests with a
+short-circuiting comparison leaks how much of a guess was correct.
+
+In a Flask or FastAPI receiver, reach for the raw body rather than the parsed
+JSON - `await request.body()` in FastAPI, `request.get_data()` in Flask.
+Frameworks that only hand you a parsed object cannot verify this signature at
+all, and the honest fix is to read the body yourself before parsing.
+
+Three things worth knowing:
+
+- **The signature covers whatever was sent**, including the chat-native
+  documents `--webhook-format slack` and `discord` produce. Slack and Discord
+  ignore the header; it is there for receivers that check it.
+- **No signature header is sent when no secret is set.** A receiver that
+  requires one should reject the request rather than treat a missing header
+  as valid.
+- **The secret is a credential.** Keep it out of the command line the same way
+  the URL is kept out - see [Configuration file and
+  secrets](../README.md#configuration-file-and-secrets).
 
 ## Uptime Kuma
 

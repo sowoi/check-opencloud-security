@@ -466,6 +466,12 @@ OpenCloud instance.</p>
 <td><code>COS_INSECURE</code></td>
 </tr>
 <tr>
+<td><code>--ca-file</code></td>
+<td>PEM CA bundle used to verify an internal TLS certificate</td>
+<td><em>None</em> (system trust store)</td>
+<td><code>COS_SCANNER_TLS_CA_FILE</code></td>
+</tr>
+<tr>
 <td><code>--no-extra-checks</code></td>
 <td>Only check product, version and security headers</td>
 <td><em>False</em></td>
@@ -604,6 +610,12 @@ OpenCloud instance.</p>
 <td><code>COS_WEBHOOK_HEADERS</code></td>
 </tr>
 <tr>
+<td><code>--webhook-secret</code></td>
+<td>Shared secret; signs each webhook body with HMAC-SHA256 in <code>X-COS-Signature</code></td>
+<td><em>None</em> (unsigned)</td>
+<td><code>COS_WEBHOOK_SECRET</code></td>
+</tr>
+<tr>
 <td><code>--webhook-timeout</code></td>
 <td>HTTP timeout in seconds for the webhook call</td>
 <td><code>10</code></td>
@@ -614,6 +626,12 @@ OpenCloud instance.</p>
 <td>Permit webhooks to private, loopback, or link-local addresses</td>
 <td><em>False</em></td>
 <td><code>COS_ALLOW_PRIVATE_WEBHOOKS</code></td>
+</tr>
+<tr>
+<td><code>--webhook-digest</code></td>
+<td>With several <code>--host</code> targets, send one combined webhook instead of one per host</td>
+<td><em>False</em></td>
+<td><code>COS_WEBHOOK_DIGEST</code></td>
 </tr>
 <tr>
 <td><code>--retries</code></td>
@@ -796,7 +814,9 @@ below describes what the built-in scanner does and how to tune it.</p>
 <ul>
 <li>product, <code>productversion</code> and edition from <code>/status.php</code>; a server whose
   product name says ownCloud or Nextcloud is refused rather than rated,
-  because it serves the same endpoint but is not the same software. <code>/status.php</code>
+  because it serves the same endpoint but is not the same software - see
+  <a href="/documentation/what-is-opencloud"><code>docs/what-is-opencloud.md</code></a> for where the three
+  projects came from and how they diverged. <code>/status.php</code>
   also carries <code>maintenance</code>, <code>installed</code> and <code>needsDbUpgrade</code>, but OpenCloud's
   own handler for it hardcodes all three (<code>false</code>, <code>true</code>, <code>false</code>) rather than
   reading real state, so this scanner does not check them - see

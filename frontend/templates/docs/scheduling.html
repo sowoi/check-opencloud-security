@@ -31,6 +31,14 @@ the scanner to read the two files under <code>/var/lib/check-opencloud-security<
 before enabling it; the refresh command validates both documents and writes
 them atomically.
 - <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/cron/check-opencloud-security.cron"><code>contrib/cron/check-opencloud-security.cron</code></a></p>
+<!-- TOC -->
+<ul>
+<li><a href="#scheduling-without-icinga2--nagios">Scheduling without Icinga2 / Nagios</a></li>
+<li><a href="#systemd-timer">systemd timer</a></li>
+<li><a href="#cron">cron</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="systemd-timer">systemd timer</h2>
 <pre><code class="language-shell">sudo mkdir -p /etc/check-opencloud-security
 sudo cp contrib/systemd/check-opencloud-security.env.example /etc/check-opencloud-security/env

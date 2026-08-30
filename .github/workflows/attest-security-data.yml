@@ -1,0 +1,50 @@
+name: Attest the security reference data
+
+# `check-opencloud-scanner refresh-data` on a monitoring host reads the
+# advisory database and the release schedule from this repository's `main`
+# branch and verifies a Sigstore attestation over them before believing any
+# of it. This workflow is what produces that attestation.
+#
+# It runs on a push to main rather than at release time on purpose. The
+# advisory and schedule refresh workflows open a pull request that a human
+# merges; that merge is the review boundary the attestation is meant to
+# certify. Attesting at release time instead would tie a monitoring host's
+# advisory data to the cadence of hand-made version bumps, which is exactly
+# the staleness ADR 0017 exists to prevent.
+#
+# There is no signing key here, and none to leak: `attest-build-provenance`
+# signs with a short-lived Sigstore certificate bound to this workflow's
+# identity, the same way publish-pypi.yml already attests the wheel. The
+# verifier pins that identity - see opencloud_local_scan/data_signing.py.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - opencloud_local_scan/data/vulnerabilities.json
+      - opencloud_local_scan/data/release_schedule.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # What lets the run mint a signing certificate and publish the attestation.
+  id-token: write
+  attestations: write
+
+jobs:
+  attest:
+    name: Attest the reference data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # One attestation per file: a monitoring host fetches and verifies each
+      # document on its own, so each needs a statement naming its own digest.
+      - name: Attest the advisory database and the release schedule
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: |
+            opencloud_local_scan/data/vulnerabilities.json
+            opencloud_local_scan/data/release_schedule.json

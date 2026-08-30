@@ -29,6 +29,16 @@ downstream has to special-case a single-host run.</p>
 (OK), <code>1</code> (WARNING), <code>2</code> (CRITICAL), <code>3</code> (UNKNOWN). A CI step gates on the
 exit code exactly the way an Icinga check does; the document these flags
 produce is a separate, additional artifact, not a replacement for it.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#machine-readable-output---format-json-sarif-junit">Machine-readable output: <code>--format json</code>, <code>sarif</code>, <code>junit</code></a></li>
+<li><a href="#json"><code>json</code></a></li>
+<li><a href="#sarif"><code>sarif</code></a></li>
+<li><a href="#junit"><code>junit</code></a></li>
+<li><a href="#choosing-a-format">Choosing a format</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="json"><code>json</code></h2>
 <p>A JSON array of the same result document described in <a href="/documentation/reference#webhook-notifications">Webhook
 notifications</a> - one object per host,

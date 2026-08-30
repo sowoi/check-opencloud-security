@@ -1,14 +1,27 @@
 # Authentication: what this scanner checks, and why
 
-Five checks look at how an instance authenticates requests: whether protected
+Six checks look at how an instance authenticates requests: whether protected
 endpoints actually demand a session, whether HTTP Basic auth is still
 offered as a bypass around the identity provider, whether the documented demo
-accounts still work, and two properties OpenCloud's own capabilities document
-publishes about account search and password strength. None of them submit a
+accounts still work, two properties OpenCloud's own capabilities document
+publishes about account search and password strength, and whether the
+identity provider can be located at all. None of them submit a
 guessed credential anywhere - see [What the scan deliberately does not
 answer](../README.md#what-the-scan-deliberately-does-not-answer) for what is
 out of scope on principle, and the demo-account section below for the one
 documented exception.
+
+<!-- TOC -->
+* [Authentication: what this scanner checks, and why](#authentication-what-this-scanner-checks-and-why)
+  * [1. Do protected endpoints actually require a session: `authentication:<path>`](#1-do-protected-endpoints-actually-require-a-session-authenticationpath)
+  * [2. Does the proxy still offer HTTP Basic authentication: `basicAuthDisabled`](#2-does-the-proxy-still-offer-http-basic-authentication-basicauthdisabled)
+  * [3. Do the documented demo accounts still sign in: `demoUsersDisabled`](#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled)
+  * [4. Is account search restricted to shared groups: `userEnumerationRestricted`](#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted)
+  * [5. Is the link password policy strong enough: `passwordPolicyEnforced`](#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced)
+  * [6. Can the identity provider be found at all: `identityProviderDetected`](#6-can-the-identity-provider-be-found-at-all-identityproviderdetected)
+  * [Severity and rating impact](#severity-and-rating-impact)
+<!-- TOC -->
+
 
 ## 1. Do protected endpoints actually require a session: `authentication:<path>`
 
@@ -107,13 +120,46 @@ default, so this usually means something explicitly lowered it).
 banned-password list tighten it further - see [the link password policy
 docs][link-password].
 
+## 6. Can the identity provider be found at all: `identityProviderDetected`
+
+Everything above asks whether a credential is accepted. This one asks the
+prior question - *who issues the tokens?* - and answers it by reading
+`/.well-known/openid-configuration` once, without following redirects:
+
+- a `200` carrying JSON: the `issuer` field is taken;
+- a redirect: the `Location` header is resolved against the instance and
+  taken instead, which is how a proxy that hands the well-known path to an
+  external provider is recognised;
+- anything else, or an issuer that is not an absolute `http(s)` URL with a
+  hostname: the flag fails.
+
+Nothing is submitted to find this out. No login form is filled in and no
+credential is sent - working out who signs users in must not become an
+attempt to sign in.
+
+A failure is far more often a **proxy not forwarding `/.well-known/`** than
+an instance with no sign-in at all, which is why it never caps the rating.
+
+The issuer that is found is also recorded as context rather than a verdict.
+An issuer on a different host than the instance is reported as an
+**external** provider - Keycloak, Authentik or Authelia in front of
+OpenCloud - and the vendor is named so the result can point at that project's
+security advisories. Using OpenCloud's own built-in provider is not a
+finding: neither arrangement is required, and neither fails anything.
+
+**If this fails:** confirm the reverse proxy forwards `/.well-known/` to
+whatever issues tokens - see [Reverse proxies](reverse-proxy.md). If sign-in
+genuinely is not configured, OpenCloud ships its own provider and can be
+pointed at an external one.
+
 ## Severity and rating impact
 
 `authentication:<path>` and `demoUsersDisabled` are `extraChecks`, reported
 and rating-capped whenever they run at all, at their own severities above -
 see the extra-checks table in [the main
 README](../README.md#what-the-scanner-checks). `basicAuthDisabled`,
-`userEnumerationRestricted` and `passwordPolicyEnforced` are hardening flags,
+`userEnumerationRestricted`, `passwordPolicyEnforced` and
+`identityProviderDetected` are hardening flags,
 reported only with `--check-hardening` (or always on the web result); a
 failed hardening flag does not cap the rating by itself, it raises an
 otherwise-`OK` Icinga result to `WARNING` and is listed in the

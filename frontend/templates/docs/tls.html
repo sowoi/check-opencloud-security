@@ -39,6 +39,26 @@ OpenCloud's proxy terminates TLS itself on port 9200 (or whatever sits in
 front of it does), and this scanner reads what that transport actually
 negotiated - protocol version, certificate, chain, cipher suite - the same
 way a browser or a sync client would, without any special access.</p>
+<!-- TOC -->
+<ul>
+<li><a href="#tls-and-certificates-what-this-scanner-checks-and-why">TLS and certificates: what this scanner checks, and why</a></li>
+<li><a href="#1-can-a-tls-connection-be-made-at-all-tlshandshake-httpsavailable">1. Can a TLS connection be made at all: <code>tlsHandshake</code>, <code>httpsAvailable</code></a></li>
+<li><a href="#2-is-the-certificate-trusted-tlstrusted">2. Is the certificate trusted: <code>tlsTrusted</code></a></li>
+<li><a href="#3-is-the-protocol-current-tlsprotocol-tlsdeprecatedprotocol">3. Is the protocol current: <code>tlsProtocol</code>, <code>tlsDeprecatedProtocol</code></a></li>
+<li><a href="#4-does-the-certificate-cover-this-name-tlshostname">4. Does the certificate cover this name: <code>tlsHostname</code></a></li>
+<li><a href="#5-is-the-chain-complete-tlschain">5. Is the chain complete: <code>tlsChain</code></a></li>
+<li><a href="#6-is-the-certificate-about-to-expire-or-issued-for-too-long">6. Is the certificate about to expire, or issued for too long</a></li>
+<li><a href="#7-is-the-negotiated-cipher-suite-and-certificate-policy-sound">7. Is the negotiated cipher suite and certificate policy sound</a></li>
+<li><a href="#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity">8. Do IPv4 and IPv6 present the same service: <code>tlsAddressParity</code></a></li>
+<li><a href="#9-is-certificate-issuance-restricted-tlscaarecord">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></a></li>
+<li><a href="#10-is-revocation-actually-checkable-tlsocspstapling">10. Is revocation actually checkable: <code>tlsOcspStapling</code></a></li>
+<li><a href="#what-is-deliberately-left-unmeasured">What is deliberately left unmeasured</a></li>
+<li><a href="#self-signed-instances">Self-signed instances</a></li>
+<li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
+<li><a href="#reference">Reference</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="1-can-a-tls-connection-be-made-at-all-tlshandshake-httpsavailable">1. Can a TLS connection be made at all: <code>tlsHandshake</code>, <code>httpsAvailable</code></h2>
 <p>Before anything else, the scan tries to connect. Two ways to fail:</p>
 <ul>
@@ -52,6 +72,10 @@ way a browser or a sync client would, without any special access.</p>
   scan: the instance is either not serving TLS on this port, or is serving
   something the client could not negotiate at all.</li>
 </ul>
+<p>Whether plain HTTP is <em>redirected</em> to HTTPS is a separate flag,
+<code>httpsEnforced</code>, decided at the proxy rather than in the TLS layer - see
+<a href="/documentation/reverse-proxy#two-findings-decided-here-that-are-not-headers">Two findings decided here that are not
+headers</a>.</p>
 <h2 id="2-is-the-certificate-trusted-tlstrusted">2. Is the certificate trusted: <code>tlsTrusted</code></h2>
 <p><code>opencloud init</code> generates a <strong>self-signed certificate</strong> unless real ones are
 configured, so an untrusted chain is the single most common TLS finding on a

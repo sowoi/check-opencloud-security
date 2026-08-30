@@ -42,7 +42,9 @@ the same endpoint, which OpenCloud inherited from them. A status document
 whose product name carries either of those names is refused with `ScanError`
 rather than scanned - their releases, advisories and defaults are not
 OpenCloud's, and a verdict here would be a confident answer about the wrong
-software.
+software. See
+[`docs/what-is-opencloud.md`](../docs/what-is-opencloud.md) for the fork
+history behind all three, and what actually differs between them.
 
 ### The version trap
 
@@ -304,13 +306,37 @@ $ check-opencloud-scanner refresh-data \
 /var/lib/check-opencloud-security/vulnerabilities.json
 ```
 
-It fetches both sources, rejects a lifecycle document that loses a bundled
-release line, refuses unbounded advisories, and replaces each file atomically.
-It never writes into the installed package. Point
-`scanner.release_schedule` and `scanner.vulnerability_db` at the two generated
-files, then run the supplied
+It reads both documents from this project's own repository - the reviewed
+files a maintainer merged, not a live third-party query - and **verifies a
+Sigstore attestation** over them before believing any of it. It then rejects
+a lifecycle document that loses a bundled release line, refuses unbounded
+advisories, and replaces each file atomically. It never writes into the
+installed package. Point `scanner.release_schedule` and
+`scanner.vulnerability_db` at the two generated files, then run the supplied
 [`check-opencloud-security-refresh.timer`](../contrib/systemd/check-opencloud-security-refresh.timer)
 daily. A network failure leaves the previous files untouched.
+
+Signature verification needs the `signing` extra:
+
+```console
+$ pip install 'check-opencloud-security[signing]'
+```
+
+Without it the refresh still runs - it falls back to the structural guards
+alone and logs a warning saying so. Note what that means: a host without the
+extra is not checking provenance at all, so install it wherever the refresh
+actually matters.
+
+With the extra installed, the three outcomes are deliberately different. A
+verified document is written. A signature that could not be *checked* - the
+attestation is not published yet, GitHub is unreachable, the trust root
+would not load - warns and falls back to the structural guards. A signature
+that is present and *wrong* stops the refresh outright and leaves the
+previous files exactly where they were.
+
+Passing `--schedule-url` or `--advisory-url` queries that source live and
+unverified, for an air-gapped mirror or a fork, and says so in the log. See
+[ADR 0027](../adr/0027-refreshed-reference-data-is-attested-not-merely-fetched.md).
 
 `data/vulnerabilities.json` carries the advisories published against
 OpenCloud, and is regenerated daily by

@@ -31,6 +31,21 @@ running is silent, and silence is indistinguishable from a healthy instance.</p>
   UNKNOWN. A pipeline fails on anything non-zero, so <code>--warning</code> and
   <code>--critical</code> decide how strict it is.</li>
 </ul>
+<!-- TOC -->
+<ul>
+<li><a href="#running-the-check-from-ci">Running the check from CI</a></li>
+<li><a href="#github-actions">GitHub Actions</a><ul>
+<li><a href="#opencloud-compatibility-evidence">OpenCloud compatibility evidence</a></li>
+<li><a href="#reporting-rather-than-failing">Reporting rather than failing</a></li>
+<li><a href="#the-json-document-instead">The JSON document instead</a></li>
+</ul>
+</li>
+<li><a href="#gitlab-ci">GitLab CI</a></li>
+<li><a href="#using-the-container-image-instead-of-installing">Using the container image instead of installing</a></li>
+<li><a href="#do-not-put-the-token-on-the-command-line">Do not put the token on the command line</a></li>
+</ul>
+<!-- TOC -->
+
 <h2 id="github-actions">GitHub Actions</h2>
 <h3 id="opencloud-compatibility-evidence">OpenCloud compatibility evidence</h3>
 <p>The repository's <strong>real OpenCloud container</strong> workflow keeps one reviewed,

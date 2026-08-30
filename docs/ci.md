@@ -16,6 +16,18 @@ Whatever the platform, three things decide whether it works:
   UNKNOWN. A pipeline fails on anything non-zero, so `--warning` and
   `--critical` decide how strict it is.
 
+<!-- TOC -->
+* [Running the check from CI](#running-the-check-from-ci)
+  * [GitHub Actions](#github-actions)
+    * [OpenCloud compatibility evidence](#opencloud-compatibility-evidence)
+    * [Reporting rather than failing](#reporting-rather-than-failing)
+    * [The JSON document instead](#the-json-document-instead)
+  * [GitLab CI](#gitlab-ci)
+  * [Using the container image instead of installing](#using-the-container-image-instead-of-installing)
+  * [Do not put the token on the command line](#do-not-put-the-token-on-the-command-line)
+<!-- TOC -->
+
+
 ## GitHub Actions
 
 ### OpenCloud compatibility evidence
