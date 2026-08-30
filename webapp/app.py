@@ -57,6 +57,7 @@ from .audit import (
     REASON_TARGET_REJECTED,
     REASON_UNSUPPORTED_FIELDS,
     AuditLog,
+    configure_audit_file,
 )
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
@@ -501,8 +502,16 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     )
     app.state.queue = None
     app.state.audit = AuditLog.from_settings(settings)
+    # And before the first record: a deployment that asked for the trail to
+    # outlive the container must fail here rather than write it to a stream
+    # that ends with the container.
+    audit_file = configure_audit_file(settings)
     if settings.audit_log:
-        LOGGER.info("audit_log_enabled targets=%s", settings.audit_log_targets)
+        LOGGER.info(
+            "audit_log_enabled targets=%s file=%s",
+            settings.audit_log_targets,
+            audit_file or "-",
+        )
 
     async def queue() -> ScanQueue:
         if app.state.queue is None:

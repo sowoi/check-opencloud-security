@@ -740,3 +740,314 @@ def test_automatic_updates_with_a_local_build_are_pointed_out() -> None:
 
     pulled = wizard_module.Setup(auto_updates=True, image_source="dockerhub")
     assert not any("build" in w.lower() for w in wizard_module.check_consistency(pulled))
+
+
+# --- what a deployment keeps ------------------------------------------------
+def test_by_default_the_stack_keeps_nothing_on_a_disk() -> None:
+    """
+    The public shape is the one that can say nothing here survives it.
+
+    Redis writes no dump file and the audit trail - when there is one at all -
+    goes to the container's output. A volume appearing in this file without
+    somebody asking for it would be a copy of everybody's scans nobody chose
+    to keep.
+    """
+    setup = wizard_module.Setup()
+    wizard_module._finalise(setup)
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+
+    assert "volumes" not in document
+    for service in document["services"].values():
+        assert "volumes" not in service
+    assert '--appendonly no' in document["services"]["redis"]["command"]
+    assert "COS_WEB_AUDIT_LOG_FILE" not in document["services"]["web_app"]["environment"]
+
+
+def test_an_audit_trail_can_outlive_the_container_in_a_named_volume() -> None:
+    """A trail a `docker compose down` erases answers nothing three months later."""
+    setup = wizard_module.Setup(audit_log=True, audit_storage="volume")
+    wizard_module._finalise(setup)
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+
+    web = document["services"]["web_app"]
+    assert web["volumes"] == [
+        f"{wizard_module.AUDIT_VOLUME}:{wizard_module.AUDIT_LOG_DIRECTORY}"
+    ]
+    assert web["environment"]["COS_WEB_AUDIT_LOG_FILE"] == (
+        f"{wizard_module.AUDIT_LOG_DIRECTORY}/{wizard_module.AUDIT_LOG_FILENAME}"
+    )
+    # Declared, or Compose has a mount naming a volume that does not exist.
+    assert wizard_module.AUDIT_VOLUME in document["volumes"]
+    # Rotation travels with it: a log nobody rotates fills the volume and
+    # takes the service down with it.
+    assert web["environment"]["COS_WEB_AUDIT_LOG_MAX_BYTES"]
+    assert web["environment"]["COS_WEB_AUDIT_LOG_BACKUPS"]
+    # Redis is untouched by the audit question.
+    assert "volumes" not in document["services"]["redis"]
+
+
+def test_an_audit_trail_can_go_to_a_directory_on_the_host_instead() -> None:
+    """Existing log shipping and backups work on files, not on Docker volumes."""
+    setup = wizard_module.Setup(
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="/srv/opencloud-scan/audit",
+    )
+    wizard_module._finalise(setup)
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+
+    assert document["services"]["web_app"]["volumes"] == [
+        f"/srv/opencloud-scan/audit:{wizard_module.AUDIT_LOG_DIRECTORY}"
+    ]
+    # A bind mount names a directory that already exists, so there is nothing
+    # for Docker to declare - and the operator is told to create it.
+    assert "volumes" not in document
+    assert any(
+        "chown" in warning and str(wizard_module.WEB_IMAGE_UID) in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+
+def test_the_audit_trail_is_only_kept_when_there_is_one_to_keep() -> None:
+    """Storage for a log nobody turned on is a mount point with nothing in it."""
+    setup = wizard_module.Setup(audit_log=False, audit_storage="volume")
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+
+    assert "volumes" not in document
+    assert "volumes" not in document["services"]["web_app"]
+    assert document["services"]["web_app"]["environment"]["COS_WEB_AUDIT_LOG"] == "false"
+
+    # And the question is not asked either.
+    assert not wizard_module._relevant("audit_storage", setup)
+    assert not wizard_module._relevant("audit_log_path", setup)
+    setup.audit_log = True
+    assert wizard_module._relevant("audit_storage", setup)
+    # The host directory is only asked for when it is the answer.
+    assert not wizard_module._relevant("audit_log_path", setup)
+    setup.audit_storage = "filesystem"
+    assert wizard_module._relevant("audit_log_path", setup)
+
+
+def test_redis_persists_only_when_asked_and_says_what_that_costs() -> None:
+    """
+    Turning the cache into a database puts everybody's scans on a disk.
+
+    The compose file is what an operator reads six months later, so the
+    comment above the command has to stop claiming the opposite.
+    """
+    setup = wizard_module.Setup(redis_persistence="volume")
+    wizard_module._finalise(setup)
+
+    rendered = wizard_module.render_compose_file(setup, "compose.yml")
+    document = yaml.safe_load(rendered)
+
+    redis = document["services"]["redis"]
+    assert redis["volumes"] == [f"{wizard_module.REDIS_VOLUME}:{wizard_module.REDIS_DATA_DIRECTORY}"]
+    assert wizard_module.REDIS_VOLUME in document["volumes"]
+    command = " ".join(redis["command"].split())
+    assert "--appendonly yes" in command
+    assert f"--dir {wizard_module.REDIS_DATA_DIRECTORY}" in command
+    # `--save "900 1"` would reach redis-server as one quoted value and be
+    # refused; the option takes two arguments.
+    assert "--save 900 1" in command
+    assert "--appendonly no" not in command
+    assert "It writes nothing to disk" not in rendered
+
+    # The claim is still there for the deployment where it is true.
+    assert "It writes nothing to disk" in wizard_module.render_compose_file(
+        wizard_module.Setup(), "compose.yml"
+    )
+
+
+def test_persisting_redis_without_encryption_is_pointed_out() -> None:
+    """Results on a disk in the clear is the thing this service otherwise never does."""
+    warnings = wizard_module.check_consistency(
+        wizard_module.Setup(redis_persistence="volume")
+    )
+    assert any("ENCRYPT" in warning for warning in warnings)
+
+    encrypted = wizard_module.Setup(redis_persistence="volume", encrypt_results=True)
+    assert not any("ENCRYPT" in w for w in wizard_module.check_consistency(encrypted))
+
+
+def test_a_storage_directory_has_to_be_one_compose_can_resolve() -> None:
+    """A relative bind mount is relative to the compose file, not to the operator."""
+    assert wizard_module._host_directory("srv/audit")
+    assert wizard_module._host_directory("/srv/audit:ro")
+    assert wizard_module._host_directory("/srv/opencloud-scan/audit") is None
+
+
+def test_the_private_preset_keeps_the_trail_it_turns_on(tmp_path: Path) -> None:
+    """An estate that audits its own scans audits them past the next update."""
+    assert _run(tmp_path, "--preset", "private") == 0
+
+    document = _compose(tmp_path)
+    web = document["services"]["web_app"]
+    assert web["environment"]["COS_WEB_AUDIT_LOG"] == "true"
+    assert web["environment"]["COS_WEB_AUDIT_LOG_FILE"]
+    assert wizard_module.AUDIT_VOLUME in document["volumes"]
+    # Keeping the trail is not the same decision as keeping the scans.
+    assert "volumes" not in document["services"]["redis"]
+
+
+def test_a_yes_or_no_question_takes_true_and_false_as_well(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The words an operator reaches for at a compose-file question are these four."""
+    setup = wizard_module.Setup()
+    wizard = wizard_module.Wizard(setup)
+    question = wizard_module.Question(
+        key="audit_log", prompt="p", explain="e", example="no", kind="bool"
+    )
+
+    for answer, expected in (("true", True), ("false", False), ("yes", True), ("no", False)):
+        monkeypatch.setattr(
+            wizard_module.Wizard, "_read", lambda self, prompt, typed=answer: typed
+        )
+        wizard.ask(question)
+        assert setup.audit_log is expected, answer
+
+    # And the prompt says so, rather than leaving it to be discovered.
+    said: list[str] = []
+    monkeypatch.setattr(wizard_module.Wizard, "say", lambda self, text="": said.append(text))
+    monkeypatch.setattr(wizard_module.Wizard, "_read", lambda self, prompt: "yes")
+    wizard.ask(question)
+    assert any("true and false" in line for line in said)
+
+
+# --- rotating the trail on the host -----------------------------------------
+def test_the_service_rotates_its_own_trail_unless_the_host_is_asked_to() -> None:
+    """Something has to bound the file, and exactly one thing may."""
+    setup = wizard_module.Setup(
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="/srv/opencloud-scan/audit",
+    )
+    wizard_module._finalise(setup)
+
+    web = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))[
+        "services"
+    ]["web_app"]["environment"]
+
+    assert web["COS_WEB_AUDIT_LOG_MAX_BYTES"]
+    assert web["COS_WEB_AUDIT_LOG_BACKUPS"]
+    assert "COS_WEB_AUDIT_LOG_ROTATION" not in web
+
+
+def test_handing_the_trail_to_logrotate_turns_the_services_own_rotation_off() -> None:
+    """Two rotators on one file is how a trail loses records."""
+    setup = wizard_module.Setup(
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="/srv/opencloud-scan/audit",
+        audit_rotation="logrotate",
+    )
+    wizard_module._finalise(setup)
+
+    web = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))[
+        "services"
+    ]["web_app"]["environment"]
+
+    assert web["COS_WEB_AUDIT_LOG_ROTATION"] == wizard_module.EXTERNAL_ROTATION
+    # The size-based rotation is not merely ignored, it is not written down:
+    # a compose file carrying both says nothing about which one is in charge.
+    assert "COS_WEB_AUDIT_LOG_MAX_BYTES" not in web
+    assert "COS_WEB_AUDIT_LOG_BACKUPS" not in web
+
+
+def test_the_generated_logrotate_policy_names_the_file_and_can_create_it(
+    tmp_path: Path,
+) -> None:
+    """
+    The policy has to agree with the container on the path and the uid.
+
+    logrotate moves the file aside and makes the replacement itself, so a
+    `create` line with the wrong owner leaves the service unable to write to
+    the file it was told to keep - a trail that stops the first night the
+    rotation runs.
+    """
+    setup = wizard_module.Setup(
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="/srv/opencloud-scan/audit/",
+        audit_rotation="logrotate",
+        audit_retention_days=90,
+    )
+    wizard_module._finalise(setup)
+
+    policy = wizard_module.render_logrotate_file(setup)
+
+    assert policy.count("/srv/opencloud-scan/audit/audit.log {") == 1
+    assert f"create 0600 {wizard_module.WEB_IMAGE_UID}" in policy
+    assert "rotate 90" in policy
+    assert "daily" in policy
+    # copytruncate would truncate the file underneath a running writer and
+    # lose whatever was written between the copy and the truncation. The
+    # service reopens on a changed inode instead, which loses nothing. The
+    # word appears in the comment explaining that; the directive must not.
+    directives = [
+        line.strip() for line in policy.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any(line.startswith("copytruncate") for line in directives)
+    assert "/etc/logrotate.d" in policy
+
+    # It is written beside the compose file, not into /etc: installing it
+    # needs root, and a wizard that writes outside its output directory is one
+    # nobody can run to see what it would do.
+    written = wizard_module.write_files(
+        setup, tmp_path / "docker-compose.yml", tmp_path / ".env"
+    )
+    name = wizard_module.logrotate_filename(setup)
+    assert (tmp_path / name).read_text(encoding="utf-8") == policy
+    assert any(name in item for item in written)
+    assert stat.S_IMODE((tmp_path / name).stat().st_mode) == 0o644
+
+
+def test_no_logrotate_policy_is_written_for_a_deployment_that_did_not_ask(
+    tmp_path: Path,
+) -> None:
+    """A named volume is a path under Docker's root; nothing else should name it."""
+    assert _run(tmp_path) == 0
+    assert not list(tmp_path.glob("*.logrotate"))
+
+    volume = tmp_path / "on-a-volume"
+    setup = wizard_module.Setup(audit_log=True, audit_storage="volume")
+    wizard_module._finalise(setup)
+    wizard_module.write_files(setup, volume / "docker-compose.yml", volume / ".env")
+    assert not list(volume.glob("*.logrotate"))
+
+    # And the question is not asked either, because there is no host path for
+    # a policy to name.
+    assert not wizard_module._relevant("audit_rotation", setup)
+    assert not wizard_module._relevant("audit_retention_days", setup)
+    setup.audit_storage = "filesystem"
+    assert wizard_module._relevant("audit_rotation", setup)
+    # Retention is a logrotate setting; the service's own rotation is by size.
+    assert not wizard_module._relevant("audit_retention_days", setup)
+    setup.audit_rotation = "logrotate"
+    assert wizard_module._relevant("audit_retention_days", setup)
+
+
+def test_a_policy_nobody_installs_rotates_nothing_and_the_wizard_says_so() -> None:
+    """The one step the wizard cannot take for you is the one that needs root."""
+    setup = wizard_module.Setup(
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="/srv/opencloud-scan/audit",
+        audit_rotation="logrotate",
+    )
+
+    assert any(
+        "/etc/logrotate.d" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+    setup.audit_rotation = "service"
+    assert not any(
+        "/etc/logrotate.d" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )

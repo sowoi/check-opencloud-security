@@ -29,7 +29,12 @@ module is built around that collision rather than against it:
 
 Records go to the ``check_opencloud.web.audit`` logger, one JSON object per
 line, so a deployment can route, retain or discard them separately from
-everything else it logs.
+everything else it logs. By default that is the process output, which a
+container keeps for exactly as long as the container exists;
+``COS_WEB_AUDIT_LOG_FILE`` points the logger at a file instead, for a
+deployment that mounted somewhere for it to survive in.
+``COS_WEB_AUDIT_LOG_ROTATION`` then says who keeps that file from growing
+without limit: this process, or logrotate on the host.
 """
 
 from __future__ import annotations
@@ -38,11 +43,17 @@ import hashlib
 import hmac
 import json
 import logging
+import logging.handlers
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
-from .settings import WebSettings
+from .settings import (
+    AUDIT_ROTATION_EXTERNAL,
+    AUDIT_ROTATION_SERVICE,
+    WebSettings,
+)
 
 AUDIT_LOGGER = logging.getLogger("check_opencloud.web.audit")
 
@@ -66,6 +77,118 @@ MAX_FIELD_NAMES = 10
 MAX_FIELD_LENGTH = 40
 
 _FINGERPRINT_LENGTH = 16
+
+# The audit file is owner-only. Fingerprints are pseudonyms rather than
+# addresses, but a deployment that also records targets in the clear has
+# written down who scanned what, and a mounted volume is readable by whoever
+# reaches the host.
+_AUDIT_FILE_MODE = 0o600
+
+
+class _OwnerOnly:
+    """Keeps the audit file owner-readable every time it is opened.
+
+    A mixin rather than a chmod at setup time: both handlers below open a
+    fresh file after a rotation, and one created under the container's umask
+    would quietly widen the permissions of every generation after the first.
+    """
+
+    def _open(self):  # type: ignore[no-untyped-def]
+        stream = super()._open()  # type: ignore[misc]
+        try:
+            os.chmod(self.baseFilename, _AUDIT_FILE_MODE)  # type: ignore[attr-defined]
+        except OSError:  # pragma: no cover - a filesystem that has no modes
+            pass
+        return stream
+
+
+class _RotatingAuditFile(_OwnerOnly, logging.handlers.RotatingFileHandler):
+    """The trail rotated by this process, by size, needing nothing installed."""
+
+
+class _WatchedAuditFile(_OwnerOnly, logging.handlers.WatchedFileHandler):
+    """The trail rotated by something else on the host.
+
+    logrotate moves the file aside and creates a new one; a writer holding the
+    old descriptor would go on filling a file nobody can find any more, and
+    the trail would appear to stop the first night it ran. This handler checks
+    the inode before each record and reopens when it changed, which is the
+    half of the arrangement that lives in this process - the other half is the
+    ``create`` line in the logrotate policy, which is what makes the new file
+    writable by the container.
+    """
+
+
+# What the two names in COS_WEB_AUDIT_LOG_ROTATION mean, in one place.
+_HANDLERS = {
+    AUDIT_ROTATION_SERVICE: _RotatingAuditFile,
+    AUDIT_ROTATION_EXTERNAL: _WatchedAuditFile,
+}
+
+
+def configure_audit_file(settings: WebSettings) -> str | None:
+    """
+    Point the audit logger at a file, or back at the process output.
+
+    Called once at startup and safe to call again: the previous handler is
+    removed and closed, so a second application in the same process does not
+    write every record twice.
+
+    A file that cannot be opened stops the process. The alternative is a
+    service that reports an audit trail it is not keeping, and an operator
+    only finds out when somebody asks for the records - which is precisely the
+    moment the answer has to already exist. It follows the same reasoning as
+    refusing to start without the encryption key a deployment asked for.
+    """
+    for existing in list(AUDIT_LOGGER.handlers):
+        if isinstance(existing, _OwnerOnly):
+            AUDIT_LOGGER.removeHandler(existing)
+            existing.close()
+    AUDIT_LOGGER.propagate = True
+
+    if not settings.audit_log or not settings.audit_log_file:
+        return None
+
+    rotation = settings.audit_log_rotation
+    if rotation not in _HANDLERS:
+        raise ValueError(
+            f"COS_WEB_AUDIT_LOG_ROTATION is {rotation!r}, which is neither "
+            f"{AUDIT_ROTATION_SERVICE!r} nor {AUDIT_ROTATION_EXTERNAL!r}. "
+            "Guessing would mean either two rotators on one file or none."
+        )
+
+    path = Path(settings.audit_log_file)
+    if not path.parent.is_dir():
+        raise ValueError(
+            f"COS_WEB_AUDIT_LOG_FILE is {path}, but {path.parent} is not a directory. "
+            "Mount a volume there, or point it at a path that exists."
+        )
+    try:
+        if rotation == AUDIT_ROTATION_EXTERNAL:
+            handler: logging.Handler = _WatchedAuditFile(str(path), encoding="utf-8")
+        else:
+            handler = _RotatingAuditFile(
+                str(path),
+                maxBytes=settings.audit_log_max_bytes,
+                backupCount=settings.audit_log_backups,
+                encoding="utf-8",
+            )
+    except OSError as error:
+        raise ValueError(
+            f"COS_WEB_AUDIT_LOG_FILE {path} cannot be written to: {error}. "
+            "The container runs as uid 10001; a bind-mounted directory has to "
+            "be owned by it."
+        ) from error
+    # The record is already one complete JSON object, and the point of the
+    # format is that a line is parseable on its own.
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    AUDIT_LOGGER.addHandler(handler)
+    AUDIT_LOGGER.setLevel(logging.INFO)
+    # The file *is* the audit trail now. Leaving propagation on would copy
+    # every record into the ordinary log as well, which is the one place this
+    # service deliberately keeps free of targets and client fingerprints.
+    AUDIT_LOGGER.propagate = False
+    return str(path)
 
 
 def _now() -> str:

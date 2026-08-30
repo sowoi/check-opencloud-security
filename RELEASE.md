@@ -2,6 +2,52 @@
 
 ### Added
 
+- **The Docker setup wizard can hand the audit file to the host's logrotate**,
+  for a trail kept in a directory on the host. It asks who rotates it -
+  `service`, by size, from inside the container and needing nothing installed,
+  or `logrotate`, which is where an estate's retention policy, compression and
+  backups already live - and how many days to keep. Choosing logrotate writes
+  a third file beside the compose file, `<project>-audit.logrotate`, with the
+  install command in its header and in the wizard's next steps.
+
+  `COS_WEB_AUDIT_LOG_ROTATION` is the setting behind it. `external` turns the
+  service's own size-based rotation off and switches the handler to one that
+  notices its file was moved aside and reopens the replacement, so the policy
+  needs no `copytruncate` - which would truncate the file underneath a running
+  writer and lose whatever fell between the copy and the truncation - and its
+  `create 0600 10001 10001` line is what keeps the new file writable by the
+  container and readable by nobody else. Exactly one thing may rotate the
+  file, so an unrecognised value refuses to start rather than leaving a
+  deployment with two rotators or none, and the wizard warns that a policy
+  nobody installs rotates nothing.
+
+- **The Docker setup wizard asks where a deployment keeps its audit trail and
+  whether Redis survives a restart**, and either can go to a named Docker
+  volume or to a directory on the host. Both default to `none`, which is what
+  the shipped stack already does; the point is that keeping something is now
+  an answer rather than a hand-edited compose file.
+
+  The audit trail needed somewhere to go first, so `COS_WEB_AUDIT_LOG_FILE`
+  is new: it writes the records to a file instead of the process output,
+  owner-readable, rotated at `COS_WEB_AUDIT_LOG_MAX_BYTES` with
+  `COS_WEB_AUDIT_LOG_BACKUPS` generations kept, so the trail cannot fill the
+  volume it sits on. The records go there *instead of*, not as well as, the
+  ordinary log - which is the one place this service keeps free of targets and
+  client fingerprints. A path the process cannot write refuses to start, for
+  the reason [ADR 0008](adr/0008-refuse-to-start-without-the-encryption-key.md)
+  gives about encryption: reporting an audit trail that silently goes nowhere
+  is worse than keeping none. `Dockerfile.web` creates
+  `/var/log/opencloud-scan` owned by the unprivileged uid, so a fresh named
+  volume inherits an ownership the container can write to.
+
+  Persisting Redis is the one answer here that takes something away from what
+  the service can promise - a copy of every result still inside its TTL then
+  exists as a file - so the wizard warns when it is chosen, suggests
+  `COS_WEB_ENCRYPT_RESULTS` alongside it, and rewrites the comment above the
+  `redis` service rather than leaving a compose file claiming it writes
+  nothing to disk. The `private` preset now keeps the audit trail it already
+  turned on.
+
 - **Four hardening flags read from the OpenID Connect discovery document the
   scan already fetches**, at the cost of no additional HTTP request. Finding
   out who signs users in has always meant reading
@@ -118,6 +164,11 @@
   top of the page the reader is already on.
 
 ### Changed
+
+- **The Docker setup wizard's yes/no questions say that `true` and `false` are
+  accepted too**, and a confirmation prompt that does not understand an answer
+  now says so instead of silently asking again. Both words were always
+  accepted; nothing on screen admitted it.
 
 - **The Docker tab is now the first half of `/documentation`.** Somebody
   looking for how to run the check had to guess which of two menu entries

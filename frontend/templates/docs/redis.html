@@ -271,6 +271,13 @@ result is gone can be run again in half a minute.</p>
 <p>Do not add a volume to the <code>redis</code> service. If you are using a managed Redis
 that persists by default, either accept that results outlive their TTL in
 somebody else's backups or turn persistence off for that instance.</p>
+<p><code>docker/setup-wizard.py</code> will nonetheless generate a stack that persists, for
+the one deployment where the trade is worth making: a private instance where
+losing a queued scan to a restart matters more than the scans being on a disk
+that somebody may back up. It is never the default, it warns when you choose
+it, and it points at <code>COS_WEB_ENCRYPT_RESULTS</code> — with that on, what reaches
+the disk is ciphertext and the key lives in <code>.env</code> rather than beside it. On
+a deployment strangers can reach, the answer is still <code>none</code>.</p>
 <h2 id="memory-and-eviction">Memory and eviction</h2>
 <pre><code>--maxmemory 256mb
 --maxmemory-policy allkeys-lru

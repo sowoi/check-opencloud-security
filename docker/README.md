@@ -112,7 +112,10 @@ Three rules the compose files exist to enforce:
   worker is busy the next submission queues rather than being refused.
 - **Redis is a cache, not a database.** No persistence, capped memory,
   `allkeys-lru`, and every key carries a TTL anyway. A dump file would be a
-  copy of everybody's scans sitting on a disk.
+  copy of everybody's scans sitting on a disk. `setup-wizard.py` can turn
+  persistence on for a deployment that would rather not lose a queued scan to
+  a restart - see [What a deployment keeps](#what-a-deployment-keeps) - and
+  says what it costs when you ask for it.
 - **Redis is on an internal network and asks for a password.** It publishes no
   port and the `scanner_internal` network has no route off the host. Set
   `COS_REDIS_PASSWORD` in `docker/.env` and Redis requires it as well; leave it
@@ -228,7 +231,74 @@ with. See [`../docs/authentik.md`](../docs/authentik.md).
 
 The `private` preset is the estate deployment: private targets allowed, the
 debug ports probed, search engines refused and an audit log that names its own
-targets. `public` is what `docker-compose.yml` already is.
+targets and is kept on a volume. `public` is what `docker-compose.yml` already
+is.
+
+### What a deployment keeps
+
+Nothing in the stack that ships here survives a `docker compose down`, which
+is the right default for a public service and the wrong one for two things an
+operator may specifically want back. The wizard asks about both, and both take
+`none`, `volume` (a named Docker volume the stack manages) or `filesystem` (a
+directory on this host, for existing log shipping or backups):
+
+| Question | `none` — the default | `volume` / `filesystem` |
+|:---------|:---------------------|:------------------------|
+| Where should the audit trail be kept? | The records go to the container's output, and a `down` takes them with it | `COS_WEB_AUDIT_LOG_FILE` on a mount at `/var/log/opencloud-scan`, owner-readable and rotated, and the ordinary log carries no copy. A host directory can be handed to the host's own logrotate — see below |
+| Should Redis keep its data across a restart? | A cache: nothing reaches a disk, every key has a TTL, a restart loses only results that were about to expire | The append-only file at `/data`, so a queued scan and a live result survive — and a copy of every result inside its TTL sits on a disk |
+
+The audit question only appears when there is a trail to keep. Persisting
+Redis is the one answer here that takes something *away* from the service's
+promises, so the wizard says so and suggests `COS_WEB_ENCRYPT_RESULTS`
+alongside it — encrypted results persist as ciphertext.
+
+**A trail on the host's filesystem can be left to the host's logrotate.** The
+wizard asks who rotates it — `service`, by size, from inside the container and
+needing nothing installed, or `logrotate`, which is what an estate with a
+retention policy, a compression setting and a backup schedule already runs for
+every other log on the box. Choose the latter and it writes a third file,
+`<project>-audit.logrotate`, beside the compose file:
+
+```
+/srv/opencloud-scan/audit/audit.log {
+    daily
+    rotate 30
+    dateext
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0600 10001 10001
+}
+```
+
+```bash
+sudo install -m 0644 -o root -g root opencloud-scan-audit.logrotate \
+    /etc/logrotate.d/opencloud-scan-audit
+sudo logrotate --debug /etc/logrotate.d/opencloud-scan-audit   # changes nothing
+```
+
+It is written beside the compose file rather than installed, because
+installing it needs root and a wizard that writes outside the directory you
+pointed it at is one you cannot run to see what it would do. Until it is
+installed, nothing rotates the trail — the compose file has already told the
+service the host would — and the wizard says so before writing. `create` is
+what makes the replacement writable by the container's uid, and there is
+deliberately no `copytruncate`: the service reopens the file on a changed
+inode, which loses no record. Exactly one thing may rotate the file.
+
+A named volume needs nothing from you. A host directory has to exist and be
+owned by the uid the container runs as before the first `up`, or the container
+cannot write to a mount Docker created for root; the wizard prints the exact
+command in its next steps:
+
+```bash
+mkdir -p /srv/opencloud-scan/audit && sudo chown 10001 /srv/opencloud-scan/audit
+mkdir -p /srv/opencloud-scan/redis && sudo chown 999 /srv/opencloud-scan/redis
+```
+
+The same thing by hand, without the wizard, is documented under
+[keeping the trail past the container](../docs/webapp.md#keeping-the-trail-past-the-container).
 
 It runs on the standard library alone, so it works on a host that has Docker
 and nothing else installed yet, and it refuses to write over the compose files

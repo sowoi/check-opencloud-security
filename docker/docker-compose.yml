@@ -152,6 +152,25 @@ services:
       # COS_WEB_AUDIT_SALT means nothing correlates across a restart.
       COS_WEB_AUDIT_LOG: "false"
       COS_WEB_AUDIT_LOG_TARGETS: "false"
+      # Where that trail is kept. Unset, it goes to this container's output,
+      # which `docker compose down` takes with it - fine for reading along,
+      # useless when somebody asks in March about a scan in January. Set it to
+      # a path on a mount and the records go there instead, owner-readable and
+      # rotated at COS_WEB_AUDIT_LOG_MAX_BYTES with COS_WEB_AUDIT_LOG_BACKUPS
+      # generations kept, so the trail cannot fill the volume it sits on. The
+      # process refuses to start when it cannot write there, rather than
+      # reporting an audit trail that goes nowhere. `docker/setup-wizard.py`
+      # asks for this and adds the volume; by hand it is two lines:
+      #
+      #   COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      #   volumes:
+      #     - audit_log:/var/log/opencloud-scan
+      #
+      # plus `audit_log:` under a top-level `volumes:`. A bind mount works the
+      # same way but has to be owned by uid 10001, the user the image runs as.
+      # COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      # COS_WEB_AUDIT_LOG_MAX_BYTES: "10000000"
+      # COS_WEB_AUDIT_LOG_BACKUPS: "5"
       # Erasure on request: DELETE /api/purge answers 404 until a secret is
       # set here, because the call deletes results belonging to whoever is
       # currently reading them. The signing key makes the proof of deletion

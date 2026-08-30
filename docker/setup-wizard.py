@@ -30,6 +30,12 @@ That split is the whole point of the wizard. A compose file is something an
 operator commits, pastes into a ticket and copies between hosts; a purge token
 and an encryption key are none of those things.
 
+Ask for the audit trail to be kept in a directory on this host and rotated by
+the host's own logrotate, and it writes that policy too - beside the compose
+file, not into ``/etc/logrotate.d``, because installing it needs root and a
+wizard that writes outside the directory it was pointed at is one nobody can
+run to see what it would do.
+
 **This is not the plugin's wizard.** ``check-opencloud-security --configure``
 sets up a monitoring check against one instance and writes a scanner
 configuration file. This script configures a *container deployment* of the web
@@ -75,6 +81,38 @@ AUTHENTIK_IMAGE = "ghcr.io/goauthentik/server"
 AUTHENTIK_TAG = "2026.8.0"
 BLUEPRINT_SOURCE = REPO_ROOT / "authentik" / "blueprints" / "opencloud-scanner.yaml"
 BLUEPRINT_RELATIVE = Path("authentik") / "blueprints" / "opencloud-scanner.yaml"
+
+# Where the two things a deployment can choose to keep live *inside* the
+# containers. Both are mount points rather than paths in an image layer: a
+# read-only container cannot write to either without one, which is the whole
+# reason these are the only two writable places in the stack.
+AUDIT_LOG_DIRECTORY = "/var/log/opencloud-scan"
+AUDIT_LOG_FILENAME = "audit.log"
+REDIS_DATA_DIRECTORY = "/data"
+
+# The named volumes, before Compose prefixes them with the project name.
+AUDIT_VOLUME = "audit_log"
+REDIS_VOLUME = "redis_data"
+
+# Who has to own a host directory for the container to write to it. Docker
+# copies a mount point's ownership into a *named* volume, so only a bind mount
+# needs the operator to do anything - and a bind mount owned by root is the
+# single most common reason a hardened container will not start.
+WEB_IMAGE_UID = 10001
+REDIS_IMAGE_UID = 999
+
+# Where a deployment keeps things, when it keeps them at all.
+STORAGE_CHOICES = ("none", "volume", "filesystem")
+
+# Who rotates the audit file. "service" is this application, by size, and needs
+# nothing installed; "logrotate" is the host's own, which is what an estate
+# with a retention policy, a compression setting and a backup already has.
+ROTATION_CHOICES = ("service", "logrotate")
+# The value COS_WEB_AUDIT_LOG_ROTATION takes for the second one. The service
+# does not care *which* tool moves the file aside, only that something else
+# does and it has to reopen; the wizard asks in terms of the thing an operator
+# actually installs.
+EXTERNAL_ROTATION = "external"
 
 # The updater a deployment gets when it asks for automatic updates. Unlike
 # the identity provider it follows 'latest': the thing that applies updates
@@ -195,6 +233,20 @@ class Setup:
     audit_log: bool = False
     audit_log_targets: bool = False
     audit_salt: str = ""
+    # Where the audit trail is written. 'none' leaves it on the container's
+    # output, which a `docker compose down` takes with it; the other two mount
+    # something that outlives the container and point the service at a file in
+    # it. An audit trail is the one thing here an operator is asked for months
+    # after the fact, so it is the one thing worth surviving.
+    audit_storage: str = "none"
+    audit_log_path: str = ""
+    # Who rotates that file once it is on the host's filesystem: this service,
+    # by size, or the logrotate the host already runs for every other log on
+    # it. Only ever asked when the trail goes to a host directory - a named
+    # volume lives somewhere under Docker's own root, which is not a path a
+    # generated logrotate policy has any business naming.
+    audit_rotation: str = "service"
+    audit_retention_days: int = 30
     purge_token: str = ""
     purge_signing_key: str = ""
     export_signing_key: str = ""
@@ -203,6 +255,13 @@ class Setup:
 
     redis_maxmemory: str = "256mb"
     redis_password: str = ""
+    # Whether Redis writes its keyspace to disk. Off, and it is the cache the
+    # rest of the design assumes: every key has a TTL and a restart loses only
+    # results that were about to expire. On, and the queue and any scan in
+    # flight survive a restart - at the price of a copy of what it holds
+    # sitting on a disk.
+    redis_persistence: str = "none"
+    redis_data_path: str = ""
 
 
 # Answers a private deployment wants instead: it scans its own network, it is
@@ -214,6 +273,9 @@ PRIVATE_PRESET: dict[str, Any] = {
     "allow_indexing": False,
     "audit_log": True,
     "audit_log_targets": True,
+    # An estate that keeps an audit trail keeps it across a restart, or it has
+    # a log that answers questions only until the next update.
+    "audit_storage": "volume",
     "ip_rate_limit": 60,
     "target_cooldown": 60,
 }
@@ -347,6 +409,22 @@ def _mail_address(value: str) -> str | None:
     return None
 
 
+def _host_directory(value: str) -> str | None:
+    """A host directory to bind-mount into a container.
+
+    Absolute, because Compose reads a relative path as being relative to the
+    compose file rather than to wherever ``docker compose`` was run, and a
+    deployment that keeps its audit trail in a directory nobody can name twice
+    keeps it by accident.
+    """
+    path = value.strip()
+    if not path.startswith("/"):
+        return "A host directory is absolute, e.g. /srv/opencloud-scan/audit."
+    if ":" in path:
+        return "A ':' would be read as the start of the mount options."
+    return None
+
+
 def _socket_path(value: str) -> str | None:
     if not value.startswith("/"):
         return "A socket path is absolute, e.g. /var/run/docker.sock."
@@ -401,6 +479,8 @@ class Wizard:
         for line in _wrap(question.explain):
             self.say(f"      {line}")
         self.say(f"      Example: {question.example}")
+        if question.kind == "bool":
+            self.say("      Answer yes or no; true and false are accepted too.")
         if question.choices:
             self.say(f"      One of: {', '.join(question.choices)}")
         if question.generate:
@@ -422,7 +502,7 @@ class Wizard:
                 if lowered in NO:
                     setattr(self.setup, question.key, False)
                     return
-                self.say("      Answer yes or no.")
+                self.say("      Answer yes or no - true and false work as well.")
                 continue
             if question.kind == "int":
                 error = question.validate(answer)
@@ -453,6 +533,9 @@ class Wizard:
                 return True
             if answer in NO:
                 return False
+            # Saying so beats re-printing the same prompt at somebody who has
+            # just typed something they thought was an answer.
+            self.say("  Answer yes or no - true and false work as well.")
 
 
 def _format_default(value: Any) -> str:
@@ -1128,6 +1211,68 @@ def build_sections(setup: Setup) -> list[Section]:
                     generate=16,
                 ),
                 Question(
+                    key="audit_storage",
+                    prompt="Where should the audit trail be kept?",
+                    explain=(
+                        "'none' leaves it on the container's output, which "
+                        "'docker compose down' takes with it - the records are "
+                        "gone exactly when somebody asks for them. 'volume' "
+                        "writes it to a named Docker volume the stack manages; "
+                        "'filesystem' writes it to a directory on this host, "
+                        "which is what a deployment with existing log shipping "
+                        "or backups wants. Either way it is a rotating file, "
+                        "so it cannot fill the disk it sits on."
+                    ),
+                    example="volume",
+                    kind="choice",
+                    choices=STORAGE_CHOICES,
+                ),
+                Question(
+                    key="audit_log_path",
+                    prompt="Host directory for the audit file",
+                    explain=(
+                        f"Bind-mounted at {AUDIT_LOG_DIRECTORY} in the container. "
+                        f"It has to exist and be owned by uid {WEB_IMAGE_UID}, "
+                        "which is the unprivileged user the image runs as - "
+                        "the service refuses to start rather than report a "
+                        "trail it cannot write. A named volume needs none of "
+                        "that, which is why it is the other answer."
+                    ),
+                    example="/srv/opencloud-scan/audit",
+                    validate=_host_directory,
+                ),
+                Question(
+                    key="audit_rotation",
+                    prompt="What should rotate that file?",
+                    explain=(
+                        "'service' rotates it by size from inside the "
+                        "container and needs nothing installed on the host. "
+                        "'logrotate' hands the job to the host's own, with a "
+                        "policy file written next to the compose file for you "
+                        "to install - daily, dated, compressed, and kept for "
+                        "as long as you say below. Pick one: two things "
+                        "rotating one file is how a trail loses records."
+                    ),
+                    example="logrotate",
+                    kind="choice",
+                    choices=ROTATION_CHOICES,
+                ),
+                Question(
+                    key="audit_retention_days",
+                    prompt="Days of audit trail to keep",
+                    explain=(
+                        "How many daily generations logrotate keeps before "
+                        "deleting the oldest. This is a retention decision "
+                        "rather than a disk one: keeping records longer than "
+                        "you can justify is its own liability, and keeping "
+                        "them shorter than you are asked about them defeats "
+                        "the trail."
+                    ),
+                    example="30",
+                    kind="int",
+                    validate=_positive(1),
+                ),
+                Question(
                     key="purge_token",
                     prompt="Credential for DELETE /api/purge",
                     explain=(
@@ -1182,6 +1327,35 @@ def build_sections(setup: Setup) -> list[Section]:
                     example="generate",
                     generate=32,
                     validate=_hex_key,
+                ),
+                Question(
+                    key="redis_persistence",
+                    prompt="Should Redis keep its data across a restart?",
+                    explain=(
+                        "'none' is the default the rest of the design assumes: "
+                        "a cache, writing nothing to disk, where every key has "
+                        "a TTL anyway and a restart loses only results that "
+                        "were about to expire. 'volume' and 'filesystem' turn "
+                        "on the append-only file so a queued scan and a live "
+                        "result survive - and put a copy of every result "
+                        "inside its TTL on a disk, which is the thing a public "
+                        "deployment is otherwise able to say it never does."
+                    ),
+                    example="none",
+                    kind="choice",
+                    choices=STORAGE_CHOICES,
+                ),
+                Question(
+                    key="redis_data_path",
+                    prompt="Host directory for the Redis data",
+                    explain=(
+                        f"Bind-mounted at {REDIS_DATA_DIRECTORY} in the "
+                        f"container, and owned by uid {REDIS_IMAGE_UID}, which "
+                        "is the user the Redis image runs as. A named volume "
+                        "needs none of that."
+                    ),
+                    example="/srv/opencloud-scan/redis",
+                    validate=_host_directory,
                 ),
             ],
         ),
@@ -1245,11 +1419,43 @@ def _relevant(key: str, setup: Setup) -> bool:
             return False
         return key == "mcp_auth_scopes" or not _uses_authentik(setup)
 
-    if key == "audit_log_targets" or key == "audit_salt":
+    if key in {"audit_log_targets", "audit_salt", "audit_storage"}:
         return setup.audit_log
+    if key in {"audit_log_path", "audit_rotation"}:
+        # Only a host directory can be handed to the host's logrotate: a named
+        # volume is a path under Docker's root that nothing else should name.
+        return setup.audit_log and setup.audit_storage == "filesystem"
+    if key == "audit_retention_days":
+        return _uses_logrotate(setup)
+    if key == "redis_data_path":
+        return setup.redis_persistence == "filesystem"
     if key == "encryption_key":
         return setup.encrypt_results
     return True
+
+
+def _keeps_audit_file(setup: Setup) -> bool:
+    """Whether the audit trail is written to something that outlives the stack."""
+    return setup.audit_log and setup.audit_storage != "none"
+
+
+def _uses_logrotate(setup: Setup) -> bool:
+    """Whether the host's logrotate is the thing keeping the trail in bounds."""
+    return (
+        _keeps_audit_file(setup)
+        and setup.audit_storage == "filesystem"
+        and setup.audit_rotation == "logrotate"
+    )
+
+
+def _persists_redis(setup: Setup) -> bool:
+    """Whether Redis writes its keyspace to disk."""
+    return setup.redis_persistence != "none"
+
+
+def _mount_source(storage: str, host_path: str, volume: str) -> str:
+    """The left-hand side of a bind or named-volume mount."""
+    return host_path.strip() if storage == "filesystem" else volume
 
 
 def check_consistency(setup: Setup) -> list[str]:
@@ -1327,6 +1533,51 @@ def check_consistency(setup: Setup) -> list[str]:
             "X-Forwarded-For is trusted and the port is not restricted to the "
             "host. A client that reaches the service directly can then send "
             "any address it likes and the rate limit stops counting."
+        )
+    if _keeps_audit_file(setup) and setup.audit_storage == "filesystem" and not setup.audit_log_path:
+        warnings.append(
+            "The audit trail is set to go to a host directory but none was "
+            "named. Give one, or answer 'volume' and let Docker manage it."
+        )
+    if setup.audit_storage == "filesystem" and setup.audit_log_path:
+        warnings.append(
+            f"{setup.audit_log_path} has to exist and be owned by uid "
+            f"{WEB_IMAGE_UID} before the stack starts, or the web service "
+            "refuses to come up rather than report an audit trail it cannot "
+            f"write:  mkdir -p {setup.audit_log_path} && chown "
+            f"{WEB_IMAGE_UID} {setup.audit_log_path}"
+        )
+    if _uses_logrotate(setup):
+        warnings.append(
+            f"The generated {logrotate_filename(setup)} does nothing until it "
+            "is installed into /etc/logrotate.d as root - and until it is, "
+            "nothing rotates the audit trail, because the service was told "
+            "the host would. The next steps print the command."
+        )
+    if setup.redis_persistence == "filesystem" and not setup.redis_data_path:
+        warnings.append(
+            "Redis persistence is set to a host directory but none was named. "
+            "Give one, or answer 'volume' and let Docker manage it."
+        )
+    if setup.redis_persistence == "filesystem" and setup.redis_data_path:
+        warnings.append(
+            f"{setup.redis_data_path} has to exist and be owned by uid "
+            f"{REDIS_IMAGE_UID}, the user the Redis image runs as:  mkdir -p "
+            f"{setup.redis_data_path} && chown {REDIS_IMAGE_UID} "
+            f"{setup.redis_data_path}"
+        )
+    if _persists_redis(setup) and not setup.encrypt_results:
+        warnings.append(
+            "Redis now writes its keyspace to disk, so every result still "
+            "inside its TTL exists as a file somebody can read - which is the "
+            "one thing this service can otherwise say it never does. Turn on "
+            "COS_WEB_ENCRYPT_RESULTS, or leave the persistence off unless a "
+            "restart really must not lose a queued scan."
+        )
+    if _persists_redis(setup) and setup.allow_indexing:
+        warnings.append(
+            "A deployment strangers can find, keeping its scans on disk. The "
+            "TTL still expires them, but a backup of that disk does not."
         )
     if setup.audit_log_targets and setup.allow_indexing:
         warnings.append(
@@ -1572,18 +1823,178 @@ def _authentik_services(setup: Setup) -> str:
 {label}"""
 
 
-def _authentik_volumes(setup: Setup) -> str:
-    if not _uses_authentik(setup):
+def _audit_mount(setup: Setup) -> str:
+    """The audit volume on the web service, for a deployment that keeps one."""
+    if not _keeps_audit_file(setup):
         return ""
-    return """
-# Only Authentik keeps anything, and all of it matters: the database holds
-# every user, flow, provider and signing key, and none of it is recoverable
-# without AUTHENTIK_SECRET_KEY from .env. Back the two up together.
-volumes:
-  authentik_database:
-  authentik_media:
-  authentik_templates:
-  authentik_certs:
+    source = _mount_source(setup.audit_storage, setup.audit_log_path, AUDIT_VOLUME)
+    return (
+        "    # The one writable path in this container, and the reason the audit\n"
+        "    # trail outlives it. Everything else is read-only on purpose.\n"
+        "    volumes:\n"
+        f"      - {source}:{AUDIT_LOG_DIRECTORY}\n"
+    )
+
+
+def _redis_mount(setup: Setup) -> str:
+    """The data volume on Redis, for a deployment that asked it to persist."""
+    if not _persists_redis(setup):
+        return ""
+    source = _mount_source(setup.redis_persistence, setup.redis_data_path, REDIS_VOLUME)
+    return "    volumes:\n" f"      - {source}:{REDIS_DATA_DIRECTORY}\n"
+
+
+def _redis_storage_command(setup: Setup) -> str:
+    """The two Redis options that decide whether anything reaches a disk."""
+    if not _persists_redis(setup):
+        return '      --save ""\n      --appendonly no\n'
+    return (
+        f"      --dir {REDIS_DATA_DIRECTORY}\n"
+        "      --appendonly yes\n"
+        "      --appendfsync everysec\n"
+        # Unquoted on purpose: redis-server reads its arguments as a config
+        # line, so `--save "900 1"` arrives as one quoted value and is
+        # rejected, while `--save 900 1` is the two the option takes.
+        "      --save 900 1\n"
+    )
+
+
+def _redis_storage_comment(setup: Setup) -> str:
+    """The paragraph above that command, which has to say what it does."""
+    if not _persists_redis(setup):
+        return (
+            "    # No persistence: nothing here is worth surviving a restart, and a dump\n"
+            "    # file would be a copy of everybody's scans sitting on a disk.\n"
+        )
+    where = (
+        f"the host directory {setup.redis_data_path}"
+        if setup.redis_persistence == "filesystem"
+        else f"the named volume {REDIS_VOLUME}"
+    )
+    return (
+        f"    # Persistent, at this deployment's request: the keyspace is written to\n"
+        f"    # {where}, so a queued scan and a live result\n"
+        "    # survive a restart. That also means a copy of every result still inside\n"
+        "    # its TTL exists as a file - back it up, or do not, but know which. Turn\n"
+        "    # COS_WEB_ENCRYPT_RESULTS on and what lands there is ciphertext.\n"
+    )
+
+
+def _volumes_block(setup: Setup) -> str:
+    """The bottom-level ``volumes:`` section, or nothing when the stack keeps nothing.
+
+    Only *named* volumes are declared here. A bind mount names a directory
+    that already exists on the host and needs no declaration - which is also
+    why a deployment using one has to create it itself.
+    """
+    named: list[tuple[str, str]] = []
+    if _keeps_audit_file(setup) and setup.audit_storage == "volume":
+        named.append(
+            (
+                AUDIT_VOLUME,
+                (
+                    "The audit trail. The one part of this stack that is asked "
+                    "about long after the fact, so it is the one part that "
+                    "outlives it."
+                ),
+            )
+        )
+    if setup.redis_persistence == "volume":
+        named.append(
+            (
+                REDIS_VOLUME,
+                (
+                    "Redis's keyspace: every live scan and every result still "
+                    "inside its TTL. Treat a backup of it as a copy of what "
+                    "people scanned."
+                ),
+            )
+        )
+    if _uses_authentik(setup):
+        named.append(
+            (
+                "authentik_database",
+                (
+                    "Authentik's own, and all of it matters: the database holds "
+                    "every user, flow, provider and signing key, and none of it "
+                    "is recoverable without AUTHENTIK_SECRET_KEY from .env. Back "
+                    "the database and that file up together."
+                ),
+            )
+        )
+        named.extend(
+            (name, "")
+            for name in ("authentik_media", "authentik_templates", "authentik_certs")
+        )
+    if not named:
+        return ""
+    lines = ["", "volumes:"]
+    for name, comment in named:
+        for line in _wrap(comment, 74) if comment else []:
+            lines.append(f"  # {line}")
+        lines.append(f"  {name}:")
+    return "\n".join(lines) + "\n"
+
+
+def logrotate_filename(setup: Setup) -> str:
+    """What the generated policy is called, before it is installed."""
+    return f"{setup.project_name}-audit.logrotate"
+
+
+def render_logrotate_file(setup: Setup) -> str:
+    """
+    A logrotate policy for the audit trail, for the host to install.
+
+    Written rather than applied: dropping a file into /etc/logrotate.d needs
+    root, and a setup wizard that writes outside the directory it was pointed
+    at is one nobody can run twice safely. The install command is in the next
+    steps and in the header here.
+
+    Two lines carry the whole arrangement:
+
+    * ``create 0600 <uid> <gid>`` - logrotate renames the file and makes the
+      replacement itself, so the replacement has to be writable by the
+      container's unprivileged user and readable by nobody else.
+    * ``notifempty`` with no ``copytruncate`` - the service reopens the file
+      when it notices the inode changed, which loses no record. Truncating
+      underneath a writer instead trades that for a race, and this is a file
+      whose entire purpose is to be complete.
+    """
+    path = f"{setup.audit_log_path.rstrip('/')}/{AUDIT_LOG_FILENAME}"
+    return f"""# Audit trail of the check-opencloud-security web application.
+#
+# Written by docker/setup-wizard.py. Install it as root, once:
+#
+#   sudo install -m 0644 -o root -g root \\
+#     {logrotate_filename(setup)} /etc/logrotate.d/{setup.project_name}-audit
+#   sudo logrotate --debug /etc/logrotate.d/{setup.project_name}-audit
+#
+# The --debug run changes nothing and prints what a real one would do, which
+# is the cheapest way to find out that the path is wrong.
+#
+# The service writes {path} as uid {WEB_IMAGE_UID}
+# from inside its container, and does not rotate the file itself - the
+# compose file sets COS_WEB_AUDIT_LOG_ROTATION to "{EXTERNAL_ROTATION}", which
+# says this policy owns it. Removing this file without changing that setting
+# leaves nothing rotating the trail at all.
+{path} {{
+    # One file a day, named for the day it covers, kept for {setup.audit_retention_days} days.
+    # An audit question is asked in weeks and months, so that number is worth
+    # deciding rather than inheriting: too short and the trail cannot answer,
+    # too long and it is a record you have to justify keeping.
+    daily
+    rotate {setup.audit_retention_days}
+    dateext
+    missingok
+    notifempty
+    compress
+    delaycompress
+    # logrotate renames the file and creates the replacement, and the
+    # container has to be able to write to it. The service notices the inode
+    # changed and reopens - no signal, no restart, no copytruncate, and no
+    # record written to a file nobody can find any more.
+    create 0600 {WEB_IMAGE_UID} {WEB_IMAGE_UID}
+}}
 """
 
 
@@ -1812,6 +2223,43 @@ def _web_environment(setup: Setup) -> list[EnvEntry]:
             entries.append(
                 _entry("COS_WEB_AUDIT_SALT", f'"{_env_reference("audit_salt")}"')
             )
+        if _keeps_audit_file(setup):
+            entries.append(
+                _entry(
+                    "COS_WEB_AUDIT_LOG_FILE",
+                    f'"{AUDIT_LOG_DIRECTORY}/{AUDIT_LOG_FILENAME}"',
+                    "The audit trail goes to this file on the volume mounted",
+                    "below rather than to the container's output, which a",
+                    "'docker compose down' would take with it. The file is",
+                    "owner-readable only, and the ordinary log stays free of",
+                    "audit records rather than carrying a second copy.",
+                )
+            )
+        if _uses_logrotate(setup):
+            entries.append(
+                _entry(
+                    "COS_WEB_AUDIT_LOG_ROTATION",
+                    f'"{EXTERNAL_ROTATION}"',
+                    "The host's logrotate owns this file - see the .logrotate",
+                    "policy written beside this file. All this service does is",
+                    "notice that the file it holds was moved aside and reopen",
+                    "the new one, so nothing keeps writing to a file nobody",
+                    "can find. Two rotators would be one too many, so no",
+                    "size-based rotation is set here.",
+                )
+            )
+        elif _keeps_audit_file(setup):
+            entries.append(
+                _entry(
+                    "COS_WEB_AUDIT_LOG_MAX_BYTES",
+                    '"10000000"',
+                    "Rotated at this size, keeping this many older generations.",
+                    "The two together are the most the trail can ever occupy:",
+                    "a log nobody rotates fills the volume and takes the",
+                    "service down with it.",
+                )
+            )
+            entries.append(_entry("COS_WEB_AUDIT_LOG_BACKUPS", '"5"'))
     entries.append(
         _entry(
             "COS_WEB_PURGE_TOKEN",
@@ -2046,9 +2494,25 @@ def render_compose_file(setup: Setup, name: str = "docker-compose.yml") -> str:
         "# - concurrency is set here and nowhere else. Nothing a visitor sends can\n"
         "#   change COS_WEB_MAX_WORKERS or COS_WEB_SCAN_CONCURRENCY, and when every\n"
         "#   worker is busy the next submission queues rather than being refused;\n"
-        "# - Redis is a cache, not a database. It writes nothing to disk, it is\n"
-        "#   capped, and it evicts rather than growing.\n"
     )
+    if _persists_redis(setup):
+        header += (
+            "# - Redis is capped and evicts rather than growing, but this deployment\n"
+            "#   asked it to persist: unlike the default stack, what it holds is\n"
+            "#   also on a disk. See the comment on the service itself.\n"
+        )
+    else:
+        header += (
+            "# - Redis is a cache, not a database. It writes nothing to disk, it is\n"
+            "#   capped, and it evicts rather than growing.\n"
+        )
+    if _keeps_audit_file(setup):
+        header += (
+            "#\n"
+            "# The audit trail is the one thing here that outlives the containers:\n"
+            f"# it is written to {AUDIT_LOG_DIRECTORY}/{AUDIT_LOG_FILENAME} on the mount\n"
+            "# declared under the web service, rotated so it cannot fill the disk.\n"
+        )
     if _uses_authentik(setup):
         header += (
             "#\n"
@@ -2079,7 +2543,7 @@ services:
     networks:
       - default
       - scanner_internal
-    read_only: true
+{_audit_mount(setup)}    read_only: true
     tmpfs:
       - /tmp:size=16m
     security_opt:
@@ -2124,9 +2588,7 @@ services:
     image: redis:8.10-alpine
     container_name: {setup.project_name}-redis
     restart: unless-stopped
-    # No persistence: nothing here is worth surviving a restart, and a dump
-    # file would be a copy of everybody's scans sitting on a disk.
-    #
+{_redis_storage_comment(setup)}    #
     # It also asks for a password. Redis answers whoever reaches it, and what
     # it holds is every live scan and every result still inside its TTL, so
     # "nothing else is on this network" is an assumption rather than a
@@ -2134,9 +2596,7 @@ services:
     # half of the same argument.
     command: >
       redis-server
-      --save ""
-      --appendonly no
-      --maxmemory {setup.redis_maxmemory}
+{_redis_storage_command(setup)}      --maxmemory {setup.redis_maxmemory}
       --maxmemory-policy allkeys-lru
       --requirepass "{_env_reference("redis_password")}"
     environment:
@@ -2147,7 +2607,7 @@ services:
     # `internal` means the network has no route off the host either.
     networks:
       - scanner_internal
-    healthcheck:
+{_redis_mount(setup)}    healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
@@ -2155,7 +2615,7 @@ services:
     security_opt:
       - no-new-privileges:true
 {_update_label(setup)}{_watchtower_service(setup)}{_authentik_services(setup)}
-{_networks_block(setup)}{_authentik_volumes(setup)}"""
+{_networks_block(setup)}{_volumes_block(setup)}"""
 
 
 def write_files(
@@ -2183,6 +2643,15 @@ def write_files(
         handle.write(render_env_file(setup))
     os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
     written.append(f"{env_path} (owner-readable only)")
+
+    # Beside the compose file rather than in /etc/logrotate.d: installing it
+    # needs root, and a wizard that writes outside the directory it was given
+    # is one an operator cannot run to see what it would do.
+    if _uses_logrotate(setup):
+        policy = compose_path.parent / logrotate_filename(setup)
+        policy.write_text(render_logrotate_file(setup), encoding="utf-8")
+        os.chmod(policy, 0o644)
+        written.append(f"{policy} (install it into /etc/logrotate.d)")
 
     blueprint = _copy_blueprint(setup, compose_path.parent)
     if blueprint:
@@ -2551,6 +3020,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     wizard.say()
     wizard.say("  Next:")
     wizard.say(f"    cd {output_dir}")
+    # Before `up`, not after: a bind mount Docker has to invent is created
+    # owned by root, and the container that then cannot write to it is the
+    # one keeping the audit trail.
+    if setup.audit_storage == "filesystem" and setup.audit_log_path:
+        wizard.say(
+            f"    mkdir -p {setup.audit_log_path} && "
+            f"sudo chown {WEB_IMAGE_UID} {setup.audit_log_path}"
+        )
+    if setup.redis_persistence == "filesystem" and setup.redis_data_path:
+        wizard.say(
+            f"    mkdir -p {setup.redis_data_path} && "
+            f"sudo chown {REDIS_IMAGE_UID} {setup.redis_data_path}"
+        )
+    if _uses_logrotate(setup):
+        name = logrotate_filename(setup)
+        wizard.say(
+            f"    sudo install -m 0644 -o root -g root {name} "
+            f"/etc/logrotate.d/{setup.project_name}-audit"
+        )
     build = " --build" if setup.image_source == "build" else ""
     wizard.say(f"    docker compose -f {args.compose_file} up -d{build}")
     wizard.say(f"    open http://{setup.bind_address}:{setup.host_port}")

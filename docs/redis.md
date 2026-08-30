@@ -209,6 +209,14 @@ Do not add a volume to the `redis` service. If you are using a managed Redis
 that persists by default, either accept that results outlive their TTL in
 somebody else's backups or turn persistence off for that instance.
 
+`docker/setup-wizard.py` will nonetheless generate a stack that persists, for
+the one deployment where the trade is worth making: a private instance where
+losing a queued scan to a restart matters more than the scans being on a disk
+that somebody may back up. It is never the default, it warns when you choose
+it, and it points at `COS_WEB_ENCRYPT_RESULTS` — with that on, what reaches
+the disk is ciphertext and the key lives in `.env` rather than beside it. On
+a deployment strangers can reach, the answer is still `none`.
+
 ## Memory and eviction
 
 ```

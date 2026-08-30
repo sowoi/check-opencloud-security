@@ -603,7 +603,8 @@ The other standing restrictions:
 - **Nothing is stored.** Every key has a TTL, Redis persists nothing, and the
   log carries lifecycle markers and uuids - never a target, a client address
   or a result. An operator who needs an audit trail can turn one on with
-  `COS_WEB_AUDIT_LOG`; addresses stay fingerprints there too. See
+  `COS_WEB_AUDIT_LOG`, and keep it past the container with
+  `COS_WEB_AUDIT_LOG_FILE`; addresses stay fingerprints either way. See
   [What gets logged](../docs/webapp.md#what-gets-logged).
 
 ## Configuration
@@ -643,6 +644,7 @@ before the first deployment:
 | `COS_WEB_MCP_AUTH_RESOURCE_URL` | *(derived)* | The protected resource identifier. Defaults to `<public base URL>/mcp` |
 | `COS_WEB_MCP_AUTH_SCOPES` | *(empty)* | Scopes a token must carry, separated by `;` |
 | `COS_WEB_AUDIT_LOG` | `false` | An audit record per request, rejection and triggered limit, with fingerprints rather than addresses |
+| `COS_WEB_AUDIT_LOG_FILE` | *(the process output)* | Keep that trail in a file on a mount that outlives the container, owner-readable and rotated. A path it cannot write refuses to start |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge`. Unset means the endpoint is not there at all |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion, so a receipt can be checked long after the data went |
 | `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |

@@ -257,6 +257,10 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
 | `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
 | `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |
+| `COS_WEB_AUDIT_LOG_FILE` | *(the process output)* | Write the audit records to this file instead, on a mount that outlives the container. Owner-readable only, and the ordinary log then carries no copy. A path that cannot be written refuses to start |
+| `COS_WEB_AUDIT_LOG_MAX_BYTES` | `10000000` | Size at which that file is rotated. `0` never rotates |
+| `COS_WEB_AUDIT_LOG_BACKUPS` | `5` | Rotated generations kept beside it. With the size above, the most the trail can occupy |
+| `COS_WEB_AUDIT_LOG_ROTATION` | `service` | Who rotates that file: `service` (this process, by size) or `external` (logrotate on the host; this process only reopens the file it replaces). An unrecognised value refuses to start |
 | `COS_WEB_PURGE_TOKEN` | *(none)* | Enables `DELETE /api/purge` and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there |
 | `COS_WEB_PURGE_SIGNING_KEY` | *(none)* | Signs the proof of deletion. Unset still erases, but the receipt cannot be verified afterwards |
 | `COS_WEB_EXPORT_SIGNING_KEY` | *(none)* | Adds an `X-COS-Signature` HMAC-SHA256 header to every JSON, CSV, SARIF and PDF export |
@@ -470,6 +474,103 @@ The point of the design is what it still does not write down:
 
 Leaving it off changes nothing: the ordinary lifecycle log is exactly as
 above.
+
+#### Keeping the trail past the container
+
+By default those records go to the process output, which for a container means
+`docker logs` — and a `docker compose down` takes them with it. An audit
+question arrives months after the fact, so a deployment that wants an answer
+then has to put the trail somewhere that outlives the stack:
+
+```yaml
+services:
+  web_app:
+    environment:
+      COS_WEB_AUDIT_LOG: "true"
+      COS_WEB_AUDIT_LOG_FILE: "/var/log/opencloud-scan/audit.log"
+      # Rotated at this size, keeping this many generations. Together they are
+      # the most the trail can ever occupy: an audit log nobody rotates fills
+      # the volume it sits on and takes the service down with it.
+      COS_WEB_AUDIT_LOG_MAX_BYTES: "10000000"
+      COS_WEB_AUDIT_LOG_BACKUPS: "5"
+    volumes:
+      - audit_log:/var/log/opencloud-scan
+
+volumes:
+  audit_log:
+```
+
+Three things follow from that, and each is deliberate:
+
+- **The records go to the file instead of, not as well as, the output.** The
+  ordinary log is the one place this service keeps free of targets and client
+  fingerprints, and a deployment shipping it somewhere central should not find
+  the audit trail riding along.
+- **The file is owner-readable only**, rotated generations included. A mounted
+  volume is readable by whoever reaches the host it sits on.
+- **A file that cannot be written stops the process**, with the path in the
+  message. Reporting an audit trail that silently goes nowhere is worse than
+  keeping none, and it is the same reasoning as
+  [ADR 0008](../adr/0008-refuse-to-start-without-the-encryption-key.md).
+
+A named volume is the simplest answer and the one
+[`docker/setup-wizard.py`](../docker/setup-wizard.py) offers first. A bind
+mount to a host directory works identically — for existing log shipping or
+backups — but the directory has to exist and be owned by uid `10001`, the
+unprivileged user the image runs as, before the stack starts:
+
+```bash
+mkdir -p /srv/opencloud-scan/audit
+sudo chown 10001 /srv/opencloud-scan/audit
+```
+
+#### Letting the host's logrotate keep it
+
+A file on the host's filesystem is something the host already knows how to
+look after, and an estate with a retention policy would rather express it
+where every other log's is. `COS_WEB_AUDIT_LOG_ROTATION=external` hands the
+job over: the service stops rotating by size and instead notices that the file
+it holds has been moved aside and reopens the replacement.
+
+That is the half that lives in this process. The other half is a policy the
+host installs — `docker/setup-wizard.py` writes one beside the compose file
+when you choose it, and it looks like this:
+
+```
+/srv/opencloud-scan/audit/audit.log {
+    daily
+    rotate 30
+    dateext
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0600 10001 10001
+}
+```
+
+```bash
+sudo install -m 0644 -o root -g root opencloud-scan-audit.logrotate \
+    /etc/logrotate.d/opencloud-scan-audit
+sudo logrotate --debug /etc/logrotate.d/opencloud-scan-audit   # changes nothing
+```
+
+Two lines in that policy are load-bearing:
+
+- **`create 0600 10001 10001`.** logrotate renames the file and makes the
+  replacement itself, so the replacement has to be writable by the
+  container's unprivileged user and readable by nobody else.
+- **No `copytruncate`.** Truncating the file underneath a running writer loses
+  whatever was written between the copy and the truncation. Reopening on a
+  changed inode loses nothing, and this is a file whose entire purpose is to
+  be complete.
+
+**Exactly one thing may rotate the file.** Leaving
+`COS_WEB_AUDIT_LOG_ROTATION` at `service` and installing a policy as well
+gives you two, which is how a trail loses records; setting it to `external`
+and installing nothing gives you none, and the file grows until the disk is
+full. An unrecognised value refuses to start rather than guessing which you
+meant.
 
 ## Putting it behind a reverse proxy
 
