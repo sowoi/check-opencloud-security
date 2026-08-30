@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.14.2] - 2026-08-30
+
 ### Added
 
 - **A "What OpenCloud is" background page**
