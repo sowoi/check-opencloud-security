@@ -118,6 +118,27 @@ def test_ipv6_connectivity_is_declared_rather_than_assumed(tmp_path: Path) -> No
     assert worker["COS_WEB_IPV6_ENABLED"] == "true"
 
 
+def test_confirming_ipv6_also_turns_it_on_for_the_networks_that_need_it(
+    tmp_path: Path,
+) -> None:
+    """The env var alone is not enough: Compose needs enable_ipv6 on each network.
+
+    Without it, an operator's confirmed IPv6 connectivity still would not
+    reach a container, because Compose does not turn IPv6 on for a network
+    just because the daemon supports it.
+    """
+    off = wizard_module.render_compose_file(wizard_module.Setup(ipv6_enabled=False), "compose.yml")
+    on = wizard_module.render_compose_file(wizard_module.Setup(ipv6_enabled=True), "compose.yml")
+
+    assert "enable_ipv6" not in off
+
+    document = yaml.safe_load(on)
+    networks = document["networks"]
+    assert networks["default"]["enable_ipv6"] is True
+    assert networks["scanner_internal"]["internal"] is True
+    assert networks["scanner_internal"]["enable_ipv6"] is True
+
+
 def test_the_private_preset_scans_its_own_network_and_stays_out_of_search_engines(
     tmp_path: Path,
 ) -> None:

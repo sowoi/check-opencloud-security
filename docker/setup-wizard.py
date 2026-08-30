@@ -1953,6 +1953,35 @@ def _update_label(setup: Setup) -> str:
     return '    labels:\n      com.centurylinklabs.watchtower.enable: "true"\n'
 
 
+def _networks_block(setup: Setup) -> str:
+    """The bottom-level ``networks:`` section.
+
+    Compose does not turn IPv6 on for a network just because the daemon
+    supports it - ``enable_ipv6`` has to be set on each one. An operator who
+    confirmed outbound IPv6 connectivity needs it on both networks the stack
+    uses: ``default``, where the two application containers sit, and
+    ``scanner_internal``, where Redis sits.
+    """
+    if not setup.ipv6_enabled:
+        return """networks:
+  # The two application containers keep the default network, because a scan is
+  # an outbound HTTP request and the web service is published on a port. Redis
+  # is only on this one, which has no gateway at all.
+  scanner_internal:
+    internal: true
+"""
+    return """networks:
+  default:
+    enable_ipv6: true
+  # The two application containers keep the default network, because a scan is
+  # an outbound HTTP request and the web service is published on a port. Redis
+  # is only on this one, which has no gateway at all.
+  scanner_internal:
+    internal: true
+    enable_ipv6: true
+"""
+
+
 def _watchtower_service(setup: Setup) -> str:
     """Automatic updates, for the deployment that asked for them."""
     if not setup.auto_updates:
@@ -2126,13 +2155,7 @@ services:
     security_opt:
       - no-new-privileges:true
 {_update_label(setup)}{_watchtower_service(setup)}{_authentik_services(setup)}
-networks:
-  # The two application containers keep the default network, because a scan is
-  # an outbound HTTP request and the web service is published on a port. Redis
-  # is only on this one, which has no gateway at all.
-  scanner_internal:
-    internal: true
-{_authentik_volumes(setup)}"""
+{_networks_block(setup)}{_authentik_volumes(setup)}"""
 
 
 def write_files(

@@ -147,6 +147,29 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **The Bandit workflow's SARIF upload now names the ref and commit it is
+  reporting on**, so a pull request's code scanning check can find it. Left to
+  itself the upload action resolves the merge commit from the checkout, and
+  GitHub may recompute `refs/pull/N/merge` between the event firing and the
+  job running - the analysis then landed on a commit the pull request's check
+  was not looking at, and every pull request drew "Code scanning cannot
+  determine the alerts introduced by this pull request, because 1
+  configuration present on `refs/heads/main` was not found" even though the
+  job had succeeded and uploaded its report. Passing `ref` and `sha` from the
+  event pins the analysis to the commit the check expects; on `push` and
+  `schedule` they are the values the action would have derived anyway.
+
+- **The Docker setup wizard's generated compose file now actually enables
+  IPv6 when an operator confirms the container can reach one.** Answering
+  yes to "Does this container have outbound IPv6 connectivity?" only ever
+  turned on `COS_WEB_IPV6_ENABLED` - it left both networks the stack uses,
+  `default` and `scanner_internal`, without `enable_ipv6`, which Compose does
+  not set for a network just because the daemon supports it. An operator who
+  had genuinely verified IPv6 still got a container that could not dial one,
+  making the confirmed "yes" indistinguishable from a wrong one.
+  `render_compose_file` now writes `enable_ipv6: true` on both networks
+  whenever `ipv6_enabled` is set.
+
 - **A scan now closes the connections it opened.** `_Probe` pools its
   HTTP connections in a `requests.Session` - one for the calling thread and
   one per worker - and none of them were ever closed, so every scan left its

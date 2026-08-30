@@ -47,8 +47,19 @@ jobs:
           --output bandit-results.sarif
           --exit-zero
 
+      # ref and sha are passed explicitly. Left to itself the action resolves
+      # the pull request's merge commit from the checkout, and GitHub may have
+      # recomputed refs/pull/N/merge between the event firing and this job
+      # running - the analysis then lands on a merge commit the pull request's
+      # code scanning check is not looking at, and the check reports "1
+      # configuration not found" even though the upload succeeded. Naming the
+      # ref and sha from the event pins the analysis to the commit the check
+      # expects. On push and schedule these are refs/heads/main and its commit,
+      # which is what the action would have derived anyway.
       - name: Upload the SARIF report
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit-results.sarif
           category: bandit
+          ref: ${{ github.ref }}
+          sha: ${{ github.sha }}
