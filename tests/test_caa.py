@@ -79,6 +79,38 @@ def test_parse_caa_response_reads_authorizing_records():
     assert records == [caa._CaaRecord("issue", b"letsencrypt.org")]
 
 
+def test_parse_caa_response_folds_the_tag_to_lower_case():
+    """
+    RFC 8659 makes the property tag case insensitive, so 'Issue' authorizes too.
+
+    A zone publishing `Issue "letsencrypt.org"` has restricted issuance exactly
+    as much as one publishing `issue`. Matching the spelling literally reported
+    it as having no CAA record at all - a finding against a domain that had
+    done the right thing.
+    """
+    query = caa._build_query("example.com", query_id=42)
+    question = query[12:]
+
+    for spelling, folded in (
+        ("Issue", "issue"),
+        ("ISSUE", "issue"),
+        ("IssueWild", "issuewild"),
+    ):
+        data = _response(
+            42, question, ancount=1, answers=_caa_answer(spelling, b"letsencrypt.org")
+        )
+        records = caa._parse_caa_response(data)
+        assert records == [caa._CaaRecord(folded, b"letsencrypt.org")]
+        assert any(record.tag in caa._AUTHORIZING_TAGS for record in records)
+
+    # The negative half: folding case must not turn a non-authorizing property
+    # such as 'iodef' into one that restricts issuance.
+    data = _response(42, question, ancount=1, answers=_caa_answer("IODEF", b"mailto:a@b"))
+    records = caa._parse_caa_response(data)
+    assert records == [caa._CaaRecord("iodef", b"mailto:a@b")]
+    assert not any(record.tag in caa._AUTHORIZING_TAGS for record in records)
+
+
 def test_parse_caa_response_no_answers_is_a_clean_empty_result():
     query = caa._build_query("example.com", query_id=7)
     data = _response(7, query[12:], ancount=0)

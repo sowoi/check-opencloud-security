@@ -356,6 +356,38 @@ def test_wildcard_frame_ancestors_does_not_satisfy_the_clickjacking_check():
     assert result["setup"]["headers"]["X-Frame-Options"] is False
 
 
+def test_tab_separated_csp_directives_are_still_read():
+    """
+    A CSP name is separated from its sources by any whitespace, not one space.
+
+    A policy written across several lines separates the two with a tab or a
+    newline. Splitting on a literal space alone made every such directive
+    invisible, which is a silent pass for a policy that really does allow
+    'unsafe-inline' - the worst direction for this check to fail in.
+    """
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'none';\tscript-src 'self' 'unsafe-inline'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["hardenings"]["cspWithoutUnsafeInline"] is False
+
+
+def test_tab_separated_frame_ancestors_satisfies_the_clickjacking_check():
+    """The same whitespace rule must not produce a false clickjacking alarm."""
+    behaviour = InstanceBehaviour()
+    del behaviour.headers["X-Frame-Options"]
+    behaviour.headers["Content-Security-Policy"] = (
+        "default-src 'self';\tframe-ancestors\t'self'"
+    )
+
+    result = run_scan(behaviour)
+
+    assert result["setup"]["headers"]["X-Frame-Options"] is True
+
+
 def test_short_hsts_max_age_is_flagged():
     """An HSTS header below one year is present but not strong."""
     behaviour = InstanceBehaviour()
@@ -1308,6 +1340,33 @@ def test_pinned_addresses_win_over_a_second_lookup():
     # A different name is not covered by that pin and is looked up normally;
     # one that cannot be looked up is empty rather than an error.
     assert _resolved_addresses("nothing.invalid", pinned) == {"ipv4": [], "ipv6": []}
+
+
+def test_a_pinned_ipv6_literal_is_found_despite_its_brackets():
+    """
+    The scan carries an IPv6 host bracketed; a pin is keyed by the bare address.
+
+    `_host_and_port` wraps an IPv6 host in brackets so it can go back into a
+    URL, while the web application pins the address it validated unbracketed.
+    Without matching the two, every IPv6 literal target missed its pin and
+    fell through to the second lookup this function exists to avoid - leaving
+    the addresses block empty for exactly the targets it was pinned for.
+    """
+    from opencloud_local_scan.scanner import _resolved_addresses
+
+    pinned = ScannerSettings(pinned_addresses=(("2001:db8::7", ("2001:db8::7",)),))
+
+    assert _resolved_addresses("[2001:db8::7]", pinned) == {
+        "ipv4": [],
+        "ipv6": ["2001:db8::7"],
+    }
+    # The unbracketed spelling was already working and must keep working.
+    assert _resolved_addresses("2001:db8::7", pinned) == {
+        "ipv4": [],
+        "ipv6": ["2001:db8::7"],
+    }
+    # The negative half: brackets do not make an unpinned name resolve.
+    assert _resolved_addresses("[2001:db8::9]", pinned) == {"ipv4": [], "ipv6": []}
 
 
 def test_observed_cookies_must_carry_security_attributes():

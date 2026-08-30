@@ -42,6 +42,10 @@ LOGGER = logging.getLogger("check_opencloud.caa")
 
 _CAA_RECORD_TYPE = 257
 _IN_CLASS = 1
+# RFC 8659 section 4.1 makes the property tag case insensitive, so these are
+# the canonical lowercase spellings and every parsed tag is folded to match.
+# A zone that publishes `Issue "letsencrypt.org"` restricts issuance exactly
+# as much as one that publishes `issue`, and must not be reported as unrestricted.
 _AUTHORIZING_TAGS = ("issue", "issuewild")
 _RESOLV_CONF = Path("/etc/resolv.conf")
 
@@ -157,7 +161,10 @@ def _parse_caa_response(data: bytes) -> list[_CaaRecord]:
             raise ValueError("resource record data runs past the end of the message")
         if rtype == _CAA_RECORD_TYPE and len(rdata) >= 2:
             tag_length = rdata[1]
-            tag = rdata[2 : 2 + tag_length].decode("ascii", errors="replace")
+            # Folded here rather than at every comparison: the tag is case
+            # insensitive per RFC 8659, so the lowercase spelling is the only
+            # one the rest of this module ever has to think about.
+            tag = rdata[2 : 2 + tag_length].decode("ascii", errors="replace").lower()
             value = rdata[2 + tag_length :]
             records.append(_CaaRecord(tag, value))
         offset += rdlength

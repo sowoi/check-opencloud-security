@@ -1019,10 +1019,21 @@ def _redact_url(url: str) -> str:
     return f"{parts.scheme}://{host}/<redacted>"
 
 
-# NAT64 prefixes: an IPv6 literal in this range decodes to an embedded IPv4
-# address, which `ipaddress` does not unwrap on its own - unlike the
-# `ipv4_mapped`/`sixtofour` cases below, which it exposes directly.
-_WEBHOOK_NAT64_NETWORKS = (
+# Ranges `ipaddress` does not classify as private, but which a webhook has no
+# business reaching. Kept deliberately in step with `BLOCKED_NETWORKS` in
+# `webapp/ssrf.py`: the two guards answer the same question about different
+# callers, and a range worth refusing for a scan target is worth refusing for
+# a delivery address.
+#
+# Carrier-grade NAT is the one that carries weight. A host behind
+# 100.64.0.0/10 shares that range with every other subscriber on the same
+# carrier, and it contains 100.100.100.200 - a cloud metadata endpoint, where
+# one successful request is already a breach. NAT64 is here because an IPv6
+# literal in those prefixes decodes to an embedded IPv4 address that
+# `ipaddress` does not unwrap on its own, unlike the `ipv4_mapped`/`sixtofour`
+# cases below, which it exposes directly.
+_WEBHOOK_BLOCKED_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.ip_network("100.64.0.0/10"),
     ipaddress.ip_network("64:ff9b::/96"),
     ipaddress.ip_network("64:ff9b:1::/48"),
 )
@@ -1041,8 +1052,12 @@ def _webhook_address_is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Ad
             return _webhook_address_is_public(address.ipv4_mapped)
         if address.sixtofour is not None:
             return _webhook_address_is_public(address.sixtofour)
-        if any(address in network for network in _WEBHOOK_NAT64_NETWORKS):
-            return False
+    if any(
+        address in network
+        for network in _WEBHOOK_BLOCKED_NETWORKS
+        if network.version == address.version
+    ):
+        return False
     return not (
         address.is_private
         or address.is_loopback

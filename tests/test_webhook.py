@@ -287,6 +287,28 @@ def test_ipv6_private_address_is_blocked(monkeypatch):
         assert plugin._is_safe_webhook_url("https://hooks.example.com/x") is False
 
 
+def test_carrier_grade_nat_addresses_are_blocked(monkeypatch):
+    """
+    `ipaddress` does not call 100.64.0.0/10 private, but a webhook must not reach it.
+
+    A host behind carrier-grade NAT shares that range with every other
+    subscriber on the same carrier, and it contains 100.100.100.200 - a cloud
+    metadata endpoint, where one successful request is already a breach. The
+    scan-target guard in `webapp/ssrf.py` has always refused the range; this
+    one let it through because none of the `is_private`/`is_reserved` flags
+    covers it.
+    """
+    for address in ("100.64.0.1", "100.100.100.200", "100.127.255.254"):
+        monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo(address))
+        assert plugin._is_safe_webhook_url("https://hooks.example.com/x") is False
+
+    # The negative half: 100.128.0.0 is the first address past the range and is
+    # ordinary public space, so the new rule must not swallow it.
+    for address in ("100.128.0.1", "99.255.255.255", "8.8.8.8"):
+        monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo(address))
+        assert plugin._is_safe_webhook_url("https://hooks.example.com/x") is True
+
+
 def test_dual_stack_hostname_with_a_public_ipv4_and_private_ipv6_is_blocked(monkeypatch, caplog):
     """
     A hostname can answer a validator's A-record check while its AAAA record,

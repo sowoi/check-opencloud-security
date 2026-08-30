@@ -740,8 +740,18 @@ def _resolved_addresses(hostname: str, settings: ScannerSettings) -> dict[str, l
     yields empty lists rather than an error; this is context beside the
     result, never a finding.
     """
-    pinned = {name.lower(): values for name, values in settings.pinned_addresses}
-    candidates: tuple[str, ...] | list[str] | None = pinned.get(hostname.lower())
+    # Normalised the same way the debug-port and TLS pin lookups do it. The
+    # scan carries an IPv6 host bracketed (`[::1]`, so it can be put back into
+    # a URL) while a pin is keyed by the bare address the caller validated, and
+    # without stripping them here the pin is missed for every IPv6 literal -
+    # which is exactly the second lookup this function exists to avoid.
+    pinned = {
+        name.strip("[]").lower().rstrip("."): values
+        for name, values in settings.pinned_addresses
+    }
+    candidates: tuple[str, ...] | list[str] | None = pinned.get(
+        hostname.strip("[]").lower().rstrip(".")
+    )
     if candidates is None:
         try:
             infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
@@ -1102,11 +1112,23 @@ def _hsts_max_age(value: str | None) -> int | None:
 
 
 def _csp_directive(value: str, directive: str) -> str | None:
-    """Return the source list of one CSP directive, or None if absent."""
+    """Return the source list of one CSP directive, or None if absent.
+
+    The name is separated from its source list by *any* run of ASCII
+    whitespace, not just a single space: CSP serialises a directive as a name
+    followed by required whitespace, and a policy indented across several
+    lines separates the two with a tab or a newline. Splitting on ``" "``
+    alone missed those, and missing ``script-src`` in particular is a silent
+    pass for a policy that really does allow ``'unsafe-inline'``.
+
+    An empty string is returned for a directive present with no source list
+    (``script-src;``), which is a real policy - it blocks everything - and
+    must not be confused with the directive being absent.
+    """
     for part in value.split(";"):
-        name, _, sources = part.strip().partition(" ")
-        if name.strip().lower() == directive:
-            return sources
+        fields = part.strip().split(None, 1)
+        if fields and fields[0].lower() == directive:
+            return fields[1] if len(fields) > 1 else ""
     return None
 
 
@@ -2431,18 +2453,6 @@ def _compute_rating(
         base_reason=base_reason,
         caps=tuple(caps),
     )
-
-
-def _base_of(caps: list[RatingCap], rating: int) -> int:
-    """
-    Recover the rating that applied before any cap was imposed.
-
-    The caps record what each finding allowed at most; the value the scan
-    started from is therefore the lowest cap that was *not* applied, or the
-    rating itself when every cap bit.
-    """
-    unapplied = [cap.cap for cap in caps if not cap.applied]
-    return min(unapplied) if unapplied else rating
 
 
 def _collect_extra_findings(

@@ -89,18 +89,32 @@ def render(
             )
         )
 
+        # A waiver hides an alert, so it has to hide this one too. The scan
+        # records what the operator accepted under `ignored`; counting those
+        # anyway would leave an alert built on this metric firing for exactly
+        # the measures the operator switched off, while the plugin's own
+        # `hardenings_missing` perfdata for the same instance reported zero.
+        ignored = outcome.get("ignored")
+        waived = {str(name) for name in ignored} if isinstance(ignored, list) else set()
+
         hardenings = outcome.get("hardenings")
-        missing_hardenings = sum(not enabled for enabled in hardenings.values()) if isinstance(
-            hardenings, dict
-        ) else 0
+        missing_hardenings = sum(
+            not enabled for name, enabled in hardenings.items() if name not in waived
+        ) if isinstance(hardenings, dict) else 0
         setup = outcome.get("setup")
         if isinstance(setup, dict):
             https = setup.get("https")
-            if isinstance(https, dict) and not https.get("enforced", True):
+            if (
+                isinstance(https, dict)
+                and not https.get("enforced", True)
+                and "httpsEnforced" not in waived
+            ):
                 missing_hardenings += 1
             headers = setup.get("headers")
             if isinstance(headers, dict):
-                missing_hardenings += sum(not enabled for enabled in headers.values())
+                missing_hardenings += sum(
+                    not enabled for name, enabled in headers.items() if name not in waived
+                )
         lines.extend(
             _family(
                 "opencloud_security_hardenings_missing_total",
@@ -109,10 +123,15 @@ def render(
             )
         )
 
+        # Same rule as `failed_extra_checks()` in the scanner, which is the
+        # canonical reading of this list: a check the operator has explicitly
+        # accepted is still in the document, but it is not a failure to report.
         extra_checks = outcome.get("extraChecks")
         failed_checks = (
             sum(
-                isinstance(check, dict) and check.get("passed") is False
+                isinstance(check, dict)
+                and check.get("passed") is False
+                and not check.get("ignored", False)
                 for check in extra_checks
             )
             if isinstance(extra_checks, list)

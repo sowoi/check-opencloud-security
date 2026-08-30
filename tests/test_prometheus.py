@@ -44,6 +44,37 @@ def test_scan_result_is_rendered_as_prometheus_gauges():
     assert "opencloud_security_scrape_success{host=\"opencloud.example.com\"} 1" in metrics
 
 
+def test_waived_measures_are_not_counted_as_missing_or_failed():
+    """
+    A waiver hides an alert, so it has to hide the metric an alert is built on.
+
+    The plugin already drops waived measures from its own hardenings_missing
+    and extra_checks_failed perfdata. Counting them here left the same instance
+    reporting zero to Icinga and non-zero to Prometheus, so an alert rule on
+    these gauges fired for exactly the measures the operator had switched off.
+    """
+    waived = {
+        **RESULT,
+        "hardenings": {"hstsLongMaxAge": False, "basicAuthDisabled": True},
+        "setup": {
+            "https": {"used": True, "enforced": False},
+            "headers": {"X-Robots-Tag": False},
+        },
+        "extraChecks": [
+            {"id": "tlsTrusted", "passed": False, "ignored": True},
+            {"id": "tlsChain", "passed": False, "ignored": False},
+        ],
+        "ignored": ["hstsLongMaxAge", "httpsEnforced", "X-Robots-Tag", "tlsTrusted"],
+    }
+
+    metrics = render("opencloud.example.com", waived, duration_seconds=1, success=True)
+
+    host = 'host="opencloud.example.com"'
+    assert f"opencloud_security_hardenings_missing_total{{{host}}} 0" in metrics
+    # The negative half: the one check that was not waived is still counted.
+    assert f"opencloud_security_failed_extra_checks_total{{{host}}} 1" in metrics
+
+
 def test_prometheus_labels_escape_scan_metadata():
     """Untrusted response metadata must not escape or corrupt a metric label."""
     metrics = render(

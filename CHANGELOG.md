@@ -161,6 +161,68 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   probe opened, including the ones worker threads made, and `scan()` calls it
   in a `finally` so an exception partway through does not leak them either.
 
+- **A CSP directive separated from its sources by a tab or a newline is now
+  read.** `_csp_directive` split the name from the source list on a literal
+  `" "`, but CSP separates the two with any run of ASCII whitespace, and a
+  policy indented across several lines uses a tab. Such a directive was
+  invisible: `script-src\t'self' 'unsafe-inline'` left
+  `cspWithoutUnsafeInline` passing, which is a green tick for a policy that
+  really does let injected markup execute - the one direction this check must
+  not fail in. The same blindness ran the other way for
+  `frame-ancestors`, where a tab produced a false clickjacking alarm against
+  an instance whose CSP did restrict framing.
+
+- **A CAA record whose property tag is not spelled in lower case now counts.**
+  RFC 8659 section 4.1 makes the tag case insensitive, so
+  `Issue "letsencrypt.org"` restricts certificate issuance exactly as much as
+  `issue` does. Matching the spelling literally reported such a zone as having
+  no CAA record at all - a `tlsCaaRecord` finding against a domain that had
+  done the right thing. Tags are folded to lower case as they are parsed, so
+  `iodef` is still not mistaken for a property that authorizes an issuer.
+
+- **The Prometheus exporter no longer counts measures the operator waived.**
+  `opencloud_security_hardenings_missing_total` and
+  `opencloud_security_failed_extra_checks_total` were computed straight from
+  the result document, ignoring `ignored` - so the same instance reported zero
+  to Icinga, whose perfdata has always dropped waived entries, and non-zero to
+  Prometheus. An alert rule built on either gauge fired for exactly the
+  measures its operator had switched off, which is the noise a waiver exists
+  to remove. Both now follow the rule `failed_extra_checks()` already
+  documents: a waiver hides an alert, not the evidence.
+
+- **A pinned IPv6 literal is no longer looked up a second time.** The scan
+  carries an IPv6 host bracketed so it can go back into a URL, while the web
+  application pins the bare address it validated. `_resolved_addresses`
+  compared the two without stripping the brackets, so every IPv6 literal
+  target missed its pin and fell through to the DNS lookup the pin exists to
+  avoid - leaving `addresses` empty, and the IPv4/IPv6 TLS parity check
+  skipped, for precisely the targets that had been pinned. It now normalises
+  the key the way the debug-port and TLS lookups beside it already did.
+
+- **The webhook guard now refuses carrier-grade NAT, as the scan-target guard
+  always has.** `_webhook_address_is_public` leaned on `ipaddress` to say what
+  is private, and `ipaddress` does not classify `100.64.0.0/10` as anything -
+  not private, not reserved, not link-local. A webhook URL resolving into that
+  range was therefore delivered to, including to `100.100.100.200`, a cloud
+  metadata endpoint where a single successful request is already a breach.
+  `webapp/ssrf.py` has refused the range for a scan target since it was
+  written; the two guards answer the same question about different callers and
+  are now kept in step, with the NAT64 prefixes folded into the same table so
+  there is one list to read instead of two.
+
+  The webhook URL is operator configuration rather than a stranger's input, so
+  this was defence in depth rather than an open door - but it was the one
+  range where the two guards disagreed.
+
+### Removed
+
+- **`_base_of()` in the scanner**, which was dead code and wrong. It tried to
+  recover the pre-cap rating from the cap list by taking the lowest cap that
+  was not applied, which returns 4 rather than 5 for the ordinary case of a
+  clean instance with one medium finding. Nothing called it - `RatingExplanation`
+  has carried `base_rating` outright for several releases - so no output
+  changes.
+
 ### Documentation
 
 - **[Running the check from CI](docs/ci.md) now leads with the action**
