@@ -27,6 +27,8 @@
   <a href="#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity" lang="en">8. Do IPv4 and IPv6 present the same service: <code>tlsAddressParity</code></a>
   <a href="#9-is-certificate-issuance-restricted-tlscaarecord" lang="en">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></a>
   <a href="#10-is-revocation-actually-checkable-tlsocspstapling" lang="en">10. Is revocation actually checkable: <code>tlsOcspStapling</code></a>
+  <a href="#11-was-the-certificate-published-to-a-log-tlscertificatetransparency" lang="en">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></a>
+  <a href="#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata" lang="en">12. Is a replayable 0-RTT flight invited: <code>tlsEarlyData</code></a>
   <a href="#what-is-deliberately-left-unmeasured" lang="en">What is deliberately left unmeasured</a>
   <a href="#self-signed-instances" lang="en">Self-signed instances</a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
@@ -52,6 +54,8 @@ way a browser or a sync client would, without any special access.</p>
 <li><a href="#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity">8. Do IPv4 and IPv6 present the same service: <code>tlsAddressParity</code></a></li>
 <li><a href="#9-is-certificate-issuance-restricted-tlscaarecord">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></a></li>
 <li><a href="#10-is-revocation-actually-checkable-tlsocspstapling">10. Is revocation actually checkable: <code>tlsOcspStapling</code></a></li>
+<li><a href="#11-was-the-certificate-published-to-a-log-tlscertificatetransparency">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></a></li>
+<li><a href="#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata">12. Is a replayable 0-RTT flight invited: <code>tlsEarlyData</code></a></li>
 <li><a href="#what-is-deliberately-left-unmeasured">What is deliberately left unmeasured</a></li>
 <li><a href="#self-signed-instances">Self-signed instances</a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
@@ -161,6 +165,49 @@ skipped rather than treated as a failure when the responder is slow. This is
 a low finding for a reason: most current authorities, Let's Encrypt among
 them, no longer publish a responder at all, and the check simply does not
 apply to those certificates.</p>
+<h2 id="11-was-the-certificate-published-to-a-log-tlscertificatetransparency">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></h2>
+<p>Certificate Transparency is the public, append-only record of every
+certificate a public authority issues. It exists so that a domain owner can
+find out that somebody else was issued a certificate for their name - a
+mis-issuance that would otherwise be invisible until it was used.</p>
+<p>A certificate participates by carrying <strong>signed certificate timestamps</strong>
+(SCTs) embedded by the issuing authority. The scan counts them in the
+certificate it already fetched, using the same <code>openssl x509 -text</code> call that
+reads the key and signature algorithm - no extra connection and no extra
+process.</p>
+<p>Chrome and Safari refuse a publicly trusted certificate without SCTs
+outright, so this is an outage waiting for the next browser release rather
+than only a transparency gap, which is why it is a <code>medium</code> finding.</p>
+<p><strong>The check only runs where the question is fair.</strong> A private or self-signed
+authority cannot publish to a log, and OpenCloud generates a self-signed
+certificate during <code>opencloud init</code> - so on a large share of instances the
+honest answer is that the question does not apply. <code>tlsCertificateTransparency</code>
+is therefore withheld entirely unless the chain reaches a public root. It is
+also withheld when the local OpenSSL does not decode the extension at all:
+an absent finding is an unknown, never a pass.</p>
+<p><strong>Fix:</strong> reissue through a certificate authority that embeds SCTs. Every
+public one has done so for years, Let's Encrypt included; a trusted
+certificate without them was almost certainly issued by a private CA that is
+nonetheless in the client trust store.</p>
+<h2 id="12-is-a-replayable-0-rtt-flight-invited-tlsearlydata">12. Is a replayable 0-RTT flight invited: <code>tlsEarlyData</code></h2>
+<p>TLS 1.3 lets a resuming client send its first request in the same flight as
+the handshake - "0-RTT", or early data. It saves a round trip and it has no
+replay protection at the TLS layer, by design: anyone who can record that
+flight can send it again, and the server cannot tell the copy from the
+original.</p>
+<p>For a file service that means a request to move, copy or delete replayed at a
+moment of somebody else's choosing. A correct server restricts 0-RTT to
+idempotent requests, but nothing on the wire proves that it does, which is
+why this is a <code>low</code> finding rather than a higher one.</p>
+<p>The scan reads the <code>Max Early Data</code> limit the server's own session tickets
+advertise, from the same <code>openssl s_client</code> handshake that answers the
+stapling question. A server that never mentions a limit - a TLS 1.2 server,
+or one whose tickets forbid early data on some builds - is reported as
+unknown rather than as accepting it.</p>
+<p><strong>Fix:</strong> switch early data off in whatever terminates TLS. nginx's
+<code>ssl_early_data</code> is <code>off</code> by default; Caddy and Traefik do not enable it.
+Leave it on only where a measured latency problem justifies it <em>and</em> the
+application is known to reject replayed non-idempotent requests.</p>
 <h2 id="what-is-deliberately-left-unmeasured">What is deliberately left unmeasured</h2>
 <p><strong>Nothing here reports a pass it did not measure.</strong> A build of OpenSSL that
 refuses to speak TLS 1.0 at all cannot tell the scanner whether the <em>server</em>

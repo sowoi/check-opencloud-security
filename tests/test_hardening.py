@@ -16,7 +16,12 @@ loud instead of silent.
 from __future__ import annotations
 
 from opencloud_local_scan import CATEGORIES, all_checks, describe_hardening
-from webapp.catalog import HEADER_IDS, check_catalogue
+from webapp.catalog import (
+    ADVISORY_HEADER_IDS,
+    HEADER_IDS,
+    allowed_waivers,
+    check_catalogue,
+)
 
 
 def test_every_check_declares_a_known_category():
@@ -29,7 +34,7 @@ def test_every_check_declares_a_known_category():
 
 
 def test_every_header_note_is_categorised_as_a_header():
-    for name in HEADER_IDS:
+    for name in (*HEADER_IDS, *ADVISORY_HEADER_IDS):
         assert describe_hardening(name).category == "headers"
 
 
@@ -38,11 +43,14 @@ def test_the_catalogue_page_lists_every_known_check_exactly_once():
     The page is derived, not maintained - this is what proves it stays that
     way as the scanner grows.
 
-    Every id ``all_checks()`` and ``HEADER_IDS`` know about must appear on the
-    catalogue exactly once: a category left blank would silently drop an
-    entry, and a category listed twice would silently duplicate one.
+    Every id ``all_checks()``, ``HEADER_IDS`` and ``ADVISORY_HEADER_IDS`` know
+    about must appear on the catalogue exactly once: a category left blank
+    would silently drop an entry, and a category listed twice would silently
+    duplicate one.
     """
-    expected = {entry.id for entry in all_checks()} | set(HEADER_IDS)
+    expected = (
+        {entry.id for entry in all_checks()} | set(HEADER_IDS) | set(ADVISORY_HEADER_IDS)
+    )
 
     listed: list[str] = []
     for category in check_catalogue():
@@ -52,6 +60,29 @@ def test_the_catalogue_page_lists_every_known_check_exactly_once():
 
     assert set(listed) == expected
     assert len(listed) == len(expected)
+
+
+def test_an_advisory_header_is_explained_but_never_offered_as_a_waiver():
+    """
+    Nothing alerts on an advisory header, so there is nothing to waive - and
+    offering the tick box anyway would tell a visitor the opposite, that this
+    is a finding serious enough to need accepting. It still has to be
+    explained, which is the half that makes the distinction honest rather than
+    a way of hiding three checks.
+    """
+    waivable = allowed_waivers()
+    catalogued = {
+        check.id for category in check_catalogue() for check in category.checks
+    }
+
+    for name in ADVISORY_HEADER_IDS:
+        assert name in catalogued, name
+        assert name not in waivable, name
+
+    # The negative case: an ordinary header is offered, so the assertion above
+    # is about these three headers and not about waivers being empty.
+    for name in HEADER_IDS:
+        assert name in waivable, name
 
 
 def test_a_family_member_finding_inherits_its_family_category():

@@ -18,6 +18,8 @@ way a browser or a sync client would, without any special access.
   * [8. Do IPv4 and IPv6 present the same service: `tlsAddressParity`](#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity)
   * [9. Is certificate issuance restricted: `tlsCaaRecord`](#9-is-certificate-issuance-restricted-tlscaarecord)
   * [10. Is revocation actually checkable: `tlsOcspStapling`](#10-is-revocation-actually-checkable-tlsocspstapling)
+  * [11. Was the certificate published to a log: `tlsCertificateTransparency`](#11-was-the-certificate-published-to-a-log-tlscertificatetransparency)
+  * [12. Is a replayable 0-RTT flight invited: `tlsEarlyData`](#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata)
   * [What is deliberately left unmeasured](#what-is-deliberately-left-unmeasured)
   * [Self-signed instances](#self-signed-instances)
   * [Severity and rating impact](#severity-and-rating-impact)
@@ -144,6 +146,60 @@ skipped rather than treated as a failure when the responder is slow. This is
 a low finding for a reason: most current authorities, Let's Encrypt among
 them, no longer publish a responder at all, and the check simply does not
 apply to those certificates.
+
+## 11. Was the certificate published to a log: `tlsCertificateTransparency`
+
+Certificate Transparency is the public, append-only record of every
+certificate a public authority issues. It exists so that a domain owner can
+find out that somebody else was issued a certificate for their name - a
+mis-issuance that would otherwise be invisible until it was used.
+
+A certificate participates by carrying **signed certificate timestamps**
+(SCTs) embedded by the issuing authority. The scan counts them in the
+certificate it already fetched, using the same `openssl x509 -text` call that
+reads the key and signature algorithm - no extra connection and no extra
+process.
+
+Chrome and Safari refuse a publicly trusted certificate without SCTs
+outright, so this is an outage waiting for the next browser release rather
+than only a transparency gap, which is why it is a `medium` finding.
+
+**The check only runs where the question is fair.** A private or self-signed
+authority cannot publish to a log, and OpenCloud generates a self-signed
+certificate during `opencloud init` - so on a large share of instances the
+honest answer is that the question does not apply. `tlsCertificateTransparency`
+is therefore withheld entirely unless the chain reaches a public root. It is
+also withheld when the local OpenSSL does not decode the extension at all:
+an absent finding is an unknown, never a pass.
+
+**Fix:** reissue through a certificate authority that embeds SCTs. Every
+public one has done so for years, Let's Encrypt included; a trusted
+certificate without them was almost certainly issued by a private CA that is
+nonetheless in the client trust store.
+
+## 12. Is a replayable 0-RTT flight invited: `tlsEarlyData`
+
+TLS 1.3 lets a resuming client send its first request in the same flight as
+the handshake - "0-RTT", or early data. It saves a round trip and it has no
+replay protection at the TLS layer, by design: anyone who can record that
+flight can send it again, and the server cannot tell the copy from the
+original.
+
+For a file service that means a request to move, copy or delete replayed at a
+moment of somebody else's choosing. A correct server restricts 0-RTT to
+idempotent requests, but nothing on the wire proves that it does, which is
+why this is a `low` finding rather than a higher one.
+
+The scan reads the `Max Early Data` limit the server's own session tickets
+advertise, from the same `openssl s_client` handshake that answers the
+stapling question. A server that never mentions a limit - a TLS 1.2 server,
+or one whose tickets forbid early data on some builds - is reported as
+unknown rather than as accepting it.
+
+**Fix:** switch early data off in whatever terminates TLS. nginx's
+`ssl_early_data` is `off` by default; Caddy and Traefik do not enable it.
+Leave it on only where a measured latency problem justifies it *and* the
+application is known to reject replayed non-idempotent requests.
 
 ## What is deliberately left unmeasured
 

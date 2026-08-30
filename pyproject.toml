@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.14.2"
+version = "1.15.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -122,10 +122,45 @@ test = [
     "httpx>=0.28.1",
     "markdown>=3.10.3",
     "openapi-spec-validator>=0.9.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = "."
 markers = [
     "integration: tests that require an external container runtime",
+]
+
+# Coverage is a floor, not a target. This plugin's whole value is that its
+# verdicts are trustworthy, and an untested branch in `scanner.py` or `tls.py`
+# is a verdict nobody checked. `fail_under` below sits just under what the
+# suite already reaches, so it fails on a regression rather than on an
+# ordinary refactor.
+[tool.coverage.run]
+branch = true
+source = [
+    "check_opencloud_security.py",
+    "opencloud_local_scan",
+    "webapp",
+]
+omit = [
+    # Interactive, and driven by its own tests through a scripted stdin rather
+    # than by import: measuring it here reports the prompts as uncovered.
+    "opencloud_local_scan/wizard.py",
+]
+
+[tool.coverage.report]
+# The suite sits at 87%. The floor is two points below that so an ordinary
+# refactor does not fail the build, while a module arriving untested does.
+# Raise it when the real number climbs; never lower it to make a branch pass.
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.$",
+    # Guarded fall-backs for interpreters and optional tools this suite does
+    # not have all of at once; the comment is the existing convention here.
+    "pragma: no cover",
 ]

@@ -775,8 +775,15 @@ def test_an_external_identity_provider_is_recognised_from_the_redirect_alone():
     assert provider["external"] is True
     assert provider["vendor"] == "Keycloak"
     assert provider["issuer"] == "https://id.example.com"
-    # Nothing was posted, and no credential was offered anywhere.
-    assert [entry for entry in behaviour.seen if entry[0] not in {"GET", "HEAD", "PROPFIND"}] == []
+    # Nothing was posted, and no credential was offered anywhere. TRACE joins
+    # the list because RFC 9110 defines it as a safe method: it echoes the
+    # request back and changes nothing, which is exactly why asking whether it
+    # is answered costs the instance nothing.
+    assert [
+        entry
+        for entry in behaviour.seen
+        if entry[0] not in {"GET", "HEAD", "PROPFIND", "TRACE"}
+    ] == []
     assert not [entry for entry in behaviour.seen if "Authorization" in entry[2]]
 
 

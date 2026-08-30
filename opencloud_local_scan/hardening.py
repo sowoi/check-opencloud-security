@@ -53,6 +53,10 @@ DOCS_SHARING = (
 )
 DOCS_LINK_PASSWORD = "https://docs.opencloud.eu/docs/admin/configuration/link-password-policy"
 
+# CORS is configured per service with a shared OC_-prefixed override, and the
+# graph service is where the defaults are spelled out most plainly.
+DOCS_GRAPH = "https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables"
+
 # Security headers are an HTTP-level concern rather than an OpenCloud setting.
 DOCS_MDN_HEADERS = "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers"
 
@@ -624,6 +628,32 @@ CHECKS: dict[str, Hardening] = {
         remediation="Set SameSite=Lax or Strict unless a documented cross-site flow needs None.",
         reference=DOCS_REVERSE_PROXY,
     ),
+    "cookiePrefix": Hardening(
+        id="cookiePrefix",
+        category="cookies",
+        title="An observed cookie carries no name prefix, or breaks the one it claims",
+        meaning=(
+            "The '__Host-' and '__Secure-' name prefixes are the only cookie "
+            "protection a browser enforces on the name itself, which is what "
+            "makes them survive the things the attributes do not: a sibling "
+            "subdomain, or plain HTTP on the same host, can overwrite an "
+            "ordinary session cookie however carefully its Secure and HttpOnly "
+            "flags were set, because neither attribute stops a cookie from "
+            "being *written*. A '__Host-' cookie may only be set over HTTPS, "
+            "with Path=/ and no Domain, so nothing but the exact origin can "
+            "touch it. A cookie that names a prefix without honouring its rules "
+            "is worse than one that never claimed it: every browser rejects it "
+            "outright, so the session silently does not work."
+        ),
+        remediation=(
+            "Rename the session cookie to '__Host-<name>' and set it with "
+            "Secure, Path=/ and no Domain attribute - or '__Secure-<name>' when "
+            "it genuinely has to be shared across subdomains. Where the cookie "
+            "comes from a reverse proxy or an identity provider rather than "
+            "from OpenCloud, rename it there."
+        ),
+        reference=f"{DOCS_MDN_HEADERS}/Set-Cookie#cookie_prefixes",
+    ),
     "tlsOcspStapling": Hardening(
         id="tlsOcspStapling",
         category="transport",
@@ -645,6 +675,105 @@ CHECKS: dict[str, Hardening] = {
             "stale answer rather than into none."
         ),
         reference=DOCS_TLS,
+    ),
+    "tlsCertificateTransparency": Hardening(
+        id="tlsCertificateTransparency",
+        category="transport",
+        title="The certificate carries no Certificate Transparency proof",
+        meaning=(
+            "No signed certificate timestamps are embedded in the certificate, "
+            "so it was never published to a Certificate Transparency log. Chrome "
+            "and Safari refuse a publicly trusted certificate without them "
+            "outright - this is an outage waiting for the next browser release, "
+            "not only a transparency gap. The logs are also what lets a domain "
+            "owner find out that somebody else was issued a certificate for "
+            "their name; a certificate outside them cannot be noticed that way. "
+            "Only checked for a certificate that chains to a public root: a "
+            "private or self-signed CA cannot log anything and is not expected "
+            "to."
+        ),
+        remediation=(
+            "Reissue through a certificate authority that embeds signed "
+            "certificate timestamps - every public one has done so for years, "
+            "Let's Encrypt included. A certificate that lacks them was almost "
+            "certainly issued by a private CA that is nonetheless in the client "
+            "trust store."
+        ),
+        reference=DOCS_TLS,
+    ),
+    "tlsEarlyData": Hardening(
+        id="tlsEarlyData",
+        category="transport",
+        title="The server accepts TLS 1.3 early data",
+        meaning=(
+            "The session tickets this server issues permit early data, so a "
+            "resuming client may send its first request in the 0-RTT flight. "
+            "That flight has no replay protection at the TLS layer by design: "
+            "anyone who can record it can send it again, and the server cannot "
+            "tell the copy from the original. For a file service that is a "
+            "request to move, copy or delete replayed at a moment of somebody "
+            "else's choosing. It is a low finding because exploiting it needs a "
+            "network position, and because a correct server restricts 0-RTT to "
+            "idempotent requests - but nothing on the wire proves it does."
+        ),
+        remediation=(
+            "Switch early data off in whatever terminates TLS (Nginx "
+            "'ssl_early_data off', the default; Caddy and Traefik do not enable "
+            "it), unless a measured latency problem justifies it and the "
+            "application is known to reject replayed non-idempotent requests."
+        ),
+        reference=DOCS_TLS,
+    ),
+    "corsOriginRestricted": Hardening(
+        id="corsOriginRestricted",
+        category="exposure",
+        title="Cross-origin requests are accepted from any site",
+        meaning=(
+            "The instance answered a request carrying an arbitrary Origin with "
+            "an Access-Control-Allow-Origin that permits it. When "
+            "Access-Control-Allow-Credentials is also true, any page on the "
+            "internet can make a visitor's browser send its OpenCloud session "
+            "cookie to this instance and then read the reply - the whole file "
+            "listing, the user directory, the contents of a share - with no "
+            "interaction beyond visiting that page. This is OpenCloud's "
+            "shipped default rather than a mistake somebody made: "
+            "OC_CORS_ALLOW_ORIGINS defaults to '*' and OC_CORS_ALLOW_CREDENTIALS "
+            "to true, and a middleware asked for both commonly reflects the "
+            "requesting origin back, which is exactly the combination browsers "
+            "were meant to forbid."
+        ),
+        remediation=(
+            "Set OC_CORS_ALLOW_ORIGINS to the exact origins that must reach the "
+            "API - the web interface's own origin, and any office or client "
+            "application deliberately hosted elsewhere - rather than leaving it "
+            "at '*'. Set OC_CORS_ALLOW_CREDENTIALS=false unless one of those "
+            "origins genuinely needs to send the session. The per-service forms "
+            "(GRAPH_CORS_ALLOW_ORIGINS, OCS_CORS_ALLOW_ORIGINS, and so on) "
+            "override the shared name where one service needs a wider list."
+        ),
+        reference=DOCS_GRAPH,
+        setting="OC_CORS_ALLOW_ORIGINS",
+    ),
+    "traceMethodDisabled": Hardening(
+        id="traceMethodDisabled",
+        category="exposure",
+        title="The server answers the HTTP TRACE method",
+        meaning=(
+            "TRACE makes the server echo the request back, headers included. "
+            "Anything the browser attached on the way - the session cookie, an "
+            "Authorization header, a header a reverse proxy added - comes back "
+            "inside the response body, where a script that could never read "
+            "those directly can read them as text. OpenCloud does not implement "
+            "TRACE, so an instance answering it has a reverse proxy or an "
+            "application server in front that does."
+        ),
+        remediation=(
+            "Refuse TRACE in whatever fronts the instance: Apache "
+            "'TraceEnable off', Nginx returns 405 for it already unless a "
+            "location was written to pass every method through, and Traefik or "
+            "Caddy need a rule limiting the methods forwarded upstream."
+        ),
+        reference=DOCS_REVERSE_PROXY,
     ),
     "httpsAvailable": Hardening(
         id="httpsAvailable",
@@ -878,8 +1007,10 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
 }
 
 
-# The security headers checked under 'setup.headers'. They share the shape of
-# the hardenings above so that both can be explained by one lookup.
+# The security headers checked under 'setup.headers' and 'setup.advisoryHeaders'.
+# They share the shape of the hardenings above so that both can be explained by
+# one lookup; which of the two blocks a name belongs to is the scanner's
+# business, not this catalogue's.
 _HEADER_NOTES: dict[str, tuple[str, str]] = {
     "Strict-Transport-Security": (
         "Browsers may fall back to plain HTTP for this host.",
@@ -912,6 +1043,40 @@ _HEADER_NOTES: dict[str, tuple[str, str]] = {
     "Referrer-Policy": (
         "Full URLs may leak to third-party sites through the Referer header.",
         "Send 'Referrer-Policy: no-referrer' or 'strict-origin-when-cross-origin'.",
+    ),
+    "Permissions-Policy": (
+        (
+            "Nothing restricts which browser features embedded content may use, "
+            "so a framed document or an injected script can ask for the camera, "
+            "the microphone or the visitor's location under this origin's name."
+        ),
+        (
+            "Send 'Permissions-Policy: camera=(), microphone=(), geolocation=()', "
+            "adding back only what a media or collaboration integration needs."
+        ),
+    ),
+    "Cross-Origin-Opener-Policy": (
+        (
+            "A window this instance opened, or one that opened it, keeps a "
+            "handle on this document, which is what side-channel attacks in the "
+            "Spectre family need to reach data in this origin's process."
+        ),
+        (
+            "Send 'Cross-Origin-Opener-Policy: same-origin'. Use "
+            "'same-origin-allow-popups' if an OpenID Connect or office "
+            "integration signs in through a popup."
+        ),
+    ),
+    "Cross-Origin-Resource-Policy": (
+        (
+            "Nothing stops another site from loading this instance's responses "
+            "as a subresource, so a file, a thumbnail or an avatar can be "
+            "embedded elsewhere and read there."
+        ),
+        (
+            "Send 'Cross-Origin-Resource-Policy: same-origin', or 'same-site' "
+            "when a sibling subdomain has to embed OpenCloud content."
+        ),
     ),
 }
 

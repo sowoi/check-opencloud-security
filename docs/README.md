@@ -13,6 +13,7 @@ places this check tends to end up.
 <!-- TOC -->
 * [Documentation](#documentation)
   * [Background](#background)
+  * [Securing the instance itself](#securing-the-instance-itself)
   * [Deploying it](#deploying-it)
   * [Feeding the result somewhere](#feeding-the-result-somewhere)
   * [What the scanner checks, in depth](#what-the-scanner-checks-in-depth)
@@ -28,10 +29,20 @@ places this check tends to end up.
 |:-----|:---------------|
 | [What OpenCloud is, and how it differs from ownCloud and Nextcloud](what-is-opencloud.md) | The fork history behind all three projects, and the architecture, storage and release differences that follow from it |
 
+## Securing the instance itself
+
+Everything a scan cannot see. This scanner grades what an instance shows the
+internet; the page below is the rest of the job.
+
+| Page | What it covers |
+|:-----|:---------------|
+| [Running OpenCloud in a secure infrastructure](secure-deployment.md) | Putting Keycloak, Authentik or Authelia in front of it; turning the audit log on and getting it off the host; firewalling the ports Docker publishes behind your back; what the people using the instance should know; and where continuous monitoring with this check fits |
+
 ## Deploying it
 
 | Page | What it covers |
 |:-----|:---------------|
+| [CLI option reference](cli-reference.md) | Every flag, its default and the environment variable that sets the same thing |
 | [Icinga Director](icinga-director.md) | Creating the `CheckCommand`, data fields, service template and apply rule through the web UI |
 | [Automated deployment with Ansible](ansible.md) | The native and Docker roles, the variables, and deploying the Icinga2 objects without clicking |
 | [Scanning from the command line, in one line](docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the website: JSON output, private networks, waivers and a shell function |

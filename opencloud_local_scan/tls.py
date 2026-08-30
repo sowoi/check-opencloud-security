@@ -7,7 +7,9 @@ HTTP is exchanged: which protocol version was negotiated, whether deprecated
 ones are still accepted, whether the certificate is trusted, whether it
 actually covers the name it was served for, how long it is still valid, how
 long it was issued for, whether the chain reaches a trusted root without help,
-and whether a revocation answer is stapled to the handshake.
+whether a revocation answer is stapled to the handshake, whether the
+certificate was published to a Certificate Transparency log, and whether the
+session tickets it hands out invite a replayable 0-RTT flight.
 
 Two design notes, because both are easy to get subtly wrong.
 
@@ -119,6 +121,8 @@ class Certificate:
     key_type: str = ""
     key_bits: int | None = None
     signature_algorithm: str = ""
+    sct_count: int | None = None
+    """Embedded signed certificate timestamps; ``None`` when nothing looked."""
 
     def as_dict(self) -> dict[str, Any]:
         """The certificate as the result document carries it."""
@@ -136,6 +140,7 @@ class Certificate:
             "keyType": self.key_type,
             "keyBits": self.key_bits,
             "signatureAlgorithm": self.signature_algorithm,
+            "sctCount": self.sct_count,
         }
 
 
@@ -161,6 +166,8 @@ class TlsInspection:
     deprecated_probed: tuple[str, ...] = ()
     ocsp_stapled: bool | None = None
     ocsp_note: str = ""
+    max_early_data: int | None = None
+    """The 0-RTT limit the server's session tickets advertise, if it said."""
     notes: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> dict[str, Any]:
@@ -184,6 +191,7 @@ class TlsInspection:
             "deprecatedProtocolsProbed": list(self.deprecated_probed),
             "ocspStapled": self.ocsp_stapled,
             "ocspNote": self.ocsp_note,
+            "maxEarlyData": self.max_early_data,
         }
 
     def checks(self, *, min_days: int, verification_required: bool = True) -> list[TlsCheck]:
@@ -218,6 +226,8 @@ class TlsInspection:
             self._cipher_check(),
             *self._certificate_checks(min_days),
             self._ocsp_check(),
+            self._transparency_check(),
+            self._early_data_check(),
         ):
             if candidate is not None:
                 checks.append(candidate)
@@ -394,6 +404,50 @@ class TlsInspection:
             f"responder ({', '.join(self.certificate.ocsp_urls if self.certificate else ())})",
         )
 
+    def _transparency_check(self) -> TlsCheck | None:
+        """
+        Certificate Transparency, but only where it is a fair thing to ask.
+
+        A private or self-signed CA cannot publish to a log, and OpenCloud
+        generates a self-signed certificate during ``opencloud init``, so on a
+        large share of instances the honest answer is that the question does
+        not apply. Asking it anyway would put a red mark next to the one thing
+        those operators already know about their certificate. The check is
+        therefore limited to a chain that actually reaches a public root -
+        where a missing timestamp means Chrome and Safari will refuse the
+        certificate outright.
+        """
+        certificate = self.certificate
+        if certificate is None or certificate.sct_count is None:
+            return None
+        if not self.trusted or certificate.self_signed:
+            return None
+        count = certificate.sct_count
+        return TlsCheck(
+            "tlsCertificateTransparency",
+            "medium",
+            count > 0,
+            f"Certificate embeds {count} signed certificate timestamp(s)"
+            if count > 0
+            else "Certificate embeds no signed certificate timestamps, so it was "
+            "never published to a Certificate Transparency log",
+        )
+
+    def _early_data_check(self) -> TlsCheck | None:
+        if self.max_early_data is None:
+            return None
+        accepted = self.max_early_data > 0
+        return TlsCheck(
+            "tlsEarlyData",
+            "low",
+            not accepted,
+            f"Session tickets advertise up to {self.max_early_data} bytes of "
+            "replayable 0-RTT early data"
+            if accepted
+            else "Session tickets permit no early data, so there is no 0-RTT "
+            "flight to replay",
+        )
+
 
 class _Handshake(NamedTuple):
     """One completed or failed TLS connection."""
@@ -557,12 +611,13 @@ def _certificate(
         self_signed=bool(subject) and subject == issuer,
         unparsable_dates=unparsable,
     )
-    key_type, key_bits, signature_algorithm = _certificate_details(der)
+    details = _certificate_details(der)
     return replace(
         certificate,
-        key_type=key_type,
-        key_bits=key_bits,
-        signature_algorithm=signature_algorithm,
+        key_type=details.key_type,
+        key_bits=details.key_bits,
+        signature_algorithm=details.signature_algorithm,
+        sct_count=details.sct_count,
     )
 
 
@@ -592,17 +647,27 @@ def _certificate_policy(certificate: Certificate) -> tuple[bool, str] | None:
     return False, "Certificate uses weak " + " and ".join(problems)
 
 
-def _certificate_details(der: bytes | None) -> tuple[str, int | None, str]:
-    """Read key and signature facts with OpenSSL, or leave them unknown.
+class _CertificateDetails(NamedTuple):
+    """What ``openssl x509 -text`` adds to what Python's ``ssl`` exposes."""
+
+    key_type: str = ""
+    key_bits: int | None = None
+    signature_algorithm: str = ""
+    sct_count: int | None = None
+
+
+def _certificate_details(der: bytes | None) -> _CertificateDetails:
+    """Read key, signature and transparency facts with OpenSSL, or leave them unknown.
 
     Python's ``ssl`` exposes the certificate fields needed for validity and
-    hostname checks but not its public-key or signature algorithms.  OpenSSL
-    is already the optional mechanism used for OCSP stapling; if it is absent
-    or cannot parse the DER, the policy check is absent rather than green.
+    hostname checks but not its public-key algorithm, its signature algorithm
+    or its embedded signed certificate timestamps.  OpenSSL is already the
+    optional mechanism used for OCSP stapling; if it is absent or cannot parse
+    the DER, those checks are absent rather than green.
     """
     binary = shutil.which("openssl")
     if not der or binary is None:
-        return "", None, ""
+        return _CertificateDetails()
     try:
         completed = subprocess.run(  # nosec B603 - fixed argv, DER on stdin
             [binary, "x509", "-inform", "DER", "-noout", "-text"],
@@ -613,9 +678,9 @@ def _certificate_details(der: bytes | None) -> tuple[str, int | None, str]:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         LOGGER.debug("Could not inspect certificate policy: %s", exc)
-        return "", None, ""
+        return _CertificateDetails()
     if completed.returncode:
-        return "", None, ""
+        return _CertificateDetails()
     text = completed.stdout.decode("utf-8", "replace")
     key_match = re.search(r"Public Key Algorithm:\s*([^\n]+)", text)
     bits_match = re.search(r"Public-Key:\s*\((\d+) bit\)", text)
@@ -632,11 +697,43 @@ def _certificate_details(der: bytes | None) -> tuple[str, int | None, str]:
         if "ed448" in raw_key_type
         else ""
     )
-    return (
+    return _CertificateDetails(
         key_type,
         int(bits_match.group(1)) if bits_match else None,
         signature_match.group(1).strip() if signature_match else "",
+        _sct_count(text),
     )
+
+
+# `openssl x509 -text` prints the CT extension under one of two names
+# depending on whether the certificate is a precertificate, then one
+# 'Signed Certificate Timestamp:' block per timestamp inside it.
+_SCT_EXTENSION = re.compile(
+    r"^\s*(?:CT Precertificate SCTs|CT Certificate SCTs):\s*$", re.MULTILINE
+)
+_SCT_ENTRY = re.compile(r"^\s*Signed Certificate Timestamp:\s*$", re.MULTILINE)
+# Any other extension heading ends the CT block. Headings sit at a shallower
+# indent than the entries they contain and always end in a colon.
+_EXTENSION_HEADING = re.compile(r"^ {8}\S[^\n]*:\s*$", re.MULTILINE)
+
+
+def _sct_count(text: str) -> int | None:
+    """
+    Count the signed certificate timestamps embedded in the certificate.
+
+    ``None`` when this OpenSSL did not print a CT extension at all, which does
+    not distinguish "no timestamps" from "this build does not decode them" -
+    and a green tick for something nobody looked at is what this module exists
+    not to produce. Zero is only ever reported for an extension that is
+    present and empty.
+    """
+    extension = _SCT_EXTENSION.search(text)
+    if extension is None:
+        return None
+    rest = text[extension.end():]
+    following = _EXTENSION_HEADING.search(rest)
+    block = rest[: following.start()] if following else rest
+    return len(_SCT_ENTRY.findall(block))
 
 
 def _matches(pattern: str, hostname: str) -> bool:
@@ -760,22 +857,43 @@ def _legacy_handshake(
     return None
 
 
-def _stapled(
+class _ClientProbe(NamedTuple):
+    """What one `openssl s_client` handshake told us."""
+
+    stapled: bool | None = None
+    stapling_note: str = ""
+    max_early_data: int | None = None
+
+
+# `openssl s_client` prints the server's advertised 0-RTT limit in the
+# SSL-Session block it dumps after the handshake. A TLS 1.2 server never
+# mentions it, and neither does a TLS 1.3 one whose tickets forbid early data
+# on some builds - in both cases the question stays unanswered rather than
+# being answered optimistically.
+_MAX_EARLY_DATA = re.compile(r"^\s*Max Early Data:\s*(\d+)\s*$", re.MULTILINE)
+
+
+def _client_probe(
     host: str, port: int, timeout: float, connect_host: str | None = None
-) -> tuple[bool | None, str]:
+) -> _ClientProbe:
     """
-    Ask `openssl s_client` whether a stapled OCSP response comes back.
+    Ask `openssl s_client` what a real client sees: stapling, and early data.
 
     Python's `ssl` module exposes no way to request the `status_request`
     extension, and under TLS 1.3 the response travels inside the encrypted
     handshake, so no amount of socket parsing substitutes for a real client.
-    Without the binary the check is skipped rather than guessed.
+    The same handshake carries the session tickets whose `Max Early Data`
+    limit says whether a 0-RTT flight would be accepted, so both facts come
+    from one connection rather than two. Without the binary both checks are
+    skipped rather than guessed.
     """
     binary = shutil.which("openssl")
     if binary is None:
-        return None, "openssl is not installed, so stapling could not be checked"
+        return _ClientProbe(
+            None, "openssl is not installed, so stapling could not be checked"
+        )
     if not _SAFE_HOST.match(host):
-        return None, "hostname not in a form safe to hand to openssl"
+        return _ClientProbe(None, "hostname not in a form safe to hand to openssl")
     destination = connect_host or host
     if ":" in destination and not destination.startswith("["):
         destination = f"[{destination}]"
@@ -797,13 +915,15 @@ def _stapled(
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return None, f"openssl could not be run: {exc}"
+        return _ClientProbe(None, f"openssl could not be run: {exc}")
     output = completed.stdout.decode("utf-8", "replace")
+    early = _MAX_EARLY_DATA.search(output)
+    max_early_data = int(early.group(1)) if early else None
     if "OCSP response: no response sent" in output:
-        return False, ""
+        return _ClientProbe(False, "", max_early_data)
     if "OCSP Response Status: successful" in output:
-        return True, ""
-    return None, "openssl gave no verdict on stapling"
+        return _ClientProbe(True, "", max_early_data)
+    return _ClientProbe(None, "openssl gave no verdict on stapling", max_early_data)
 
 
 def inspect(
@@ -823,6 +943,11 @@ def inspect(
     costs a second, unverified, connection so that its dates and names can
     still be read, plus one short-lived connection per deprecated protocol
     version that is probed.
+
+    ``check_stapling`` gates the ``openssl s_client`` handshake, which answers
+    two questions rather than one: whether an OCSP response is stapled, and
+    what early-data limit the server's session tickets advertise. The name is
+    kept for the callers that already pass it.
     """
     try:
         verified_context = ssl.create_default_context(cafile=ca_file)
@@ -877,10 +1002,16 @@ def inspect(
 
     stapled: bool | None = None
     note = ""
-    if check_stapling and certificate is not None and certificate.ocsp_urls:
-        stapled, note = _stapled(host, port, timeout, connect_host)
-    elif check_stapling and certificate is not None:
-        note = "The certificate names no OCSP responder, so there is nothing to staple"
+    max_early_data: int | None = None
+    if check_stapling and certificate is not None:
+        probe = _client_probe(host, port, timeout, connect_host)
+        max_early_data = probe.max_early_data
+        if certificate.ocsp_urls:
+            stapled, note = probe.stapled, probe.stapling_note
+        else:
+            # Nothing to staple, but the same handshake still answered the
+            # early-data question, which is why the probe ran at all.
+            note = "The certificate names no OCSP responder, so there is nothing to staple"
 
     return TlsInspection(
         host=host,
@@ -902,6 +1033,7 @@ def inspect(
         deprecated_probed=tuple(deprecated_probed),
         ocsp_stapled=stapled,
         ocsp_note=note,
+        max_early_data=max_early_data,
     )
 
 

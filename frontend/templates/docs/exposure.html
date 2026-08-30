@@ -22,6 +22,8 @@
   <a href="#3-is-a-debug-endpoint-publicly-readable-debugendpointpath" lang="en">3. Is a debug endpoint publicly readable: <code>debugEndpoint:&lt;path&gt;</code></a>
   <a href="#4-is-a-service-debug-port-reachable-debugportport" lang="en">4. Is a service debug port reachable: <code>debugPort:&lt;port&gt;</code></a>
   <a href="#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed" lang="en">5. Is the backend reachable directly, bypassing the proxy: <code>backendPortClosed</code></a>
+  <a href="#6-who-may-read-a-response-cross-origin-corsoriginrestricted" lang="en">6. Who may read a response cross-origin: <code>corsOriginRestricted</code></a>
+  <a href="#7-is-the-request-echoed-back-tracemethoddisabled" lang="en">7. Is the request echoed back: <code>traceMethodDisabled</code></a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
 </nav>
 
@@ -46,6 +48,8 @@ that catch-all baseline counts as a hit, on every check below.</p>
 <li><a href="#3-is-a-debug-endpoint-publicly-readable-debugendpointpath">3. Is a debug endpoint publicly readable: <code>debugEndpoint:&lt;path&gt;</code></a></li>
 <li><a href="#4-is-a-service-debug-port-reachable-debugportport">4. Is a service debug port reachable: <code>debugPort:&lt;port&gt;</code></a></li>
 <li><a href="#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed">5. Is the backend reachable directly, bypassing the proxy: <code>backendPortClosed</code></a></li>
+<li><a href="#6-who-may-read-a-response-cross-origin-corsoriginrestricted">6. Who may read a response cross-origin: <code>corsOriginRestricted</code></a></li>
+<li><a href="#7-is-the-request-echoed-back-tracemethoddisabled">7. Is the request echoed back: <code>traceMethodDisabled</code></a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
 <!-- TOC -->
@@ -151,6 +155,82 @@ reports as passing actually apply to a request that arrives this way.</p>
 <p><strong>Fix:</strong> remove the public port mapping for <code>9200</code> and bind the backend to
 loopback or the private container network, so only the reverse proxy can
 reach it.</p>
+<h2 id="6-who-may-read-a-response-cross-origin-corsoriginrestricted">6. Who may read a response cross-origin: <code>corsOriginRestricted</code></h2>
+<p>The other checks on this page ask whether something is reachable. This one
+asks who is allowed to <em>read the answer</em> once it is, which is a different
+question and, on a stock instance, the more alarming one.</p>
+<p>The browser's same-origin policy is what normally stops a page on
+<code>attacker.example</code> from reading a response your OpenCloud sent. Cross-Origin
+Resource Sharing is how a server switches that protection off for named
+origins. OpenCloud ships with it switched off for <em>all</em> of them:
+<a href="https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables"><code>OC_CORS_ALLOW_ORIGINS</code> defaults to <code>*</code> and <code>OC_CORS_ALLOW_CREDENTIALS</code> to
+<code>true</code></a>,
+and a middleware given both commonly reflects whatever <code>Origin</code> it was sent
+rather than the literal <code>*</code> - which is precisely the arrangement browsers
+refuse to allow when they can see it coming.</p>
+<p>The scan sends a request to <code>/graph/v1.0/me</code> carrying an <code>Origin</code> that cannot
+belong to anybody (<code>https://cors-probe.check-opencloud-security.invalid</code> -
+<code>.invalid</code> is reserved by RFC 2606 and resolves nowhere) and reads what comes
+back:</p>
+<table>
+<thead>
+<tr>
+<th>What the instance answers</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The probe origin reflected, <strong>with</strong> <code>Access-Control-Allow-Credentials: true</code></td>
+<td><strong>critical</strong> - any site can have a visitor's browser attach its OpenCloud session and hand the reply back</td>
+</tr>
+<tr>
+<td><code>Access-Control-Allow-Origin: null</code>, with credentials</td>
+<td><strong>critical</strong> - <code>null</code> is what a sandboxed iframe sends, and any page can put itself in one</td>
+</tr>
+<tr>
+<td>The probe origin reflected, without credentials</td>
+<td><strong>medium</strong> - exposes what an unauthenticated caller could already fetch</td>
+</tr>
+<tr>
+<td>A literal <code>*</code>, with or without credentials</td>
+<td><strong>medium</strong> - browsers refuse the pair with credentials, so the request fails rather than succeeding dangerously</td>
+</tr>
+<tr>
+<td>A different, specific origin</td>
+<td><strong>pass</strong> - this is the configuration the check asks for</td>
+</tr>
+<tr>
+<td>No <code>Access-Control-Allow-Origin</code> at all</td>
+<td><strong>pass</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Fix:</strong> set <code>OC_CORS_ALLOW_ORIGINS</code> to the exact origins that must reach the
+API - the web interface's own origin, plus any office or client application
+deliberately hosted elsewhere - and set <code>OC_CORS_ALLOW_CREDENTIALS=false</code>
+unless one of them genuinely needs to send the session. The per-service forms
+(<code>GRAPH_CORS_ALLOW_ORIGINS</code>, <code>OCS_CORS_ALLOW_ORIGINS</code> and so on) override the
+shared name where one service needs a wider list.</p>
+<h2 id="7-is-the-request-echoed-back-tracemethoddisabled">7. Is the request echoed back: <code>traceMethodDisabled</code></h2>
+<p><code>TRACE</code> asks the server to send the request back as the response body,
+headers included. Anything the browser attached on the way - the session
+cookie, an <code>Authorization</code> header, a header the reverse proxy added - then
+arrives as ordinary text, readable by a script that could never have read
+those headers directly.</p>
+<p>OpenCloud does not implement <code>TRACE</code>, so an instance answering it has a
+reverse proxy or an application server in front that does. As with every
+check on this page, a <code>200</code> alone proves nothing on a single-page
+application: the answer only counts as an echo when the body actually looks
+like the request that was sent (<code>Content-Type: message/http</code>, or the echoed
+request line).</p>
+<p>Probing for it is free in the sense that matters: <code>TRACE</code> is defined as a
+safe method by RFC 9110 - it echoes and changes nothing - which is why a
+plugin that may run every minute can ask.</p>
+<p><strong>Fix:</strong> refuse <code>TRACE</code> in whatever fronts the instance. Apache needs
+<code>TraceEnable off</code>; nginx already returns <code>405</code> unless a location was written
+to pass every method upstream; Traefik and Caddy need a rule limiting the
+methods forwarded.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p>Every check in this group is an <code>extraChecks</code> entry, reported and
 rating-capped whenever the scan runs at all - critical findings cap the

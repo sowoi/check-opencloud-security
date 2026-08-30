@@ -26,6 +26,18 @@ DOCUMENTATION_PAGES: tuple[DocumentationPage, ...] = (
         "The fork history behind OpenCloud, ownCloud and Nextcloud, and the architecture, storage and release differences between them.",
     ),
     DocumentationPage(
+        "secure-deployment",
+        "docs/secure-deployment.md",
+        "Running OpenCloud in a secure infrastructure",
+        "Put OpenCloud behind Keycloak, Authentik or Authelia, enable and ship the audit log, firewall the debug ports, and monitor it continuously.",
+    ),
+    DocumentationPage(
+        "cli-reference",
+        "docs/cli-reference.md",
+        "OpenCloud Security Scanner CLI option reference",
+        "Every command-line flag, its default, and the environment variable that sets the same thing.",
+    ),
+    DocumentationPage(
         "reference",
         "README.md",
         "OpenCloud Security Scanner CLI reference",

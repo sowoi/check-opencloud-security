@@ -149,6 +149,17 @@ class InstanceBehaviour:
     app_providers: tuple[str, ...] = ()
     # Something answers /.well-known/caldav, the way a proxied Radicale does.
     caldav: bool = False
+    # What the CORS middleware grants a request that carries an Origin.
+    # 'reflect' echoes it back the way a middleware configured with '*' and
+    # credentials does; 'wildcard' answers a literal '*'; None sends no
+    # Access-Control-Allow-Origin at all.
+    cors_allow_origin: str | None = None
+    # Send 'Access-Control-Allow-Credentials: true' beside it.
+    cors_allow_credentials: bool = False
+    # Echo a TRACE request back the way a proxy with TraceEnable on does.
+    trace_enabled: bool = False
+    # Cookies set on the '/' response, as raw Set-Cookie values.
+    set_cookies: tuple[str, ...] = ()
     # Every request the instance saw, as (method, path, sorted header names).
     seen: list[tuple[str, str, tuple[str, ...]]] = field(default_factory=list)
 
@@ -184,10 +195,13 @@ def _make_handler(behaviour: InstanceBehaviour):
             # BaseHTTPRequestHandler default would leak a Python version.
             return behaviour.server_header
 
-        def _respond(self, code, body=b"", extra=None):
+        def _respond(self, code, body=b"", extra=None, cookies=()):
             self.send_response(code)
             for name, value in (extra or {}).items():
                 self.send_header(name, value)
+            for cookie in cookies:
+                self.send_header("Set-Cookie", cookie)
+            self._cors_headers()
             if behaviour.disclose_server:
                 self.send_header("X-Powered-By", behaviour.disclose_server)
             for name, value in behaviour.extra_headers.items():
@@ -196,6 +210,19 @@ def _make_handler(behaviour: InstanceBehaviour):
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
+
+        def _cors_headers(self):
+            """Answer an Origin the way the configured CORS policy would."""
+            origin = self.headers.get("Origin")
+            if not origin or behaviour.cors_allow_origin is None:
+                return
+            allowed = behaviour.cors_allow_origin
+            self.send_header(
+                "Access-Control-Allow-Origin",
+                origin if allowed == "reflect" else allowed,
+            )
+            if behaviour.cors_allow_credentials:
+                self.send_header("Access-Control-Allow-Credentials", "true")
 
         def _json(self, payload, code=200):
             self._respond(
@@ -310,9 +337,11 @@ def _make_handler(behaviour: InstanceBehaviour):
                 if behaviour.directory_listing:
                     body = b"<html><head><title>Index of /</title></head><body>"
                     body += b"<h1>Index of /</h1><a href='opencloud.yaml'>x</a></body></html>"
-                    self._respond(200, body, behaviour.headers)
                 else:
-                    self._respond(200, b"<html>OpenCloud</html>", behaviour.headers)
+                    body = b"<html>OpenCloud</html>"
+                self._respond(
+                    200, body, behaviour.headers, cookies=behaviour.set_cookies
+                )
                 return
 
             if path == "/.well-known/webfinger":
@@ -372,6 +401,18 @@ def _make_handler(behaviour: InstanceBehaviour):
 
         do_HEAD = do_GET
         do_PROPFIND = do_GET
+
+        def do_TRACE(self):
+            behaviour.seen.append(
+                (self.command, self.path.split("?", 1)[0], tuple(sorted(self.headers.keys())))
+            )
+            if not behaviour.trace_enabled:
+                self._respond(405, b"method not allowed")
+                return
+            # What a proxy with TRACE left on returns: the request line and
+            # every header the client sent, echoed back as the body.
+            echo = f"TRACE {self.path} HTTP/1.1\r\n{self.headers}".encode()
+            self._respond(200, echo, {"Content-Type": "message/http"})
 
         def do_POST(self):
             behaviour.seen.append(

@@ -51,7 +51,7 @@ plugin version and the Icinga2 objects are both converged every time.
 
 Every setting is an `opencloud_check_*` variable, mapping one-to-one onto the
 `COS_*` environment variables and CLI flags in the
-[options table](../README.md#options). A realistic host entry:
+[options table](cli-reference.md#options). A realistic host entry:
 
 ```ini
 [icinga_hosts]

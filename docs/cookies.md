@@ -14,6 +14,7 @@ passed because it never ran would be misleading.
   * [1. Does the cookie require HTTPS: `cookieSecure`](#1-does-the-cookie-require-https-cookiesecure)
   * [2. Can page scripts read the cookie: `cookieHttpOnly`](#2-can-page-scripts-read-the-cookie-cookiehttponly)
   * [3. Is the cookie sent on cross-site requests: `cookieSameSite`](#3-is-the-cookie-sent-on-cross-site-requests-cookiesamesite)
+  * [4. Does the cookie name carry a prefix: `cookiePrefix`](#4-does-the-cookie-name-carry-a-prefix-cookieprefix)
   * [Severity and rating impact](#severity-and-rating-impact)
 <!-- TOC -->
 
@@ -55,12 +56,42 @@ cross-site flow genuinely needs `SameSite=None` (which additionally requires
 `Secure`). `Lax` is right for most session cookies: it still allows a
 top-level navigation such as clicking a shared link to arrive signed in.
 
+## 4. Does the cookie name carry a prefix: `cookiePrefix`
+
+The three attributes above all govern how a cookie is *read*. None of them
+governs how one is *written*, and that is the gap the `__Host-` and
+`__Secure-` name prefixes close. A cookie called `session` can be overwritten
+by any sibling subdomain, or over plain HTTP on the same host, however
+carefully its `Secure` and `HttpOnly` flags were set - the browser has no way
+to know which of the two writers is the real application. A cookie called
+`__Host-session` can only be set over HTTPS, with `Path=/` and no `Domain`,
+so nothing but the exact origin can touch it. The prefix is enforced on the
+name itself, before any attribute is consulted, which is what makes it the
+one cookie protection an attacker on a neighbouring subdomain cannot work
+around.
+
+The check reports two different failures, because they have one fix:
+
+- **A cookie that claims a prefix it does not honour** - `__Host-` with a
+  `Domain` attribute, with a `Path` other than `/`, or without `Secure`. Every
+  browser rejects such a cookie outright, so this is not a theoretical
+  weakness: the session it carries silently does not work. The detail names
+  which rule was broken.
+- **No observed cookie carrying a prefix at all**, which is the ordinary
+  state of an instance nobody has changed.
+
+**Fix:** rename the session cookie to `__Host-<name>` and set it with
+`Secure`, `Path=/` and no `Domain` attribute - or `__Secure-<name>` when it
+genuinely has to be shared across subdomains. Where the cookie comes from a
+reverse proxy or an identity provider rather than from OpenCloud, rename it
+there.
+
 ## Severity and rating impact
 
-All three are `extraChecks`, reported whenever a cookie is observed -
-`cookieSecure` at `high`, `cookieHttpOnly` at `medium`, `cookieSameSite` at
-`low` - and each caps the rating on its own the same way any other failed
-extra check does (`high` -> `C`, `medium` -> `A`, `low` -> `A+`; see the
+All four are `extraChecks`, reported whenever a cookie is observed -
+`cookieSecure` at `high`, `cookieHttpOnly` at `medium`, `cookieSameSite` and
+`cookiePrefix` at `low` - and each caps the rating on its own the same way any
+other failed extra check does (`high` -> `C`, `medium` -> `A`, `low` -> `A+`; see the
 extra-checks table in [the main README](../README.md#what-the-scanner-checks)).
 Set `scanner.extra_checks_rating: false` to report them without touching the
 rating, or `--no-extra-checks` to skip them outright.
