@@ -180,16 +180,21 @@ services:
     # Still a cache. Every key here has a TTL, and a dump file would be a copy
     # of everybody's scans sitting on a disk. Authentik's state is a different
     # service's problem, three down.
+    #
+    # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
+    # unset and this behaves exactly as it did before. Redis answers whoever
+    # reaches it, and what it holds is every live scan and every result still
+    # inside its TTL, so set one on anything that is not a laptop.
+    #
+    # Every comment stays *outside* the block below: `>` is a folded scalar, so
+    # a `#` inside it is literal text rather than a comment, and the prose would
+    # be folded into the command line between the options.
     command: >
       redis-server
       --save ""
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-      # Set COS_REDIS_PASSWORD in docker/.env and Redis requires it; leave it
-      # unset and this behaves exactly as it did before. Redis answers whoever
-      # reaches it, and what it holds is every live scan and every result still
-      # inside its TTL, so set one on anything that is not a laptop.
       --requirepass "${COS_REDIS_PASSWORD:-}"
     environment:
       # redis-cli reads this, so the health check authenticates without the

@@ -246,6 +246,8 @@ def test_private_webhooks_require_an_explicit_opt_out(monkeypatch):
     monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo("127.0.0.1"))
 
     class _Response:
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
@@ -375,6 +377,75 @@ def test_dns_rebinding_attack_is_prevented(monkeypatch, caplog):
     assert posted == []
     assert "DNS resolution changed" in caplog.text
     assert "DNS rebinding attack" in caplog.text
+
+
+def test_a_redirecting_receiver_is_never_followed(monkeypatch, caplog):
+    """
+    The address guard validates the URL an operator configured. A receiver that
+    answers with a redirect would otherwise move delivery one hop past it - to
+    an address nothing checked - carrying the signature and every custom header
+    with it, which is the same SSRF the guard exists to prevent.
+    """
+    posted = []
+
+    class _Redirect:
+        # Where this points is deliberately not modelled: the plugin refuses a
+        # 3xx on the status alone, so a redirect carrying no Location - which
+        # `requests.Response.is_redirect` would call no redirect at all - is
+        # still a receiver that did not accept the payload.
+        status_code = 302
+
+        def raise_for_status(self):  # a 3xx is not an error to requests
+            pass
+
+    def _post(url, **kwargs):
+        posted.append((url, kwargs))
+        return _Redirect()
+
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
+    monkeypatch.setattr(plugin.requests, "post", _post)
+
+    sent = plugin._send_webhook(
+        ScanContext(
+            host="cloud.example.com",
+            webhook_url="https://hooks.example.com/x",
+            webhook_secret="shared",
+            webhook_headers=(("X-Api-Key", "receiver-token"),),
+            retries=0,
+        ),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is False
+    assert "redirect" in caplog.text
+    # The request to the configured URL is expected - it is the hop *after* it
+    # that must not happen, and requests only makes that one when asked to.
+    assert len(posted) == 1
+    assert posted[0][0] == "https://hooks.example.com/x"
+    assert posted[0][1]["allow_redirects"] is False
+    # The credentials that would have travelled to the redirect target.
+    assert posted[0][1]["headers"]["X-Api-Key"] == "receiver-token"
+    assert "X-COS-Signature" in posted[0][1]["headers"]
+
+
+def test_a_delivered_webhook_still_reports_success(monkeypatch):
+    """The negative case: a receiver answering 200 is unaffected by the guard."""
+    monkeypatch.setattr(plugin.socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
+
+    class _Ok:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(plugin.requests, "post", lambda url, **kwargs: _Ok())
+
+    sent = plugin._send_webhook(
+        ScanContext(host="cloud.example.com", webhook_url="https://hooks.example.com/x"),
+        {"status": "CRITICAL"},
+    )
+
+    assert sent is True
 
 
 def test_webhook_signature_verifies_against_the_bytes_actually_sent(posts):

@@ -147,6 +147,36 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **A webhook is no longer delivered to wherever the receiver redirects it.**
+  `--webhook-url` is checked against private, loopback and link-local
+  addresses, and re-resolved immediately before delivery to close the
+  rebinding window - but the POST itself left `allow_redirects` at its
+  default, so a receiver answering `302 Location: http://169.254.169.254/`
+  had the payload delivered one hop past the guard, to an address nothing
+  checked. What travelled with it was not only the result: `X-COS-Signature`
+  and every `--webhook-header` went too, and `requests` drops `Authorization`
+  across hosts but keeps the rest, so a receiver's own API key was handed to
+  whatever it pointed at. The scanner has refused unvalidated redirects since
+  the SSRF guard was written; the webhook path simply never asked. Redirects
+  are now never followed, and a 3xx is reported as a delivery failure rather
+  than passing `raise_for_status()` as a notification that never arrived.
+
+- **The Redis service in all three published compose files now starts with the
+  arguments it was meant to have.** `command: >` is a *folded* scalar, so a
+  `#` inside the block is literal text rather than a comment - the four lines
+  of prose explaining `COS_REDIS_PASSWORD` were folded into the command line
+  between `--maxmemory-policy` and `--requirepass`, handing `redis-server`
+  fifty words of English as arguments. Either the server refuses the directive
+  and never starts - taking the whole stack with it, since the other services
+  wait on its health check - or it comes up with no password at all on a store
+  holding every live scan and every result still inside its TTL. The wizard's
+  generated compose kept its comments outside the block and was unaffected;
+  the checked-in files had diverged from it since 1.12.0. The comments now sit
+  above `command:` in `docker-compose.yml`, `docker-compose.dockerhub.yml` and
+  `docker-compose.authentik.yml`, and two tests split each compose file's
+  commands the way Compose does and assert that no folded-in prose reached
+  them.
+
 - **The Bandit workflow's SARIF upload now names the ref and commit it is
   reporting on**, so a pull request's code scanning check can find it. Left to
   itself the upload action resolves the merge commit from the checkout, and
