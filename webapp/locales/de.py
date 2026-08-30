@@ -25,7 +25,6 @@ MESSAGES: dict[str, str] = {
     "nav.search": "Suche",
     "nav.api": "API",
     "nav.ai": "KI",
-    "nav.docker": "Docker",
     "nav.privacy": "Datenschutz",
     "nav.about": "Über",
     # --------------------------------------------------- language switcher
@@ -65,6 +64,9 @@ MESSAGES: dict[str, str] = {
         "werden hier ausschließlich verwendet, um zu kennzeichnen, welche "
         "Software dieses Werkzeug prüft."
     ),
+    # --------------------------------------------------- the contents list
+    "toc.heading": "Auf dieser Seite",
+    "toc.aria": "Auf dieser Seite",
     # --------------------------------------------------------- cross-links
     "pagenav.kicker": "Weiterlesen",
     "pagenav.aria": "Mehr über diesen Dienst",
@@ -92,11 +94,6 @@ MESSAGES: dict[str, str] = {
     "pagenav.api.blurb": "Die JSON-API, die Fair-Use-Grenzen und das OpenAPI-Schema.",
     "pagenav.ai.title": "Für KI-Agenten",
     "pagenav.ai.blurb": "Discovery, OpenAPI, Arazzo-Workflows und der MCP-Endpunkt.",
-    "pagenav.cli.title": "Selbst ausführen, in einer Zeile",
-    "pagenav.cli.blurb": (
-        "Ein Docker-Befehl, auf deiner eigenen Maschine, ohne Ratenlimit und ohne "
-        "Website dazwischen."
-    ),
     "pagenav.privacy.title": "Was dieser Server speichert",
     "pagenav.privacy.blurb": (
         "Im Speicher, für {minutes} Minuten, und was das Log auslässt."
@@ -800,14 +797,7 @@ MESSAGES: dict[str, str] = {
         "Scanner selbst aus</a> - es ist derselbe Code, auf deiner eigenen "
         "Maschine, ohne Grenzen."
     ),
-    # ---------------------------------------------------------------- Docker
-    "cli.title": "Selbst ausführen, in einer Zeile",
-    "cli.description": (
-        "Dieselbe Prüfung als einzelner Docker-Befehl: keine Website "
-        "dazwischen, kein Ratenlimit, und niemand außer dir erfährt, welche "
-        "Instanz du betreust."
-    ),
-    "cli.kicker": "Ohne diese Website",
+    # -------------------------------- Docker one-liners, on /documentation
     "cli.lede": (
         "Einem fremden Server eine Adresse anzuvertrauen ist ein vernünftiger "
         "Grund zum Zögern. Du musst es nicht: Diese Seite ist dieselbe "
@@ -849,18 +839,6 @@ MESSAGES: dict[str, str] = {
         "<code>uv</code> oder <code>pipx</code> es holen und ausführen, ohne "
         "irgendetwas dauerhaft zu installieren."
     ),
-    "cli.more.kicker": "Weiterlesen",
-    "cli.more.heading": "Jede Variante, aufgeschrieben",
-    "cli.more.body": (
-        "Einen Befund aussetzen, mit dem du zu leben entschieden hast, einen "
-        "Release-Track wählen, jede Prüfung mit <code>--debug</code> erklären "
-        "lassen, den Befehl in eine Shell-Funktion verwandeln oder ihn auf einen "
-        'Timer legen: <a href="{project}/blob/main/docs/docker-oneliner.md" '
-        'rel="noopener noreferrer">die Einzeiler-Dokumentation</a> deckt all '
-        'das ab, und <a href="{project}" rel="noopener noreferrer">das '
-        "Repository</a> trägt den Rest - diese Website eingeschlossen, falls "
-        "du die Seiten ebenfalls betreiben möchtest."
-    ),
     # ------------------------------------------------ CLI documentation index
     "docs.index.title": "CLI-Dokumentation",
     "docs.index.description": (
@@ -876,8 +854,6 @@ MESSAGES: dict[str, str] = {
         "mit einem Befehl; heb dir den Rest auf, bis die Prüfung Teil "
         "von Monitoring, CI oder einer Flotte wird."
     ),
-    "docs.index.toc.aria": "Auf dieser Seite",
-    "docs.index.toc.heading": "Auf dieser Seite",
     "docs.index.toc.quickstart": "Schnellstart",
     "docs.index.toc.commands": "Befehle",
     "docs.index.toc.options": "Nützliche Optionen",
@@ -1076,10 +1052,6 @@ MESSAGES: dict[str, str] = {
     "search.page.ai.summary": (
         "Maschinenlesbares OpenAPI, Arazzo, Discovery, MCP-Werkzeuge und "
         "Prompts."
-    ),
-    "search.page.cli.title": "Den Scanner mit Docker ausführen",
-    "search.page.cli.summary": (
-        "Einzeilige Docker- und uvx-Befehle zum Scannen ohne die Website."
     ),
     "search.page.privacy.title": "Datenschutz",
     "search.page.privacy.summary": (

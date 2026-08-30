@@ -183,6 +183,26 @@ CHECK_RELEASE_SUPPORT = PromptSpec(
 )
 
 #: Every prompt this service publishes, in the order a client should show it.
+VERIFY_REMEDIATION = PromptSpec(
+    name="verify_remediation",
+    title="Check whether the fixes worked",
+    description=(
+        "Rescan an instance that was fixed since an earlier scan and report "
+        "what the changes actually achieved - what is gone, what is still "
+        "open, and what is new."
+    ),
+    arguments=(
+        PromptArgument(
+            "baseline_uuid",
+            "The uuid of the scan the fixes were planned against.",
+        ),
+        PromptArgument(
+            "target_url",
+            "The instance to scan again, as a URL or a hostname.",
+        ),
+    ),
+)
+
 PROMPTS: tuple[PromptSpec, ...] = (
     AUDIT_INSTANCE,
     AUDIT_ESTATE,
@@ -190,6 +210,7 @@ PROMPTS: tuple[PromptSpec, ...] = (
     TRIAGE_FINDINGS,
     REVIEW_TRANSPORT_SECURITY,
     CHECK_RELEASE_SUPPORT,
+    VERIFY_REMEDIATION,
 )
 
 
@@ -334,6 +355,35 @@ def check_release_support(target_url: str, release_track: str | None = None) -> 
     )
 
 
+def verify_remediation(baseline_uuid: str, target_url: str) -> str:
+    """Rescan, compare against the earlier scan, and report what the work bought."""
+    return (
+        f"Check whether the changes made to {target_url} since scan "
+        f"{baseline_uuid} had the effect they were meant to have.\n\n"
+        "Scan the instance again with scan_instance and wait for it, then "
+        "call compare_scans with the earlier uuid as baseline_uuid and the "
+        "new one as current_uuid. Do not work the difference out yourself "
+        "from two results - the comparison is the same arithmetic the "
+        "operator's own monitoring uses, and a second opinion that disagrees "
+        "with it is worse than none.\n\n"
+        "Report, in this order:\n"
+        "- what was fixed, from resolved;\n"
+        "- what is still open, from unchanged, with the ones worth doing "
+        "next named;\n"
+        "- anything new, from introduced - a change that fixed one thing and "
+        "broke another is the finding that matters most here;\n"
+        "- the grade before and after.\n\n"
+        "Say plainly when the grade did not move but findings were resolved: "
+        "findings of one severity share a single cap, so real progress often "
+        "shows up as an unchanged letter. That is worth stating rather than "
+        "reporting as failure.\n\n"
+        "If compare_scans answers 404, the earlier scan has expired - this "
+        "service keeps no history, so say so and report the new scan on its "
+        "own rather than guessing at what changed.\n\n"
+        f"{_PATIENCE_RULE}\n{_FAILURE_RULE}\n{_TRUST_RULE}\n{_SCOPE_RULE}"
+    )
+
+
 #: The rendering function for each prompt, by name.
 RENDERERS = {
     AUDIT_INSTANCE.name: audit_instance,
@@ -342,6 +392,7 @@ RENDERERS = {
     TRIAGE_FINDINGS.name: triage_findings,
     REVIEW_TRANSPORT_SECURITY.name: review_transport_security,
     CHECK_RELEASE_SUPPORT.name: check_release_support,
+    VERIFY_REMEDIATION.name: verify_remediation,
 }
 
 

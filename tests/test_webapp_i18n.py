@@ -30,7 +30,6 @@ FRONTEND_PATHS = (
     "/search",
     "/api",
     "/ai",
-    "/cli",
     "/privacy",
     "/about",
 )
@@ -141,7 +140,7 @@ def test_machine_readable_contracts_remain_english():
 def test_html_translation_placeholders_cannot_inject_tags_or_attributes():
     """Untrusted placeholder text must stay escaped inside trusted catalogue HTML."""
     payload = '"><img src=x onerror="alert(1)">'
-    translated = Translator("en").html("cli.more.body", project=payload)
+    translated = Translator("en").html("docs.index.options.manual", project=payload)
     rendered = Environment(autoescape=True).from_string("{{ value }}").render(
         value=translated
     )
@@ -155,13 +154,13 @@ def test_html_translation_placeholders_cannot_inject_tags_or_attributes():
 def test_html_translation_keeps_trusted_catalogue_markup_renderable():
     """Allow-listed inline elements authored in a catalogue must remain HTML."""
     translated = Translator("en").html(
-        "cli.more.body", project="https://opencloud.example.com/docs"
+        "docs.index.options.manual", project="https://opencloud.example.com/docs"
     )
     rendered = Environment(autoescape=True).from_string("{{ value }}").render(
         value=translated
     )
 
-    assert '<a href="https://opencloud.example.com/docs"' in rendered
+    assert '<a href="https://opencloud.example.com/docs#cli-usage"' in rendered
     assert "</a>" in rendered
     assert "&lt;a " not in rendered
 

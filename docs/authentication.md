@@ -18,6 +18,7 @@ documented exception.
   * [3. Do the documented demo accounts still sign in: `demoUsersDisabled`](#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled)
   * [4. Is account search restricted to shared groups: `userEnumerationRestricted`](#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted)
   * [5. Is the link password policy strong enough: `passwordPolicyEnforced`](#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced)
+  * [5a. Does it still ask for more than length: `passwordPolicyComplexity`](#5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity)
   * [6. Can the identity provider be found at all: `identityProviderDetected`](#6-can-the-identity-provider-be-found-at-all-identityproviderdetected)
   * [Severity and rating impact](#severity-and-rating-impact)
 <!-- TOC -->
@@ -119,6 +120,34 @@ default, so this usually means something explicitly lowered it).
 `OC_PASSWORD_POLICY_MIN_{LOWERCASE,UPPERCASE,DIGITS,SPECIAL}_CHARACTERS` and a
 banned-password list tighten it further - see [the link password policy
 docs][link-password].
+
+## 5a. Does it still ask for more than length: `passwordPolicyComplexity`
+
+A minimum length is not a password policy on its own. OpenCloud's default
+policy also requires **one lowercase letter, one uppercase letter, one digit
+and one special character**, and each of those minimums is a setting somebody
+can lower to zero. A twelve-character policy with all four lowered accepts
+`aaaaaaaaaaaa`, which satisfies `passwordPolicyEnforced` and nothing else.
+
+The four `min_*_characters` fields are read from the same capabilities
+document, and the check passes when every one of them is at least 1.
+
+**This is deliberately a second flag rather than a stricter
+`passwordPolicyEnforced`.** The older flag answers "is there a policy, and is
+it long enough"; this one answers "is it still the policy OpenCloud ships".
+Folding them together would change what an existing alert means without
+changing its name.
+
+**Reported only when the instance publishes all four minimums.** A policy that
+is switched off publishes none of them - that case is `passwordPolicyEnforced`
+failing, not this one - and an absent measurement stays an unknown rather than
+becoming a failure, as everywhere else in the scan.
+
+**Fix:** set `OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS`,
+`OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS`,
+`OC_PASSWORD_POLICY_MIN_DIGITS` and
+`OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS` back to `1` or more. Each already
+defaults to `1`, so an instance that fails this had them lowered on purpose.
 
 ## 6. Can the identity provider be found at all: `identityProviderDetected`
 

@@ -1568,6 +1568,11 @@ next to the finding.</p>
 <td><a href="https://docs.opencloud.eu/docs/admin/configuration/link-password-policy"><code>OC_PASSWORD_POLICY_MIN_CHARACTERS</code></a> (default <code>8</code>), plus the <code>MIN_LOWERCASE</code>/<code>MIN_UPPERCASE</code>/<code>MIN_DIGITS</code>/<code>MIN_SPECIAL_CHARACTERS</code> companions.</td>
 </tr>
 <tr>
+<td><code>passwordPolicyComplexity</code></td>
+<td>The link password policy no longer requires a lowercase letter, an uppercase letter, a digit and a special character. Each defaults to <code>1</code>, so a failure means somebody lowered one; a policy that is switched off reports this as unknown rather than failed.</td>
+<td><a href="https://docs.opencloud.eu/docs/admin/configuration/link-password-policy"><code>OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS</code></a> and its <code>MIN_UPPERCASE</code>/<code>MIN_DIGITS</code>/<code>MIN_SPECIAL_CHARACTERS</code> companions, back to <code>1</code> or more.</td>
+</tr>
+<tr>
 <td><code>hstsLongMaxAge</code></td>
 <td><code>Strict-Transport-Security</code> carries a <code>max-age</code> below a year.</td>
 <td>None in OpenCloud - its proxy sends ten years, so a short value comes from a reverse proxy in front of it.</td>

@@ -1,0 +1,254 @@
+name: OpenCloud security check
+description: >-
+  Scan an OpenCloud instance for known vulnerabilities, missing hardening and
+  weak transport security, and rate it from 0 to 5.
+author: sowoi
+
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  target:
+    description: >-
+      The instance to scan, as a hostname or a URL. The runner has to be able
+      to reach it - a hosted runner cannot see anything behind your firewall,
+      which is what a self-hosted runner is for.
+    required: true
+
+  version:
+    description: >-
+      The release of check-opencloud-security to install. Left empty, the
+      version is taken from the tag this action was pinned to (`@v1.2.3`
+      installs 1.2.3), and a branch or SHA ref installs the newest release.
+      Pin it: the release schedule and the newest known OpenCloud version ship
+      *inside* the package, so which version runs is part of the verdict.
+    required: false
+    default: ""
+
+  format:
+    description: >-
+      What to write to `output-file`: `json` (an array of the webhook payload
+      shape), `sarif` (2.1.0, for the code-scanning dashboard), `junit`, or
+      `nagios` for the plain one-line summary. The `rating`, `rating-label`
+      and `status` outputs are only available for `json`, which is the
+      default; every format sets `exit-code`.
+    required: false
+    default: json
+
+  output-file:
+    description: The file the scan output is written to.
+    required: false
+    default: opencloud-security.json
+
+  fail-on:
+    description: >-
+      When to fail the step. `warning` (the default) fails on WARNING,
+      CRITICAL and UNKNOWN; `critical` tolerates a WARNING but still fails on
+      CRITICAL and on UNKNOWN, because a scan that did not run is not a pass;
+      `never` always succeeds and leaves the decision to a later step reading
+      the outputs.
+    required: false
+    default: warning
+
+  warning:
+    description: Rating at or below which the result is a WARNING.
+    required: false
+    default: ""
+
+  critical:
+    description: Rating at or below which the result is CRITICAL.
+    required: false
+    default: ""
+
+  check-hardening:
+    description: >-
+      Count the hardening measures towards the result. On by default here,
+      unlike the plugin itself, because a pipeline that scans an instance it
+      owns wants the whole picture.
+    required: false
+    default: "true"
+
+  ignore-hardening:
+    description: >-
+      Hardening identifiers to waive, comma-separated. A waived finding is
+      still reported; it just stops capping the rating.
+    required: false
+    default: ""
+
+  release-track:
+    description: >-
+      How to judge the version - `auto`, `rolling`, `production` or `lts`.
+      Changes what counts as up to date and nothing else.
+    required: false
+    default: ""
+
+  releases-token:
+    description: >-
+      A GitHub token used only to raise the anonymous rate limit on the
+      release feed. `${{ github.token }}` is enough and needs no scopes.
+    required: false
+    default: ""
+
+  summary:
+    description: >-
+      Write the result to the job summary, so a scheduled run reports
+      somewhere people look rather than only in a red cross.
+    required: false
+    default: "true"
+
+  extra-args:
+    description: >-
+      Further flags passed to the plugin verbatim, for anything without an
+      input of its own. See the CLI reference in docs/cli-reference.md.
+    required: false
+    default: ""
+
+outputs:
+  exit-code:
+    description: "The plugin's Nagios exit code: 0 OK, 1 WARNING, 2 CRITICAL, 3 UNKNOWN."
+    value: ${{ steps.scan.outputs.exit-code }}
+  status:
+    description: "OK, WARNING, CRITICAL or UNKNOWN. Empty unless format is json."
+    value: ${{ steps.scan.outputs.status }}
+  rating:
+    description: "The rating, 0-5, 5 being best. Empty unless format is json."
+    value: ${{ steps.scan.outputs.rating }}
+  rating-label:
+    description: "The letter grade: A+, A, C, D, E or F. Empty unless format is json."
+    value: ${{ steps.scan.outputs.rating-label }}
+  message:
+    description: "The one-line summary. Empty unless format is json."
+    value: ${{ steps.scan.outputs.message }}
+  result-file:
+    description: The file the scan output was written to.
+    value: ${{ inputs.output-file }}
+
+runs:
+  using: composite
+  steps:
+    # Its own virtual environment, in the runner's temp directory. A plain
+    # `pip install` lands in whatever Python the job happens to have selected
+    # and fails outright on an externally managed one; this behaves the same
+    # on every runner and leaves the job's own environment alone.
+    - name: Install the check
+      shell: bash
+      env:
+        REQUESTED_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+        version="$REQUESTED_VERSION"
+        if [ -z "$version" ]; then
+          case "$ACTION_REF" in
+            v[0-9]*) version="${ACTION_REF#v}" ;;
+            *)
+              echo "::warning title=Unpinned scanner::This action was used at" \
+                   "'$ACTION_REF', which names no release, so the newest" \
+                   "check-opencloud-security is being installed. The release" \
+                   "schedule and the newest known OpenCloud version ship inside" \
+                   "the package, so pin a tag to keep the verdict reproducible."
+              ;;
+          esac
+        fi
+        python3 -m venv "$RUNNER_TEMP/opencloud-security"
+        "$RUNNER_TEMP/opencloud-security/bin/python" -m pip install \
+          --quiet --disable-pip-version-check --upgrade pip
+        if [ -n "$version" ]; then
+          "$RUNNER_TEMP/opencloud-security/bin/python" -m pip install \
+            --quiet --disable-pip-version-check "check-opencloud-security==$version"
+        else
+          "$RUNNER_TEMP/opencloud-security/bin/python" -m pip install \
+            --quiet --disable-pip-version-check "check-opencloud-security"
+        fi
+        echo "$RUNNER_TEMP/opencloud-security/bin" >> "$GITHUB_PATH"
+
+    - name: Scan the instance
+      id: scan
+      shell: bash
+      env:
+        # Configuration travels as COS_* environment variables rather than on
+        # the command line, so nothing sensitive shows up in a public log.
+        COS_HOST: ${{ inputs.target }}
+        COS_FORMAT: ${{ inputs.format }}
+        COS_CHECK_HARDENING: ${{ inputs.check-hardening }}
+        COS_RELEASES_TOKEN: ${{ inputs.releases-token }}
+        INPUT_WARNING: ${{ inputs.warning }}
+        INPUT_CRITICAL: ${{ inputs.critical }}
+        INPUT_IGNORE_HARDENING: ${{ inputs.ignore-hardening }}
+        INPUT_RELEASE_TRACK: ${{ inputs.release-track }}
+        INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        WRITE_SUMMARY: ${{ inputs.summary }}
+      run: |
+        # No `set -e`: the plugin's non-zero exit code is the result, not a
+        # failure, and no `set -u`: bash 3.2 on a macOS runner treats an empty
+        # "${args[@]}" as unbound.
+        set -o pipefail
+        args=()
+        [ -n "$INPUT_WARNING" ] && args+=(--warning "$INPUT_WARNING")
+        [ -n "$INPUT_CRITICAL" ] && args+=(--critical "$INPUT_CRITICAL")
+        [ -n "$INPUT_RELEASE_TRACK" ] && args+=(--release-track "$INPUT_RELEASE_TRACK")
+        if [ -n "$INPUT_IGNORE_HARDENING" ]; then
+          # One flag per identifier: the plugin takes --ignore-hardening more
+          # than once rather than a joined list.
+          IFS=',' read -ra waived <<< "$INPUT_IGNORE_HARDENING"
+          for name in "${waived[@]}"; do
+            trimmed="$(echo "$name" | tr -d '[:space:]')"
+            [ -n "$trimmed" ] && args+=(--ignore-hardening "$trimmed")
+          done
+        fi
+        # Deliberately word-split: extra-args is a flag string, not one value.
+        # shellcheck disable=SC2206
+        [ -n "$INPUT_EXTRA_ARGS" ] && args+=($INPUT_EXTRA_ARGS)
+
+        check-opencloud-security "${args[@]}" > "$OUTPUT_FILE"
+        state=$?
+        echo "exit-code=$state" >> "$GITHUB_OUTPUT"
+        cat "$OUTPUT_FILE"
+
+        if [ "$COS_FORMAT" = "json" ]; then
+          python3 - "$OUTPUT_FILE" >> "$GITHUB_OUTPUT" <<'PY'
+        import json, sys
+
+        # The document is an array with one entry per host; this action scans
+        # one, so the first entry is the answer. A scan that failed before it
+        # produced a payload leaves the fields empty rather than guessing.
+        try:
+            with open(sys.argv[1], encoding="utf-8") as handle:
+                entries = json.load(handle)
+            payload = entries[0] if isinstance(entries, list) and entries else {}
+        except (OSError, ValueError, IndexError):
+            payload = {}
+
+        for name, key in (
+            ("status", "status"),
+            ("rating", "rating"),
+            ("rating-label", "rating_label"),
+            ("message", "message"),
+        ):
+            value = payload.get(key)
+            # A message can contain newlines; a heredoc delimiter keeps a
+            # multi-line value from being read as further output assignments.
+            print(f"{name}<<COS_EOF")
+            print("" if value is None else value)
+            print("COS_EOF")
+        PY
+        fi
+
+        if [ "$WRITE_SUMMARY" = "true" ]; then
+          {
+            echo "### OpenCloud security check"
+            echo
+            echo '```'
+            cat "$OUTPUT_FILE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        case "$FAIL_ON" in
+          never)    exit 0 ;;
+          critical) [ "$state" -ge 2 ] && exit "$state" || exit 0 ;;
+          *)        exit "$state" ;;
+        esac

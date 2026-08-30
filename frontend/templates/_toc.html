@@ -1,0 +1,19 @@
+{#
+  The table of contents a page carries above its sections.
+
+  Expects `toc`: a list of {"href", "label"} set by the including template.
+  Every label is a section's own heading string rather than a second wording
+  of it, so a heading rewritten in one language cannot leave its entry here
+  saying the old thing in the other three.
+
+  A page with fewer than two sections includes nothing: a contents list of
+  one entry is a link to the top of the page the reader is already on.
+#}
+{% if toc | length > 1 %}
+<nav class="docs-toc card section-gap" aria-label="{{ t('toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('toc.heading') }}</p>
+  {% for entry in toc %}
+  <a href="{{ entry.href }}">{{ entry.label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}

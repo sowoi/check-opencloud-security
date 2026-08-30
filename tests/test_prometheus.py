@@ -37,6 +37,7 @@ def test_scan_result_is_rendered_as_prometheus_gauges():
     assert 'opencloud_security_vulnerabilities_total{host="opencloud.example.com",severity="high"} 1' in metrics
     assert "opencloud_security_hardenings_missing_total{host=\"opencloud.example.com\"} 1" in metrics
     assert "opencloud_security_failed_extra_checks_total{host=\"opencloud.example.com\"} 1" in metrics
+    assert 'opencloud_security_end_of_life{host="opencloud.example.com",release_type="production"} 0' in metrics
     assert 'opencloud_security_support_days_remaining{host="opencloud.example.com",release_type="production"} 42' in metrics
     assert 'opencloud_security_update_available{host="opencloud.example.com",target_version="7.4.0"} 1' in metrics
     assert "opencloud_security_scan_duration_seconds{host=\"opencloud.example.com\"} 1.25" in metrics
@@ -86,3 +87,29 @@ def test_metrics_endpoint_returns_prometheus_payload(monkeypatch):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_end_of_life_is_its_own_metric_rather_than_a_negative_day_count():
+    """
+    An undated release must not be indistinguishable from an expired one.
+
+    A rolling or production release whose end of life has not been announced
+    publishes no `support_days_remaining` sample at all. Without a separate
+    boolean, the only alert that matters most - "this release gets no fixes" -
+    would have to be inferred from a missing series, and a missing series is
+    also what a broken scan looks like.
+    """
+    undated = {**RESULT, "EOL": True, "lifecycle": {"releaseType": "rolling"}}
+
+    metrics = render("opencloud.example.com", undated, duration_seconds=1, success=True)
+
+    assert 'opencloud_security_end_of_life{host="opencloud.example.com",release_type="rolling"} 1' in metrics
+    assert "opencloud_security_support_days_remaining" not in metrics
+
+
+def test_a_failed_scan_publishes_no_lifecycle_verdict():
+    """A stale end-of-life reading is worse than none: it is a verdict nobody measured."""
+    metrics = render("opencloud.example.com", RESULT, duration_seconds=1, success=False)
+
+    assert "opencloud_security_end_of_life" not in metrics
+    assert 'opencloud_security_scrape_success{host="opencloud.example.com"} 0' in metrics

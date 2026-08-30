@@ -10,6 +10,11 @@
   <p class="lede">{{ t('privacy.lede', minutes=result_ttl_minutes) }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#privacy", "label": t('privacy.retention.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="privacy" data-reveal>
   <p class="kicker">{{ t('privacy.retention.kicker') }}</p>
   <h2 id="privacy">{{ t('privacy.retention.heading') }}</h2>

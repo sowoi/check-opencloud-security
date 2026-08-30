@@ -35,6 +35,9 @@ running is silent, and silence is indistinguishable from a healthy instance.</p>
 <ul>
 <li><a href="#running-the-check-from-ci">Running the check from CI</a></li>
 <li><a href="#github-actions">GitHub Actions</a><ul>
+<li><a href="#the-action">The action</a></li>
+<li><a href="#feeding-the-code-scanning-dashboard">Feeding the code-scanning dashboard</a></li>
+<li><a href="#installing-it-yourself-instead">Installing it yourself instead</a></li>
 <li><a href="#opencloud-compatibility-evidence">OpenCloud compatibility evidence</a></li>
 <li><a href="#reporting-rather-than-failing">Reporting rather than failing</a></li>
 <li><a href="#the-json-document-instead">The JSON document instead</a></li>
@@ -47,56 +50,158 @@ running is silent, and silence is indistinguishable from a healthy instance.</p>
 <!-- TOC -->
 
 <h2 id="github-actions">GitHub Actions</h2>
-<h3 id="opencloud-compatibility-evidence">OpenCloud compatibility evidence</h3>
-<p>The repository's <strong>real OpenCloud container</strong> workflow keeps one reviewed,
-immutable rolling-image digest as its baseline and runs the scanner against it
-weekly. It verifies that the container still initializes, exposes the expected
-public status endpoint, identifies itself as OpenCloud, reports a version, and
-produces a bounded rating. The image reports its exact OpenCloud version during
-the test; the workflow intentionally does not claim compatibility for a new
-release until that evidence has been reviewed.</p>
+<h3 id="the-action">The action</h3>
+<pre><code class="language-yaml">name: OpenCloud security check
+
+on:
+  schedule:
+    - cron: &quot;0 6 * * *&quot;
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sowoi/check-opencloud-security@v1.16.0
+        with:
+          target: opencloud.example.com
+          # Raises GitHub's anonymous rate limit for the release feed. The
+          # token the job already has is enough; it needs no scopes.
+          releases-token: $&#123;&#123; github.token &#125;&#125;
+</code></pre>
+<p>That is the whole thing. The step installs the pinned release, scans the
+instance, writes <code>opencloud-security.json</code>, puts the result in the job
+summary, and fails the job on WARNING, CRITICAL or UNKNOWN.</p>
+<p><strong>Pin the tag.</strong> The release schedule and the newest known OpenCloud version
+ship <em>inside</em> the package, so which release runs is part of the verdict.
+<code>@v1.16.0</code> installs exactly 1.16.0; a branch or SHA ref installs the newest
+release and says so in a warning annotation.</p>
 <table>
 <thead>
 <tr>
-<th>Evidence</th>
-<th>Baseline</th>
-<th>Compatible when</th>
-<th>Review path</th>
+<th>Input</th>
+<th>Default</th>
+<th>What it does</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Vendor container integration</td>
-<td><code>opencloudeu/opencloud-rolling@sha256:0bb9038f4c01ab187a014e97550435f5d45630731aed9341d87a0b40fe72fe3d</code></td>
-<td>The complete integration test passes and its reported version and externally observable behaviour are reviewed</td>
-<td>Dispatch the workflow with <code>candidate_image</code>; update the baseline only in a reviewed pull request</td>
+<td><code>target</code></td>
+<td><em>required</em></td>
+<td>The instance, as a hostname or URL</td>
 </tr>
 <tr>
-<td>Release lifecycle</td>
-<td>Bundled schedule plus the daily conservative refresh</td>
-<td>New or changed lines retain existing support facts and pass lifecycle regressions</td>
-<td>Review the release-schedule refresh PR</td>
+<td><code>version</code></td>
+<td>the pinned tag</td>
+<td>Which release of the check to install</td>
 </tr>
 <tr>
-<td>Advisories</td>
-<td>Bundled database plus the daily conservative refresh</td>
-<td>New advisories add evidence without removing known affected ranges</td>
-<td>Review the advisory-database refresh PR</td>
+<td><code>format</code></td>
+<td><code>json</code></td>
+<td><code>json</code>, <code>sarif</code>, <code>junit</code> or <code>nagios</code></td>
+</tr>
+<tr>
+<td><code>output-file</code></td>
+<td><code>opencloud-security.json</code></td>
+<td>Where the output is written</td>
+</tr>
+<tr>
+<td><code>fail-on</code></td>
+<td><code>warning</code></td>
+<td><code>warning</code>, <code>critical</code> or <code>never</code></td>
+</tr>
+<tr>
+<td><code>warning</code> / <code>critical</code></td>
+<td>plugin defaults</td>
+<td>Rating thresholds</td>
+</tr>
+<tr>
+<td><code>check-hardening</code></td>
+<td><code>true</code></td>
+<td>Count hardening measures towards the result</td>
+</tr>
+<tr>
+<td><code>ignore-hardening</code></td>
+<td><em>none</em></td>
+<td>Identifiers to waive, comma-separated</td>
+</tr>
+<tr>
+<td><code>release-track</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code>, <code>rolling</code>, <code>production</code> or <code>lts</code></td>
+</tr>
+<tr>
+<td><code>releases-token</code></td>
+<td><em>none</em></td>
+<td>A token for the release feed's rate limit</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td><code>true</code></td>
+<td>Write the result to the job summary</td>
+</tr>
+<tr>
+<td><code>extra-args</code></td>
+<td><em>none</em></td>
+<td>Any other flag, passed verbatim</td>
 </tr>
 </tbody>
 </table>
-<p>The automation never rewrites fixtures, grades, or security expectations to
-turn a candidate green. A changed response, header, endpoint, or security
-property must have release evidence and a reviewable test change naming that
-evidence.</p>
-<p>The repository's <code>Supply-chain checks</code> workflow runs on pull requests, pushes
-to <code>main</code> and weekly. It exports the fully resolved <code>uv.lock</code> dependency set,
-runs <code>pip-audit</code> over core, web and MCP dependencies, and publishes a
-CycloneDX SBOM as a workflow artifact. Pushes and scheduled runs also receive
-a GitHub Sigstore attestation, so the SBOM can be verified with
-<code>gh attestation verify</code>. The release workflow repeats this for the exact
-runtime environment shipped with each package and attests the package files
-and web bundle.</p>
+<p>The outputs are <code>exit-code</code>, <code>status</code>, <code>rating</code>, <code>rating-label</code>, <code>message</code> and
+<code>result-file</code>. All but the first two are empty unless <code>format</code> is <code>json</code>,
+because they are read out of that document:</p>
+<pre><code class="language-yaml">      - uses: sowoi/check-opencloud-security@v1.16.0
+        id: scan
+        with:
+          target: opencloud.example.com
+          fail-on: never
+
+      - name: Open an issue when the grade drops below A
+        if: steps.scan.outputs.rating &lt; 4
+        run: gh issue create --title &quot;OpenCloud is rated $&#123;&#123; steps.scan.outputs.rating-label &#125;&#125;&quot;
+        env:
+          GH_TOKEN: $&#123;&#123; github.token &#125;&#125;
+</code></pre>
+<p><code>fail-on: never</code> is what makes that possible: the step succeeds, and the
+decision moves to a later step that can do something more useful than turning
+the run red.</p>
+<p>Note that the runner has to be able to reach the instance. A hosted runner
+cannot see anything behind your firewall - use a self-hosted one for that, or
+scan from the network the instance actually publishes to.</p>
+<h3 id="feeding-the-code-scanning-dashboard">Feeding the code-scanning dashboard</h3>
+<p><code>format: sarif</code> writes SARIF 2.1.0, which is what GitHub's Security tab
+ingests. The findings then live where the rest of your security findings do,
+with their own history, rather than in a log nobody opens:</p>
+<pre><code class="language-yaml">permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sowoi/check-opencloud-security@v1.16.0
+        with:
+          target: opencloud.example.com
+          format: sarif
+          output-file: opencloud-security.sarif
+          # Upload the findings even when they are bad enough to fail a build.
+          fail-on: never
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: opencloud-security.sarif
+          category: opencloud-security
+</code></pre>
+<p>Keep <code>fail-on: never</code> here and gate on the uploaded findings instead. A step
+that fails before the upload throws away the very findings that failed it.</p>
+<h3 id="installing-it-yourself-instead">Installing it yourself instead</h3>
+<p>Nothing about the action is privileged - it installs the same package and runs
+the same command. Do it by hand when you need a step the action does not
+model, or when you would rather not depend on an action at all.</p>
 <pre><code class="language-yaml">name: OpenCloud security check
 
 on:
@@ -180,6 +285,56 @@ the full result document, and every field in it is documented in
 field of the document into a pipeline gate. <code>.EOL</code>, <code>.rating</code>,
 <code>.updates.available</code> and <code>.lifecycle.daysRemaining</code> are the four worth gating
 on.</p>
+<h3 id="opencloud-compatibility-evidence">OpenCloud compatibility evidence</h3>
+<p>The repository's <strong>real OpenCloud container</strong> workflow keeps one reviewed,
+immutable rolling-image digest as its baseline and runs the scanner against it
+weekly. It verifies that the container still initializes, exposes the expected
+public status endpoint, identifies itself as OpenCloud, reports a version, and
+produces a bounded rating. The image reports its exact OpenCloud version during
+the test; the workflow intentionally does not claim compatibility for a new
+release until that evidence has been reviewed.</p>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Baseline</th>
+<th>Compatible when</th>
+<th>Review path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vendor container integration</td>
+<td><code>opencloudeu/opencloud-rolling@sha256:0bb9038f4c01ab187a014e97550435f5d45630731aed9341d87a0b40fe72fe3d</code></td>
+<td>The complete integration test passes and its reported version and externally observable behaviour are reviewed</td>
+<td>Dispatch the workflow with <code>candidate_image</code>; update the baseline only in a reviewed pull request</td>
+</tr>
+<tr>
+<td>Release lifecycle</td>
+<td>Bundled schedule plus the daily conservative refresh</td>
+<td>New or changed lines retain existing support facts and pass lifecycle regressions</td>
+<td>Review the release-schedule refresh PR</td>
+</tr>
+<tr>
+<td>Advisories</td>
+<td>Bundled database plus the daily conservative refresh</td>
+<td>New advisories add evidence without removing known affected ranges</td>
+<td>Review the advisory-database refresh PR</td>
+</tr>
+</tbody>
+</table>
+<p>The automation never rewrites fixtures, grades, or security expectations to
+turn a candidate green. A changed response, header, endpoint, or security
+property must have release evidence and a reviewable test change naming that
+evidence.</p>
+<p>The repository's <code>Supply-chain checks</code> workflow runs on pull requests, pushes
+to <code>main</code> and weekly. It exports the fully resolved <code>uv.lock</code> dependency set,
+runs <code>pip-audit</code> over core, web and MCP dependencies, and publishes a
+CycloneDX SBOM as a workflow artifact. Pushes and scheduled runs also receive
+a GitHub Sigstore attestation, so the SBOM can be verified with
+<code>gh attestation verify</code>. The release workflow repeats this for the exact
+runtime environment shipped with each package and attests the package files
+and web bundle.</p>
 <h2 id="gitlab-ci">GitLab CI</h2>
 <pre><code class="language-yaml">opencloud-security:
   image: python:3.13-slim

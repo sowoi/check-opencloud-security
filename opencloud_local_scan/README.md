@@ -410,6 +410,7 @@ instance actually said:
 | `publicLinkExpirationEnforced` | Capabilities: enforced expiry on public links |
 | `userEnumerationRestricted` | Capabilities: user search restricted |
 | `passwordPolicyEnforced` | Capabilities: policy enabled and minimum password length >= 8 |
+| `passwordPolicyComplexity` | Capabilities: the policy still requires a lowercase letter, an uppercase letter, a digit and a special character |
 
 A key is omitted entirely when the corresponding evidence is unavailable - a
 missing header or an instance whose capabilities endpoint does not report that

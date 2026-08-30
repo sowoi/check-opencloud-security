@@ -41,7 +41,6 @@ MESSAGES: dict[str, str] = {
     "nav.search": "Search",
     "nav.api": "API",
     "nav.ai": "AI",
-    "nav.docker": "Docker",
     "nav.privacy": "Privacy",
     "nav.about": "About",
     # --------------------------------------------------- language switcher
@@ -80,6 +79,9 @@ MESSAGES: dict[str, str] = {
         "associated trademarks are the property of their respective owners and "
         "are used here solely to indicate which software this tool checks."
     ),
+    # --------------------------------------------------- the contents list
+    "toc.heading": "On this page",
+    "toc.aria": "On this page",
     # --------------------------------------------------------- cross-links
     "pagenav.kicker": "Read on",
     "pagenav.aria": "More about this service",
@@ -102,11 +104,6 @@ MESSAGES: dict[str, str] = {
     "pagenav.api.blurb": "The JSON API, the fair use limits and the OpenAPI schema.",
     "pagenav.ai.title": "For AI agents",
     "pagenav.ai.blurb": "Discovery, OpenAPI, Arazzo workflows and the MCP endpoint.",
-    "pagenav.cli.title": "Run it yourself, in one line",
-    "pagenav.cli.blurb": (
-        "One Docker command, on your machine, with no rate limit and no website "
-        "in the middle."
-    ),
     "pagenav.privacy.title": "What this server keeps",
     "pagenav.privacy.blurb": (
         "In memory, for {minutes} minutes, and what the log leaves out."
@@ -753,13 +750,7 @@ MESSAGES: dict[str, str] = {
         '<a href="{project}" rel="noopener noreferrer">run the scanner yourself</a> '
         "- it is the same code, on your machine, with no limits."
     ),
-    # ---------------------------------------------------------------- Docker
-    "cli.title": "Run it yourself, in one line",
-    "cli.description": (
-        "The same check as a single Docker command: no website in the middle, no "
-        "rate limit, and nobody but you learning which instance you look after."
-    ),
-    "cli.kicker": "Without this website",
+    # -------------------------------- Docker one-liners, on /documentation
     "cli.lede": (
         "Handing an address to a stranger's server is a reasonable thing to "
         "hesitate over. You do not have to: this page is the same check, as one "
@@ -797,18 +788,6 @@ MESSAGES: dict[str, str] = {
         "<code>pipx</code> will fetch and run it without installing anything "
         "permanently."
     ),
-    "cli.more.kicker": "Read on",
-    "cli.more.heading": "Every variation, written down",
-    "cli.more.body": (
-        "Waiving a finding you have decided to live with, picking a release track, "
-        "explaining every check with <code>--debug</code>, turning the command into "
-        "a shell function, or putting it on a timer: "
-        '<a href="{project}/blob/main/docs/docker-oneliner.md" '
-        'rel="noopener noreferrer">the one-liner documentation</a> covers all of '
-        'it, and <a href="{project}" rel="noopener noreferrer">the repository</a> '
-        "carries the rest - this website included, if you would like to run the "
-        "pages as well."
-    ),
     # ------------------------------------------------ CLI documentation index
     "docs.index.title": "CLI documentation",
     "docs.index.description": (
@@ -822,8 +801,6 @@ MESSAGES: dict[str, str] = {
         "guides under <code>docs/</code>. Start with one command; keep the rest "
         "for when the check becomes part of monitoring, CI or a fleet."
     ),
-    "docs.index.toc.aria": "On this page",
-    "docs.index.toc.heading": "On this page",
     "docs.index.toc.quickstart": "Quick start",
     "docs.index.toc.commands": "Commands",
     "docs.index.toc.options": "Useful options",
@@ -1005,10 +982,6 @@ MESSAGES: dict[str, str] = {
     "search.page.ai.title": "AI and MCP",
     "search.page.ai.summary": (
         "Machine-readable OpenAPI, Arazzo, discovery, MCP tools, and prompts."
-    ),
-    "search.page.cli.title": "Run the scanner with Docker",
-    "search.page.cli.summary": (
-        "One-line Docker and uvx commands for scanning without the website."
     ),
     "search.page.privacy.title": "Privacy",
     "search.page.privacy.summary": (

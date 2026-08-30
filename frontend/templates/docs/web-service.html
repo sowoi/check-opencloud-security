@@ -835,13 +835,13 @@ streamable HTTP, stateless, with JSON responses. It is the agent-facing
 execution layer, not a second implementation: every tool calls this
 application's own HTTP API in process, so an agent meets exactly the rate
 limits, the SSRF guard and the purge authorisation a browser meets.</p>
-<p>Six tools, one per user-level task rather than one per endpoint:
+<p>Seven tools, one per user-level task rather than one per endpoint:
 <code>scan_instance</code>, <code>scan_instances</code>, <code>get_scan_result</code>, <code>plan_remediation</code>,
-<code>export_scan</code> and <code>erase_instance_data</code>. Six prompts name the tasks people ask
-for - <code>audit_instance</code>, <code>audit_estate</code>, <code>explain_scan_result</code>,
-<code>triage_findings</code>, <code>review_transport_security</code> and <code>check_release_support</code> -
-so a client can offer "audit this instance and write a remediation plan" as
-one thing to pick. Five resources are published under <code>spec://</code> URIs: the
+<code>compare_scans</code>, <code>export_scan</code> and <code>erase_instance_data</code>. Seven prompts name
+the tasks people ask for - <code>audit_instance</code>, <code>audit_estate</code>,
+<code>explain_scan_result</code>, <code>triage_findings</code>, <code>review_transport_security</code>,
+<code>check_release_support</code> and <code>verify_remediation</code> - so a client can offer
+"audit this instance and write a remediation plan" as one thing to pick. Five resources are published under <code>spec://</code> URIs: the
 OpenAPI, Arazzo and discovery documents, and two that are a knowledge base
 rather than a contract - <code>catalogue</code>, every hardening flag and extra check
 the scanner runs explained, with the OpenCloud setting behind it, the fix and
@@ -881,15 +881,15 @@ an AI agent</a>, which also covers turning the endpoint off.</p>
 <p>The result page, the landing page, and a Redis-backed health probe that says
 nothing about any scan. The explanations the landing page used to carry sit on
 their own pages - <code>GET /how-it-works</code>, <code>GET /grades</code>, <code>GET /documentation</code>,
-<code>GET /search</code>, <code>GET /api</code>, <code>GET /ai</code>, <code>GET /cli</code>, <code>GET /privacy</code> and
-<code>GET /about</code> - which
+<code>GET /search</code>, <code>GET /api</code>, <code>GET /ai</code>, <code>GET /privacy</code> and <code>GET /about</code> - which
 are HTML only and stay out of the OpenAPI schema. <code>/grades</code> explains the
 plugin's real 0-5 map and its remediation ceilings; <code>/documentation</code> is the
-local CLI quick reference and guide index. <code>GET /cli</code> is the one that points
-away from this service: the
-Docker one-liner that runs the same scan on the visitor's own machine, linked
-from the primary navigation and documented in
-<a href="/documentation/docker">Scanning from the command line, in one line</a>. <code>GET /healthz</code> returns 200 only after the configured
+local CLI quick reference and guide index, and it is also the page that points
+away from this service: the Docker one-liners that run the same scan on the
+visitor's own machine sit directly under its quick start, documented at length
+in <a href="/documentation/docker">Scanning from the command line, in one line</a>. They used
+to be a <code>/cli</code> tab of their own; that path is now a permanent redirect to
+<code>/documentation#oneliner</code>. <code>GET /healthz</code> returns 200 only after the configured
 backend answers <code>PING</code>, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate <code>queueDepth</code>
 and <code>worker: "ok"</code>; it returns a detail-free 503 while any dependency is

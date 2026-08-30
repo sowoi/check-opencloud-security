@@ -38,6 +38,13 @@
   <p class="lede">{{ t('how.lede') }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#what-we-test", "label": t('how.tests.heading')},
+  {"href": "#how-it-works", "label": t('how.pipeline.heading')},
+  {"href": "#faq", "label": t('how.faq.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="grid three section-gap-lg" aria-labelledby="what-we-test">
   <h2 id="what-we-test" class="visually-hidden">{{ t('how.tests.heading') }}</h2>
 

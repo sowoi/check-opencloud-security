@@ -1986,8 +1986,38 @@ def _capability_hardenings(capabilities: Mapping[str, Any] | None) -> dict[str, 
             hardenings["passwordPolicyEnforced"] = minimum >= 8
         elif "max_characters" in policy:
             hardenings["passwordPolicyEnforced"] = False
+        hardenings.update(_password_complexity_hardening(policy))
 
     return hardenings
+
+
+# The character classes OpenCloud's password policy requires, each defaulting
+# to one. A disabled policy publishes none of them, which is
+# passwordPolicyEnforced's finding rather than this one's.
+PASSWORD_COMPLEXITY_KEYS: tuple[str, ...] = (
+    "min_lowercase_characters",
+    "min_uppercase_characters",
+    "min_digits",
+    "min_special_characters",
+)
+
+
+def _password_complexity_hardening(policy: Mapping[str, Any]) -> dict[str, bool]:
+    """
+    Whether the policy still asks for more than a length.
+
+    Reported only when the instance publishes every one of the four minimums.
+    A release that stops publishing them, or a policy switched off entirely,
+    produces no finding rather than a failing one - an absent measurement is
+    an unknown here as everywhere else.
+    """
+    minimums: list[int] = []
+    for name in PASSWORD_COMPLEXITY_KEYS:
+        reported = policy.get(name)
+        if not isinstance(reported, int):
+            return {}
+        minimums.append(reported)
+    return {"passwordPolicyComplexity": all(value >= 1 for value in minimums)}
 
 
 def derive_hardenings(

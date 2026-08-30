@@ -127,6 +127,26 @@ def render(
         )
 
         lifecycle = outcome.get("lifecycle")
+        release_type = "unknown"
+        if isinstance(lifecycle, dict) and lifecycle.get("releaseType"):
+            release_type = str(lifecycle["releaseType"])
+        # Deliberately its own family rather than a negative
+        # `support_days_remaining`: a rolling or production release that has
+        # not been dated yet reports no days at all, and "unknown" must not
+        # read as "expiring today" in the one alert nobody may miss.
+        lines.extend(
+            _family(
+                "opencloud_security_end_of_life",
+                "Whether the OpenCloud release has reached end of life.",
+                [
+                    (
+                        _labels(host=host, release_type=release_type),
+                        int(bool(outcome.get("EOL"))),
+                    )
+                ],
+            )
+        )
+
         if isinstance(lifecycle, dict) and isinstance(lifecycle.get("daysRemaining"), int):
             lines.extend(
                 _family(

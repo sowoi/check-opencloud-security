@@ -10,6 +10,17 @@
   <p class="lede">{{ t('ai.lede') }}</p>
 </section>
 
+{# Two of these sections only exist where the operator enabled the agent
+   tools, so the contents list is built the same way the page is. A deployment
+   with MCP off must not advertise an anchor that goes nowhere. #}
+{% set toc = [{"href": "#ai-discovery", "label": t('ai.discovery.heading')}]
+   + ([
+       {"href": "#ai-webmcp", "label": t('ai.webmcp.heading')},
+       {"href": "#ai-clients", "label": t('ai.clients.heading')}
+     ] if mcp_enabled else [])
+   + [{"href": "#ai-rules", "label": t('ai.rules.heading')}] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="ai-discovery" data-reveal>
   <p class="kicker">{{ t('ai.discovery.kicker') }}</p>
   <h2 id="ai-discovery">{{ t('ai.discovery.heading') }}</h2>

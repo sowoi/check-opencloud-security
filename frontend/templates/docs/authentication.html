@@ -22,6 +22,7 @@
   <a href="#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled" lang="en">3. Do the documented demo accounts still sign in: <code>demoUsersDisabled</code></a>
   <a href="#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted" lang="en">4. Is account search restricted to shared groups: <code>userEnumerationRestricted</code></a>
   <a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced" lang="en">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a>
+  <a href="#5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity" lang="en">5a. Does it still ask for more than length: <code>passwordPolicyComplexity</code></a>
   <a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected" lang="en">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
 </nav>
@@ -45,6 +46,7 @@ documented exception.</p>
 <li><a href="#3-do-the-documented-demo-accounts-still-sign-in-demousersdisabled">3. Do the documented demo accounts still sign in: <code>demoUsersDisabled</code></a></li>
 <li><a href="#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted">4. Is account search restricted to shared groups: <code>userEnumerationRestricted</code></a></li>
 <li><a href="#5-is-the-link-password-policy-strong-enough-passwordpolicyenforced">5. Is the link password policy strong enough: <code>passwordPolicyEnforced</code></a></li>
+<li><a href="#5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity">5a. Does it still ask for more than length: <code>passwordPolicyComplexity</code></a></li>
 <li><a href="#6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
@@ -145,6 +147,28 @@ default, so this usually means something explicitly lowered it).
 <code>OC_PASSWORD_POLICY_MIN_{LOWERCASE,UPPERCASE,DIGITS,SPECIAL}_CHARACTERS</code> and a
 banned-password list tighten it further - see <a href="https://docs.opencloud.eu/docs/admin/configuration/link-password-policy">the link password policy
 docs</a>.</p>
+<h2 id="5a-does-it-still-ask-for-more-than-length-passwordpolicycomplexity">5a. Does it still ask for more than length: <code>passwordPolicyComplexity</code></h2>
+<p>A minimum length is not a password policy on its own. OpenCloud's default
+policy also requires <strong>one lowercase letter, one uppercase letter, one digit
+and one special character</strong>, and each of those minimums is a setting somebody
+can lower to zero. A twelve-character policy with all four lowered accepts
+<code>aaaaaaaaaaaa</code>, which satisfies <code>passwordPolicyEnforced</code> and nothing else.</p>
+<p>The four <code>min_*_characters</code> fields are read from the same capabilities
+document, and the check passes when every one of them is at least 1.</p>
+<p><strong>This is deliberately a second flag rather than a stricter
+<code>passwordPolicyEnforced</code>.</strong> The older flag answers "is there a policy, and is
+it long enough"; this one answers "is it still the policy OpenCloud ships".
+Folding them together would change what an existing alert means without
+changing its name.</p>
+<p><strong>Reported only when the instance publishes all four minimums.</strong> A policy that
+is switched off publishes none of them - that case is <code>passwordPolicyEnforced</code>
+failing, not this one - and an absent measurement stays an unknown rather than
+becoming a failure, as everywhere else in the scan.</p>
+<p><strong>Fix:</strong> set <code>OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS</code>,
+<code>OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS</code>,
+<code>OC_PASSWORD_POLICY_MIN_DIGITS</code> and
+<code>OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS</code> back to <code>1</code> or more. Each already
+defaults to <code>1</code>, so an instance that fails this had them lowered on purpose.</p>
 <h2 id="6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></h2>
 <p>Everything above asks whether a credential is accepted. This one asks the
 prior question - <em>who issues the tokens?</em> - and answers it by reading

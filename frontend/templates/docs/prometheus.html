@@ -17,6 +17,8 @@
 
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#the-files-to-copy" lang="en">The files to copy</a>
+  <a href="#what-the-exporter-publishes" lang="en">What the exporter publishes</a>
   <a href="#what-there-is-to-graph" lang="en">What there is to graph</a>
   <a href="#node_exporter-textfile-collector" lang="en">node_exporter textfile collector</a>
   <a href="#pushgateway" lang="en">Pushgateway</a>
@@ -40,6 +42,8 @@ up by Icinga2's Graphite/InfluxDB writers directly.</p>
 <!-- TOC -->
 <ul>
 <li><a href="#prometheus-and-grafana">Prometheus and Grafana</a></li>
+<li><a href="#the-files-to-copy">The files to copy</a></li>
+<li><a href="#what-the-exporter-publishes">What the exporter publishes</a></li>
 <li><a href="#what-there-is-to-graph">What there is to graph</a></li>
 <li><a href="#node_exporter-textfile-collector">node_exporter textfile collector</a></li>
 <li><a href="#pushgateway">Pushgateway</a></li>
@@ -48,6 +52,104 @@ up by Icinga2's Graphite/InfluxDB writers directly.</p>
 </ul>
 <!-- TOC -->
 
+<h2 id="the-files-to-copy">The files to copy</h2>
+<p>Two of them, both in <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/README.md"><code>contrib/</code></a>, both reading the
+metric names the native exporter publishes:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What to do with it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/prometheus/alerts.yml"><code>contrib/prometheus/alerts.yml</code></a></td>
+<td>Copy into <code>/etc/prometheus/rules/</code> and add it to <code>rule_files:</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/grafana/dashboard.json"><code>contrib/grafana/dashboard.json</code></a></td>
+<td>Grafana - Dashboards - New - Import, then pick the data source</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-shell">cp contrib/prometheus/alerts.yml /etc/prometheus/rules/opencloud-security.yml
+promtool check rules /etc/prometheus/rules/opencloud-security.yml
+</code></pre>
+<p>The dashboard has an <code>Instance</code> selector, so one copy serves every host you
+scrape. The rules assume a scrape of a cached scan every minute or so; with a
+scan scheduled once a day, shorten every <code>for:</code> - a one-hour <code>for:</code> never
+becomes true when the value only changes once between long gaps of the same
+reading.</p>
+<p>The sections after the next one are the <em>other</em> way to do this: a scheduled
+scan whose JSON is reshaped by <code>jq</code> into metric names of your own. Those names
+are shorter and deliberately different, and the two shipped files above do not
+match them.</p>
+<h2 id="what-the-exporter-publishes">What the exporter publishes</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>opencloud_security_rating_score</code></td>
+<td><code>host</code>, <code>domain</code>, <code>product</code>, <code>version</code></td>
+<td>The grade, <code>0</code>-<code>5</code>, <code>5</code> best</td>
+</tr>
+<tr>
+<td><code>opencloud_security_end_of_life</code></td>
+<td><code>host</code>, <code>release_type</code></td>
+<td><code>1</code> once the release receives no more fixes</td>
+</tr>
+<tr>
+<td><code>opencloud_security_support_days_remaining</code></td>
+<td><code>host</code>, <code>release_type</code></td>
+<td>Days of support left; <strong>no sample at all</strong> when the end of life is not dated yet</td>
+</tr>
+<tr>
+<td><code>opencloud_security_vulnerabilities_total</code></td>
+<td><code>host</code>, <code>severity</code></td>
+<td>Advisories matching the reported version</td>
+</tr>
+<tr>
+<td><code>opencloud_security_hardenings_missing_total</code></td>
+<td><code>host</code></td>
+<td>Missing hardening measures</td>
+</tr>
+<tr>
+<td><code>opencloud_security_failed_extra_checks_total</code></td>
+<td><code>host</code></td>
+<td>Failed additional checks</td>
+</tr>
+<tr>
+<td><code>opencloud_security_update_available</code></td>
+<td><code>host</code>, <code>target_version</code></td>
+<td><code>1</code> when a newer release exists</td>
+</tr>
+<tr>
+<td><code>opencloud_security_scan_duration_seconds</code></td>
+<td><code>host</code></td>
+<td>How long the scan took</td>
+</tr>
+<tr>
+<td><code>opencloud_security_scrape_success</code></td>
+<td><code>host</code></td>
+<td><code>0</code> when the scan behind the numbers failed</td>
+</tr>
+</tbody>
+</table>
+<p>A failed scan publishes only the last two. Findings from before the failure
+are <strong>not</strong> re-published, so an instance whose scan is broken has no verdict
+rather than a stale one - which is why <code>opencloud_security_scrape_success</code> is
+the first thing the dashboard shows.</p>
+<p><code>opencloud_security_end_of_life</code> is a separate family rather than a negative
+day count on purpose. A rolling or production release whose end of life has
+not been announced reports no days at all, and "unknown" must not read as
+"expiring today" in the one alert nobody may miss.</p>
 <h2 id="what-there-is-to-graph">What there is to graph</h2>
 <p>Every run prints performance data after a <code>|</code>:</p>
 <pre><code>rating=5;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.234s;;;0;
@@ -149,6 +251,12 @@ instance, or it will be alerting on a server that no longer exists:</p>
 <pre><code class="language-shell">curl -X DELETE http://pushgateway.example.com:9091/metrics/job/opencloud_security/instance/opencloud.example.com
 </code></pre>
 <h2 id="alerting-rules">Alerting rules</h2>
+<p>For the native exporter, copy
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/prometheus/alerts.yml"><code>contrib/prometheus/alerts.yml</code></a> rather
+than the block below - it is maintained against the real metric names and
+tested against them.</p>
+<p>The rules below match the <strong><code>jq</code>-shaped</strong> names from the two recipes above,
+which are shorter and different:</p>
 <pre><code class="language-yaml">groups:
   - name: opencloud-security
     rules:
@@ -184,13 +292,18 @@ instance, or it will be alerting on a server that no longer exists:</p>
 <p>Match <code>for:</code> to your scan interval. With a daily scan a <code>for: 5m</code> fires on the
 first scrape after a bad result, which is the same thing as no <code>for:</code> at all.</p>
 <h2 id="grafana">Grafana</h2>
-<p><code>opencloud_security_rating</code> is a <code>0</code>-<code>5</code> score where higher is better; a stat
-panel with thresholds at <code>3</code> (yellow) and <code>1</code> (red) mirrors the plugin's own
-defaults. Map the values to the letters the rest of the output uses with a
-value mapping: <code>5 → A+</code>, <code>4 → A</code>, <code>3 → C</code>, <code>2 → D</code>, <code>1 → E</code>, <code>0 → F</code>.</p>
-<p>Put <code>opencloud_version_info</code> in a table panel next to it. The rating tells you
-that something is wrong; the version label is what tells you what to do about
-it.</p>
+<p>Import <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/grafana/dashboard.json"><code>contrib/grafana/dashboard.json</code></a>
+and pick your Prometheus data source. It draws the scan-health tile first, the
+grade and the lifecycle beside it, then the grade over time, the open
+findings, the advisories by severity, and a table of what is running where.</p>
+<p>If you would rather build your own: the rating is a <code>0</code>-<code>5</code> score where higher
+is better, so a stat panel with thresholds at <code>3</code> (yellow) and <code>1</code> (red)
+mirrors the plugin's own defaults. Map the values to the letters the rest of
+the output uses: <code>5 → A+</code>, <code>4 → A</code>, <code>3 → C</code>, <code>2 → D</code>, <code>1 → E</code>, <code>0 → F</code> - a
+grade with no letter beside it gets read as a score out of five.</p>
+<p>Put the version in a table panel next to it. The rating tells you that
+something is wrong; the version is what tells you whether an upgrade is the
+answer.</p>
 <hr>
 <p><a href="/documentation">Back to the documentation index</a> | <a href="/documentation/reference">Back to the main README</a></p>
 </article>

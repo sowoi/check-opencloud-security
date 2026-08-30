@@ -14,6 +14,9 @@ import re
 
 import pytest
 
+from opencloud_local_scan.releases import ReleaseSettings
+from opencloud_local_scan.scanner import ScannerSettings, scan
+from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
     _offline_resolver,
@@ -252,6 +255,30 @@ def test_every_arazzo_step_resolves_to_an_operation_in_this_document(workflow):
         assert method in schema["paths"][path], f"{method} {path}"
 
 
+EXPORT_OPERATION = "/paths/~1api~1scans~1{identifier}~1export~1{fmt}/get"
+
+
+def _scanner_document_fields() -> frozenset[str]:
+    """
+    The top-level keys the scanner's own result document carries.
+
+    The export endpoint hands that document back untouched, so its OpenAPI
+    response is a free-form object on purpose: ``opencloud_local_scan`` owns
+    that shape and this service must not restate it. Nothing in
+    ``components/schemas`` can therefore answer whether a pointer into that
+    body resolves - only a real scan can, which is what this does.
+    """
+    with FakeOpenCloud(InstanceBehaviour()) as instance:
+        document = scan(
+            instance.host,
+            settings=ScannerSettings(
+                scheme="http", timeout=3, check_debug_ports=False, include_bundled_db=True
+            ),
+            release_settings=ReleaseSettings(mode="off"),
+        )
+    return frozenset(document)
+
+
 def test_every_field_a_workflow_reads_exists_in_the_schema_it_reads_it_from():
     """An output pointing at a field nobody returns silently yields nothing."""
     schemas = _schema()["components"]["schemas"]
@@ -260,6 +287,7 @@ def test_every_field_a_workflow_reads_exists_in_the_schema_it_reads_it_from():
     receipt = schemas["PurgeReceipt"]["properties"]
     accepted = schemas["ScanAccepted"]["properties"]
     batch = schemas["BatchAccepted"]["properties"]
+    document = _scanner_document_fields()
 
     known = {
         "/uuid": accepted,
@@ -279,15 +307,32 @@ def test_every_field_a_workflow_reads_exists_in_the_schema_it_reads_it_from():
     }
     for workflow in arazzo_document()["workflows"]:
         for step in workflow["steps"]:
+            reads_export = EXPORT_OPERATION in step.get("operationPath", "")
             for name, expression in step.get("outputs", {}).items():
                 if not expression.startswith("$response.body#"):
                     continue
                 pointer = expression.split("#", 1)[1]
-                if pointer.startswith("/summary/"):
+                assert name
+                if reads_export:
+                    # The scanner document, not one of this service's schemas.
+                    assert pointer.split("/")[1] in document, expression
+                elif pointer.startswith("/summary/"):
                     assert pointer.split("/")[2] in summary, expression
                 elif pointer.startswith("/accepted/"):
                     assert "accepted" in batch, expression
                 else:
                     assert pointer in known, expression
                     assert pointer.lstrip("/") in known[pointer], expression
-                    assert name
+
+
+def test_a_workflow_reading_the_export_body_is_checked_against_a_real_scan():
+    """
+    The negative half: the free-form export schema must not wave anything through.
+
+    A pointer at a field the scanner does not emit has to fail, or the branch
+    above is a check that always passes.
+    """
+    document = _scanner_document_fields()
+
+    assert "rating" in document
+    assert "notAFieldTheScannerEmits" not in document

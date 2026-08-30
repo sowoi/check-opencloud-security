@@ -26,7 +26,6 @@ CONTENT_PAGES = (
     "/documentation",
     "/api",
     "/ai",
-    "/cli",
     "/privacy",
     "/about",
 )
@@ -42,7 +41,6 @@ CONTENT_PAGES = (
         ("/search", "Search the scanner"),
         ("/api", "Scanning from a script"),
         ("/ai", "For AI agents"),
-        ("/cli", "Run it yourself, in one line"),
         ("/privacy", "What this server keeps"),
         ("/about", "About OpenCloud and this scanner"),
     ],
@@ -420,23 +418,38 @@ def test_summary_reports_whether_the_scanner_could_reach_ipv6_at_all():
     assert summarise({"rating": 5, "ipv6Enabled": False})["ipv6Enabled"] is False
 
 
-def test_the_one_liner_page_is_a_menu_tab_of_its_own():
+def test_the_one_liners_live_on_the_documentation_page():
     """
     The visitor who does not want to use this website should find that out from it.
 
-    The command belongs where the hesitation happens, so it gets a tab in the
-    primary navigation rather than a sentence buried on another page - and the
-    page names the published image and links the full documentation.
+    That used to be a Docker tab beside Documentation, which asked somebody
+    looking for how to run the check to guess which of two tabs answered it.
+    The one-liners are now the first thing under the quick start, and no tab
+    of their own is left in the navigation.
     """
     test_client = client()
-    page = test_client.get("/cli")
+    page = test_client.get("/documentation")
 
     assert page.status_code == 200
     assert "okxo/opencloud-scanner" in page.text
-    assert "docs/docker-oneliner.md" in page.text
+    assert "--network host" in page.text
+    assert 'id="oneliner"' in page.text
 
     for path in ("/", "/api", "/about"):
-        assert 'href="/cli"' in test_client.get(path).text
+        assert 'href="/cli"' not in test_client.get(path).text
+
+
+def test_the_retired_docker_tab_still_reaches_its_content():
+    """
+    Its address is printed in released documentation and sits in search results.
+
+    A merged page that answers 404 on the old path loses every reader who
+    arrives from one, so /cli redirects to the section that absorbed it.
+    """
+    response = client().get("/cli", follow_redirects=False)
+
+    assert response.status_code == 301
+    assert response.headers["location"] == "/documentation#oneliner"
 
 
 def test_the_grade_page_uses_the_plugins_real_scale():
@@ -502,3 +515,63 @@ def test_about_names_the_author_and_the_reason_for_the_project():
     assert "Massoud Ahmed" in page
     assert "alternative to" in page
     assert "<code>scan.nextcloud.com</code>" in page
+
+
+def _toc_targets(markup: str) -> list[str]:
+    """The anchors a page's contents list points at."""
+    contents = re.search(
+        r'<nav class="docs-toc.*?</nav>', markup, re.DOTALL
+    )
+    return re.findall(r'href="#([^"]+)"', contents.group(0)) if contents else []
+
+
+@pytest.mark.parametrize("path", CONTENT_PAGES)
+def test_every_page_in_the_menu_carries_a_contents_list(path: str):
+    """
+    A reader who arrived from the menu should see what the page holds.
+
+    The one exception is a page with a single section: a contents list of one
+    entry is a link to the top of the page somebody is already reading.
+    """
+    markup = client().get(path).text
+    sections = set(re.findall(r'<h2 id="([^"]+)"', markup))
+
+    if len(sections) < 2:
+        assert 'class="docs-toc' not in markup, f"{path} lists one section"
+        return
+    assert 'class="docs-toc' in markup, f"{path} has {len(sections)} sections and no contents list"
+
+
+@pytest.mark.parametrize("path", CONTENT_PAGES)
+def test_no_contents_entry_points_at_a_section_that_is_not_there(path: str):
+    """
+    The failure mode a contents list has: an anchor that goes nowhere.
+
+    The AI page builds two of its sections only where the operator enabled the
+    agent tools, and a contents list written once by hand advertised them
+    either way - a link that silently does nothing when clicked.
+    """
+    markup = client().get(path).text
+    sections = set(re.findall(r'<h2 id="([^"]+)"', markup))
+
+    for target in _toc_targets(markup):
+        assert target in sections, f"{path} lists #{target}, which the page has not got"
+
+
+def test_a_contents_entry_reads_as_the_heading_it_leads_to():
+    """
+    Two wordings of one section drift, and only one of them gets rewritten.
+
+    Reusing the section's own heading string also means a page translated into
+    four languages cannot end up with an English contents list.
+    """
+    markup = client().get("/grades").text
+    headings = dict(re.findall(r'<h2 id="([^"]+)"[^>]*>([^<]+)</h2>', markup))
+
+    entries = re.findall(
+        r'href="#([^"]+)">\s*([^<]+?)\s*</a>',
+        re.search(r'<nav class="docs-toc.*?</nav>', markup, re.DOTALL).group(0),
+    )
+    assert entries
+    for target, label in entries:
+        assert label == headings[target].strip()

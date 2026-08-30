@@ -10,15 +10,22 @@
   <p class="lede">{{ t.html('docs.index.lede') }}</p>
 </section>
 
-<nav class="docs-toc card section-gap" aria-label="{{ t('docs.index.toc.aria') }}" data-reveal>
-  <p class="kicker">{{ t('docs.index.toc.heading') }}</p>
-  <a href="#quick-start">{{ t('docs.index.toc.quickstart') }}</a>
-  <a href="#commands">{{ t('docs.index.toc.commands') }}</a>
-  <a href="#options">{{ t('docs.index.toc.options') }}</a>
-  <a href="#configuration">{{ t('docs.index.toc.configuration') }}</a>
-  <a href="#monitoring">{{ t('docs.index.toc.monitoring') }}</a>
-  <a href="#guides">{{ t('docs.index.toc.guides') }}</a>
-</nav>
+{# The page this pattern came from, now sharing the one implementation. Its
+   own short labels are kept: 'Options' reads better in a contents list than
+   the section's full heading. #}
+{% set toc = [
+  {"href": "#quick-start", "label": t('docs.index.toc.quickstart')},
+  {"href": "#oneliner", "label": t('cli.oneliner.heading')},
+  {"href": "#oneliner-json", "label": t('cli.json.heading')},
+  {"href": "#oneliner-private", "label": t('cli.private.heading')},
+  {"href": "#oneliner-nodocker", "label": t('cli.nodocker.heading')},
+  {"href": "#commands", "label": t('docs.index.toc.commands')},
+  {"href": "#options", "label": t('docs.index.toc.options')},
+  {"href": "#configuration", "label": t('docs.index.toc.configuration')},
+  {"href": "#monitoring", "label": t('docs.index.toc.monitoring')},
+  {"href": "#guides", "label": t('docs.index.toc.guides')}
+] %}
+{% include "_toc.html" %}
 
 <section class="card section-gap" aria-labelledby="quick-start" data-reveal>
   <p class="kicker">{{ t('docs.index.quickstart.kicker') }}</p>
@@ -30,6 +37,44 @@
   okxo/opencloud-scanner:latest --host opencloud.example.com \
   --check-hardening</code></pre>
   <p class="flush">{{ t('docs.index.quickstart.note') }}</p>
+</section>
+
+{# The one-liners the Docker page used to carry on its own. They live here
+   because a reader looking for how to run the check is on this page, not
+   choosing between two tabs that both answer that; /cli redirects to the
+   first of them. The "every variation" section that closed that page is not
+   repeated: the guide it pointed at is already in the grid below. #}
+<section class="card section-gap" aria-labelledby="oneliner" data-reveal>
+  <p class="kicker">{{ t('cli.oneliner.kicker') }}</p>
+  <h2 id="oneliner">{{ t('cli.oneliner.heading') }}</h2>
+  <p>{{ t('cli.lede') }}</p>
+<pre class="code-block"><code>docker run --rm --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.example.com</code></pre>
+  <p class="flush">{{ t('cli.oneliner.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-json" data-reveal>
+  <p class="kicker">{{ t('cli.json.kicker') }}</p>
+  <h2 id="oneliner-json">{{ t('cli.json.heading') }}</h2>
+<pre class="code-block"><code>docker run --rm --entrypoint check-opencloud-scanner \
+  okxo/opencloud-scanner:latest scan opencloud.example.com</code></pre>
+  <p class="flush">{{ t.html('cli.json.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-private" data-reveal>
+  <p class="kicker">{{ t('cli.private.kicker') }}</p>
+  <h2 id="oneliner-private">{{ t('cli.private.heading') }}</h2>
+<pre class="code-block"><code>docker run --rm --network host --entrypoint check-opencloud-security \
+  okxo/opencloud-scanner:latest --host opencloud.internal.example.com</code></pre>
+  <p class="flush">{{ t('cli.private.body') }}</p>
+</section>
+
+<section class="card section-gap" aria-labelledby="oneliner-nodocker" data-reveal>
+  <p class="kicker">{{ t('cli.nodocker.kicker') }}</p>
+  <h2 id="oneliner-nodocker">{{ t('cli.nodocker.heading') }}</h2>
+<pre class="code-block"><code>uvx --from check-opencloud-security check-opencloud-security \
+  --host opencloud.example.com</code></pre>
+  <p class="flush">{{ t.html('cli.nodocker.body') }}</p>
 </section>
 
 <section class="card section-gap" aria-labelledby="commands" data-reveal>

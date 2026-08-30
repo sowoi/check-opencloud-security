@@ -113,6 +113,14 @@ def discovery_document(
                 "workflow": "planRemediation",
             },
             {
+                "name": "compare_scans",
+                "description": (
+                    "Compare two finished scans of the same instance and say "
+                    "what the changes between them achieved."
+                ),
+                "workflow": "compareScans",
+            },
+            {
                 "name": "export_scan",
                 "description": "Render a finished scan as JSON, CSV, SARIF or PDF.",
                 "workflow": "exportFinishedScan",

@@ -1142,3 +1142,48 @@ def test_the_result_document_reports_whether_ipv6_was_available_to_check_with():
     )
     disabled = run_scan(InstanceBehaviour(), settings=settings)
     assert disabled["ipv6Enabled"] is False
+
+
+def test_a_weakened_password_policy_is_caught_even_when_it_is_long_enough(
+    default_result,
+):
+    """
+    Length alone is not a password policy.
+
+    OpenCloud requires one lowercase, one uppercase, one digit and one special
+    character by default, so an instance reporting zero for any of them had
+    that lowered deliberately - and a twelve-character minimum that accepts
+    'aaaaaaaaaaaa' would otherwise pass every check this scanner makes.
+    """
+    assert default_result["hardenings"]["passwordPolicyComplexity"] is True
+
+    weakened = InstanceBehaviour()
+    policy = weakened.capabilities["ocs"]["data"]["capabilities"]["password_policy"]
+    policy["min_special_characters"] = 0
+
+    result = run_scan(weakened)
+
+    assert result["hardenings"]["passwordPolicyComplexity"] is False
+    # The length requirement is untouched, so the older flag still passes:
+    # the two findings must not collapse into one.
+    assert result["hardenings"]["passwordPolicyEnforced"] is True
+
+
+def test_a_policy_that_publishes_no_character_classes_reports_no_complexity_finding():
+    """
+    A disabled policy publishes only max_characters, and that is a different
+    finding.
+
+    Reporting an absent measurement as a failure would give every instance
+    running a release that stops publishing the minimums a permanent warning
+    no setting could clear.
+    """
+    disabled = InstanceBehaviour()
+    policy = disabled.capabilities["ocs"]["data"]["capabilities"]["password_policy"]
+    policy.clear()
+    policy["max_characters"] = 72
+
+    result = run_scan(disabled)
+
+    assert "passwordPolicyComplexity" not in result["hardenings"]
+    assert result["hardenings"]["passwordPolicyEnforced"] is False

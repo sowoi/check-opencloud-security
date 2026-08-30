@@ -276,6 +276,31 @@ HARDENINGS: dict[str, Hardening] = {
         reference=DOCS_LINK_PASSWORD,
         setting="OC_PASSWORD_POLICY_MIN_CHARACTERS",
     ),
+    "passwordPolicyComplexity": Hardening(
+        id="passwordPolicyComplexity",
+        category="authentication",
+        title="The password policy no longer requires mixed characters",
+        meaning=(
+            "OpenCloud requires at least one lowercase letter, one uppercase "
+            "letter, one digit and one special character in a public link "
+            "password by default. The capabilities document reports at least "
+            "one of those minimums as zero, so somebody lowered it - a "
+            "twelve-character policy that accepts 'aaaaaaaaaaaa' is a length "
+            "requirement rather than a password policy. Reported only when "
+            "the instance publishes the minimums at all, which a disabled "
+            "policy does not: that case is passwordPolicyEnforced's."
+        ),
+        remediation=(
+            "Set OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS, "
+            "OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS, "
+            "OC_PASSWORD_POLICY_MIN_DIGITS and "
+            "OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS back to 1 or more. "
+            "Each defaults to 1, so an instance that fails this had them "
+            "lowered deliberately."
+        ),
+        reference=DOCS_LINK_PASSWORD,
+        setting="OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS",
+    ),
     "hstsLongMaxAge": Hardening(
         id="hstsLongMaxAge",
         category="transport",

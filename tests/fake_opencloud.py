@@ -82,7 +82,17 @@ CAPABILITIES_PAYLOAD: dict[str, Any] = {
                     "user": {"profile_picture": True},
                     "sharee": {"query_lookup_default": False},
                 },
-                "password_policy": {"min_characters": 12},
+                # Shaped like the real document: a policy that is switched on
+                # publishes the four character-class minimums beside the
+                # length, each defaulting to 1.
+                "password_policy": {
+                    "min_characters": 12,
+                    "min_lowercase_characters": 1,
+                    "min_uppercase_characters": 1,
+                    "min_digits": 1,
+                    "min_special_characters": 1,
+                    "max_characters": 72,
+                },
             },
         },
     }

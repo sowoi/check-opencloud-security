@@ -144,6 +144,7 @@ def test_the_tools_are_user_level_tasks_rather_than_one_per_endpoint():
         "scan_instances",
         "get_scan_result",
         "plan_remediation",
+        "compare_scans",
         "export_scan",
         "erase_instance_data",
     }
@@ -539,3 +540,50 @@ def test_a_deployment_with_mcp_off_advertises_no_prompts_either():
         document = served.get("/.well-known/ai.json").json()
 
     assert "mcp" not in document
+
+
+def test_the_comparison_tool_says_that_both_scans_must_still_exist():
+    """
+    The one precondition a caller cannot discover by trying.
+
+    This service keeps no history, so a comparison is of two *live* results.
+    An agent that does not know that will store a uuid, come back a week
+    later and read the 404 as a bug rather than as expiry.
+    """
+    with client() as served:
+        tools = _tools(served)
+
+    compare = tools["compare_scans"]
+    assert set(compare["inputSchema"]["properties"]) == {
+        "baseline_uuid",
+        "current_uuid",
+    }
+    assert compare["annotations"]["readOnlyHint"] is True
+    assert "expire" in compare["description"]
+    # The trap this tool exists to avoid: reading an unmoved grade as failure.
+    assert "share a single cap" in compare["description"]
+    assert "do not recompute" in compare["description"].lower()
+
+
+def test_the_verification_prompt_rescans_and_then_compares_rather_than_reasoning():
+    """
+    Two opinions about what changed are worse than one.
+
+    The comparison is the same arithmetic an operator's own monitoring uses,
+    so a model working the difference out from two results by hand could
+    contradict the alerts the same instance is producing.
+    """
+    with client() as served:
+        text = _prompt_text(
+            served,
+            "verify_remediation",
+            {"baseline_uuid": "1234", "target_url": "opencloud.example.com"},
+        )
+
+    assert "scan_instance" in text and "compare_scans" in text
+    assert "1234" in text and "opencloud.example.com" in text
+    assert "do not work the difference out yourself" in text.lower()
+    # It has to say what an expired baseline means, or the agent invents one.
+    assert "404" in text and "expired" in text
+    # The negative half: no raw endpoint an agent would call instead.
+    assert "/api/scans" not in text

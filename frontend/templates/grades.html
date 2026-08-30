@@ -10,6 +10,14 @@
   <p class="lede">{{ t('grades.lede') }}</p>
 </section>
 
+{% set toc = [
+  {"href": "#scale", "label": t('grades.scale.heading')},
+  {"href": "#caps", "label": t('grades.caps.heading')},
+  {"href": "#improve", "label": t('grades.improve.heading')},
+  {"href": "#limits", "label": t('grades.limits.heading')}
+] %}
+{% include "_toc.html" %}
+
 <section class="card section-gap" aria-labelledby="scale" data-reveal>
   <p class="kicker">{{ t('grades.scale.kicker') }}</p>
   <h2 id="scale">{{ t('grades.scale.heading') }}</h2>

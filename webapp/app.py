@@ -852,11 +852,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     async def ai_page(request: Request) -> Response:
         return page(request, "ai.html", {})
 
-    # For the visitor who would rather not hand an address to a stranger's
-    # server at all. It documents the command instead of running one.
-    @app.get("/cli", response_class=HTMLResponse, include_in_schema=False)
-    async def cli_page(request: Request) -> Response:
-        return page(request, "cli.html", {})
+    # The Docker page - for the visitor who would rather not hand an address
+    # to a stranger's server at all - is now the first half of /documentation,
+    # since somebody looking for how to run the check should not have to pick
+    # between two tabs that both answer that. The path stays as a permanent
+    # redirect: it is printed in released documentation and indexed.
+    @app.get("/cli", include_in_schema=False)
+    async def cli_page() -> Response:
+        return RedirectResponse("/documentation#oneliner", status_code=301)
 
     @app.get("/about", response_class=HTMLResponse, include_in_schema=False)
     async def about(request: Request) -> Response:

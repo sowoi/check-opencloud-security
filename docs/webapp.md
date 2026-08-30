@@ -692,13 +692,13 @@ execution layer, not a second implementation: every tool calls this
 application's own HTTP API in process, so an agent meets exactly the rate
 limits, the SSRF guard and the purge authorisation a browser meets.
 
-Six tools, one per user-level task rather than one per endpoint:
+Seven tools, one per user-level task rather than one per endpoint:
 `scan_instance`, `scan_instances`, `get_scan_result`, `plan_remediation`,
-`export_scan` and `erase_instance_data`. Six prompts name the tasks people ask
-for - `audit_instance`, `audit_estate`, `explain_scan_result`,
-`triage_findings`, `review_transport_security` and `check_release_support` -
-so a client can offer "audit this instance and write a remediation plan" as
-one thing to pick. Five resources are published under `spec://` URIs: the
+`compare_scans`, `export_scan` and `erase_instance_data`. Seven prompts name
+the tasks people ask for - `audit_instance`, `audit_estate`,
+`explain_scan_result`, `triage_findings`, `review_transport_security`,
+`check_release_support` and `verify_remediation` - so a client can offer
+"audit this instance and write a remediation plan" as one thing to pick. Five resources are published under `spec://` URIs: the
 OpenAPI, Arazzo and discovery documents, and two that are a knowledge base
 rather than a contract - `catalogue`, every hardening flag and extra check
 the scanner runs explained, with the OpenCloud setting behind it, the fix and
@@ -744,15 +744,15 @@ an AI agent](mcp.md), which also covers turning the endpoint off.
 The result page, the landing page, and a Redis-backed health probe that says
 nothing about any scan. The explanations the landing page used to carry sit on
 their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
-`GET /search`, `GET /api`, `GET /ai`, `GET /cli`, `GET /privacy` and
-`GET /about` - which
+`GET /search`, `GET /api`, `GET /ai`, `GET /privacy` and `GET /about` - which
 are HTML only and stay out of the OpenAPI schema. `/grades` explains the
 plugin's real 0-5 map and its remediation ceilings; `/documentation` is the
-local CLI quick reference and guide index. `GET /cli` is the one that points
-away from this service: the
-Docker one-liner that runs the same scan on the visitor's own machine, linked
-from the primary navigation and documented in
-[Scanning from the command line, in one line](docker-oneliner.md). `GET /healthz` returns 200 only after the configured
+local CLI quick reference and guide index, and it is also the page that points
+away from this service: the Docker one-liners that run the same scan on the
+visitor's own machine sit directly under its quick start, documented at length
+in [Scanning from the command line, in one line](docker-oneliner.md). They used
+to be a `/cli` tab of their own; that path is now a permanent redirect to
+`/documentation#oneliner`. `GET /healthz` returns 200 only after the configured
 backend answers `PING`, its queue depth can be read, and a worker's short-lived
 heartbeat is present. Its success body carries only the aggregate `queueDepth`
 and `worker: "ok"`; it returns a detail-free 503 while any dependency is

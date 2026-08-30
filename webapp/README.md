@@ -61,9 +61,10 @@ webapp/
 frontend/
 ├── templates/        base.html, index.html, scan.html, 404.html,
 │                     how-it-works.html, grades.html, documentation.html,
-│                     api.html, ai.html, cli.html, privacy.html, about.html,
+│                     api.html, ai.html, privacy.html, about.html,
 │                     docs/*.html (generated from the Markdown guides),
-│                     _page-nav.html (the cross-links between them)
+│                     _page-nav.html (the cross-links between them),
+│                     _toc.html (the contents list a page carries)
 └── static/
     ├── css/app.css   the whole design system, hand-written
     ├── js/app.js     landing page niceties; the form works without it
@@ -141,7 +142,8 @@ A small surface, and this is all of it.
 | Method | Path | What it does |
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
-| `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/cli`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/cli` | **301** to `/documentation#oneliner`; the Docker one-liners moved onto that page |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |
 | `POST` | `/api/scans/batch` | Several targets at once; **202** with what started and what did not |
@@ -438,6 +440,7 @@ authorisation a browser does.
 | `scan_instances` | The same for a list, over the batch endpoint, waiting only on the accepted ones |
 | `get_scan_result` | Read one uuid once, without waiting |
 | `plan_remediation` | What would raise the grade, in order, with the rating each step reaches |
+| `compare_scans` | Two finished scans of one instance, compared: what was fixed, what is still open, what is new. Both must still be here |
 | `export_scan` | Download a finished result as `json`, `csv`, `sarif` or `pdf` |
 | `erase_instance_data` | **Destructive.** Erase everything held about one hostname. Needs the operator's credential |
 
@@ -476,6 +479,7 @@ prompt names tools, and the tools are what execute.
 | `triage_findings` | Turn a finished scan into one ticket per remediation step |
 | `review_transport_security` | The certificate and the handshake on their own |
 | `check_release_support` | Where the release sits in the lifecycle, and what to upgrade to |
+| `verify_remediation` | Rescan a fixed instance and compare it with the scan the plan was written against |
 
 They are advertised twice: over the protocol, and in the `mcp.prompts` block
 of `/.well-known/ai.json`, so an agent deciding whether this service is worth

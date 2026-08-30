@@ -89,7 +89,7 @@ credential</a>.</p>
 <!-- TOC -->
 
 <h2 id="what-the-agent-gets">What the agent gets</h2>
-<p>Six tools, each a whole task rather than one HTTP endpoint:</p>
+<p>Seven tools, each a whole task rather than one HTTP endpoint:</p>
 <table>
 <thead>
 <tr>
@@ -113,6 +113,10 @@ credential</a>.</p>
 <tr>
 <td><code>plan_remediation</code></td>
 <td>The ordered fix list for a finished scan, with the grade each step reaches</td>
+</tr>
+<tr>
+<td><code>compare_scans</code></td>
+<td>Two finished scans of one instance, compared: what was fixed, what is still open, what is new. Both must still be here</td>
 </tr>
 <tr>
 <td><code>export_scan</code></td>
@@ -159,7 +163,7 @@ behind a finding - without leaving the protocol:</p>
 <p>The last two are a knowledge base rather than a contract: read <code>catalogue</code> to
 explain what a finding id means before or after a scan, and <code>advisories</code> to
 see what the scanner would catch, without ever submitting a target.</p>
-<p>Six prompts as well - the tasks people actually ask for, written out once so
+<p>Seven prompts as well - the tasks people actually ask for, written out once so
 every client sends the same well-formed request:</p>
 <table>
 <thead>
@@ -199,6 +203,11 @@ every client sends the same well-formed request:</p>
 <td><code>check_release_support</code></td>
 <td>Whether the release still gets security fixes, and what to upgrade to</td>
 <td><code>target_url</code>, optionally <code>release_track</code></td>
+</tr>
+<tr>
+<td><code>verify_remediation</code></td>
+<td>Rescan an instance that was fixed, and report what the changes actually achieved</td>
+<td><code>baseline_uuid</code>, <code>target_url</code></td>
 </tr>
 </tbody>
 </table>

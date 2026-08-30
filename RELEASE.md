@@ -1,3 +1,123 @@
+## check-opencloud-security 1.16.0
+
+### Added
+
+- **`passwordPolicyComplexity`: whether the link password policy still asks
+  for more than a length.** OpenCloud's default policy requires one lowercase
+  letter, one uppercase letter, one digit and one special character, and each
+  of those four minimums is a setting somebody can lower to zero. A
+  twelve-character policy with all four at zero accepts `aaaaaaaaaaaa`, which
+  satisfies `passwordPolicyEnforced` and nothing else. Deliberately a second
+  flag rather than a stricter `passwordPolicyEnforced`: folding them together
+  would change what an existing alert means without changing its name.
+  Reported only when the instance publishes all four minimums - a policy that
+  is switched off publishes none of them, and that case is
+  `passwordPolicyEnforced` failing rather than this one. See
+  [Authentication and account exposure](docs/authentication.md).
+
+- **`check-opencloud-scanner diff`**: compare two archived result documents
+  and say what changed - findings that appeared, findings that were resolved,
+  and any movement in the rating, the version and the support horizon. Renders
+  as `text`, `markdown`, `json` (the document the webhook carries) or `slack`
+  (Block Kit). It reads files and never scans anything. Two different hosts
+  are refused unless `--allow-different-hosts` is given, because "did the fix
+  work" is a question about one instance and two hosts silently compared is a
+  wrong answer nobody notices; a comparison that got worse exits 1 so a
+  pipeline can gate on it, unless `--exit-zero` says otherwise. The judgement
+  is the plugin's own `--baseline` arithmetic, not a second implementation of
+  it.
+
+- **`compare_scans`, an MCP tool, and `verify_remediation`, a prompt**, so the
+  question an agent is asked a week after handing over a remediation plan -
+  *did any of that help?* - has an answer. Two finished scans of one instance
+  are compared into what was fixed, what is still open and what is new; both
+  uuids must still be here, since this service stores no scan history and a
+  uuid remains a capability with a TTL. The comparison is the same
+  `--baseline` arithmetic the plugin uses rather than a set difference of its
+  own, so an agent cannot call "improved" something the plugin would not. Also
+  reachable as the `compareScans` Arazzo workflow and listed in
+  `/.well-known/ai.json`. See
+  [ADR 0029](adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md)
+  for why neither a history table nor workflow-layer arithmetic was acceptable.
+
+- **A GitHub Action** ([`action.yml`](action.yml)): `uses: sowoi/check-opencloud-security@v1`
+  with a `target`, and the scan runs. Writes `json`, `sarif` (2.1.0, for the
+  code-scanning dashboard), `junit` or `nagios` to `output-file`, and exposes
+  `exit-code`, `status`, `rating`, `rating-label`, `message` and `result-file`
+  as step outputs. `fail-on` chooses whether a `warning` fails the step, only
+  a `critical` does, or `never` does and a later step decides; `UNKNOWN` fails
+  under both of the first two, because a scan that did not run is not a pass.
+  Pin the version: the release schedule and the newest known OpenCloud version
+  ship *inside* the package, so which version runs is part of the verdict. See
+  [Running the check from CI](docs/ci.md).
+
+- **`opencloud_security_end_of_life`**, a Prometheus metric of its own rather
+  than a negative `support_days_remaining`. A rolling or production release
+  whose end of life has not been dated yet publishes no day count at all, and
+  "unknown" must not read as "expiring today" in the one alert nobody may
+  miss. Labelled with `host` and `release_type`.
+
+- **Prometheus alerting rules and a Grafana dashboard as files**
+  ([`contrib/prometheus/alerts.yml`](contrib/prometheus/alerts.yml),
+  [`contrib/grafana/dashboard.json`](contrib/grafana/dashboard.json)) - nobody
+  retypes a dashboard. Both read the metric names the **native** exporter
+  publishes, not the shorter ones the textfile-collector and Pushgateway
+  recipes shape with `jq`. `tests/test_contrib_assets.py` derives the names
+  from the exporter itself, so a rename fails the suite rather than quietly
+  emptying a panel. The dashboard carries an `Instance` selector, so one copy
+  serves every host.
+
+- **A contents list on every page the menu bar reaches** that has more than
+  one section. `/how-it-works`, `/grades`, `/catalogue`, `/api`, `/ai` and
+  `/about` now open with the same jump list `/documentation` already had, and
+  that list is one template
+  ([`frontend/templates/_toc.html`](frontend/templates/_toc.html)) rather than
+  six copies. Every entry reuses the section's own heading string, so a
+  heading rewritten in one of the four languages cannot leave the contents
+  list behind saying the old thing. A page with a single section
+  (`/privacy`) includes nothing: a contents list of one entry is a link to the
+  top of the page the reader is already on.
+
+### Changed
+
+- **The Docker tab is now the first half of `/documentation`.** Somebody
+  looking for how to run the check had to guess which of two menu entries
+  answered that; the one-liners - the plain `docker run`, the JSON result
+  document, `--network host` for an instance this site will not scan, and the
+  `uvx` form for machines without Docker - now sit directly under the quick
+  start on the documentation page. `/cli` answers **301** to
+  `/documentation#oneliner`, because that path is printed in released
+  documentation and indexed; it is out of `sitemap.xml` and out of the search
+  index, whose `/documentation` entry now covers the same text. The "every
+  variation, written down" section it used to close with is not repeated: the
+  guide it pointed at,
+  [Scanning from the command line, in one line](docs/docker-oneliner.md), is
+  already listed in the guide grid further down the same page.
+
+### Documentation
+
+- **[Running the check from CI](docs/ci.md) now leads with the action**
+  rather than with a hand-rolled install: the workflow to copy, how to feed
+  the SARIF into GitHub's code-scanning dashboard, and the manual installation
+  kept below for whoever wants it.
+
+- **[Prometheus and Grafana](docs/prometheus.md) gains the two files to copy
+  and a table of everything the exporter publishes** - every metric, its
+  labels and its meaning - including which two are the only ones a failed scan
+  emits, so a broken scan reads as no verdict rather than a stale one.
+
+- **[Public link sharing](docs/sharing.md) writes down what is *not* checked
+  and why.** The capabilities document says a great deal more about sharing
+  than the two flags read; the new table records which of it is a hardcoded
+  constant (so a check would say nothing about the deployment), which is
+  configurable but explicitly unsupported to change, and which is a genuine
+  judgement call deliberately not made yet - verified against OpenCloud's own
+  `services/frontend/pkg/revaconfig/config.go`, so nobody re-derives it in a
+  year.
+
+- **[`contrib/README.md`](contrib/README.md)** is no longer only about
+  scheduling; it now covers all four things it ships and how to install each.
+
 ## check-opencloud-security 1.15.0
 
 ### Added

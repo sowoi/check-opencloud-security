@@ -574,7 +574,6 @@ def test_nothing_is_loaded_from_a_third_party():
             "/search",
             "/api",
             "/ai",
-            "/cli",
             "/privacy",
             "/about",
         )
@@ -728,7 +727,6 @@ def test_every_page_carries_the_trademark_notice():
             "/search",
             "/api",
             "/ai",
-            "/cli",
             "/privacy",
             "/about",
         )
@@ -762,7 +760,6 @@ def test_every_page_says_the_check_is_not_exhaustive_and_a_grade_is_not_a_certif
             "/search",
             "/api",
             "/ai",
-            "/cli",
             "/privacy",
             "/about",
         )
@@ -798,7 +795,6 @@ def test_the_footer_names_the_backend_version_on_every_page():
             "/search",
             "/api",
             "/ai",
-            "/cli",
             "/privacy",
             "/about",
         )

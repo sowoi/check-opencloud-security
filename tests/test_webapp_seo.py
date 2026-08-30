@@ -36,7 +36,6 @@ NAV_PAGES = (
     "/documentation",
     "/api",
     "/ai",
-    "/cli",
     "/privacy",
     "/about",
 )
