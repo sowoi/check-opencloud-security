@@ -1331,6 +1331,25 @@ def _collect_missing_hardenings(
     return missing
 
 
+def _absent_advisory_headers(response_scan: dict[str, Any]) -> list[str]:
+    """
+    The modern headers the instance does not send, for the explanation only.
+
+    Deliberately not part of :func:`_collect_missing_hardenings`. OpenCloud
+    sets none of these on any instance, so counting them would turn every
+    ``--check-hardening`` run into a WARNING that no upgrade and no
+    configuration change can clear - the noise that teaches an operator to
+    stop reading the hardening line. See ADR 0028.
+    """
+    setup = response_scan.get("setup")
+    if not isinstance(setup, dict):
+        return []
+    headers = setup.get("advisoryHeaders")
+    if not isinstance(headers, dict):
+        return []
+    return sorted(name for name, present in headers.items() if not present)
+
+
 def _waived(response_scan: dict[str, Any]) -> list[str]:
     """List the measures and checks the operator has chosen to accept."""
     ignored = response_scan.get("ignored")
@@ -1407,6 +1426,19 @@ def _explain_lines(
         for name in missing_hardenings:
             marker = " [ignored by configuration]" if name in waived else ""
             lines.append(describe_hardening(name).describe() + marker)
+
+    advisory = _absent_advisory_headers(response_scan)
+    if advisory:
+        lines.append("")
+        lines.append("--- Headers worth adding (not counted against this instance) ---")
+        lines.append(
+            "No OpenCloud sends these, so their absence says nothing about how "
+            "this deployment was configured and never changes the rating, the "
+            "alert or the exit code. They are here because a reverse proxy can "
+            "add them and the instance is better for it."
+        )
+        for name in advisory:
+            lines.append(describe_hardening(name).describe())
 
     unexplained = [name for name in extra_failures if name not in missing_hardenings]
     if unexplained:

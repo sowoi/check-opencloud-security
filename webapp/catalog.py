@@ -47,6 +47,15 @@ HEADER_IDS: tuple[str, ...] = (
     "Referrer-Policy",
 )
 
+# Headers reported under setup.advisoryHeaders. They are explained in the
+# catalogue like any other check, but they are not offered as waivers: nothing
+# alerts on them, so there would be nothing to waive. See ADR 0028.
+ADVISORY_HEADER_IDS: tuple[str, ...] = (
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+    "Cross-Origin-Resource-Policy",
+)
+
 # Findings from the extra-check pass that an operator can legitimately accept.
 # Deliberately narrow: 'exposed:*' and 'authentication:*' are per-path
 # families whose members depend on the instance, and a public service offering
@@ -63,8 +72,13 @@ CHECK_IDS: tuple[str, ...] = (
     "cookieSecure",
     "cookieHttpOnly",
     "cookieSameSite",
+    "cookiePrefix",
     "tlsChain",
     "tlsOcspStapling",
+    "tlsCertificateTransparency",
+    "tlsEarlyData",
+    "corsOriginRestricted",
+    "traceMethodDisabled",
     "versionDisclosure:Server",
     "versionDisclosure:X-Powered-By",
     "webfingerVersionDisclosure",
@@ -186,7 +200,7 @@ def check_catalogue(translate: Translator | None = None) -> tuple[CatalogueCateg
     """
     t = translate or Translator()
     entries = list(all_checks())
-    entries.extend(describe_hardening(name) for name in HEADER_IDS)
+    entries.extend(describe_hardening(name) for name in (*HEADER_IDS, *ADVISORY_HEADER_IDS))
 
     grouped: dict[str, list[CatalogueCheck]] = {}
     for entry in entries:

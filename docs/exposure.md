@@ -21,6 +21,8 @@ that catch-all baseline counts as a hit, on every check below.
   * [3. Is a debug endpoint publicly readable: `debugEndpoint:<path>`](#3-is-a-debug-endpoint-publicly-readable-debugendpointpath)
   * [4. Is a service debug port reachable: `debugPort:<port>`](#4-is-a-service-debug-port-reachable-debugportport)
   * [5. Is the backend reachable directly, bypassing the proxy: `backendPortClosed`](#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed)
+  * [6. Who may read a response cross-origin: `corsOriginRestricted`](#6-who-may-read-a-response-cross-origin-corsoriginrestricted)
+  * [7. Is the request echoed back: `traceMethodDisabled`](#7-is-the-request-echoed-back-tracemethoddisabled)
   * [Severity and rating impact](#severity-and-rating-impact)
 <!-- TOC -->
 
@@ -107,6 +109,67 @@ reports as passing actually apply to a request that arrives this way.
 **Fix:** remove the public port mapping for `9200` and bind the backend to
 loopback or the private container network, so only the reverse proxy can
 reach it.
+
+## 6. Who may read a response cross-origin: `corsOriginRestricted`
+
+The other checks on this page ask whether something is reachable. This one
+asks who is allowed to *read the answer* once it is, which is a different
+question and, on a stock instance, the more alarming one.
+
+The browser's same-origin policy is what normally stops a page on
+`attacker.example` from reading a response your OpenCloud sent. Cross-Origin
+Resource Sharing is how a server switches that protection off for named
+origins. OpenCloud ships with it switched off for *all* of them:
+[`OC_CORS_ALLOW_ORIGINS` defaults to `*` and `OC_CORS_ALLOW_CREDENTIALS` to
+`true`](https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables),
+and a middleware given both commonly reflects whatever `Origin` it was sent
+rather than the literal `*` - which is precisely the arrangement browsers
+refuse to allow when they can see it coming.
+
+The scan sends a request to `/graph/v1.0/me` carrying an `Origin` that cannot
+belong to anybody (`https://cors-probe.check-opencloud-security.invalid` -
+`.invalid` is reserved by RFC 2606 and resolves nowhere) and reads what comes
+back:
+
+| What the instance answers | Verdict |
+|:--------------------------|:--------|
+| The probe origin reflected, **with** `Access-Control-Allow-Credentials: true` | **critical** - any site can have a visitor's browser attach its OpenCloud session and hand the reply back |
+| `Access-Control-Allow-Origin: null`, with credentials | **critical** - `null` is what a sandboxed iframe sends, and any page can put itself in one |
+| The probe origin reflected, without credentials | **medium** - exposes what an unauthenticated caller could already fetch |
+| A literal `*`, with or without credentials | **medium** - browsers refuse the pair with credentials, so the request fails rather than succeeding dangerously |
+| A different, specific origin | **pass** - this is the configuration the check asks for |
+| No `Access-Control-Allow-Origin` at all | **pass** |
+
+**Fix:** set `OC_CORS_ALLOW_ORIGINS` to the exact origins that must reach the
+API - the web interface's own origin, plus any office or client application
+deliberately hosted elsewhere - and set `OC_CORS_ALLOW_CREDENTIALS=false`
+unless one of them genuinely needs to send the session. The per-service forms
+(`GRAPH_CORS_ALLOW_ORIGINS`, `OCS_CORS_ALLOW_ORIGINS` and so on) override the
+shared name where one service needs a wider list.
+
+## 7. Is the request echoed back: `traceMethodDisabled`
+
+`TRACE` asks the server to send the request back as the response body,
+headers included. Anything the browser attached on the way - the session
+cookie, an `Authorization` header, a header the reverse proxy added - then
+arrives as ordinary text, readable by a script that could never have read
+those headers directly.
+
+OpenCloud does not implement `TRACE`, so an instance answering it has a
+reverse proxy or an application server in front that does. As with every
+check on this page, a `200` alone proves nothing on a single-page
+application: the answer only counts as an echo when the body actually looks
+like the request that was sent (`Content-Type: message/http`, or the echoed
+request line).
+
+Probing for it is free in the sense that matters: `TRACE` is defined as a
+safe method by RFC 9110 - it echoes and changes nothing - which is why a
+plugin that may run every minute can ask.
+
+**Fix:** refuse `TRACE` in whatever fronts the instance. Apache needs
+`TraceEnable off`; nginx already returns `405` unless a location was written
+to pass every method upstream; Traefik and Caddy need a rule limiting the
+methods forwarded.
 
 ## Severity and rating impact
 

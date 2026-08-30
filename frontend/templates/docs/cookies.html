@@ -15,6 +15,15 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#1-does-the-cookie-require-https-cookiesecure" lang="en">1. Does the cookie require HTTPS: <code>cookieSecure</code></a>
+  <a href="#2-can-page-scripts-read-the-cookie-cookiehttponly" lang="en">2. Can page scripts read the cookie: <code>cookieHttpOnly</code></a>
+  <a href="#3-is-the-cookie-sent-on-cross-site-requests-cookiesamesite" lang="en">3. Is the cookie sent on cross-site requests: <code>cookieSameSite</code></a>
+  <a href="#4-does-the-cookie-name-carry-a-prefix-cookieprefix" lang="en">4. Does the cookie name carry a prefix: <code>cookiePrefix</code></a>
+  <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>Every <code>Set-Cookie</code> header the public response actually sends is inspected for
 three attributes browsers use to limit what a cookie can be used for. Nothing
@@ -29,6 +38,7 @@ passed because it never ran would be misleading.</p>
 <li><a href="#1-does-the-cookie-require-https-cookiesecure">1. Does the cookie require HTTPS: <code>cookieSecure</code></a></li>
 <li><a href="#2-can-page-scripts-read-the-cookie-cookiehttponly">2. Can page scripts read the cookie: <code>cookieHttpOnly</code></a></li>
 <li><a href="#3-is-the-cookie-sent-on-cross-site-requests-cookiesamesite">3. Is the cookie sent on cross-site requests: <code>cookieSameSite</code></a></li>
+<li><a href="#4-does-the-cookie-name-carry-a-prefix-cookieprefix">4. Does the cookie name carry a prefix: <code>cookiePrefix</code></a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
 <!-- TOC -->
@@ -61,11 +71,38 @@ request that carries their OpenCloud session along with it.</p>
 cross-site flow genuinely needs <code>SameSite=None</code> (which additionally requires
 <code>Secure</code>). <code>Lax</code> is right for most session cookies: it still allows a
 top-level navigation such as clicking a shared link to arrive signed in.</p>
+<h2 id="4-does-the-cookie-name-carry-a-prefix-cookieprefix">4. Does the cookie name carry a prefix: <code>cookiePrefix</code></h2>
+<p>The three attributes above all govern how a cookie is <em>read</em>. None of them
+governs how one is <em>written</em>, and that is the gap the <code>__Host-</code> and
+<code>__Secure-</code> name prefixes close. A cookie called <code>session</code> can be overwritten
+by any sibling subdomain, or over plain HTTP on the same host, however
+carefully its <code>Secure</code> and <code>HttpOnly</code> flags were set - the browser has no way
+to know which of the two writers is the real application. A cookie called
+<code>__Host-session</code> can only be set over HTTPS, with <code>Path=/</code> and no <code>Domain</code>,
+so nothing but the exact origin can touch it. The prefix is enforced on the
+name itself, before any attribute is consulted, which is what makes it the
+one cookie protection an attacker on a neighbouring subdomain cannot work
+around.</p>
+<p>The check reports two different failures, because they have one fix:</p>
+<ul>
+<li><strong>A cookie that claims a prefix it does not honour</strong> - <code>__Host-</code> with a
+  <code>Domain</code> attribute, with a <code>Path</code> other than <code>/</code>, or without <code>Secure</code>. Every
+  browser rejects such a cookie outright, so this is not a theoretical
+  weakness: the session it carries silently does not work. The detail names
+  which rule was broken.</li>
+<li><strong>No observed cookie carrying a prefix at all</strong>, which is the ordinary
+  state of an instance nobody has changed.</li>
+</ul>
+<p><strong>Fix:</strong> rename the session cookie to <code>__Host-&lt;name&gt;</code> and set it with
+<code>Secure</code>, <code>Path=/</code> and no <code>Domain</code> attribute - or <code>__Secure-&lt;name&gt;</code> when it
+genuinely has to be shared across subdomains. Where the cookie comes from a
+reverse proxy or an identity provider rather than from OpenCloud, rename it
+there.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
-<p>All three are <code>extraChecks</code>, reported whenever a cookie is observed -
-<code>cookieSecure</code> at <code>high</code>, <code>cookieHttpOnly</code> at <code>medium</code>, <code>cookieSameSite</code> at
-<code>low</code> - and each caps the rating on its own the same way any other failed
-extra check does (<code>high</code> -&gt; <code>C</code>, <code>medium</code> -&gt; <code>A</code>, <code>low</code> -&gt; <code>A+</code>; see the
+<p>All four are <code>extraChecks</code>, reported whenever a cookie is observed -
+<code>cookieSecure</code> at <code>high</code>, <code>cookieHttpOnly</code> at <code>medium</code>, <code>cookieSameSite</code> and
+<code>cookiePrefix</code> at <code>low</code> - and each caps the rating on its own the same way any
+other failed extra check does (<code>high</code> -&gt; <code>C</code>, <code>medium</code> -&gt; <code>A</code>, <code>low</code> -&gt; <code>A+</code>; see the
 extra-checks table in <a href="/documentation/reference#what-the-scanner-checks">the main README</a>).
 Set <code>scanner.extra_checks_rating: false</code> to report them without touching the
 rating, or <code>--no-extra-checks</code> to skip them outright.</p>

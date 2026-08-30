@@ -138,6 +138,17 @@ but out of the alert line, the `hardenings_missing` metric and the webhook.
 Verify against the OpenCloud source that an operator can change a setting
 before adding a check for it.
 
+**Some findings are reported but never alerted on.** `setup.advisoryHeaders`
+(`Permissions-Policy`, `Cross-Origin-Opener-Policy`,
+`Cross-Origin-Resource-Policy`) grades headers *no* OpenCloud sends, so their
+absence describes the software rather than the deployment. They are measured,
+explained by `--debug` and catalogued, but never reach the alert line, the
+`hardenings_missing` metric, the webhook, an exit code or the waiver list. See
+ADR 0028.
+
+**The scanner only ever uses safe methods** - `GET`, `HEAD`, `PROPFIND`,
+`TRACE`. A test asserts that set; nothing may widen it.
+
 **Never write a real hostname, IP address or token** into code, tests, fixtures,
 documentation or a commit message. `opencloud.example.com` is the placeholder
 used throughout.

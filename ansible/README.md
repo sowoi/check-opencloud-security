@@ -94,7 +94,7 @@ your inventory (see `inventory.example.ini`) or in `group_vars`/`host_vars`.
 | `opencloud_check_manage_icinga_service`| Reload/restart icinga2 automatically via handlers          | `true`                          |
 
 These variables map 1:1 to the `COS_*` environment variables / CLI flags
-documented in the main [README's options table](../README.md#options).
+documented in the main [options table](../docs/cli-reference.md#options).
 
 ### Native role only
 

@@ -194,6 +194,28 @@ and the webhook, while remaining in the result document. Before adding a
 hardening check, verify against the OpenCloud source that an operator can
 actually change it.
 
+## Some findings are reported but never alerted on
+
+`setup.headers` grades the headers OpenCloud's proxy sets by default, so a
+missing one is a fact about *this* deployment. `setup.advisoryHeaders` -
+`Permissions-Policy`, `Cross-Origin-Opener-Policy`,
+`Cross-Origin-Resource-Policy` - grades headers **no** OpenCloud sends, so a
+missing one is a fact about OpenCloud. They are measured, explained by
+`--debug` and listed in the web catalogue, and they never reach
+`_collect_missing_hardenings`, the alert line, the `hardenings_missing`
+metric, the webhook or an exit code, and are never offered as waivers. Do not
+promote one into `setup.headers` unless OpenCloud starts sending it by
+default; adding three findings every instance fails and no setting can clear
+is the noise that teaches operators to ignore the hardening line. See
+[ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md).
+
+## The scanner only ever uses safe methods
+
+Every request the scan makes is `GET`, `HEAD`, `PROPFIND` or `TRACE` - all
+safe by RFC 9110, none of them able to change the instance. A test asserts the
+set. Nothing may widen it, and no probe may send a credential except the
+documented demo passwords, to the instance's own identity provider.
+
 ## Working on the web application
 
 `webapp/` is a third layer, and it *serves*. `opencloud_local_scan` measures,

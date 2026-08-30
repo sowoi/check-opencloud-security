@@ -417,13 +417,124 @@ def test_every_tls_check_the_scanner_can_report_is_explained(tmp_path):
     """A finding that caps a rating without saying what to do about it is half a report."""
     with _server(*_certificate(tmp_path)) as port:
         reported = set(_ids(tls.inspect("localhost", port, TIMEOUT, check_stapling=False)))
-    reported |= {"tlsOcspStapling", "tlsHostname", "tlsChain", "tlsDeprecatedProtocol"}
+    reported |= {
+        "tlsOcspStapling",
+        "tlsHostname",
+        "tlsChain",
+        "tlsDeprecatedProtocol",
+        "tlsCertificateTransparency",
+        "tlsEarlyData",
+    }
 
     for identifier in sorted(reported):
         described = hardening.describe(identifier)
         assert described.title, identifier
         assert "No description is available" not in described.meaning, identifier
         assert described.remediation, identifier
+
+
+# `openssl x509 -text` output around the Certificate Transparency extension,
+# trimmed to the shape the parser has to survive: the entries are indented
+# below the extension heading, and an unrelated extension follows.
+_SCT_OUTPUT = """\
+        X509v3 Subject Alternative Name:
+            DNS:opencloud.example.com
+        CT Precertificate SCTs:
+            Signed Certificate Timestamp:
+                Version   : v1 (0x0)
+                Log ID    : AA:BB
+            Signed Certificate Timestamp:
+                Version   : v1 (0x0)
+                Log ID    : CC:DD
+        X509v3 Key Usage: critical
+            Digital Signature
+"""
+
+_NO_SCT_OUTPUT = """\
+        X509v3 Subject Alternative Name:
+            DNS:opencloud.example.com
+        X509v3 Key Usage: critical
+            Digital Signature
+"""
+
+_EMPTY_SCT_OUTPUT = """\
+        CT Precertificate SCTs:
+        X509v3 Key Usage: critical
+            Digital Signature
+"""
+
+
+def test_signed_certificate_timestamps_are_counted_from_the_extension():
+    """The count is what the check turns into a verdict, so an entry missed
+    here would become a false 'never logged' on a perfectly good certificate."""
+    assert tls._sct_count(_SCT_OUTPUT) == 2
+    assert tls._sct_count(_EMPTY_SCT_OUTPUT) == 0
+
+
+def test_an_absent_transparency_extension_is_unknown_rather_than_zero():
+    """
+    An OpenSSL that does not decode the extension cannot tell us the
+    certificate lacks one. Reporting zero would fail a certificate nobody
+    looked at, which is the one thing this module promises not to do.
+    """
+    assert tls._sct_count(_NO_SCT_OUTPUT) is None
+
+
+def test_transparency_is_only_judged_for_a_publicly_trusted_certificate():
+    """
+    OpenCloud generates a self-signed certificate during `opencloud init`, and
+    no private CA can publish to a log. Asking the question there would put a
+    red mark next to the one thing those operators already know, so the check
+    withholds a verdict instead.
+    """
+    logged = tls.Certificate(subject="CN=a", issuer="CN=Public CA", sct_count=2)
+    unlogged = tls.Certificate(subject="CN=a", issuer="CN=Public CA", sct_count=0)
+    self_signed = tls.Certificate(
+        subject="CN=a", issuer="CN=a", self_signed=True, sct_count=0
+    )
+
+    def check(certificate, trusted):
+        inspection = tls.TlsInspection(
+            host="opencloud.example.com",
+            port=443,
+            reachable=True,
+            trusted=trusted,
+            certificate=certificate,
+        )
+        return inspection._transparency_check()
+
+    assert check(unlogged, True).passed is False
+    assert check(logged, True).passed is True
+    # The two cases that must stay silent.
+    assert check(self_signed, True) is None
+    assert check(unlogged, False) is None
+    assert check(tls.Certificate(sct_count=None), True) is None
+
+
+def test_the_advertised_early_data_limit_is_read_from_the_session():
+    """`Max Early Data` is the server's own statement of how much replayable
+    0-RTT it will accept, which is the only part of this a scan can measure."""
+    assert tls._MAX_EARLY_DATA.search("    Max Early Data: 16384\n").group(1) == "16384"
+    assert tls._MAX_EARLY_DATA.search("    Max Early Data: 0\n").group(1) == "0"
+    assert tls._MAX_EARLY_DATA.search("Max Early Data: none\n") is None
+
+
+def test_early_data_is_a_finding_only_when_some_is_offered():
+    """
+    A server advertising zero has nothing to replay, and a server that never
+    mentioned the limit was never asked - neither may be reported as
+    accepting 0-RTT.
+    """
+
+    def check(limit):
+        return tls.TlsInspection(
+            host="opencloud.example.com", port=443, reachable=True, max_early_data=limit
+        )._early_data_check()
+
+    assert check(16384).passed is False
+    assert check(16384).severity == "low"
+    assert check(0).passed is True
+    assert check(None) is None
 
 
 def test_the_hostname_is_checked_before_it_reaches_openssl():

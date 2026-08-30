@@ -14,13 +14,16 @@ What is inspected:
   legacy version (``0.1.0.0``) for old sync clients, so ``productversion`` is
   the field that counts - see :mod:`opencloud_local_scan.versions`.
 * ``setup.https`` and ``setup.headers`` from live HTTP responses, measured
-  against the headers OpenCloud's proxy service sets by default.
+  against the headers OpenCloud's proxy service sets by default, plus
+  ``setup.advisoryHeaders`` for the modern ones it sets on no instance at all -
+  reported, explained, and never counted against a deployment (ADR 0028).
 * ``hardenings`` derived from what the instance actually answers: HSTS
   quality, CSP quality, whether HTTP basic authentication is offered, and the
   sharing/password policy from the capabilities document.
 * ``extraChecks`` - TLS state, authentication on the protected endpoints,
   exposed configuration or data paths, reachable service debug ports,
-  the documented demo accounts of the built-in identity provider, and
+  the documented demo accounts of the built-in identity provider, which
+  cross-origin callers the API grants, whether TRACE is echoed back, and
   version disclosure.
 * ``vulnerabilities`` from the local advisory database and ``rating`` (0-5).
 * ``lifecycle`` - which release line the instance runs, whether that line is
@@ -96,6 +99,26 @@ HEADER_EXPECTATIONS: dict[str, str | None] = {
     "X-Robots-Tag": None,
     "X-XSS-Protection": None,
     "Referrer-Policy": None,
+}
+
+# Headers worth reporting that no OpenCloud sends. Unlike SCAN_HEADERS above,
+# a missing one here says nothing about whether this deployment was configured
+# well - it says the same thing about every OpenCloud in existence - so they
+# are measured into their own block, explained by --debug and listed in the web
+# catalogue, and never counted as a missing hardening or allowed to change an
+# exit code. See ADR 0028.
+ADVISORY_HEADERS: tuple[str, ...] = (
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+    "Cross-Origin-Resource-Policy",
+)
+
+# Values that actually restrict something. A Cross-Origin-Opener-Policy of
+# 'unsafe-none' is the browser default written out, so accepting any non-empty
+# value would report a header that changes nothing as protection.
+ADVISORY_HEADER_REJECTED: dict[str, frozenset[str]] = {
+    "Cross-Origin-Opener-Policy": frozenset({"unsafe-none"}),
+    "Cross-Origin-Resource-Policy": frozenset({"cross-origin"}),
 }
 
 # HSTS max-age considered long enough (one year). OpenCloud itself sends ten.
@@ -248,6 +271,21 @@ FOREIGN_PRODUCTS: tuple[str, ...] = ("owncloud", "infinitescale", "nextcloud")
 
 # Requested to find out how the server answers for something that cannot exist.
 CATCH_ALL_PATH = "/check-opencloud-security-probe-404"
+
+# The Origin sent to find out which cross-origin callers the instance accepts.
+# '.invalid' is reserved by RFC 2606 and resolves nowhere, so this names no
+# real site, cannot be registered by anybody, and is unmistakable in a log.
+CORS_PROBE_ORIGIN = "https://cors-probe.check-opencloud-security.invalid"
+
+# Asked with that Origin. An endpoint behind authentication is the one worth
+# knowing about: a permissive policy on a public document leaks nothing, while
+# the same policy here is what lets a foreign page read a signed-in user's
+# files.
+CORS_PROBE_PATH = "/graph/v1.0/me"
+
+# TRACE echoes the request back, so the probe is inherently read-only: there is
+# no state to change and nothing to send but the request itself.
+TRACE_PATH = "/"
 
 # Re-exported from the remediation planner, which has to replay this
 # arithmetic with one finding removed at a time and would otherwise keep a
@@ -886,6 +924,28 @@ def _check_headers(response: requests.Response | None) -> dict[str, bool]:
     return result
 
 
+def _check_advisory_headers(response: requests.Response | None) -> dict[str, bool]:
+    """
+    Evaluate the modern headers OpenCloud does not send at all.
+
+    Separate from :func:`_check_headers` because the two answer different
+    questions. A missing entry there means something took a header away that
+    OpenCloud's proxy sets, which is a fact about this deployment. A missing
+    entry here is the shipped state of every OpenCloud, which is a fact about
+    OpenCloud - worth telling an operator who wants to go further, and worth
+    keeping out of a line that is supposed to list what went wrong here.
+    """
+    if response is None:
+        return {name: False for name in ADVISORY_HEADERS}
+
+    result: dict[str, bool] = {}
+    for name in ADVISORY_HEADERS:
+        value = (response.headers.get(name) or "").strip().lower()
+        rejected = ADVISORY_HEADER_REJECTED.get(name, frozenset())
+        result[name] = bool(value) and value not in rejected
+    return result
+
+
 def _set_cookie_values(response: requests.Response | None) -> list[str]:
     """Read every Set-Cookie field without retaining any cookie value."""
     if response is None:
@@ -899,16 +959,80 @@ def _set_cookie_values(response: requests.Response | None) -> list[str]:
     return [str(value) for value in values if value]
 
 
+def _cookie_prefix_finding(observed: Sequence[tuple[str, set[str], dict[str, str]]]) -> Finding:
+    """
+    Judge the ``__Host-`` and ``__Secure-`` name prefixes on observed cookies.
+
+    Two different failures share one finding because they have one fix. A
+    cookie that claims a prefix it does not honour is rejected outright by
+    every browser, so the session it carries silently does not work; a cookie
+    that claims none is merely missing the only protection the browser applies
+    to the name rather than the attributes, which is what stops a sibling
+    subdomain overwriting it.
+    """
+    broken: list[str] = []
+    prefixed: list[str] = []
+    for name, attributes, values in observed:
+        lowered = name.lower()
+        host = lowered.startswith("__host-")
+        secure = lowered.startswith("__secure-")
+        if not host and not secure:
+            continue
+        prefixed.append(name)
+        problems: list[str] = []
+        if "secure" not in attributes:
+            problems.append("no Secure")
+        if host:
+            if values.get("domain"):
+                problems.append("a Domain attribute")
+            if values.get("path", "") != "/":
+                problems.append("Path is not /")
+        if problems:
+            broken.append(f"{name} ({', '.join(problems)})")
+
+    if broken:
+        return Finding(
+            "cookiePrefix",
+            "low",
+            False,
+            "Cookies claim a name prefix they do not honour, so browsers reject "
+            f"them: {'; '.join(broken)}",
+        )
+    if prefixed:
+        return Finding(
+            "cookiePrefix",
+            "low",
+            True,
+            f"Prefixed cookies {'; '.join(prefixed)} honour their prefix",
+        )
+    return Finding(
+        "cookiePrefix",
+        "low",
+        False,
+        "No observed cookie uses the __Host- or __Secure- name prefix, so "
+        "nothing stops a sibling subdomain or plain HTTP on this host from "
+        "overwriting one",
+    )
+
+
 def _cookie_findings(response: requests.Response | None) -> list[Finding]:
     """Check security attributes on cookies the public response actually set."""
-    observed = _set_cookie_values(response)
-    if not observed:
+    raw = _set_cookie_values(response)
+    if not raw:
         return []
     missing: dict[str, list[str]] = {"Secure": [], "HttpOnly": [], "SameSite": []}
-    for value in observed:
+    observed: list[tuple[str, set[str], dict[str, str]]] = []
+    for value in raw:
         name = value.split("=", 1)[0].strip()
         name = re.sub(r"[^A-Za-z0-9_.-]", "?", name)[:80] or "unnamed cookie"
-        attributes = {part.strip().split("=", 1)[0].lower() for part in value.split(";")[1:]}
+        parts = [part.strip() for part in value.split(";")[1:]]
+        attributes = {part.split("=", 1)[0].lower() for part in parts}
+        values = {
+            key.lower(): rest.strip()
+            for key, sep, rest in (part.partition("=") for part in parts)
+            if sep
+        }
+        observed.append((name, attributes, values))
         if "secure" not in attributes:
             missing["Secure"].append(name)
         if "httponly" not in attributes:
@@ -932,6 +1056,7 @@ def _cookie_findings(response: requests.Response | None) -> list[Finding]:
                 else f"Every observed cookie sets {attribute}",
             )
         )
+    findings.append(_cookie_prefix_finding(observed))
     return findings
 
 
@@ -1669,6 +1794,101 @@ def _web_embed_findings(probe: _Probe) -> list[Finding]:
     ]
 
 
+def _cors_finding(probe: _Probe) -> Finding | None:
+    """
+    Ask a protected endpoint what it grants an origin that cannot be legitimate.
+
+    The severity turns on one thing: whether the answer also carries
+    ``Access-Control-Allow-Credentials: true``. A policy that reflects any
+    origin *and* allows credentials is the whole cross-origin protection
+    removed - a foreign page can have the visitor's browser attach its
+    OpenCloud session and read the response. Without credentials the same
+    policy only exposes what an unauthenticated caller could already fetch,
+    which is worth reporting but is not an account takeover.
+
+    A literal ``*`` with credentials is a misconfiguration browsers refuse to
+    act on: the pair is invalid, so the request fails instead of succeeding
+    dangerously. It is reported below the reflecting case for exactly that
+    reason.
+    """
+    response = probe.get(
+        CORS_PROBE_PATH, allow_redirects=False, headers={"Origin": CORS_PROBE_ORIGIN}
+    )
+    if response is None:
+        return None
+    allow_origin = (response.headers.get("Access-Control-Allow-Origin") or "").strip()
+    if not allow_origin:
+        return Finding(
+            "corsOriginRestricted",
+            "critical",
+            True,
+            "No Access-Control-Allow-Origin is returned for a foreign origin",
+        )
+    credentials = (
+        response.headers.get("Access-Control-Allow-Credentials") or ""
+    ).strip().lower() == "true"
+    # 'null' is what a sandboxed iframe or a data: document sends as its
+    # Origin, and any page can put itself in one, so granting it is as good as
+    # granting everybody.
+    reflects = allow_origin in {CORS_PROBE_ORIGIN, "null"}
+    wildcard = allow_origin == "*"
+    with_credentials = " with credentials" if credentials else " without credentials"
+
+    if reflects and credentials:
+        return Finding(
+            "corsOriginRestricted",
+            "critical",
+            False,
+            f"Reflects the request origin ({allow_origin}) and allows "
+            "credentials, so any site can read authenticated responses",
+        )
+    if reflects or wildcard:
+        return Finding(
+            "corsOriginRestricted",
+            "medium",
+            False,
+            f"Access-Control-Allow-Origin: {allow_origin}{with_credentials}"
+            + (
+                " - browsers refuse this pair, so cross-origin requests fail"
+                if wildcard and credentials
+                else ""
+            ),
+        )
+    return Finding(
+        "corsOriginRestricted",
+        "critical",
+        True,
+        f"A foreign origin is answered with Access-Control-Allow-Origin: {allow_origin}",
+    )
+
+
+def _trace_finding(probe: _Probe) -> Finding | None:
+    """
+    Whether the server echoes a TRACE request back to the caller.
+
+    A 200 is not enough on an instance whose frontend answers unknown requests
+    with its own shell, so the body has to look like the request that was
+    sent: ``message/http`` is the content type RFC 9110 requires, and the
+    echoed request line is what makes the answer dangerous in the first place.
+    """
+    response = probe.get(TRACE_PATH, allow_redirects=False, method="TRACE")
+    if response is None:
+        return None
+    content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+    body = response.text[:2000].upper()
+    echoes = response.status_code == 200 and (
+        content_type == "message/http" or "TRACE / HTTP/1" in body
+    )
+    return Finding(
+        "traceMethodDisabled",
+        "medium",
+        not echoes,
+        "TRACE is answered with the request echoed back"
+        if echoes
+        else f"TRACE is refused (HTTP {response.status_code})",
+    )
+
+
 def _disclosure_findings(response: requests.Response | None) -> list[Finding]:
     """Report software versions leaked through response headers."""
     if response is None:
@@ -2075,6 +2295,12 @@ def _collect_extra_findings(
     findings.append(_directory_listing_finding(probe, root_response))
     findings.extend(_debug_endpoint_findings(probe))
     findings.extend(_web_embed_findings(probe))
+    # Both ask the instance one question apiece and neither depends on the
+    # other, so they share a batch rather than each waiting for the last.
+    cors, trace = _run_all(
+        settings, [partial(_cors_finding, probe), partial(_trace_finding, probe)]
+    )
+    findings.extend(finding for finding in (cors, trace) if finding is not None)
     if settings.check_debug_ports:
         findings.extend(_debug_port_findings(hostname, settings))
         findings.append(_backend_port_finding(probe, hostname, port, status))
@@ -2183,6 +2409,7 @@ def scan(
     edition = str(status.get("edition") or "")
 
     headers = _check_headers(root_response)
+    advisory_headers = _check_advisory_headers(root_response)
     https = _check_https(probe, hostname)
     hardenings = derive_hardenings(root_response, capabilities, challenge)
     reverse_proxy = _reverse_proxy(root_response)
@@ -2333,7 +2560,11 @@ def scan(
         "latestVersionInBranch": latest_in_branch,
         "vulnerabilities": vulnerabilities,
         "hardenings": hardenings,
-        "setup": {"https": https, "headers": headers},
+        "setup": {
+            "https": https,
+            "headers": headers,
+            "advisoryHeaders": advisory_headers,
+        },
         "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
         "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},
         "identityProvider": identity_provider,
