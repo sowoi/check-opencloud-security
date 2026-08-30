@@ -1,0 +1,95 @@
+name: Architecture diagram
+
+# ARCHITECTURE.md explains the three-layer split with a Mermaid flowchart, but
+# GitHub renders Mermaid on the web only - the raw Markdown, `git show`, an
+# editor preview and every other way of reading this file show source, not a
+# diagram. A PNG next to the fence keeps the picture readable everywhere else,
+# and this workflow is what stops that PNG from silently drifting from the
+# Mermaid source it was rendered from.
+#
+# scripts/render_architecture_diagrams.py owns the text half - it finds every
+# ```mermaid fence and makes sure a Markdown image line follows it. Turning
+# that source into a PNG needs a renderer, which is the one thing this
+# workflow adds: `mmdc` from `@mermaid-js/mermaid-cli`, run under a current
+# Node (not the Node 20 GitHub is deprecating - see
+# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/),
+# never installed as a project dependency because nothing else here is Node.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ARCHITECTURE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  MERMAID_CLI_VERSION: "11.16.0"
+
+jobs:
+  render:
+    name: Render the architecture diagram
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+
+      - name: Install the locked test environment
+        run: uv sync --locked --group test
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Install mermaid-cli
+        run: npm install --no-save "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
+
+      - name: Extract diagram sources and point ARCHITECTURE.md at their PNGs
+        run: uv run python scripts/render_architecture_diagrams.py --diagrams-dir .diagrams
+
+      - name: Render each diagram
+        # Puppeteer's own sandbox needs a user namespace the runner does not
+        # grant here, so it is disabled the way mermaid-cli's own docs
+        # recommend for CI - see https://github.com/mermaid-js/mermaid-cli#docker-image.
+        run: |
+          echo '{"args": ["--no-sandbox"]}' > .diagrams/puppeteer-config.json
+          while IFS=$'\t' read -r mmd png; do
+            mkdir -p "$(dirname "$png")"
+            node_modules/.bin/mmdc \
+              --input "$mmd" \
+              --output "$png" \
+              --backgroundColor white \
+              --scale 2 \
+              --puppeteerConfigFile .diagrams/puppeteer-config.json
+          done < .diagrams/manifest.tsv
+
+      - name: Validate that every diagram still has its image reference
+        run: uv run python scripts/render_architecture_diagrams.py --check
+
+      - name: Open pull request on change
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          add-paths: |
+            ARCHITECTURE.md
+            img/architecture-*.png
+          branch: chore/architecture-diagram
+          commit-message: "chore: re-render the architecture diagram"
+          title: "chore: re-render the architecture diagram"
+          body: |
+            Automated re-render of the Mermaid diagram(s) in
+            `ARCHITECTURE.md`, produced by
+            `scripts/render_architecture_diagrams.py` and `mmdc`
+            (`@mermaid-js/mermaid-cli`).
+
+            Nothing here is hand-written: it is what the Mermaid source in
+            `ARCHITECTURE.md` already renders to. If this PR is not empty,
+            the checked-in PNG under `img/` was out of date with that source.
+          delete-branch: true
