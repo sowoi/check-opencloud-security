@@ -90,7 +90,9 @@ services:
       # public: enabling them relaxes the content policy on those two paths.
       # /openapi.json, /arazzo.json and /.well-known/ai.json are public
       # whatever this says - a description nobody can fetch describes nothing.
-      COS_WEB_ENABLE_DOCS: "true"
+      # Set it to "true" to read the API in a browser; the value follows the
+      # sentence above rather than contradicting it.
+      COS_WEB_ENABLE_DOCS: "false"
       # The MCP endpoint at /mcp, which lets an AI agent run the same
       # workflows through the same rate limits. Needs the 'mcp' extra, which
       # the web image installs.

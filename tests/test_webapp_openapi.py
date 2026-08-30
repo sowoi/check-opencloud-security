@@ -27,6 +27,11 @@ from webapp import workflows as wf
 from webapp.arazzo import arazzo_document
 from webapp.openapi import OPERATION_IDS, openapi_document
 
+# Long enough that the application will start: a purge token short enough
+# to guess is refused at startup, since it is the whole authorisation for
+# the one call that deletes other people's results.
+PURGE_TOKEN = "erasure-token-for-tests-0123456789abcdef"
+
 TARGET = "https://opencloud.example.com"
 
 
@@ -179,7 +184,7 @@ def test_erasure_is_the_only_operation_the_document_puts_behind_a_credential():
     assert purge["security"] == [{"purgeToken": []}]
     assert "purgeToken" in schema["components"]["securitySchemes"]
 
-    served = client(purge_token="s3cret")
+    served = client(purge_token=PURGE_TOKEN)
     denied = served.request("DELETE", "/api/purge?target=opencloud.example.com")
     assert denied.status_code == 401
     assert denied.headers["WWW-Authenticate"] == "Bearer"
@@ -187,7 +192,7 @@ def test_erasure_is_the_only_operation_the_document_puts_behind_a_credential():
     allowed = served.request(
         "DELETE",
         "/api/purge?target=opencloud.example.com",
-        headers={"Authorization": "Bearer s3cret"},
+        headers={"Authorization": f"Bearer {PURGE_TOKEN}"},
     )
     assert allowed.status_code == 200
     receipt = _schema()["components"]["schemas"]["PurgeReceipt"]

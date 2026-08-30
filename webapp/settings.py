@@ -196,6 +196,16 @@ class WebSettings:
     """Read the client address from ``X-Forwarded-For``. Only behind a proxy
     that overwrites the header, otherwise the rate limit is trivially evaded."""
 
+    rate_limit_salt: str | None = None
+    """Salt for the rate-limit and cooldown fingerprints. Unset means a random
+    one per process, which is correct for a deployment running a single web
+    process and silently wrong for one running several: each derives a
+    different Redis key for the same address, so a client gets one allowance
+    per process and the limit stops being one. Set the same value everywhere
+    to make them count together. Like ``audit_salt`` it is a secret - the
+    address space is small enough to hash exhaustively - and rotating it
+    resets every counter rather than corrupting one."""
+
     public_base_url: str | None = None
     """The origin this service is reached at, for the canonical links and the
     sitemap. Unset means the address of the request is used, which is right
@@ -412,6 +422,7 @@ class WebSettings:
             ),
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
+            rate_limit_salt=_env("RATE_LIMIT_SALT"),
             public_base_url=_env("PUBLIC_BASE_URL"),
             index_meta_tags=_env_index_meta_tags(),
             allow_indexing=_env_bool("ALLOW_INDEXING", True),

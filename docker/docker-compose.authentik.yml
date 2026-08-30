@@ -66,7 +66,10 @@ services:
       # finding. The opposite default to the public stack, deliberately.
       COS_WEB_ALLOW_INDEXING: "false"
       COS_WEB_RELEASES_MODE: "off"
-      COS_WEB_ENABLE_DOCS: "true"
+      # Off for the same reason as the public stack: serving /docs and /redoc
+      # relaxes the content policy on those two paths. A sign-in in front of
+      # /mcp does not change that, because these two pages are not behind it.
+      COS_WEB_ENABLE_DOCS: "false"
       COS_WEB_ENABLE_MCP: "${COS_WEB_ENABLE_MCP:-true}"
       COS_WEB_MCP_ALLOWED_HOSTS: ""
       COS_WEB_MCP_MAX_CONCURRENT_WAITS: "8"

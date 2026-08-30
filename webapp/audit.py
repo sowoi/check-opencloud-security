@@ -69,6 +69,7 @@ REASON_RATE_LIMIT_CLIENT = "rate_limit_client"
 REASON_RATE_LIMIT_TARGET = "rate_limit_target"
 REASON_BATCH_TOO_LARGE = "batch_too_large"
 REASON_PURGE_UNAUTHORISED = "purge_unauthorised"
+REASON_RATE_LIMIT_PURGE = "rate_limit_purge"
 
 # Field names come from a stranger's request body. They are worth recording -
 # a probe for "workers" or "timeout" is exactly what an audit trail is for -

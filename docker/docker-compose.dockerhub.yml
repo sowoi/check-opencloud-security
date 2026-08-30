@@ -44,9 +44,11 @@ services:
       # advisory and never believes one with no version bounds; set 'false'
       # with no outbound access.
       COS_WEB_ADVISORY_REFRESH: "true"
-      # The browsable /docs and /redoc pages. /openapi.json, /arazzo.json and
-      # /.well-known/ai.json are public whatever this says.
-      COS_WEB_ENABLE_DOCS: "true"
+      # The browsable /docs and /redoc pages. Off, because serving them relaxes
+      # the content policy on those two paths, and they are a convenience for
+      # an operator rather than part of the service. /openapi.json,
+      # /arazzo.json and /.well-known/ai.json are public whatever this says.
+      COS_WEB_ENABLE_DOCS: "false"
       # The MCP endpoint at /mcp, for AI agents. Turn it off without editing
       # this file: COS_WEB_ENABLE_MCP=false docker compose up -d. Leave the
       # host list empty behind a proxy that already fixes the Host header.

@@ -210,7 +210,7 @@ runs:
 
         if [ "$COS_FORMAT" = "json" ]; then
           python3 - "$OUTPUT_FILE" >> "$GITHUB_OUTPUT" <<'PY'
-        import json, sys
+        import json, secrets, sys
 
         # The document is an array with one entry per host; this action scans
         # one, so the first entry is the answer. A scan that failed before it
@@ -222,6 +222,17 @@ runs:
         except (OSError, ValueError, IndexError):
             payload = {}
 
+        # Half of what goes in these values is a string the *scanned instance*
+        # chose - its product name, a WWW-Authenticate challenge, the message
+        # built around them. A fixed delimiter is therefore guessable by the
+        # one party with an interest in guessing it: a host that emits a line
+        # reading the delimiter closes the block early, and everything after
+        # it is parsed as further assignments, which is arbitrary step outputs
+        # in whatever workflow consumes them. One random delimiter per run, as
+        # GitHub's own documentation specifies, and a value that manages to
+        # contain it anyway is dropped rather than written.
+        delimiter = f"COS_EOF_{secrets.token_hex(16)}"
+
         for name, key in (
             ("status", "status"),
             ("rating", "rating"),
@@ -229,11 +240,18 @@ runs:
             ("message", "message"),
         ):
             value = payload.get(key)
+            text = "" if value is None else str(value)
+            if delimiter in text:
+                # Unreachable short of guessing 128 bits, and the only honest
+                # thing to do if it ever happens: no value is worth writing at
+                # the cost of letting a scanned host forge the ones after it.
+                print(f"{name}<<{delimiter}", "", delimiter, sep="\n")
+                continue
             # A message can contain newlines; a heredoc delimiter keeps a
             # multi-line value from being read as further output assignments.
-            print(f"{name}<<COS_EOF")
-            print("" if value is None else value)
-            print("COS_EOF")
+            print(f"{name}<<{delimiter}")
+            print(text)
+            print(delimiter)
         PY
         fi
 

@@ -165,6 +165,29 @@
 
 ### Changed
 
+- **Breaking: `COS_WEB_PURGE_TOKEN` must now be at least 32 characters, and a
+  deployment whose token is shorter refuses to start.** That token is the
+  entire authorisation for `DELETE /api/purge`, the one route that walks the
+  keyspace and deletes results belonging to whoever is currently reading them,
+  so a memorable one is worse than no endpoint at all. Startup fails with a
+  message naming the variable rather than serving the endpoint behind a
+  guessable secret - the stance
+  [ADR 0008](adr/0008-refuse-to-start-without-the-encryption-key.md) takes for
+  the encryption key, for the same reason: a deployment whose operator
+  believes something is protected must not come up when it is not.
+
+  **What to do.** Nothing, unless `COS_WEB_PURGE_TOKEN` is set *and* shorter
+  than 32 characters - leaving it unset is unaffected and still answers 404 to
+  every erasure request, which is the default and the safe state. If it is
+  set, generate a replacement and update whoever holds it:
+
+  ```bash
+  python -c 'import secrets; print(secrets.token_hex(32))'
+  ```
+
+  Tokens written by the Docker setup wizard have always been 64 hex
+  characters and need no change.
+
 - **The Docker setup wizard's yes/no questions say that `true` and `false` are
   accepted too**, and a confirmation prompt that does not understand an answer
   now says so instead of silently asking again. Both words were always
@@ -185,6 +208,50 @@
   already listed in the guide grid further down the same page.
 
 ### Fixed
+
+- **`DELETE /api/purge` now counts wrong credentials, and refuses to start
+  behind one short enough to guess.** It is the only destructive route here -
+  it walks the keyspace and deletes results belonging to whoever is currently
+  reading them - and the token is the whole of its authorisation. The
+  comparison was already constant time, which stops a token leaking a
+  character at a time and does nothing about simply trying: the route called
+  no limiter, so attempts were free. Five failures from one address inside
+  five minutes are now answered `429` without a comparison. Only failures
+  count, so an operator working through a list of erasure requests never meets
+  it. The minimum length now required of that token is a breaking change and
+  is described under **Changed** above.
+
+- **The client rate limit can now be made to hold across more than one web
+  process.** The pepper the limit keys are derived from is generated per
+  process, which is correct for the single-process stack this ships and
+  silently wrong for anything scaled: each process derives a different Redis
+  key for the same address, so a client quietly gets one allowance per process
+  and nothing in any log says so. `COS_WEB_RATE_LIMIT_SALT`, set to the same
+  value everywhere, makes them count together. Unset keeps exactly the
+  previous behaviour, so a single-process deployment needs no change.
+
+- **`COS_WEB_ENABLE_DOCS` in the three published compose files now matches the
+  comment above it.** `docker-compose.yml` explained that the browsable
+  `/docs` and `/redoc` pages are "off in public: enabling them relaxes the
+  content policy on those two paths", and then set the value to `"true"`;
+  the other two stacks enabled them with no comment at all. All three are now
+  `"false"`, which is also the application's own default, and the comment says
+  how to turn them on. `/openapi.json`, `/arazzo.json` and
+  `/.well-known/ai.json` are public whatever this says, as they always were.
+
+- **A scanned instance can no longer forge the GitHub Action's step outputs.**
+  The action writes `status`, `rating`, `rating-label` and `message` to
+  `$GITHUB_OUTPUT` as heredoc blocks, and the delimiter closing them was the
+  fixed string `COS_EOF`. Half of what reaches those values is a string the
+  *scanned host* chose - its product name, a `WWW-Authenticate` challenge, the
+  message built around them - so the one party with an interest in guessing
+  the delimiter already knew it. A host answering with a message containing a
+  line reading `COS_EOF` closed the block early and had everything after it
+  parsed as further assignments: arbitrary step outputs in whatever workflow
+  consumes them, from a host that only had to answer an HTTP request. The
+  delimiter is now `secrets.token_hex(16)` per run, as GitHub's own
+  documentation specifies, and a value that manages to contain it anyway is
+  dropped rather than written.
 
 - **A webhook is no longer delivered to wherever the receiver redirects it.**
   `--webhook-url` is checked against private, loopback and link-local

@@ -53,6 +53,7 @@ from .audit import (
     REASON_BATCH_TOO_LARGE,
     REASON_PURGE_UNAUTHORISED,
     REASON_RATE_LIMIT_CLIENT,
+    REASON_RATE_LIMIT_PURGE,
     REASON_RATE_LIMIT_TARGET,
     REASON_TARGET_REJECTED,
     REASON_UNSUPPORTED_FIELDS,
@@ -101,7 +102,12 @@ from .mcp_auth import (
     protected_resource_metadata,
 )
 from .openapi import openapi_document
-from .purge import PurgeRejected, build_receipt, normalise_target
+from .purge import (
+    PurgeRejected,
+    build_receipt,
+    ensure_purge_token_ready,
+    normalise_target,
+)
 from .queue import ScanQueue, create_queue
 from .ratelimit import RateLimiter
 from .redis_backend import RedisUnavailable, create_backend
@@ -489,6 +495,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # And before anything can be served: a deployment that asked for a
     # sign-in on /mcp and cannot enforce one must not come up open.
     ensure_mcp_auth_ready(settings)
+    # And before the one destructive endpoint is served: a credential short
+    # enough to guess is worse than the 404 an unset one answers with.
+    ensure_purge_token_ready(settings.purge_token)
     app.state.store = ScanStore(
         backend=app.state.backend,
         ttl=settings.result_ttl,
@@ -499,6 +508,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         client_limit=settings.ip_rate_limit,
         client_window=settings.ip_rate_window,
         target_cooldown=settings.target_cooldown,
+        # Unset is a random pepper per process, which counts correctly only
+        # while there is one. A deployment behind several web processes sets
+        # the same value in each, or every client gets one allowance apiece.
+        salt=settings.rate_limit_salt,
     )
     app.state.queue = None
     app.state.audit = AuditLog.from_settings(settings)
@@ -1197,6 +1210,29 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if not settings.purge_token:
             return not_found(request)
 
+        # The only route where a secret is compared, and therefore the only one
+        # worth guessing at. Nothing else here counts attempts: a scan is not a
+        # credential, and its limit protects the service rather than a secret.
+        # Only wrong answers are counted, so an operator working through a list
+        # of erasure requests never meets this.
+        limiter_for_credential: RateLimiter = app.state.limiter
+        attempts = await limiter_for_credential.check_credential(address)
+        if not attempts.allowed:
+            audit.rate_limited(
+                client=address,
+                scope=REASON_RATE_LIMIT_PURGE,
+                retry_after=attempts.retry_after,
+            )
+            LOGGER.info("purge_throttled")
+            return JSONResponse(
+                {
+                    "detail": "Too many failed erasure attempts from your "
+                    "network. Wait, then try again."
+                },
+                status_code=429,
+                headers={"Retry-After": str(attempts.retry_after)},
+            )
+
         presented = _presented_token(request)
         # Encoded on both sides: a header can carry bytes that are not ASCII,
         # and comparing those as str raises instead of answering 401.
@@ -1204,6 +1240,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             presented.encode("utf-8", "surrogateescape"),
             settings.purge_token.encode("utf-8", "surrogateescape"),
         ):
+            await limiter_for_credential.record_failed_credential(address)
             audit.submission_rejected(
                 client=address, reason=REASON_PURGE_UNAUTHORISED, status=401
             )

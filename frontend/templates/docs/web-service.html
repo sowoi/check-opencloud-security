@@ -347,6 +347,11 @@ somebody could.</p>
 <td>Read the client address from <code>X-Forwarded-For</code></td>
 </tr>
 <tr>
+<td><code>COS_WEB_RATE_LIMIT_SALT</code></td>
+<td><em>(random per process)</em></td>
+<td>Salt for the rate-limit and cooldown keys. Required to be the <strong>same value in every web process</strong> of a deployment that runs more than one: without it each derives its own keys, and a client gets one allowance per process</td>
+</tr>
+<tr>
 <td><code>COS_WEB_PUBLIC_BASE_URL</code></td>
 <td><em>(required)</em></td>
 <td>The stable origin this service is reached at, used for canonical links, <code>sitemap.xml</code>, and machine discovery. An unset value refuses startup so an incoming <code>Host</code> header cannot publish attacker-controlled URLs</td>
@@ -489,7 +494,7 @@ somebody could.</p>
 <tr>
 <td><code>COS_WEB_PURGE_TOKEN</code></td>
 <td><em>(none)</em></td>
-<td>Enables <code>DELETE /api/purge</code> and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there</td>
+<td>Enables <code>DELETE /api/purge</code> and is the secret it requires. Unset means the endpoint answers 404 like any other path that is not there. At least 32 characters, or startup refuses: it is the whole authorisation for the one call that deletes other people's results. Five wrong answers from one address in five minutes are followed by <code>429</code></td>
 </tr>
 <tr>
 <td><code>COS_WEB_PURGE_SIGNING_KEY</code></td>

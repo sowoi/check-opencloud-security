@@ -37,6 +37,11 @@ from webapp.mcp_server import (
     OPENAPI_RESOURCE,
 )
 
+# Long enough that the application will start: a purge token short enough
+# to guess is refused at startup, since it is the whole authorisation for
+# the one call that deletes other people's results.
+PURGE_TOKEN = "erasure-token-for-tests-0123456789abcdef"
+
 TARGET = "https://opencloud.example.com"
 
 _HEADERS = {
@@ -288,7 +293,7 @@ def test_a_private_target_is_refused_by_the_same_guard_a_browser_meets():
 
 def test_erasure_through_mcp_still_needs_the_operators_credential():
     """The destructive call must not be easier to make through an agent."""
-    with client(purge_token="s3cret") as served:
+    with client(purge_token=PURGE_TOKEN) as served:
         denied = _tool(
             served, "erase_instance_data", {"target": "opencloud.example.com"}
         )
@@ -296,7 +301,7 @@ def test_erasure_through_mcp_still_needs_the_operators_credential():
             served,
             "erase_instance_data",
             {"target": "opencloud.example.com"},
-            headers={"authorization": "Bearer s3cret"},
+            headers={"authorization": f"Bearer {PURGE_TOKEN}"},
         )
 
     assert denied["ok"] is False

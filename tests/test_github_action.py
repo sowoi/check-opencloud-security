@@ -26,6 +26,36 @@ ROOT = Path(__file__).resolve().parent.parent
 ACTION = ROOT / "action.yml"
 
 
+def _outputs(written: str) -> dict[str, str]:
+    """
+    Parse a `$GITHUB_OUTPUT` file the way the runner does.
+
+    Both forms the action writes: `name=value` on one line, and the heredoc
+    `name<<DELIMITER` ... `DELIMITER` block for anything that may contain a
+    newline. Parsing rather than substring-matching is the point - it is what
+    lets a test assert that a scanned host forged *no* output, which a check
+    for the expected ones passing would not notice.
+    """
+    parsed: dict[str, str] = {}
+    lines = written.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if "<<" in line:
+            name, _, delimiter = line.partition("<<")
+            index += 1
+            body: list[str] = []
+            while index < len(lines) and lines[index] != delimiter:
+                body.append(lines[index])
+                index += 1
+            parsed[name] = "\n".join(body)
+        elif "=" in line:
+            name, _, value = line.partition("=")
+            parsed[name] = value
+        index += 1
+    return parsed
+
+
 @pytest.fixture(scope="module")
 def action() -> dict:
     return yaml.safe_load(ACTION.read_text(encoding="utf-8"))
@@ -238,6 +268,80 @@ def test_the_result_is_published_as_outputs_a_workflow_can_branch_on(
     )
 
     written = (tmp_path / "github_output").read_text(encoding="utf-8")
-    assert "rating<<COS_EOF\n3\nCOS_EOF" in written
-    assert "rating-label<<COS_EOF\nC\nCOS_EOF" in written
-    assert "message<<COS_EOF\nWARNING - two\nlines\nCOS_EOF" in written
+    assert _outputs(written) == {
+        "exit-code": "1",
+        "status": "WARNING",
+        "rating": "3",
+        "rating-label": "C",
+        "message": "WARNING - two\nlines",
+    }
+
+
+def test_a_scanned_host_cannot_forge_the_actions_outputs(tmp_path, scan_script):
+    """
+    Half of what reaches these outputs is a string the scanned instance chose.
+
+    The delimiter closing each heredoc block therefore has to be one that
+    instance cannot guess: with a fixed one, a host whose product name or
+    message carries a line reading it closes the block early, and every line
+    after that is parsed as a further output assignment - arbitrary step
+    outputs in whatever workflow consumes them, from a host that only had to
+    answer an HTTP request.
+    """
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    stub = stub_dir / "check-opencloud-security"
+    # What a hostile instance would put in the field it controls.
+    document = json.dumps(
+        [
+            {
+                "status": "OK",
+                "rating": 5,
+                "rating_label": "A+",
+                "message": "OK\nCOS_EOF\nrating=0\nforged=yes\n",
+            }
+        ]
+    )
+    (tmp_path / "payload.json").write_text(document, encoding="utf-8")
+    stub.write_text(
+        f"#!/bin/sh\ncat {tmp_path / 'payload.json'}\nexit 0\n", encoding="utf-8"
+    )
+    stub.chmod(0o755)
+    script = tmp_path / "scan.sh"
+    script.write_text(scan_script, encoding="utf-8")
+
+    subprocess.run(  # nosec B603 - a fixed argv, in a temp directory
+        [shutil.which("bash") or "/bin/bash", str(script)],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}",
+            "COS_FORMAT": "json",
+            "OUTPUT_FILE": "out.json",
+            "FAIL_ON": "never",
+            "WRITE_SUMMARY": "false",
+            "INPUT_WARNING": "",
+            "INPUT_CRITICAL": "",
+            "INPUT_IGNORE_HARDENING": "",
+            "INPUT_RELEASE_TRACK": "",
+            "INPUT_EXTRA_ARGS": "",
+            "GITHUB_OUTPUT": str(tmp_path / "github_output"),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    outputs = _outputs((tmp_path / "github_output").read_text(encoding="utf-8"))
+
+    # Nothing the host wrote became an output of its own.
+    assert "forged" not in outputs
+    # And the real rating survived intact rather than being overwritten by the
+    # assignment the message tried to smuggle in after the fixed delimiter.
+    assert outputs["rating"] == "5"
+    assert outputs["rating-label"] == "A+"
+    # The message is still reported in full - the fix is a delimiter that
+    # cannot be guessed, not one that drops what the instance said. The
+    # trailing newline is the one the instance itself put there.
+    assert outputs["message"] == "OK\nCOS_EOF\nrating=0\nforged=yes\n"
