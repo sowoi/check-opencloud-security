@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-08-30
+
 ### Added
 
 - **`corsOriginRestricted`: the scan now asks who may read the API's

@@ -38,6 +38,16 @@
       "summary": "The fork history behind OpenCloud, ownCloud and Nextcloud, and the architecture, storage and release differences between them."
     },
     {
+      "path": "/documentation/secure-deployment",
+      "title": "Running OpenCloud in a secure infrastructure",
+      "summary": "Put OpenCloud behind Keycloak, Authentik or Authelia, enable and ship the audit log, firewall the debug ports, and monitor it continuously."
+    },
+    {
+      "path": "/documentation/cli-reference",
+      "title": "OpenCloud Security Scanner CLI option reference",
+      "summary": "Every command-line flag, its default, and the environment variable that sets the same thing."
+    },
+    {
       "path": "/documentation/reference",
       "title": "OpenCloud Security Scanner CLI reference",
       "summary": "Install, configure, rate, and automate the OpenCloud Security Scanner CLI."
