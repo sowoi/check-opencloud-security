@@ -177,6 +177,22 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   commands the way Compose does and assert that no folded-in prose reached
   them.
 
+- **Every workflow now declares the token scope it needs, and pins every
+  action to a digest.** Ten of the sixteen already did both; the six that ran
+  the suite, ruff, mypy, nox, ansible-lint and Bandit declared no
+  `permissions:` block at all, so `GITHUB_TOKEN` arrived with whatever the
+  repository default grants - frequently write across every scope - in jobs
+  that install and execute the whole dependency tree on a push. They now
+  declare `contents: read`. Bandit keeps its job-level
+  `security-events: write` for the SARIF upload, which a job-level block
+  grants without widening the others. The same seven files referenced
+  `actions/checkout@v7`, `astral-sh/setup-uv@v10.0.0` and
+  `github/codeql-action/upload-sarif@v4` by mutable tag rather than by digest,
+  against the convention the rest of the directory follows; all three are now
+  pinned to the commit their tag resolved to, with the version in a trailing
+  comment. Two tests read the workflow directory rather than a list, so a
+  workflow added later is covered the moment it exists.
+
 - **The Bandit workflow's SARIF upload now names the ref and commit it is
   reporting on**, so a pull request's code scanning check can find it. Left to
   itself the upload action resolves the merge commit from the checkout, and
