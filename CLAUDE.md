@@ -32,6 +32,7 @@ cd ansible && ansible-lint                          # must be run from ansible/
 uv run nox                                          # full suite on Python 3.10-3.14
 python scripts/build_web_bundle.py                  # builds the web release tarball
 python scripts/check_documentation_links.py         # re-checks documented OpenCloud links
+python scripts/security_advisories.py --check       # every ### Security entry is decided
 cd docker && docker compose up --build              # web + worker + redis, locally
 ```
 
@@ -113,6 +114,14 @@ CLI flags    ───┘        (flat COS_ names)     (builds)       (dataclass
   `scripts/update_release_schedule.py` — never edit it by hand.
 - Every change needs entries in both `CHANGELOG.md` and `RELEASE.md` under the
   version currently in `pyproject.toml`.
+- **A `### Security` changelog entry also needs a record in
+  `security/advisories/`**, written in the same pull request;
+  `scripts/security_advisories.py --check` fails without one and CI runs it.
+  The record answers what the prose cannot: *did a released version carry this*
+  — determined from the git tags, not the wording — and does an advisory
+  follow. Declining is a normal outcome (never shipped, hardening, fails
+  closed); leaving it undecided is not. **Never publish an advisory yourself.**
+  See `AGENTS.md`, "Security advisories".
 
 ## The web application (`webapp/` + `frontend/`)
 

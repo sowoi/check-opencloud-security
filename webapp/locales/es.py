@@ -1256,6 +1256,46 @@ MESSAGES: dict[str, str] = {
     ),
     "result.hardening.tag": "refuerzo",
     "result.header.tag": "cabecera",
+    # ------------------------------------------------- configuration fragment
+    "result.fragment.kicker": "La corrección, escrita",
+    "result.fragment.heading": "Pegue esto en su configuración",
+    "result.fragment.lede": (
+        "Los hallazgos de arriba, en la sintaxis del archivo que debe "
+        "cambiar. Elija dónde se configura su instancia."
+    ),
+    "result.fragment.caution": (
+        "Lea la línea «Corrección» de cada hallazgo antes de pegar. Estos son "
+        "los valores que buscan las comprobaciones, no una revisión de lo que "
+        "necesita su despliegue."
+    ),
+    "result.fragment.picker": "Formato de configuración",
+    "result.fragment.file": "Va en {name}.",
+    "result.fragment.copy": "Copiar",
+    "result.fragment.copied": "Copiado",
+    "result.fragment.copy_failed": "No se pudo copiar",
+    "result.fragment.nothing": (
+        "Aquí no se ajusta nada de esta forma. Lo que queda abierto "
+        "corresponde a {flavours}."
+    ),
+    "result.fragment.elsewhere": (
+        "Estos se corrigen en otro sitio - corresponden a {flavours}:"
+    ),
+    "result.fragment.undecided": (
+        "Estos no tienen ningún valor que pegar: el correcto es una decisión "
+        "sobre este despliegue, y la línea «Corrección» del hallazgo es toda "
+        "la respuesta."
+    ),
+    # ------------------------------------------------------------ scan again
+    "result.rescan": "Analizar de nuevo",
+    "result.rescan.ready": "Esta instancia se puede analizar de nuevo.",
+    "result.rescan.wait": "Se podrá analizar de nuevo en {countdown}.",
+    "result.rescan.note": (
+        "Mismo objetivo, mismas exenciones, mismo canal de versiones - para "
+        "que el próximo resultado sea comparable con este. La espera es lo "
+        "que mantiene en pie a este pequeño servicio; el escáner es de código "
+        "abierto y funciona en su propia máquina sin límite alguno:"
+    ),
+    "result.rescan.self_host": "ejecútelo usted mismo",
     "result.excluded.kicker": "Excluido",
     "result.excluded.heading": "Reportado, pero no contabilizado",
     "result.excluded.waived.heading": "Pediste ignorar estos",

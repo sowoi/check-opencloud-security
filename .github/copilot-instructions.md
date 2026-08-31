@@ -122,6 +122,17 @@ together. Never edit it by hand, never remove the markers (that is a hard
 error), and regenerate after changing `render_readme_block()`. The prose
 around it is hand-written and names older releases on purpose.
 
+**A `### Security` changelog entry needs a record in `security/advisories/`.**
+Written in the same pull request; `scripts/security_advisories.py --check`
+fails without one and CI runs it. The record decides what the prose cannot:
+*did a released version carry this defect* - worked out from the git tags
+(`git show v<previous>:<file>`), not from the wording - and does an advisory
+follow. Declining is a normal outcome: a defect introduced and fixed inside one
+development cycle never shipped, hardening is not a fixed vulnerability, and a
+bug that fails closed harmed availability rather than security. Say which, in
+`declined_because`. Never publish an advisory - that is the maintainer's call,
+like the version bump. See `AGENTS.md`, "Security advisories".
+
 **The version has exactly one source: `pyproject.toml`.**
 `opencloud_local_scan.__version__` derives it (package metadata when installed,
 the file itself in a checkout) and the plugin imports that. Never write a
@@ -139,12 +150,13 @@ Verify against the OpenCloud source that an operator can change a setting
 before adding a check for it.
 
 **Some findings are reported but never alerted on.** `setup.advisoryHeaders`
-(`Permissions-Policy`, `Cross-Origin-Opener-Policy`,
-`Cross-Origin-Resource-Policy`) grades headers *no* OpenCloud sends, so their
-absence describes the software rather than the deployment. They are measured,
-explained by `--debug` and catalogued, but never reach the alert line, the
-`hardenings_missing` metric, the webhook, an exit code or the waiver list. See
-ADR 0028.
+(`Permissions-Policy`, the two Cross-Origin policies,
+`Cross-Origin-Embedder-Policy`) grades headers *no* OpenCloud sends, and
+`setup.advisoryChecks` (`securityTxtPublished`) does the same for what is not
+a header - in both cases the absence describes the software rather than the
+deployment. They are measured, explained by `--debug` and catalogued, but
+never reach the alert line, the `hardenings_missing` metric, the webhook, an
+exit code or the waiver list. See ADR 0028 and ADR 0034.
 
 **The scanner only ever uses safe methods** - `GET`, `HEAD`, `PROPFIND`,
 `TRACE`. A test asserts that set; nothing may widen it.

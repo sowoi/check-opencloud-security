@@ -57,6 +57,63 @@
   </div>
 </section>
 
+{# ------------------------------------------------------------------ rescan #}
+{#
+  Scan the same instance again, on the same terms. Every field the first
+  submission chose travels with it - the target, the waivers, the release
+  track, the output format - so that the second result is comparable with the
+  first rather than merely newer.
+
+  It is an ordinary form posting to `/`, which is the point: the cross-site
+  check, both rate limits, the SSRF guard and the audit trail are the ones
+  every other submission goes through, and there is no second write path to
+  keep in step with them. The button is rendered enabled and rescan.js
+  disables it for as long as the wait has to run, rather than the other way
+  round - a reader without scripting is never left holding a control that
+  nothing on the page can release, and the 429 they may meet instead is the
+  friendly one.
+#}
+{% if scan.state in ("completed", "failed") %}
+<section class="card rescan-card" data-reveal
+         data-rescan-after="{{ rescan_after }}"
+         data-rescan-ready="{{ t('result.rescan.ready') }}"
+         data-rescan-wait="{{ t.raw('result.rescan.wait') }}">
+  <div class="rescan">
+    <form method="post" action="/">
+      <input type="hidden" name="target_url" value="{{ scan.target }}">
+      {% if scan.releaseTrack %}
+      <input type="hidden" name="release_track" value="{{ scan.releaseTrack }}">
+      {% endif %}
+      <input type="hidden" name="output_format" value="{{ scan.outputFormat }}">
+      {% for name in scan.ignoreHardenings %}
+      <input type="hidden" name="ignore_hardenings" value="{{ name }}">
+      {% endfor %}
+      <button class="btn btn-primary" type="submit" data-rescan-button>
+        {{ t('result.rescan') }}
+      </button>
+    </form>
+    {#
+      The first reading is written by the server, not by the script. Rendering
+      "ready" here and letting rescan.js correct it a moment later would flash
+      the wrong answer at everybody, and would be the only answer a reader
+      without scripting ever got.
+    #}
+    <p class="hint flush" id="rescan-note" aria-live="polite">
+      {%- if rescan_after -%}
+        {{ t('result.rescan.wait',
+              countdown=(rescan_after // 60) ~ ':' ~ '%02d' | format(rescan_after % 60)) }}
+      {%- else -%}
+        {{ t('result.rescan.ready') }}
+      {%- endif -%}
+    </p>
+  </div>
+  <p class="hint section-gap flush">
+    {{ t('result.rescan.note') }}
+    <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('result.rescan.self_host') }}</a>.
+  </p>
+</section>
+{% endif %}
+
 {# --------------------------------------------------------------- progress #}
 {#
   Every sentence the poller writes is rendered here first, so the translation
@@ -277,6 +334,9 @@
 {% if summary.missingHardenings or summary.missingHeaders %}
   {% set _ = toc.append({"href": "#hardening", "label": t('result.hardening.heading')}) %}
 {% endif %}
+{% if fragments %}
+  {% set _ = toc.append({"href": "#configuration", "label": t('result.fragment.heading')}) %}
+{% endif %}
 {% if summary.waived or summary.unfixable %}
   {% set _ = toc.append({"href": "#excluded", "label": t('result.excluded.heading')}) %}
 {% endif %}
@@ -425,6 +485,74 @@
     </li>
     {% endfor %}
   </ul>
+</section>
+{% endif %}
+
+{# ---------------------------------------------------------------- fragment #}
+{#
+  The findings above, in the syntax of the file that has to change.
+
+  Every flavour is rendered, each under its own heading, and fragment.js
+  collapses them into a picker. Without scripting all of them stay on the
+  page: five short blocks is a longer section, but it is a section that
+  works, and the alternative - one visible block and four dead buttons -
+  would hide the nginx fragment from the reader who runs nginx.
+
+  Nothing here is generated in the browser. The fragments come from
+  `opencloud_local_scan.snippets`, which is the same module the library
+  tests cover; building them from JavaScript would be a second
+  implementation, in the language with no tests around it.
+#}
+{% if fragments %}
+<section class="card" data-reveal id="fragment-card">
+  <p class="kicker">{{ t('result.fragment.kicker') }}</p>
+  <h2 id="configuration">{{ t('result.fragment.heading') }}</h2>
+  <p class="lede">{{ t('result.fragment.lede') }}</p>
+  <p class="hint">{{ t('result.fragment.caution') }}</p>
+
+  <div class="flavour-picker" role="group" hidden
+       aria-label="{{ t('result.fragment.picker') }}">
+    {% for fragment in fragments %}
+    <button type="button" class="flavour" data-flavour="{{ fragment.id }}"
+            aria-pressed="false">{{ fragment.label }}</button>
+    {% endfor %}
+  </div>
+
+  {% for fragment in fragments %}
+  <div class="fragment" data-fragment="{{ fragment.id }}">
+    <h3 class="fragment-name">{{ fragment.label }}</h3>
+    {% if fragment.text %}
+    <p class="hint flush">{{ t('result.fragment.file', name=fragment.filename) }}</p>
+    <pre class="config"><code>{{ fragment.text }}</code></pre>
+    <button type="button" class="btn btn-quiet" hidden
+            data-copy-fragment="{{ fragment.id }}"
+            data-copy-done="{{ t('result.fragment.copied') }}"
+            data-copy-failed="{{ t('result.fragment.copy_failed') }}"
+            >{{ t('result.fragment.copy') }}</button>
+    {% else %}
+    <p class="flush">{{ t('result.fragment.nothing', flavours=fragment.elsewhere_in) }}</p>
+    {% endif %}
+    {#
+      The "belongs elsewhere" sentence only when this flavour wrote something.
+      With an empty fragment the line above has already said it, and printing
+      both would be the same sentence twice under one heading.
+    #}
+    {% if fragment.elsewhere %}
+    {% if fragment.text %}
+    <p class="hint section-gap">{{ t('result.fragment.elsewhere', flavours=fragment.elsewhere_in) }}</p>
+    {% endif %}
+    <ul class="pill-list">
+      {% for name in fragment.elsewhere %}<li>{{ check_name(name) }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if fragment.undecided %}
+    <p class="hint section-gap">{{ t('result.fragment.undecided') }}</p>
+    <ul class="pill-list">
+      {% for name in fragment.undecided %}<li>{{ check_name(name) }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
 </section>
 {% endif %}
 
@@ -658,4 +786,6 @@
 {% block scripts %}
 <script src="/static/js/scan.js" defer></script>
 <script src="/static/js/share.js" defer></script>
+<script src="/static/js/rescan.js" defer></script>
+<script src="/static/js/fragment.js" defer></script>
 {% endblock %}

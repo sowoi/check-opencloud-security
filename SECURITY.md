@@ -47,6 +47,25 @@ instance in a report.** Use `opencloud.example.com` and placeholder secrets.
 
 This is a volunteer-maintained project. There is no bug bounty.
 
+### How the advisory gets published
+
+Every entry under a `### Security` heading in
+[`CHANGELOG.md`](CHANGELOG.md) - whether it came from a report or from our own
+review - gets a record in [`security/advisories/`](security/advisories/),
+written in the same pull request as the fix. CI refuses the change without one,
+so nothing reaches a release with the question unanswered.
+
+The record decides one thing: **did a released version carry the defect?** If it
+did, the record becomes a GitHub Security Advisory, drafted automatically after
+the release and published by a maintainer. If it did not - a defect introduced
+and fixed inside a single development cycle, hardening that closed no exploitable
+gap, or a bug that failed closed - the record says so and says why, with the
+`git show` output it was determined from. Those records are public; you can read
+the reasoning for any entry, including the ones we decided against.
+
+That means a published advisory here is a statement that a version you may be
+running was affected, and not merely that something security-related changed.
+
 Conduct during a report is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md), which applies to the private advisory
 process as much as to anything public.

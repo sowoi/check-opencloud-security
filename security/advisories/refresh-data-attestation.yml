@@ -1,0 +1,22 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: refresh-data-attestation
+state: declined
+changelog_version: "1.14.2"
+changelog_entry: "refresh-data now verifies where its data came from."
+shipped: true
+declined_because: |
+  Hardening, not a fixed vulnerability. The previous behaviour - trusting
+  OSV and the OpenCloud lifecycle page on the strength of TLS - is the
+  residual risk ADR 0016 and ADR 0017 name outright and accept. Adding
+  Sigstore attestation narrows it; it does not close a defect that was
+  exploitable against this project.
+summary: >-
+  refresh-data trusted the upstream lifecycle page and OSV feed on TLS
+  alone, with no attestation over the bytes it wrote
+verified: |
+  Behaviour matches ADR 0016 and ADR 0017 as accepted; no released version
+  carried a guard that failed to do what it claimed.

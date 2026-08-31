@@ -1184,6 +1184,43 @@ MESSAGES: dict[str, str] = {
     ),
     "result.hardening.tag": "hardening",
     "result.header.tag": "header",
+    # ------------------------------------------------- configuration fragment
+    "result.fragment.kicker": "The fix, written out",
+    "result.fragment.heading": "Paste this into your configuration",
+    "result.fragment.lede": (
+        "The findings above, in the syntax of the file that has to change. "
+        "Pick where your instance is configured."
+    ),
+    "result.fragment.caution": (
+        "Read each finding's Fix line before you paste. These are the values "
+        "the checks look for, not a review of what your deployment needs."
+    ),
+    "result.fragment.picker": "Configuration format",
+    "result.fragment.file": "Goes in {name}.",
+    "result.fragment.copy": "Copy",
+    "result.fragment.copied": "Copied",
+    "result.fragment.copy_failed": "Could not copy",
+    "result.fragment.nothing": (
+        "Nothing here is set this way. What is open belongs in {flavours}."
+    ),
+    "result.fragment.elsewhere": (
+        "These are fixed somewhere else - they belong in {flavours}:"
+    ),
+    "result.fragment.undecided": (
+        "These have no value to paste: the right one is a decision about this "
+        "deployment, and the finding's own Fix line is the whole answer."
+    ),
+    # ------------------------------------------------------------ scan again
+    "result.rescan": "Scan again",
+    "result.rescan.ready": "Ready to scan this instance again.",
+    "result.rescan.wait": "Ready to scan again in {countdown}.",
+    "result.rescan.note": (
+        "Same target, same waivers, same release track - so the next result "
+        "is comparable with this one. The wait is what keeps this small "
+        "service on its feet; the scanner is open source and runs on your own "
+        "machine with no limits at all:"
+    ),
+    "result.rescan.self_host": "run it yourself",
     "result.excluded.kicker": "Excluded",
     "result.excluded.heading": "Reported, but not counted",
     "result.excluded.waived.heading": "You asked to ignore these",

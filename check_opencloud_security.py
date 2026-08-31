@@ -1385,6 +1385,26 @@ def _absent_advisory_headers(response_scan: dict[str, Any]) -> list[str]:
     return sorted(name for name, present in headers.items() if not present)
 
 
+def _absent_advisory_checks(response_scan: dict[str, Any]) -> list[str]:
+    """
+    The advisory observations that came back negative, for the explanation only.
+
+    The sibling of :func:`_absent_advisory_headers` for what is not a header,
+    and it is not counted for the same reason: no OpenCloud ships any of these
+    either, so every instance would gain a finding that nothing on the
+    instance can clear. Absent when a scan ran with the extra checks off,
+    which is a block nobody measured rather than one that failed. See ADR
+    0034.
+    """
+    setup = response_scan.get("setup")
+    if not isinstance(setup, dict):
+        return []
+    checks = setup.get("advisoryChecks")
+    if not isinstance(checks, dict):
+        return []
+    return sorted(name for name, present in checks.items() if not present)
+
+
 def _waived(response_scan: dict[str, Any]) -> list[str]:
     """List the measures and checks the operator has chosen to accept."""
     ignored = response_scan.get("ignored")
@@ -1473,6 +1493,19 @@ def _explain_lines(
             "add them and the instance is better for it."
         )
         for name in advisory:
+            lines.append(describe_hardening(name).describe())
+
+    advisory_checks = _absent_advisory_checks(response_scan)
+    if advisory_checks:
+        lines.append("")
+        lines.append("--- Worth doing (not counted against this instance) ---")
+        lines.append(
+            "Observations that no OpenCloud satisfies out of the box. Like the "
+            "headers above they never change the rating, the alert or the exit "
+            "code, and like them they are here because the deployment is "
+            "better for acting on them."
+        )
+        for name in advisory_checks:
             lines.append(describe_hardening(name).describe())
 
     unexplained = [name for name in extra_failures if name not in missing_hardenings]
@@ -1590,13 +1623,59 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description=__doc__,
     )
 
-    parser.add_argument(
+    # Forty-odd options in one flat list is a list nobody reads to the end, and
+    # the flag somebody needed was always in the middle of it. The groups are
+    # the questions an operator actually arrives with - what do I check, how is
+    # it judged, where does the answer go - so that scanning the headings is
+    # enough to find the right dozen lines.
+    #
+    # Order matters: this is the order --help prints them, and it runs from
+    # what a first run needs to what only a few deployments ever touch.
+    program = parser.add_argument_group(
+        "This program",
+        "Version, configuration file, and upgrading the check itself.",
+    )
+    target = parser.add_argument_group(
+        "Which instance to check",
+        "Where the instance is and how to reach it.",
+    )
+    scope = parser.add_argument_group(
+        "What to probe",
+        "Which parts of the scan run. Narrowing this narrows the evidence, "
+        "not the judgement.",
+    )
+    rating = parser.add_argument_group(
+        "How the result is judged",
+        "The thresholds that turn a rating into an exit code.",
+    )
+    updates = parser.add_argument_group(
+        "Version and update information",
+        "Where the release and advisory evidence comes from.",
+    )
+    baseline = parser.add_argument_group(
+        "Comparing against an earlier run",
+        "Alert on what changed rather than on what is true.",
+    )
+    runtime = parser.add_argument_group(
+        "How the scan runs",
+        "Timeouts, retries and parallelism. None of these change the verdict.",
+    )
+    output = parser.add_argument_group(
+        "What is printed",
+        "The output format, and the Prometheus exporter.",
+    )
+    webhook = parser.add_argument_group(
+        "Posting the result elsewhere",
+        "An optional HTTP POST of the result when it matters.",
+    )
+
+    program.add_argument(
         "-V",
         "--version",
         action="version",
         version=f"%(prog)s {__version__}\nhttps://github.com/sowoi/check-opencloud-security",
     )
-    parser.add_argument(
+    program.add_argument(
         "--configure",
         action="store_true",
         default=False,
@@ -1608,7 +1687,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "where it is written."
         ),
     )
-    parser.add_argument(
+    program.add_argument(
         "--upgrade-self",
         nargs="?",
         const=UPGRADE_RUN,
@@ -1621,14 +1700,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "would run, and changes nothing."
         ),
     )
-    parser.add_argument(
+    program.add_argument(
         "-d",
         "--debug",
         action="store_true",
         default=_env_bool("DEBUG"),
         help=f"Enable debug mode. Default: False (env: {ENV_PREFIX}DEBUG).",
     )
-    parser.add_argument(
+    target.add_argument(
         "-H",
         "--host",
         required=_env("HOST") is None,
@@ -1639,13 +1718,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"to check multiple hosts in one run. Required, env: {ENV_PREFIX}HOST."
         ),
     )
-    parser.add_argument(
+    target.add_argument(
         "-P",
         "--proxy",
         default=_env("PROXY"),
         help=f"Proxy server address. Default: None (env: {ENV_PREFIX}PROXY).",
     )
-    parser.add_argument(
+    program.add_argument(
         "--config",
         default=None,
         help=(
@@ -1656,7 +1735,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"{ENV_PREFIX}CONFIG_FILE). With --configure, where to save."
         ),
     )
-    parser.add_argument(
+    target.add_argument(
         "--port",
         type=int,
         default=None,
@@ -1666,7 +1745,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "usually listens on 9200."
         ),
     )
-    parser.add_argument(
+    target.add_argument(
         "--scheme",
         choices=("https", "http"),
         default=None,
@@ -1675,7 +1754,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"fallback to http (env: {ENV_PREFIX}SCANNER_SCHEME)."
         ),
     )
-    parser.add_argument(
+    scope.add_argument(
         "--no-extra-checks",
         action="store_true",
         default=_env_bool("NO_EXTRA_CHECKS"),
@@ -1685,7 +1764,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}NO_EXTRA_CHECKS)."
         ),
     )
-    parser.add_argument(
+    scope.add_argument(
         "--ignore-hardening",
         action="append",
         default=None,
@@ -1698,7 +1777,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: none (env: {ENV_PREFIX}SCANNER_IGNORE_HARDENINGS)."
         ),
     )
-    parser.add_argument(
+    rating.add_argument(
         "--release-track",
         choices=sorted(RELEASE_TRACK_CHOICES),
         default=None,
@@ -1710,7 +1789,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}SCANNER_RELEASE_TRACK)."
         ),
     )
-    parser.add_argument(
+    target.add_argument(
         "--insecure",
         action="store_true",
         default=_env_bool("INSECURE"),
@@ -1721,7 +1800,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"rating. Default: False (env: {ENV_PREFIX}INSECURE)."
         ),
     )
-    parser.add_argument(
+    target.add_argument(
         "--ca-file",
         default=None,
         help=(
@@ -1729,7 +1808,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: scanner.tls_ca_file (env: {ENV_PREFIX}SCANNER_TLS_CA_FILE)."
         ),
     )
-    parser.add_argument(
+    scope.add_argument(
         "--no-debug-ports",
         action="store_true",
         default=_env_bool("NO_DEBUG_PORTS"),
@@ -1738,7 +1817,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}NO_DEBUG_PORTS)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--update-source",
         choices=UPDATE_SOURCES,
         default=_env("UPDATE_SOURCE"),
@@ -1750,7 +1829,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: auto (env: {ENV_PREFIX}UPDATE_SOURCE)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--release-feed",
         default=None,
         help=(
@@ -1759,7 +1838,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}RELEASES_FEED_URL)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--release-token",
         default=None,
         help=(
@@ -1768,7 +1847,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "supports secret:// references)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--latest-version",
         default=None,
         help=(
@@ -1776,7 +1855,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"up. Implies --update-source pinned (env: {ENV_PREFIX}RELEASES_LATEST_VERSION)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--no-update-check",
         action="store_true",
         default=_env_bool("NO_UPDATE_CHECK"),
@@ -1785,7 +1864,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}NO_UPDATE_CHECK)."
         ),
     )
-    parser.add_argument(
+    updates.add_argument(
         "--update-warning",
         action="store_true",
         default=_env_bool("UPDATE_WARNING"),
@@ -1794,7 +1873,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}UPDATE_WARNING)."
         ),
     )
-    parser.add_argument(
+    baseline.add_argument(
         "--baseline",
         default=_env("BASELINE"),
         metavar="PATH",
@@ -1805,7 +1884,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Example: /var/lib/check_opencloud/baseline.json (env: {ENV_PREFIX}BASELINE)."
         ),
     )
-    parser.add_argument(
+    baseline.add_argument(
         "--warn-on-new",
         action="store_true",
         default=_env_bool("WARN_ON_NEW"),
@@ -1815,7 +1894,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}WARN_ON_NEW)."
         ),
     )
-    parser.add_argument(
+    baseline.add_argument(
         "--diff-format",
         choices=("text", "markdown", "slack", "json"),
         default=_env("DIFF_FORMAT") or "text",
@@ -1824,7 +1903,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: text (env: {ENV_PREFIX}DIFF_FORMAT)."
         ),
     )
-    parser.add_argument(
+    program.add_argument(
         "--self-update-check",
         action="store_true",
         default=_env_bool("SELF_UPDATE_CHECK"),
@@ -1834,12 +1913,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}SELF_UPDATE_CHECK)."
         ),
     )
-    parser.add_argument(
+    program.add_argument(
         CHECK_ONLY_FLAG,
         action="store_true",
         help="Only valid with --upgrade-self: print the upgrade command without running it.",
     )
-    parser.add_argument(
+    runtime.add_argument(
         "--concurrency",
         type=int,
         default=_env_int("CONCURRENCY", DEFAULT_HOST_CONCURRENCY),
@@ -1850,7 +1929,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_HOST_CONCURRENCY} (env: {ENV_PREFIX}CONCURRENCY)."
         ),
     )
-    parser.add_argument(
+    output.add_argument(
         "--format",
         dest="output_format",
         choices=("nagios", "prometheus", "json", "sarif", "junit"),
@@ -1865,7 +1944,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: nagios (env: {ENV_PREFIX}FORMAT)."
         ),
     )
-    parser.add_argument(
+    output.add_argument(
         "--prometheus-listen-port",
         type=int,
         default=_env_int("PROMETHEUS_LISTEN_PORT", 0),
@@ -1875,7 +1954,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"after --scrape-interval (env: {ENV_PREFIX}PROMETHEUS_LISTEN_PORT)."
         ),
     )
-    parser.add_argument(
+    output.add_argument(
         "--prometheus-listen-addr",
         default=_env("PROMETHEUS_LISTEN_ADDR") or "127.0.0.1",
         metavar="ADDRESS",
@@ -1884,7 +1963,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: 127.0.0.1 (env: {ENV_PREFIX}PROMETHEUS_LISTEN_ADDR)."
         ),
     )
-    parser.add_argument(
+    output.add_argument(
         "--scrape-interval",
         type=int,
         default=_env_int(
@@ -1897,7 +1976,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}SCRAPE_INTERVAL)."
         ),
     )
-    parser.add_argument(
+    runtime.add_argument(
         "--retries",
         type=int,
         default=_env_int("RETRIES", DEFAULT_RETRIES),
@@ -1906,7 +1985,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_RETRIES} (env: {ENV_PREFIX}RETRIES)."
         ),
     )
-    parser.add_argument(
+    runtime.add_argument(
         "--timeout",
         type=int,
         # Left unset on purpose: a more specific 'scanner.timeout:' in the
@@ -1917,7 +1996,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_TIMEOUT_SECONDS} (env: {ENV_PREFIX}TIMEOUT)."
         ),
     )
-    parser.add_argument(
+    rating.add_argument(
         "-w",
         "--warning",
         type=int,
@@ -1928,7 +2007,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"env: {ENV_PREFIX}WARNING."
         ),
     )
-    parser.add_argument(
+    rating.add_argument(
         "-c",
         "--critical",
         type=int,
@@ -1939,7 +2018,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"env: {ENV_PREFIX}CRITICAL."
         ),
     )
-    parser.add_argument(
+    rating.add_argument(
         "--check-hardening",
         action="store_true",
         default=_env_bool("CHECK_HARDENING"),
@@ -1949,7 +2028,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}CHECK_HARDENING)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-url",
         default=_env("WEBHOOK_URL"),
         help=(
@@ -1958,7 +2037,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}WEBHOOK_URL)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-on",
         choices=sorted(WEBHOOK_TRIGGERS),
         default=_env("WEBHOOK_ON") or DEFAULT_WEBHOOK_ON,
@@ -1968,7 +2047,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_WEBHOOK_ON} (env: {ENV_PREFIX}WEBHOOK_ON)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-format",
         choices=("generic", "slack", "discord"),
         default=_env("WEBHOOK_FORMAT") or DEFAULT_WEBHOOK_FORMAT,
@@ -1980,7 +2059,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_WEBHOOK_FORMAT} (env: {ENV_PREFIX}WEBHOOK_FORMAT)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-header",
         action="append",
         default=None,
@@ -1991,7 +2070,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}WEBHOOK_HEADERS, entries separated by ';')."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-timeout",
         type=int,
         default=_env_int("WEBHOOK_TIMEOUT", DEFAULT_WEBHOOK_TIMEOUT_SECONDS),
@@ -2000,7 +2079,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: {DEFAULT_WEBHOOK_TIMEOUT_SECONDS} (env: {ENV_PREFIX}WEBHOOK_TIMEOUT)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-secret",
         default=_env("WEBHOOK_SECRET"),
         help=(
@@ -2010,7 +2089,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"(env: {ENV_PREFIX}WEBHOOK_SECRET)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--allow-private-webhooks",
         action="store_true",
         default=_allow_private_webhooks_default(),
@@ -2019,7 +2098,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}ALLOW_PRIVATE_WEBHOOKS)."
         ),
     )
-    parser.add_argument(
+    webhook.add_argument(
         "--webhook-digest",
         action="store_true",
         default=_env_bool("WEBHOOK_DIGEST"),
@@ -2031,7 +2110,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}WEBHOOK_DIGEST)."
         ),
     )
-    parser.add_argument(
+    runtime.add_argument(
         "--backoff-factor",
         type=float,
         default=_env_float("BACKOFF_FACTOR", DEFAULT_BACKOFF_FACTOR),

@@ -18,6 +18,13 @@ Command line entry point of the bundled scanner.
     changed between them. The plugin's ``--baseline`` spends the same
     comparison on staying quiet; this spends it on telling somebody what
     happened, which is the question after a change rather than during one.
+
+``explain``
+    Look one finding identifier up in the catalogue without scanning
+    anything. A monitoring system prints ``cspWithoutUnsafeInline`` at three
+    in the morning; until now the three ways to find out what that meant were
+    to run a scan that fails the same check, open the web application, or read
+    the source.
 """
 
 from __future__ import annotations
@@ -29,6 +36,7 @@ import os
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +44,14 @@ from .baseline import Baseline, Comparison, Snapshot, snapshot_of
 from .completion import enable as enable_completion
 from .config import ConfigurationError, load_configuration
 from .factory import release_settings_from_config, scanner_settings_from_config
+from .hardening import (
+    CATEGORIES,
+    Hardening,
+    all_checks,
+    catalogue_id,
+    describe,
+    header_names,
+)
 from .refresh_data import RefreshError, refresh_data
 from .scanner import ScanError, scan
 from .service import (
@@ -238,6 +254,45 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    explain_parser = sub.add_parser(
+        "explain",
+        help="Say what a finding identifier means and how to fix it.",
+        description=(
+            "Look finding identifiers up in the same catalogue the scan "
+            "output, the web application and `--debug` all read from. Reads "
+            "nothing but its own package: no configuration, no network, no "
+            "instance. With no identifier it prints the whole catalogue."
+        ),
+    )
+    explain_parser.add_argument(
+        "ids",
+        nargs="*",
+        metavar="ID",
+        help=(
+            "Identifiers to explain, such as cspWithoutUnsafeInline, "
+            "Referrer-Policy or exposed:/config/opencloud.yaml. Without any, "
+            "the whole catalogue is printed."
+        ),
+    )
+    explain_parser.add_argument(
+        "--category",
+        choices=CATEGORIES,
+        help="Print only the entries in one category of the catalogue.",
+    )
+    explain_parser.add_argument(
+        "--list",
+        dest="ids_only",
+        action="store_true",
+        help="Print bare identifiers, one per line, instead of explanations.",
+    )
+    explain_parser.add_argument(
+        "--format",
+        dest="explain_format",
+        choices=("text", "json"),
+        default="text",
+        help="How to render the entries. Default: text.",
+    )
+
     enable_completion(parser)
     return parser
 
@@ -396,12 +451,88 @@ def _run_diff(args: argparse.Namespace) -> int:
     return 1 if comparison.regressed else 0
 
 
+def _catalogue() -> list[Hardening]:
+    """
+    Every entry this build can explain, in the order the categories are listed.
+
+    Header names are appended rather than merged into ``all_checks`` for the
+    reason that function documents: a header has no catalogue entry of its own
+    until one is built for it on demand.
+    """
+    entries = [*all_checks(), *(describe(name) for name in header_names())]
+    order = {name: index for index, name in enumerate(CATEGORIES)}
+    entries.sort(key=lambda entry: (order.get(entry.category, len(order)), entry.id))
+    return entries
+
+
+def _explain_entry(entry: Hardening) -> dict[str, Any]:
+    """One catalogue entry as JSON, with the keys the result document uses."""
+    return {
+        "id": entry.id,
+        "category": entry.category,
+        "title": entry.title,
+        "meaning": entry.meaning,
+        "remediation": entry.remediation,
+        "reference": entry.reference,
+        "setting": entry.setting,
+        "actionable": entry.actionable,
+    }
+
+
+def _run_explain(args: argparse.Namespace) -> int:
+    """Explain finding identifiers, or print the catalogue."""
+    known = _catalogue()
+
+    if args.ids:
+        entries: list[Hardening] = []
+        unknown: list[str] = []
+        for name in args.ids:
+            entry = describe(name)
+            # `describe` never fails - it names the unknown rather than
+            # swallowing it - so the way to tell an explanation from a
+            # placeholder is to ask whether the catalogue knows the id.
+            if catalogue_id(name) is None:
+                unknown.append(name)
+                continue
+            entries.append(entry)
+        if unknown:
+            for name in unknown:
+                suggestions = get_close_matches(name, [item.id for item in known], n=3)
+                hint = f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+                LOGGER.error(
+                    "No catalogue entry for '%s'.%s Run `explain --list` for "
+                    "every identifier this build knows.",
+                    name,
+                    hint,
+                )
+            return 1
+    else:
+        entries = known
+
+    if args.category:
+        entries = [entry for entry in entries if entry.category == args.category]
+        if not entries:
+            LOGGER.error("No catalogue entry is in category '%s'.", args.category)
+            return 1
+
+    if args.ids_only:
+        for entry in entries:
+            print(entry.id)
+    elif args.explain_format == "json":
+        print(json.dumps([_explain_entry(entry) for entry in entries], indent=2))
+    else:
+        print("\n\n".join(entry.describe() for entry in entries))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point of ``check-opencloud-scanner``."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
     _configure_logging(args.verbose)
 
+    if args.command == "explain":
+        return _run_explain(args)
     if args.command == "diff":
         return _run_diff(args)
     if args.command == "configure":

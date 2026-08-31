@@ -1,0 +1,50 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: results-not-encrypted-at-rest
+state: published
+ghsa: GHSA-4cp6-gfh6-gq47
+changelog_version: "1.7.0"
+changelog_entry: "Results are now actually encrypted at rest when COS_WEB_ENCRYPT_RESULTS is on."
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-311
+package: web
+introduced: "1.4.0"
+fixed: "1.7.0"
+summary: >-
+  COS_WEB_ENCRYPT_RESULTS encrypted nothing: the worker wrote scan results
+  to Redis in cleartext
+verified: |
+  git show v1.6.1:webapp/tasks.py:109 - ScanStore(backend=..., ttl=...) is built
+  with no encryption argument, while webapp/encryption.py already exists.
+description: |
+  ### Impact
+
+  The ARQ worker - the process that actually writes the result document -
+  constructed its `ScanStore` without the encryption configuration.
+  `COS_WEB_ENCRYPT_RESULTS` therefore encrypted nothing while appearing to be in
+  effect, and scan results sat in Redis in the clear. A deployment that enabled
+  the setting in order to protect scan results at rest did not get that
+  protection, and had no indication of it.
+
+  ### Patches
+
+  Fixed in **1.7.0**. The worker now receives the configuration, and any process
+  asked to encrypt without a usable `COS_WEB_ENCRYPTION_KEY_<version>` refuses to
+  start rather than silently storing plaintext.
+
+  ### Workarounds
+
+  None within the affected releases. Treat Redis contents from that period as
+  unencrypted and flush results still held there.
+
+  ### Note on distribution
+
+  The web application is **not** published to PyPI - the wheel and the sdist
+  exclude `webapp/` and `frontend/`. It ships as
+  `check_opencloud_security_web.tar.gz`. Installations of the
+  `check-opencloud-security` PyPI package are unaffected.

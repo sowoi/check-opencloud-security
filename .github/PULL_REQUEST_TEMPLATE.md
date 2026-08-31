@@ -40,6 +40,10 @@ Fixes #
 - [ ] `ansible-lint` passes, run from inside `ansible/` - only if you touched
       that directory.
 - [ ] I added an entry under `## [Unreleased]` in `CHANGELOG.md`.
+- [ ] If that entry is under `### Security`, I added a matching record in
+      `security/advisories/` and
+      `python scripts/security_advisories.py --check` passes. I did **not**
+      publish an advisory.
 - [ ] I did **not** touch the `version` in `pyproject.toml`, and did not create
       a tag or a release. That is the maintainer's call, and a bump publishes
       to PyPI as soon as it lands.

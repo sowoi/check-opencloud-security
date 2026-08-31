@@ -1320,6 +1320,46 @@ MESSAGES: dict[str, str] = {
     ),
     "result.hardening.tag": "durcissement",
     "result.header.tag": "en-tête",
+    # ------------------------------------------------- configuration fragment
+    "result.fragment.kicker": "La correction, écrite",
+    "result.fragment.heading": "À coller dans votre configuration",
+    "result.fragment.lede": (
+        "Les constats ci-dessus, dans la syntaxe du fichier qui doit changer. "
+        "Choisissez où votre instance est configurée."
+    ),
+    "result.fragment.caution": (
+        "Lisez la ligne « Correction » de chaque constat avant de coller. Ce "
+        "sont les valeurs que les vérifications recherchent, pas un examen de "
+        "ce dont votre déploiement a besoin."
+    ),
+    "result.fragment.picker": "Format de configuration",
+    "result.fragment.file": "À placer dans {name}.",
+    "result.fragment.copy": "Copier",
+    "result.fragment.copied": "Copié",
+    "result.fragment.copy_failed": "Copie impossible",
+    "result.fragment.nothing": (
+        "Rien ici ne se règle de cette façon. Ce qui reste ouvert relève de "
+        "{flavours}."
+    ),
+    "result.fragment.elsewhere": (
+        "Ceux-ci se corrigent ailleurs - ils relèvent de {flavours} :"
+    ),
+    "result.fragment.undecided": (
+        "Ceux-ci n'ont aucune valeur à coller : la bonne est une décision "
+        "propre à ce déploiement, et la ligne « Correction » du constat est "
+        "la réponse entière."
+    ),
+    # ------------------------------------------------------------ scan again
+    "result.rescan": "Analyser à nouveau",
+    "result.rescan.ready": "Cette instance peut être analysée à nouveau.",
+    "result.rescan.wait": "Nouvelle analyse possible dans {countdown}.",
+    "result.rescan.note": (
+        "Même cible, mêmes exemptions, même canal de version - pour que le "
+        "prochain résultat soit comparable à celui-ci. L'attente est ce qui "
+        "maintient ce petit service debout ; le scanner est libre et tourne "
+        "sur votre propre machine sans aucune limite :"
+    ),
+    "result.rescan.self_host": "l'exécuter vous-même",
     "result.excluded.kicker": "Exclu",
     "result.excluded.heading": "Signalé, mais non comptabilisé",
     "result.excluded.waived.heading": "Vous avez demandé à ignorer ceci",

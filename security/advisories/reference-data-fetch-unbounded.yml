@@ -1,0 +1,23 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: reference-data-fetch-unbounded
+state: declined
+changelog_version: "1.17.0"
+changelog_entry: "The two daily reference-data fetches cap what they will read."
+shipped: true
+declined_because: |
+  Not a vulnerability in the sense an advisory is for: both URLs are
+  operator configuration, so exploiting this means pointing your own
+  deployment at your own hostile mirror. The default sources are the
+  OpenCloud lifecycle page and OSV. Resource exhaustion reachable only
+  by an operator who already controls the configuration is out of scope
+  per SECURITY.md.
+summary: >-
+  The release lifecycle and OSV advisory fetches read an entire response
+  into memory before inspecting it
+verified: |
+  opencloud_local_scan/fetch.py, where the one-megabyte ceiling now lives,
+  does not exist before v1.17.0.

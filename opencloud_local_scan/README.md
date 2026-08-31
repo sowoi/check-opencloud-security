@@ -463,6 +463,19 @@ move the rating:
 
 The `files.app_providers` capability is a hardcoded constant and is ignored.
 
+`setup.advisoryChecks` is the other block that cannot move the rating, and for
+a different reason: not that the observation is neutral, but that OpenCloud
+satisfies it on no instance, so counting it would report the shipped state of
+the software as a fault in this deployment. It currently holds one entry,
+`securityTxtPublished` - whether `/.well-known/security.txt` carries the
+`Contact` field RFC 9116 requires, so that somebody who finds a flaw knows
+where to send it. The body is what is read, not the status code: an instance
+whose frontend answers every unknown path with its own shell returns 200 for
+that path too. The block is `{}` rather than a dictionary of `false` when the
+extra checks are off, because an observation nobody made is not one that
+failed. See
+[ADR 0034](../adr/0034-an-advisory-observation-need-not-be-a-header.md).
+
 The `identityProvider` observation names an external provider when its OIDC
 issuer identifies one. For Keycloak, Authelia and Authentik it also includes
 `advisoryUrl`, which points to the provider's official GitHub Security
@@ -517,11 +530,67 @@ basicAuthDisabled: HTTP Basic authentication is enabled
     Docs: https://docs.opencloud.eu/docs/dev/server/services/proxy/environment-variables
 ```
 
-The catalogue also covers the security headers from `setup.headers` and
-`httpsEnforced`, and returns a named placeholder for an identifier it does not
-know, so a future check can never crash a report. A test scans the fake
-instance and asserts that every flag it produces has an entry, so adding a
-hardening without documenting it fails the suite.
+The catalogue also covers the security headers from `setup.headers`, the
+advisory observations from `setup.advisoryHeaders` and
+`setup.advisoryChecks`, and `httpsEnforced`, and returns a named placeholder
+for an identifier it does not know, so a future check can never crash a
+report. A test scans the fake instance and asserts that every flag it produces
+has an entry, so adding a hardening without documenting it fails the suite.
+
+The same catalogue is a command, for the far more common case of having an
+identifier and no Python prompt:
+
+```shell
+$ check-opencloud-scanner explain basicAuthDisabled
+$ check-opencloud-scanner explain exposed:/config/opencloud.yaml
+$ check-opencloud-scanner explain --category transport
+$ check-opencloud-scanner explain --list
+$ check-opencloud-scanner explain --format json cookieSecure
+```
+
+It reads nothing but its own package - no configuration file, no network, no
+instance - so it answers at three in the morning on a host that cannot reach
+anything. Header names and per-path findings are accepted as they appear in an
+alert; `exposed:/config/opencloud.yaml` resolves to the `exposed` family the
+catalogue actually lists. With no identifier it prints the whole catalogue. An
+identifier it does not know exits 1 and suggests the nearest ones, rather than
+printing the placeholder above as though it were an answer.
+
+### The same fix, as configuration
+
+The sentence above is what a person reads. `snippets.py` writes the same
+answer in the syntax of the file that has to change, from the `env_fix` and
+`header_fix` pairs the catalogue entries carry:
+
+```python
+from opencloud_local_scan import configuration_fragment
+
+print(configuration_fragment(["basicAuthDisabled", "demoUsersDisabled"], "compose").text)
+```
+
+```yaml
+services:
+  opencloud:
+    environment:
+      PROXY_ENABLE_BASIC_AUTH: "false"
+      IDM_CREATE_DEMO_USERS: "false"
+```
+
+Five flavours: `compose`, `env`, `nginx`, `caddy`, `traefik`. Each expresses
+one kind of fix, because the two kinds live in different files on usually
+different machines - environment assignments go on the OpenCloud instance,
+response headers on whatever terminates TLS in front of it. Rendering a header
+into a Compose environment block would produce a line that does nothing, so a
+flavour reports what it cannot express in `Fragment.elsewhere` instead, and
+`flavours_for` names the flavours that can.
+
+It renders, it does not decide. Every name and value comes from the
+catalogue - this module holds no configuration knowledge of its own - and a
+check whose right value is a decision about the deployment (a CORS origin, a
+path to a CSP file) carries no pair at all. Those land in
+`Fragment.undecided` rather than being guessed at with a placeholder: a
+fragment that has to be edited before it is pasted is worse than the sentence
+it replaced, because it looks finished.
 
 ## Debug ports
 

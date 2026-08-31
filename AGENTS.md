@@ -26,6 +26,7 @@ for a remote scan service.
 | `opencloud_local_scan/releases.py` | The update check and its track-aware recommendation |
 | `opencloud_local_scan/tls.py` | Transport security: protocol, certificate, chain, stapling |
 | `opencloud_local_scan/hardening.py` | Catalogue explaining every hardening identifier |
+| `opencloud_local_scan/snippets.py` | The catalogue's fixes rendered as Compose, .env, nginx, Caddy or Traefik |
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
 | `opencloud_local_scan/wizard.py` | The interactive setup behind `--configure` |
 | `opencloud_local_scan/selfupdate.py` | `--upgrade-self`, via pipx, uv or pip |
@@ -37,6 +38,8 @@ for a remote scan service.
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
 | `adr/` | Durable architectural decision records |
+| `security/advisories/` | One record per `### Security` changelog entry: what was decided, and the evidence |
+| `scripts/security_advisories.py` | Checks that coverage, and drives the GitHub advisories |
 | `webapp/` | The public scan service: FastAPI, the ARQ worker, SSRF and rate limits |
 | `webapp/workflows.py` | What a *task* means: submit, poll, wait, complete, export |
 | `webapp/schedule.py` | The daily re-read of the release lifecycle, and the rules that make it safe |
@@ -67,6 +70,10 @@ for a remote scan service.
   excluded from the wheel and the sdist, and a test enforces it.
 - **Never bump the version.** See [Versioning and
   releases](#versioning-and-releases) - that is the user's decision alone.
+- **Never publish a security advisory.** Write the record and leave it
+  `draft`; publishing raises Dependabot alerts for every affected installation
+  and cannot be undone. See [Security advisories](#security-advisories) - like
+  the version, that is the user's decision alone.
 - **`pyproject.toml` is the only place the version is written.**
   `opencloud_local_scan.__version__` derives it from there (package metadata
   when installed, the file itself in a checkout) and the plugin imports that.
@@ -101,6 +108,9 @@ section (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, or
 `Documentation`), and keep the two release notes consistent. Never invent or
 bump a version heading yourself.
 
+An entry under `Security` needs one more thing: a record in
+`security/advisories/`. See [Security advisories](#security-advisories).
+
 When the user bumps the version, `scripts/release_notes.py` prepares the notes
 for that `pyproject.toml` version and writes `RELEASE.md` for the GitHub
 release. Keep the release documents synchronized before that workflow runs.
@@ -115,6 +125,75 @@ git checkout CHANGELOG.md RELEASE.md
 
 `--require-unreleased` makes the script fail rather than fall back to
 generating notes from commit subjects.
+
+## Security advisories
+
+**Every bullet under a `### Security` heading in `CHANGELOG.md` needs a record
+in `security/advisories/<slug>.yml`, in the same pull request that writes the
+bullet.** `scripts/security_advisories.py --check` fails without one, and CI
+runs it on every pull request. Write the record when you write the entry - not
+at release time, when the person deciding no longer remembers what they read.
+
+The question a record answers is not "was this a security change" - the
+heading already said so. It is **did a released version carry this defect, and
+does the person running that version need to be told?** Those come apart
+constantly, and the prose never shows it:
+
+- A defect **introduced and fixed inside one development cycle never shipped.**
+  No release was affected, so an advisory would tell operators to upgrade away
+  from versions that were never vulnerable. Four entries in this changelog are
+  this shape - see the `mcp-*` and `catalogue-advisory-url-xss` records.
+- **Hardening is not a fixed vulnerability.** Narrowing a residual risk an ADR
+  already named and accepted (`refresh-data-attestation`) is a real
+  improvement and not something to file against past releases.
+- A defect that **fails closed** harmed availability, not security
+  (`webhook-hmac-unverifiable`: the signature never verified, so receivers
+  correctly rejected everything).
+
+**Determine this from the git tags, never from the changelog prose.** The
+release before the fix is the evidence:
+
+```bash
+git show v1.16.0:opencloud_local_scan/service.py | grep DEFAULT_LISTEN
+git ls-tree -r --name-only v1.13.0 | grep catalogue   # absent = never shipped
+```
+
+Whatever you find goes in the record's `verified:` field, as the command and
+what it showed. That field is the reason the directory is worth having: it
+stops the next person re-deriving a conclusion somebody already reached.
+
+### Writing a record
+
+| Field | |
+|:--|:--|
+| `state` | `published`, `draft`, or `declined` |
+| `shipped` | did a released version carry it - `false` forbids an advisory |
+| `verified` | the tag-level evidence for `shipped`, with the command |
+| `changelog_entry` | the bullet's opening phrase, so the check can find it |
+| `declined_because` | required when `state: declined`; say which case above |
+| `package` | `plugin` (PyPI) or `web` - **never** file a `webapp/` defect against pip |
+| `severity` | `low`/`medium`/`high`/`critical` - GitHub does not accept "moderate" |
+| `introduced` / `fixed` | the range, becoming `>= introduced, < fixed` |
+
+Declining is a normal outcome, not a failure to do the work - a record saying
+why is worth as much as an advisory. What is not acceptable is leaving the
+bullet unrecorded so that nobody ever decides.
+
+### Publishing
+
+```bash
+python scripts/security_advisories.py --list             # what is where
+python scripts/security_advisories.py --sync             # create the drafts
+python scripts/security_advisories.py --publish <slug>   # publish one
+```
+
+`--sync` also runs automatically after `Publish to PyPI` succeeds
+([`security-advisories.yml`](.github/workflows/security-advisories.yml)), so a
+record marked `draft` becomes a GitHub draft advisory without anyone
+remembering to. **Publishing is never automatic and an agent must never do
+it.** A published advisory enters the GitHub Advisory Database and raises
+Dependabot alerts for everyone on the affected range; like the version bump,
+that is the user's call. Do not request a CVE either.
 
 ## Architectural decision records
 
@@ -199,15 +278,20 @@ actually change it.
 `setup.headers` grades the headers OpenCloud's proxy sets by default, so a
 missing one is a fact about *this* deployment. `setup.advisoryHeaders` -
 `Permissions-Policy`, `Cross-Origin-Opener-Policy`,
-`Cross-Origin-Resource-Policy` - grades headers **no** OpenCloud sends, so a
-missing one is a fact about OpenCloud. They are measured, explained by
+`Cross-Origin-Resource-Policy`, `Cross-Origin-Embedder-Policy` - grades
+headers **no** OpenCloud sends, so a missing one is a fact about OpenCloud.
+`setup.advisoryChecks` carries the same bargain for what is not a header,
+currently `securityTxtPublished`. All of them are measured, explained by
 `--debug` and listed in the web catalogue, and they never reach
 `_collect_missing_hardenings`, the alert line, the `hardenings_missing`
 metric, the webhook or an exit code, and are never offered as waivers. Do not
 promote one into `setup.headers` unless OpenCloud starts sending it by
-default; adding three findings every instance fails and no setting can clear
-is the noise that teaches operators to ignore the hardening line. See
-[ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md).
+default; adding findings every instance fails and no setting can clear is the
+noise that teaches operators to ignore the hardening line. Their explanations
+live in `hardening.ADVISORY_CHECKS`, deliberately not in `HARDENINGS`, because
+`webapp/catalog.py` builds its waiver tick boxes by iterating the latter. See
+[ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md)
+and [ADR 0034](adr/0034-an-advisory-observation-need-not-be-a-header.md).
 
 ## The scanner only ever uses safe methods
 
@@ -576,6 +660,7 @@ uv run pytest tests/test_webapp_api.py # the web application
 uvx ruff check .                       # linting, as CI runs it
 uv run mypy --config-file mypy.ini     # type checking
 cd ansible && ansible-lint             # must be run from ansible/
+python scripts/security_advisories.py --check   # every Security entry decided
 ```
 
 Notes that will otherwise cost you time:

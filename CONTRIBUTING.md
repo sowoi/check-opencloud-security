@@ -209,6 +209,48 @@ it:
 Do not write a `## [x.y.z]` heading and do not bump the version - the release
 picks your entry up under whichever number the maintainer chooses.
 
+### If your entry goes under `### Security`
+
+Add a record to [`security/advisories/`](security/advisories/) in the same pull
+request, named after your change. CI runs
+`python scripts/security_advisories.py --check` and fails without one.
+
+The record answers a question the changelog prose cannot: **did a released
+version actually carry this defect?** A bug introduced and fixed inside one
+development cycle never reached anybody, and an advisory for it would tell
+operators to upgrade away from versions that were never affected. Work it out
+from the tags rather than from memory - the release before your fix is the
+evidence - and put the command and its result in `verified:`:
+
+```bash
+git show v1.16.0:opencloud_local_scan/service.py | grep DEFAULT_LISTEN
+git ls-tree -r --name-only v1.13.0 | grep catalogue   # absent = never shipped
+```
+
+Then say what follows:
+
+```yaml
+state: draft          # this shipped and needs a GitHub Security Advisory
+shipped: true
+severity: high        # low | medium | high | critical
+package: plugin       # plugin (on PyPI) or web (the release tarball)
+introduced: "1.0.0"
+fixed: "1.17.0"
+```
+
+or, just as valid an answer:
+
+```yaml
+state: declined
+shipped: false
+declined_because: |
+  Never shipped. Introduced and fixed inside the 1.14.0 cycle.
+```
+
+Copy the shape from any existing file in that directory. **Do not publish the
+advisory** - a maintainer does that after the release, because it raises
+Dependabot alerts for every affected installation and cannot be undone.
+
 ## Releasing
 **The version in `pyproject.toml` is bumped by hand, by a maintainer, and
 nobody else.** It is the only trigger there is: once the bump lands on `main`,
@@ -229,6 +271,21 @@ The workflow then:
 4. The tag `v<version>` is created and a GitHub release is opened with
    `RELEASE.md` as its body, followed by GitHub's generated
    "What's Changed" section.
+5. [`security-advisories.yml`](.github/workflows/security-advisories.yml) then
+   runs `scripts/security_advisories.py --sync`, which creates a GitHub **draft**
+   advisory for every record marked `state: draft` and commits the new GHSA ids
+   back. The job summary lists what is waiting.
+
+Publishing those drafts is the one manual step left, and deliberately so:
+
+```bash
+python scripts/security_advisories.py --list
+python scripts/security_advisories.py --publish <slug>
+```
+
+A published advisory enters the GitHub Advisory Database and raises Dependabot
+alerts for everyone on the affected range. Review the severity, the version
+range and the wording in the Security tab first.
 
 A `## [<version>]` section that already exists wins over `## [Unreleased]`. If
 neither has any content, the notes fall back to the commit subjects since the

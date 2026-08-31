@@ -71,6 +71,8 @@ frontend/
     ├── js/nav.js     the navigation menu on a narrow screen
     ├── js/search.js  local filtering of the release-built public-page index
     ├── js/scan.js    polls /api/scans/{uuid} until the scan settles
+    ├── js/rescan.js  counts down the wait before the same instance may be scanned again
+    ├── js/fragment.js the picker over the rendered configuration fragments
     └── img/*.svg     drawn for this project
 ```
 

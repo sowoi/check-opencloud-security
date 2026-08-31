@@ -413,6 +413,23 @@ Both answer **429** with a `Retry-After`. The client address is never stored:
 the key holds a truncated HMAC under a pepper generated at startup, which is
 enough to count and useless afterwards.
 
+**A report page counts the wait down.** A finished report carries a **Scan
+again** button, and beside it the time before that is allowed. Both limits are
+read - `RateLimiter.peek_client` and `RateLimiter.peek_target`, which are the
+ordinary checks with the counting left out - and the longer of the two is what
+is shown, because a countdown that expired into a refusal from the *other*
+limit would be worse than none at all. Reading a limit must never spend it, or
+showing somebody their wait would be the request that caused it.
+
+The hostname comes from the record the uuid already unlocked, so this asks
+nothing the caller did not bring with them: there is no way to enquire about a
+target you do not hold a uuid for, and the uuid is still the whole of the
+authorisation. The button itself is an ordinary form posting to `/` carrying
+the first scan's target, waivers, release track and output format - so the
+cross-site check, both limits, the SSRF guard and the audit trail apply to it
+exactly as they do to any other submission, and the second result is rated on
+the same terms as the first.
+
 **What a rejection tells a stranger.** The target cooldown is shared, so its
 429 says an instance was scanned recently - by anyone. That is inherent to a
 per-target cooldown rather than a leak in the implementation, and it is
@@ -859,7 +876,19 @@ an AI agent](mcp.md), which also covers turning the endpoint off.
 ### `GET /scan/{uuid}`, `GET /`, `GET /healthz`
 
 The result page, the landing page, and a Redis-backed health probe that says
-nothing about any scan. The explanations the landing page used to carry sit on
+nothing about any scan.
+
+A finished result page also offers to **scan again** - the same target on the
+same terms, with the wait counted down beside it (see [Rate
+limiting](#rate-limiting)) - and renders the findings it just listed **as
+configuration**: a Compose, `.env`, nginx, Caddy or Traefik fragment built by
+`opencloud_local_scan.snippets` from the catalogue's own `env_fix` and
+`header_fix` pairs, with the chosen flavour remembered in the browser. All
+five are rendered server-side and a script collapses them into a picker, so a
+reader without scripting gets every fragment rather than one visible block and
+four dead buttons. Nothing is generated in the browser: the fragments come
+from the module the library tests cover, and a second implementation of that
+in JavaScript is the one thing on the page that must not exist. The explanations the landing page used to carry sit on
 their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
 `GET /search`, `GET /api`, `GET /ai`, `GET /privacy` and `GET /about` - which
 are HTML only and stay out of the OpenAPI schema. `/grades` explains the

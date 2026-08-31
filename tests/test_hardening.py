@@ -16,6 +16,8 @@ loud instead of silent.
 from __future__ import annotations
 
 from opencloud_local_scan import CATEGORIES, all_checks, describe_hardening
+from opencloud_local_scan.hardening import ADVISORY_CHECKS
+from opencloud_local_scan.scanner import ADVISORY_CHECK_IDS
 from webapp.catalog import (
     ADVISORY_HEADER_IDS,
     HEADER_IDS,
@@ -83,6 +85,38 @@ def test_an_advisory_header_is_explained_but_never_offered_as_a_waiver():
     # is about these three headers and not about waivers being empty.
     for name in HEADER_IDS:
         assert name in waivable, name
+
+
+def test_an_advisory_check_is_explained_but_never_offered_as_a_waiver():
+    """
+    The same bargain as the advisory headers, for what is not a header. It
+    reaches the catalogue through ``all_checks`` like every other entry, and
+    it must not reach the waiver list: the tick box would tell a visitor this
+    is a finding serious enough to need accepting, when nothing alerts on it
+    at all. See ADR 0034.
+    """
+    waivable = allowed_waivers()
+    catalogued = {
+        check.id for category in check_catalogue() for check in category.checks
+    }
+
+    for name in ADVISORY_CHECKS:
+        assert name in catalogued, name
+        assert name not in waivable, name
+
+    # The negative case: an ordinary hardening flag is offered, so this is
+    # about the advisory checks and not about waivers being empty.
+    assert "basicAuthDisabled" in waivable
+
+
+def test_the_measured_advisory_checks_are_all_catalogued():
+    """
+    The scanner writes ``setup.advisoryChecks`` from its own tuple and the
+    catalogue explains them from its own dict. Nothing links the two at
+    runtime, so a check added to one and not the other would be reported
+    without an explanation, or explained without ever being measured.
+    """
+    assert set(ADVISORY_CHECK_IDS) == set(ADVISORY_CHECKS)
 
 
 def test_a_family_member_finding_inherits_its_family_category():

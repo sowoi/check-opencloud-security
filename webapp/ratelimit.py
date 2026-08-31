@@ -126,6 +126,46 @@ class RateLimiter:
             False, max(1, retry_after if retry_after > 0 else self.target_cooldown), "target"
         )
 
+    async def peek_client(self, client: str) -> LimitDecision:
+        """
+        Whether this client could submit now, without spending anything.
+
+        The mirror of :meth:`check_client` with the ``INCR`` left out. It
+        exists so that a page can tell a reader how long they have to wait
+        instead of letting them find out by being refused - and reading it
+        must not itself be the request that uses up the allowance.
+        """
+        if self.client_limit <= 0:
+            return LimitDecision(True)
+        key = client_key(client, self.salt)
+        raw = await self.backend.get(key)
+        try:
+            count = int(raw) if raw is not None else 0
+        except ValueError:  # pragma: no cover - only a hand-edited key gets here
+            count = 0
+        if count < self.client_limit:
+            return LimitDecision(True)
+        retry_after = await self.backend.ttl(key)
+        return LimitDecision(
+            False, max(1, retry_after if retry_after > 0 else self.client_window), "client"
+        )
+
+    async def peek_target(self, host: str) -> LimitDecision:
+        """
+        How long this target's cooldown still has to run, claiming nothing.
+
+        :meth:`check_target` answers the same question by taking the slot,
+        which is right for a submission and wrong for a page that only wants
+        to show a countdown: asking would start a new cooldown and the answer
+        would always be "the full one".
+        """
+        if self.target_cooldown <= 0:
+            return LimitDecision(True)
+        retry_after = await self.backend.ttl(target_key(host, self.salt))
+        if retry_after <= 0:
+            return LimitDecision(True)
+        return LimitDecision(False, retry_after, "target")
+
     async def check_credential(self, client: str) -> LimitDecision:
         """
         Whether this client may present an operator credential again.

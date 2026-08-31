@@ -1,0 +1,23 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: webhook-hmac-unverifiable
+state: declined
+changelog_version: "1.14.2"
+changelog_entry: "The webhook HMAC signature could never be verified by any receiver."
+shipped: true
+declined_because: |
+  A real defect in released versions, but it fails closed: the signature
+  sent never matched the body sent, so a correct receiver rejected every
+  notification. Nothing was accepted that should not have been, and no
+  secret leaked. The risk is a receiver that gave up and switched
+  verification off - which the changelog entry and the release notes tell
+  operators to switch back on. That is guidance, not an advisory.
+summary: >-
+  The webhook signed a canonical serialisation but posted a differently
+  serialised body, so X-COS-Signature never verified
+verified: |
+  git show v1.14.1:check_opencloud_security.py:851-853 - requests.post(json=body)
+  re-serialises the object after the canonical form was signed.

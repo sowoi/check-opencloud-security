@@ -1,0 +1,49 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: csv-export-formula-injection
+state: published
+ghsa: GHSA-547x-pc35-5c64
+changelog_version: "1.7.0"
+changelog_entry: "CSV exports no longer allow spreadsheet formula injection."
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-1236
+package: web
+introduced: "1.4.0"
+fixed: "1.7.0"
+summary: >-
+  CSV export does not neutralise formula characters taken from the scanned
+  instance (CSV injection)
+verified: |
+  git show v1.6.1:webapp/catalog.py csv_report - writer.writerow() receives
+  result.get("product") and friends with no neutralisation of =, +, -, @.
+description: |
+  ### Impact
+
+  CSV export cells were built from strings the *scanned instance* chooses - its
+  product name, a `WWW-Authenticate` challenge, finding descriptions - and
+  written straight through `csv.writer` with no neutralisation. An instance
+  naming itself `=cmd|...` could therefore execute code on the machine of whoever
+  opened the downloaded report in a spreadsheet application. The attacker is the
+  operator of the scanned instance; the victim is the person who scanned it.
+
+  ### Patches
+
+  Fixed in **1.7.0**. Every cell is prefixed when it starts with `=`, `+`, `-`,
+  `@`, a tab or a carriage return, stripped of newlines so a value cannot forge a
+  row, and capped in length.
+
+  ### Workarounds
+
+  Use the JSON or SARIF export instead of CSV.
+
+  ### Note on distribution
+
+  The web application is **not** published to PyPI - the wheel and the sdist
+  exclude `webapp/` and `frontend/`. It ships as
+  `check_opencloud_security_web.tar.gz`. Installations of the
+  `check-opencloud-security` PyPI package are unaffected.

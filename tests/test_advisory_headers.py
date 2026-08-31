@@ -1,8 +1,8 @@
 """
 The headers that are reported but never held against a deployment.
 
-``Permissions-Policy``, ``Cross-Origin-Opener-Policy`` and
-``Cross-Origin-Resource-Policy`` are worth having and OpenCloud sends none of
+``Permissions-Policy``, the two Cross-Origin policies and
+``Cross-Origin-Embedder-Policy`` are worth having and OpenCloud sends none of
 them. That combination is what makes them a different kind of finding from
 everything under ``setup.headers``: a missing ``X-Frame-Options`` means
 something in front of this instance stripped a header OpenCloud's proxy sets,
@@ -13,7 +13,7 @@ So they are measured into their own block and kept out of the alert. The
 tests here are the ones that have to fail if that ever stops being true,
 because the failure mode is quiet in both directions: promote them and every
 ``--check-hardening`` user gets a permanent WARNING nobody can clear, drop
-them and three real improvements silently stop being suggested. See ADR 0028.
+them and four real improvements silently stop being suggested. See ADR 0028.
 """
 
 from __future__ import annotations
@@ -46,6 +46,7 @@ def test_an_instance_that_sends_them_is_credited():
             "Permissions-Policy": "camera=(), microphone=()",
             "Cross-Origin-Opener-Policy": "same-origin",
             "Cross-Origin-Resource-Policy": "same-site",
+            "Cross-Origin-Embedder-Policy": "require-corp",
         }
     )
 
@@ -65,6 +66,7 @@ def test_a_header_whose_value_restricts_nothing_is_not_credited():
         extra_headers={
             "Cross-Origin-Opener-Policy": "unsafe-none",
             "Cross-Origin-Resource-Policy": "cross-origin",
+            "Cross-Origin-Embedder-Policy": "unsafe-none",
             "Permissions-Policy": "camera=()",
         }
     )
@@ -73,6 +75,7 @@ def test_a_header_whose_value_restricts_nothing_is_not_credited():
 
     assert advisory["Cross-Origin-Opener-Policy"] is False
     assert advisory["Cross-Origin-Resource-Policy"] is False
+    assert advisory["Cross-Origin-Embedder-Policy"] is False
     # The one real value in the same response still passes, so this is about
     # the values and not about the whole block failing.
     assert advisory["Permissions-Policy"] is True

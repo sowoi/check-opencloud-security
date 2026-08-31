@@ -646,6 +646,21 @@ stranger can reach.</p>
 <p>Both answer <strong>429</strong> with a <code>Retry-After</code>. The client address is never stored:
 the key holds a truncated HMAC under a pepper generated at startup, which is
 enough to count and useless afterwards.</p>
+<p><strong>A report page counts the wait down.</strong> A finished report carries a <strong>Scan
+again</strong> button, and beside it the time before that is allowed. Both limits are
+read - <code>RateLimiter.peek_client</code> and <code>RateLimiter.peek_target</code>, which are the
+ordinary checks with the counting left out - and the longer of the two is what
+is shown, because a countdown that expired into a refusal from the <em>other</em>
+limit would be worse than none at all. Reading a limit must never spend it, or
+showing somebody their wait would be the request that caused it.</p>
+<p>The hostname comes from the record the uuid already unlocked, so this asks
+nothing the caller did not bring with them: there is no way to enquire about a
+target you do not hold a uuid for, and the uuid is still the whole of the
+authorisation. The button itself is an ordinary form posting to <code>/</code> carrying
+the first scan's target, waivers, release track and output format - so the
+cross-site check, both limits, the SSRF guard and the audit trail apply to it
+exactly as they do to any other submission, and the second result is rated on
+the same terms as the first.</p>
 <p><strong>What a rejection tells a stranger.</strong> The target cooldown is shared, so its
 429 says an instance was scanned recently - by anyone. That is inherent to a
 per-target cooldown rather than a leak in the implementation, and it is
@@ -1002,7 +1017,18 @@ in VS Code and the CLI, Cursor, Zed, Windsurf - is in <a href="/documentation/mc
 an AI agent</a>, which also covers turning the endpoint off.</p>
 <h3 id="get-scanuuid-get-get-healthz"><code>GET /scan/{uuid}</code>, <code>GET /</code>, <code>GET /healthz</code></h3>
 <p>The result page, the landing page, and a Redis-backed health probe that says
-nothing about any scan. The explanations the landing page used to carry sit on
+nothing about any scan.</p>
+<p>A finished result page also offers to <strong>scan again</strong> - the same target on the
+same terms, with the wait counted down beside it (see <a href="#rate-limiting">Rate
+limiting</a>) - and renders the findings it just listed <strong>as
+configuration</strong>: a Compose, <code>.env</code>, nginx, Caddy or Traefik fragment built by
+<code>opencloud_local_scan.snippets</code> from the catalogue's own <code>env_fix</code> and
+<code>header_fix</code> pairs, with the chosen flavour remembered in the browser. All
+five are rendered server-side and a script collapses them into a picker, so a
+reader without scripting gets every fragment rather than one visible block and
+four dead buttons. Nothing is generated in the browser: the fragments come
+from the module the library tests cover, and a second implementation of that
+in JavaScript is the one thing on the page that must not exist. The explanations the landing page used to carry sit on
 their own pages - <code>GET /how-it-works</code>, <code>GET /grades</code>, <code>GET /documentation</code>,
 <code>GET /search</code>, <code>GET /api</code>, <code>GET /ai</code>, <code>GET /privacy</code> and <code>GET /about</code> - which
 are HTML only and stay out of the OpenAPI schema. <code>/grades</code> explains the

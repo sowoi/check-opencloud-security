@@ -1,0 +1,38 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: webhook-ssrf-ipv6-bypass
+state: published
+ghsa: GHSA-2qpx-cwvx-rjv3
+changelog_version: "1.14.2"
+changelog_entry: "The webhook notifier's SSRF guard only checked IPv4 addresses."
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-918
+package: plugin
+introduced: "1.2.3"
+fixed: "1.14.2"
+summary: >-
+  Webhook SSRF guard validates only IPv4 addresses, so a hostname with a
+  private AAAA record is still connected to
+verified: |
+  git show v1.14.1:check_opencloud_security.py:898 - socket.gethostbyname(hostname),
+  which returns A records only, while requests.post resolves dual-stack.
+description: |
+  ### Impact
+
+  `_resolve_webhook_address` resolved a webhook hostname with
+  `socket.gethostbyname`, which returns only `A` records, while the actual
+  delivery in `requests.post` resolves dual-stack. A hostname with a public `A`
+  record and a private, loopback or link-local `AAAA` record therefore passed
+  validation and could still be connected to over IPv6. The DNS-rebinding
+  recheck performed immediately before delivery had the same blind spot.
+
+  ### Patches
+
+  Fixed in **1.14.2**. Resolution now uses `socket.getaddrinfo` and validates
+  every address a hostname answers with, IPv4 and IPv6 alike, and unwraps
+  IPv4-mapped, 6to4 and NAT64-encoded IPv6 literals.
