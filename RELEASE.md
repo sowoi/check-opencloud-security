@@ -1,423 +1,175 @@
-## check-opencloud-security 1.16.0
+## check-opencloud-security 1.17.0
 
-### Added
+### Security
 
-- **The Docker setup wizard can hand the audit file to the host's logrotate**,
-  for a trail kept in a directory on the host. It asks who rotates it -
-  `service`, by size, from inside the container and needing nothing installed,
-  or `logrotate`, which is where an estate's retention policy, compression and
-  backups already live - and how many days to keep. Choosing logrotate writes
-  a third file beside the compose file, `<project>-audit.logrotate`, with the
-  install command in its header and in the wizard's next steps.
+- **The scan service binds loopback, and binding anything else now requires a
+  token.** `check-opencloud-scanner serve` defaulted to `0.0.0.0` with no
+  credential, and `GET /api/scan?url=<host>` hands the hostname a request
+  names straight to the scanner - which, by design, validates nothing: the
+  SSRF guard lives in `webapp/ssrf.py` and that path never reaches it. On a
+  network with no token in front, that is an open request forwarder into
+  whatever the monitoring host can reach - the cloud metadata endpoint, a
+  container runtime socket, an internal admin panel - each answered back to
+  the caller as scan evidence.
 
-  `COS_WEB_AUDIT_LOG_ROTATION` is the setting behind it. `external` turns the
-  service's own size-based rotation off and switches the handler to one that
-  notices its file was moved aside and reopens the replacement, so the policy
-  needs no `copytruncate` - which would truncate the file underneath a running
-  writer and lose whatever fell between the copy and the truncation - and its
-  `create 0600 10001 10001` line is what keeps the new file writable by the
-  container and readable by nobody else. Exactly one thing may rotate the
-  file, so an unrecognised value refuses to start rather than leaving a
-  deployment with two rotators or none, and the wizard warns that a policy
-  nobody installs rotates nothing.
+  `COS_SERVICE_LISTEN` now defaults to `127.0.0.1`, and any other address
+  without `--token`/`COS_SERVICE_TOKEN` refuses to start rather than serving
+  open. An operator who published the port meant to publish the service, and
+  would otherwise have learned what they published from somebody else.
 
-- **The Docker setup wizard asks where a deployment keeps its audit trail and
-  whether Redis survives a restart**, and either can go to a named Docker
-  volume or to a directory on the host. Both default to `none`, which is what
-  the shipped stack already does; the point is that keeping something is now
-  an answer rather than a hand-edited compose file.
+  **This is a breaking change** for a container that published the port
+  without a token: it now needs `COS_SERVICE_LISTEN=0.0.0.0` *and*
+  `COS_SERVICE_TOKEN`. The failure names both.
+  `docker/docker-compose.monitoring.yml` already set both and is unchanged;
+  local use needs neither. ADR 0001 made this argument for the Prometheus
+  exporter and stopped there, so
+  [ADR 0030](adr/0030-a-listener-binds-loopback-and-a-wide-bind-needs-a-credential.md)
+  generalises it: a listener binds loopback, and a wide bind needs a
+  credential.
 
-  The audit trail needed somewhere to go first, so `COS_WEB_AUDIT_LOG_FILE`
-  is new: it writes the records to a file instead of the process output,
-  owner-readable, rotated at `COS_WEB_AUDIT_LOG_MAX_BYTES` with
-  `COS_WEB_AUDIT_LOG_BACKUPS` generations kept, so the trail cannot fill the
-  volume it sits on. The records go there *instead of*, not as well as, the
-  ordinary log - which is the one place this service keeps free of targets and
-  client fingerprints. A path the process cannot write refuses to start, for
-  the reason [ADR 0008](adr/0008-refuse-to-start-without-the-encryption-key.md)
-  gives about encryption: reporting an audit trail that silently goes nowhere
-  is worse than keeping none. `Dockerfile.web` creates
-  `/var/log/opencloud-scan` owned by the unprivileged uid, so a fresh named
-  volume inherits an ownership the container can write to.
+- **`X-Forwarded-For` is read from the right rather than the left.** The
+  leftmost entry is only the client behind a proxy that *overwrites* the
+  header; nginx's `proxy_add_x_forwarded_for`, Traefik and most content
+  delivery networks *append*, and there the leftmost entry is whatever the
+  client sent. A caller could therefore mint a fresh rate-limit bucket, a
+  fresh audit identity and a fresh allowance of `DELETE /api/purge` attempts
+  per request, by adding one header.
 
-  Persisting Redis is the one answer here that takes something away from what
-  the service can promise - a copy of every result still inside its TTL then
-  exists as a file - so the wizard warns when it is chosen, suggests
-  `COS_WEB_ENCRYPT_RESULTS` alongside it, and rewrites the comment above the
-  `redis` service rather than leaving a compose file claiming it writes
-  nothing to disk. The `private` preset now keeps the audit trail it already
-  turned on.
+  The header is now read from the end only a proxy writes,
+  `COS_WEB_TRUSTED_PROXY_HOPS` entries in. An entry that is not an IP address
+  is ignored rather than counted, so an obfuscated identifier cannot become
+  somebody's bucket either, and an entry that *is* one is reduced to its
+  canonical form before anything keys on it - `[2001:db8::1]`, `2001:db8::1`
+  and `2001:0DB8:0000::1` are one host written three ways, and would otherwise
+  have been three buckets, three audit identities and three allowances of
+  purge attempts. `docs/reverse-proxy.md` said the opposite for Traefik - that
+  the first entry is the client - and now says what happens.
 
-- **Four hardening flags read from the OpenID Connect discovery document the
-  scan already fetches**, at the cost of no additional HTTP request. Finding
-  out who signs users in has always meant reading
-  `/.well-known/openid-configuration`; until now only `issuer` was kept and
-  the rest was thrown away, which left
-  [Securing a deployment](docs/secure-deployment.md) telling operators to
-  require PKCE with nothing able to check whether they had.
+- **The two daily reference-data fetches cap what they will read.** The
+  release lifecycle page and the OSV advisory feed were both read into memory
+  in full before anything looked at them, and both URLs are operator
+  configuration that may name a mirror. The advisory feed's `MAX_ADVISORIES`
+  guard could not help: reaching it already meant paying for the whole answer.
+  Because both jobs run `run_at_startup`, an oversized answer was a worker
+  that crashed, restarted, asked again and crashed again.
 
-  | Flag                         | Fails when                                                                   |
-  |:-----------------------------|:-----------------------------------------------------------------------------|
-  | `oidcPkceSupported`          | `code_challenge_methods_supported` does not offer `S256`                     |
-  | `oidcImplicitFlowDisabled`   | `response_types_supported` returns a token from the authorization endpoint   |
-  | `oidcSigningAlgorithmStrong` | `id_token_signing_alg_values_supported` contains `none` or an `HS` algorithm |
-  | `oidcEndpointsUseHttps`      | a published endpoint is an `http://` address                                 |
+  Both now read at most one megabyte and treat more as a failed fetch, which
+  every caller already degrades from by keeping the document it had. The
+  ceiling lives in one place, `opencloud_local_scan/fetch.py`, so the two
+  cannot drift - the same rule `ScannerSettings.max_response_bytes` has always
+  applied to the instances being scanned, now applied to the documents they
+  are rated against.
 
-  **Every one is skipped where the evidence is not published**, the same rule
-  `passwordPolicyComplexity` follows. That matters more here than usual:
-  OpenCloud's built-in provider ([libregraph/lico](https://github.com/libregraph/lico)) omits
-  `code_challenge_methods_supported` entirely, so reading its absence as "no
-  PKCE" would fail every stock instance for something its operator cannot
-  change. For the same reason `oidcImplicitFlowDisabled` is reported for an
-  **external** provider only - lico publishes `id_token token` and `id_token`
-  among its response types and cannot be reconfigured, and a finding an
-  operator cannot act on is worse than none. `oidcEndpointsUseHttps` is
-  measured only when the instance itself answered over HTTPS, so it reports
-  the disagreement worth reporting - a TLS instance whose provider still
-  advertises `http://` - rather than restating `httpsEnforced`.
+- **A submission from another site is refused before it is counted.** `POST /`
+  and `POST /language` took a plain form body with no check on where it came
+  from, so a page anywhere could queue a scan against a target of its choosing
+  and have it attributed to whichever browser it borrowed - spending that
+  visitor's rate-limit allowance and making their network the apparent origin
+  of a scan they never asked for.
 
-  [Authentication](docs/authentication.md) explains all four, and records
-  what else that document publishes and why none of the rest is checked -
-  including `token_endpoint_auth_methods_supported`, the obvious fifth
-  candidate, which is not a finding in either direction.
-
-  The result document's `identityProvider` block gains a `metadata` key
-  carrying the fields these flags were read from, so a reader can see the
-  evidence rather than only the verdict. `derive_hardenings()` takes the
-  identity-provider block as a fourth, optional argument; a caller that does
-  not pass one still gets every other flag.
-
-- **`passwordPolicyComplexity`: whether the link password policy still asks
-  for more than a length.** OpenCloud's default policy requires one lowercase
-  letter, one uppercase letter, one digit and one special character, and each
-  of those four minimums is a setting somebody can lower to zero. A
-  twelve-character policy with all four at zero accepts `aaaaaaaaaaaa`, which
-  satisfies `passwordPolicyEnforced` and nothing else. Deliberately a second
-  flag rather than a stricter `passwordPolicyEnforced`: folding them together
-  would change what an existing alert means without changing its name.
-  Reported only when the instance publishes all four minimums - a policy that
-  is switched off publishes none of them, and that case is
-  `passwordPolicyEnforced` failing rather than this one. See
-  [Authentication and account exposure](docs/authentication.md).
-
-- **`check-opencloud-scanner diff`**: compare two archived result documents
-  and say what changed - findings that appeared, findings that were resolved,
-  and any movement in the rating, the version and the support horizon. Renders
-  as `text`, `markdown`, `json` (the document the webhook carries) or `slack`
-  (Block Kit). It reads files and never scans anything. Two different hosts
-  are refused unless `--allow-different-hosts` is given, because "did the fix
-  work" is a question about one instance and two hosts silently compared is a
-  wrong answer nobody notices; a comparison that got worse exits 1 so a
-  pipeline can gate on it, unless `--exit-zero` says otherwise. The judgement
-  is the plugin's own `--baseline` arithmetic, not a second implementation of
-  it.
-
-- **`compare_scans`, an MCP tool, and `verify_remediation`, a prompt**, so the
-  question an agent is asked a week after handing over a remediation plan -
-  *did any of that help?* - has an answer. Two finished scans of one instance
-  are compared into what was fixed, what is still open and what is new; both
-  uuids must still be here, since this service stores no scan history and a
-  uuid remains a capability with a TTL. The comparison is the same
-  `--baseline` arithmetic the plugin uses rather than a set difference of its
-  own, so an agent cannot call "improved" something the plugin would not. Also
-  reachable as the `compareScans` Arazzo workflow and listed in
-  `/.well-known/ai.json`. See
-  [ADR 0029](adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md)
-  for why neither a history table nor workflow-layer arithmetic was acceptable.
-
-- **A GitHub Action** ([`action.yml`](action.yml)): `uses: sowoi/check-opencloud-security@v1`
-  with a `target`, and the scan runs. Writes `json`, `sarif` (2.1.0, for the
-  code-scanning dashboard), `junit` or `nagios` to `output-file`, and exposes
-  `exit-code`, `status`, `rating`, `rating-label`, `message` and `result-file`
-  as step outputs. `fail-on` chooses whether a `warning` fails the step, only
-  a `critical` does, or `never` does and a later step decides; `UNKNOWN` fails
-  under both of the first two, because a scan that did not run is not a pass.
-  Pin the version: the release schedule and the newest known OpenCloud version
-  ship *inside* the package, so which version runs is part of the verdict. See
-  [Running the check from CI](docs/ci.md).
-
-- **`opencloud_security_end_of_life`**, a Prometheus metric of its own rather
-  than a negative `support_days_remaining`. A rolling or production release
-  whose end of life has not been dated yet publishes no day count at all, and
-  "unknown" must not read as "expiring today" in the one alert nobody may
-  miss. Labelled with `host` and `release_type`.
-
-- **Prometheus alerting rules and a Grafana dashboard as files**
-  ([`contrib/prometheus/alerts.yml`](contrib/prometheus/alerts.yml),
-  [`contrib/grafana/dashboard.json`](contrib/grafana/dashboard.json)) - nobody
-  retypes a dashboard. Both read the metric names the **native** exporter
-  publishes, not the shorter ones the textfile-collector and Pushgateway
-  recipes shape with `jq`. `tests/test_contrib_assets.py` derives the names
-  from the exporter itself, so a rename fails the suite rather than quietly
-  emptying a panel. The dashboard carries an `Instance` selector, so one copy
-  serves every host.
-
-- **A contents list on every page the menu bar reaches** that has more than
-  one section. `/how-it-works`, `/grades`, `/catalogue`, `/api`, `/ai` and
-  `/about` now open with the same jump list `/documentation` already had, and
-  that list is one template
-  ([`frontend/templates/_toc.html`](frontend/templates/_toc.html)) rather than
-  six copies. Every entry reuses the section's own heading string, so a
-  heading rewritten in one of the four languages cannot leave the contents
-  list behind saying the old thing. A page with a single section
-  (`/privacy`) includes nothing: a contents list of one entry is a link to the
-  top of the page the reader is already on.
-
-### Changed
-
-- **Breaking: `COS_WEB_PURGE_TOKEN` must now be at least 32 characters, and a
-  deployment whose token is shorter refuses to start.** That token is the
-  entire authorisation for `DELETE /api/purge`, the one route that walks the
-  keyspace and deletes results belonging to whoever is currently reading them,
-  so a memorable one is worse than no endpoint at all. Startup fails with a
-  message naming the variable rather than serving the endpoint behind a
-  guessable secret - the stance
-  [ADR 0008](adr/0008-refuse-to-start-without-the-encryption-key.md) takes for
-  the encryption key, for the same reason: a deployment whose operator
-  believes something is protected must not come up when it is not.
-
-  **What to do.** Nothing, unless `COS_WEB_PURGE_TOKEN` is set *and* shorter
-  than 32 characters - leaving it unset is unaffected and still answers 404 to
-  every erasure request, which is the default and the safe state. If it is
-  set, generate a replacement and update whoever holds it:
-
-  ```bash
-  python -c 'import secrets; print(secrets.token_hex(32))'
-  ```
-
-  Tokens written by the Docker setup wizard have always been 64 hex
-  characters and need no change.
-
-- **The Docker setup wizard's yes/no questions say that `true` and `false` are
-  accepted too**, and a confirmation prompt that does not understand an answer
-  now says so instead of silently asking again. Both words were always
-  accepted; nothing on screen admitted it.
-
-- **The Docker tab is now the first half of `/documentation`.** Somebody
-  looking for how to run the check had to guess which of two menu entries
-  answered that; the one-liners - the plain `docker run`, the JSON result
-  document, `--network host` for an instance this site will not scan, and the
-  `uvx` form for machines without Docker - now sit directly under the quick
-  start on the documentation page. `/cli` answers **301** to
-  `/documentation#oneliner`, because that path is printed in released
-  documentation and indexed; it is out of `sitemap.xml` and out of the search
-  index, whose `/documentation` entry now covers the same text. The "every
-  variation, written down" section it used to close with is not repeated: the
-  guide it pointed at,
-  [Scanning from the command line, in one line](docs/docker-oneliner.md), is
-  already listed in the guide grid further down the same page.
+  Both now refuse a cross-site submission, using the `Sec-Fetch-Site` and
+  `Origin` headers a browser attaches by itself rather than a token, since
+  this service has no session to hang one on. The check runs before the rate
+  limiter, so a refused submission costs the borrowed visitor nothing. A
+  caller that is not a browser - curl, an agent, the in-process MCP client -
+  sends neither header and is refused nothing; a page cannot make a browser
+  omit them.
 
 ### Fixed
 
-- **`DELETE /api/purge` now counts wrong credentials, and refuses to start
-  behind one short enough to guess.** It is the only destructive route here -
-  it walks the keyspace and deletes results belonging to whoever is currently
-  reading them - and the token is the whole of its authorisation. The
-  comparison was already constant time, which stops a token leaking a
-  character at a time and does nothing about simply trying: the route called
-  no limiter, so attempts were free. Five failures from one address inside
-  five minutes are now answered `429` without a comparison. Only failures
-  count, so an operator working through a list of erasure requests never meets
-  it. The minimum length now required of that token is a breaking change and
-  is described under **Changed** above.
+- **An advisory that names no version range is dropped instead of matching
+  every release.** `is_in_range(version, None, None)` is true of every version
+  there has ever been, so one such record reported *every* instance scanned
+  with that database as critically vulnerable - a fleet-wide false CRITICAL
+  that looks exactly like a real one, on the check whose exit code drives the
+  alerting.
 
-- **The client rate limit can now be made to hold across more than one web
-  process.** The pepper the limit keys are derived from is generated per
-  process, which is correct for the single-process stack this ships and
-  silently wrong for anything scaled: each process derives a different Redis
-  key for the same address, so a client quietly gets one allowance per process
-  and nothing in any log says so. `COS_WEB_RATE_LIMIT_SALT`, set to the same
-  value everywhere, makes them count together. Unset keeps exactly the
-  previous behaviour, so a single-process deployment needs no change.
+  `_from_osv` already refused these and said why; the other two parsers did
+  not. The native format is the one an operator writes by hand and points
+  `--vulnerability-feed` at, where a forgotten bound is a typo rather than
+  somebody else's feed quirk, and the GitHub parser stopped at the first
+  OpenCloud entry - which proves an advisory is *about* OpenCloud and nothing
+  about which releases it affects, so an unparseable
+  `vulnerable_version_range` with no patched version left it unbounded. All
+  three now refuse alike and log which advisory was dropped.
 
-- **`COS_WEB_ENABLE_DOCS` in the three published compose files now matches the
-  comment above it.** `docker-compose.yml` explained that the browsable
-  `/docs` and `/redoc` pages are "off in public: enabling them relaxes the
-  content policy on those two paths", and then set the value to `"true"`;
-  the other two stacks enabled them with no comment at all. All three are now
-  `"false"`, which is also the application's own default, and the comment says
-  how to turn them on. `/openapi.json`, `/arazzo.json` and
-  `/.well-known/ai.json` are public whatever this says, as they always were.
+  A single open bound is untouched: no fix yet is the normal shape of a fresh
+  advisory, and no introduced version means everything up to the fix. Only
+  *both* ends open is meaningless. A disabled placeholder such as the bundled
+  `OC-EOL` is not judged at all - it never becomes an advisory, and it
+  documents the end-of-life finding the scanner raises by itself.
 
-- **A scanned instance can no longer forge the GitHub Action's step outputs.**
-  The action writes `status`, `rating`, `rating-label` and `message` to
-  `$GITHUB_OUTPUT` as heredoc blocks, and the delimiter closing them was the
-  fixed string `COS_EOF`. Half of what reaches those values is a string the
-  *scanned host* chose - its product name, a `WWW-Authenticate` challenge, the
-  message built around them - so the one party with an interest in guessing
-  the delimiter already knew it. A host answering with a message containing a
-  line reading `COS_EOF` closed the block early and had everything after it
-  parsed as further assignments: arbitrary step outputs in whatever workflow
-  consumes them, from a host that only had to answer an HTTP request. The
-  delimiter is now `secrets.token_hex(16)` per run, as GitHub's own
-  documentation specifies, and a value that manages to contain it anyway is
-  dropped rather than written.
+  The web application keeps refusing such a *document* wholesale rather than
+  quietly dropping the entry from it, which is what
+  [ADR 0017](adr/0017-the-advisory-database-refreshes-itself.md) asks for: a
+  feed emitting an advisory that affects every version has gone wrong, and
+  yesterday's database is the better answer than the rest of today's.
 
-- **A webhook is no longer delivered to wherever the receiver redirects it.**
-  `--webhook-url` is checked against private, loopback and link-local
-  addresses, and re-resolved immediately before delivery to close the
-  rebinding window - but the POST itself left `allow_redirects` at its
-  default, so a receiver answering `302 Location: http://169.254.169.254/`
-  had the payload delivered one hop past the guard, to an address nothing
-  checked. What travelled with it was not only the result: `X-COS-Signature`
-  and every `--webhook-header` went too, and `requests` drops `Authorization`
-  across hosts but keeps the rest, so a receiver's own API key was handed to
-  whatever it pointed at. The scanner has refused unvalidated redirects since
-  the SSRF guard was written; the webhook path simply never asked. Redirects
-  are now never followed, and a 3xx is reported as a delivery failure rather
-  than passing `raise_for_status()` as a notification that never arrived.
+- **A rating threshold outside 0-5 no longer crashes the plugin into a
+  WARNING.** `-w`/`-c` are plain integers and the environment feeds the same
+  values, so nothing stopped `-c 6`. The evaluation then looked the threshold
+  up in `RATE_MAP` to name it in the alert line and raised `KeyError`; with no
+  handler above `main()`, Python exited 1, which Nagios reads as WARNING. A
+  typo in a check command became a warning state on the monitored host with a
+  traceback as its status text. The thresholds are now validated before any
+  scan starts, and the two alert-line lookups no longer index `RATE_MAP`
+  directly.
 
-- **The Redis service in all three published compose files now starts with the
-  arguments it was meant to have.** `command: >` is a *folded* scalar, so a
-  `#` inside the block is literal text rather than a comment - the four lines
-  of prose explaining `COS_REDIS_PASSWORD` were folded into the command line
-  between `--maxmemory-policy` and `--requirepass`, handing `redis-server`
-  fifty words of English as arguments. Either the server refuses the directive
-  and never starts - taking the whole stack with it, since the other services
-  wait on its health check - or it comes up with no password at all on a store
-  holding every live scan and every result still inside its TTL. The wizard's
-  generated compose kept its comments outside the block and was unaffected;
-  the checked-in files had diverged from it since 1.12.0. The comments now sit
-  above `command:` in `docker-compose.yml`, `docker-compose.dockerhub.yml` and
-  `docker-compose.authentik.yml`, and two tests split each compose file's
-  commands the way Compose does and assert that no folded-in prose reached
-  them.
+### Added
 
-- **Every workflow now declares the token scope it needs, and pins every
-  action to a digest.** Ten of the sixteen already did both; the six that ran
-  the suite, ruff, mypy, nox, ansible-lint and Bandit declared no
-  `permissions:` block at all, so `GITHUB_TOKEN` arrived with whatever the
-  repository default grants - frequently write across every scope - in jobs
-  that install and execute the whole dependency tree on a push. They now
-  declare `contents: read`. Bandit keeps its job-level
-  `security-events: write` for the SARIF upload, which a job-level block
-  grants without widening the others. The same seven files referenced
-  `actions/checkout@v7`, `astral-sh/setup-uv@v10.0.0` and
-  `github/codeql-action/upload-sarif@v4` by mutable tag rather than by digest,
-  against the convention the rest of the directory follows; all three are now
-  pinned to the commit their tag resolved to, with the version in a trailing
-  comment. Two tests read the workflow directory rather than a list, so a
-  workflow added later is covered the moment it exists.
+- **Every finding on a report links to the catalogue entry that explains it,
+  and the report has a contents list.** A result named identifiers -
+  `basicAuthDisabled`, `exposed:/config/opencloud.yaml` - and left the reader
+  to search for what they mean. The category badge already led to the
+  catalogue, but only as far as the category: a reader who wanted the
+  paragraph about *their* finding still had to find it among sixty entries.
 
-- **The Bandit workflow's SARIF upload now names the ref and commit it is
-  reporting on**, so a pull request's code scanning check can find it. Left to
-  itself the upload action resolves the merge commit from the checkout, and
-  GitHub may recompute `refs/pull/N/merge` between the event firing and the
-  job running - the analysis then landed on a commit the pull request's check
-  was not looking at, and every pull request drew "Code scanning cannot
-  determine the alerts introduced by this pull request, because 1
-  configuration present on `refs/heads/main` was not found" even though the
-  job had succeeded and uploaded its report. Passing `ref` and `sha` from the
-  event pins the analysis to the commit the check expects; on `push` and
-  `schedule` they are the values the action would have derived anyway.
+  Each catalogue entry now carries its own anchor, and every finding, missing
+  hardening, missing header, plan step, waived check and unfixable flag on a
+  report links straight to it. Both sides are built from one function,
+  `hardening.catalogue_id`, so a report cannot offer a fragment the catalogue
+  does not publish - asserted in both directions by a test. The per-path and
+  per-port findings resolve to the family the catalogue actually lists, so
+  `exposed:/config/opencloud.yaml` lands on `exposed`; an identifier this
+  build cannot explain is rendered as plain text rather than as a link
+  promising an explanation that is not there. The entry a reader arrives at
+  highlights itself.
 
-- **The Docker setup wizard's generated compose file now actually enables
-  IPv6 when an operator confirms the container can reach one.** Answering
-  yes to "Does this container have outbound IPv6 connectivity?" only ever
-  turned on `COS_WEB_IPV6_ENABLED` - it left both networks the stack uses,
-  `default` and `scanner_internal`, without `enable_ipv6`, which Compose does
-  not set for a network just because the daemon supports it. An operator who
-  had genuinely verified IPv6 still got a container that could not dial one,
-  making the confirmed "yes" indistinguishable from a wrong one.
-  `render_compose_file` now writes `enable_ipv6: true` on both networks
-  whenever `ipv6_enabled` is set.
+  The report also gets the contents list the documentation pages have, built
+  from the same `_toc.html`. Every entry is conditional on the section it
+  names being rendered, so a clean instance is not offered a jump to an
+  advisories card it does not have.
 
-- **A scan now closes the connections it opened.** `_Probe` pools its
-  HTTP connections in a `requests.Session` - one for the calling thread and
-  one per worker - and none of them were ever closed, so every scan left its
-  sockets held until the garbage collector happened to run. Over a fleet that
-  is one socket per host for no reason, and where the instance has gone away
-  in the meantime the response still sitting in the pool is finalised against
-  a socket somebody else already closed. On Python 3.14 that surfaces as
-  `ValueError: I/O operation on closed file` ignored in a destructor, blamed
-  on whatever unrelated code was running when the collector fired - in this
-  repository, a `PytestUnraisableExceptionWarning` pinned to an innocent test
-  in `tests/test_webapp_api.py`. `_Probe.close()` closes every session the
-  probe opened, including the ones worker threads made, and `scan()` calls it
-  in a `finally` so an exception partway through does not leak them either.
+- **A report can be shared by email or from the clipboard, and by nothing
+  else.** A finished report had no way out of the browser except the exports,
+  so the address got copied out of the URL bar - and that address is the whole
+  of the authorisation for the page ([ADR 0007](adr/0007-erasure-on-request.md)).
+  The page now says so, and offers three ways to act on it.
 
-- **A CSP directive separated from its sources by a tab or a newline is now
-  read.** `_csp_directive` split the name from the source list on a literal
-  `" "`, but CSP separates the two with any run of ASCII whitespace, and a
-  policy indented across several lines uses a tab. Such a directive was
-  invisible: `script-src\t'self' 'unsafe-inline'` left
-  `cspWithoutUnsafeInline` passing, which is a green tick for a policy that
-  really does let injected markup execute - the one direction this check must
-  not fail in. The same blindness ran the other way for
-  `frame-ancestors`, where a tab produced a false clickjacking alarm against
-  an instance whose CSP did restrict framing.
+  The email link is a plain `mailto:`, which the browser hands to whatever
+  mail client the reader already has; nothing is posted through this service
+  and no third party is asked to help. **There is deliberately no Slack,
+  Teams or social share button**, and not only for the reason in `AGENTS.md`:
+  those services fetch a link server-side to build a preview of it, so a share
+  button would hand a company a working credential for somebody's security
+  report and have it fetch the report to make a thumbnail.
 
-- **A CAA record whose property tag is not spelled in lower case now counts.**
-  RFC 8659 section 4.1 makes the tag case insensitive, so
-  `Issue "letsencrypt.org"` restricts certificate issuance exactly as much as
-  `issue` does. Matching the spelling literally reported such a zone as having
-  no CAA record at all - a `tlsCaaRecord` finding against a domain that had
-  done the right thing. Tags are folded to lower case as they are parsed, so
-  `iodef` is still not mistaken for a property that authorizes an issuer.
+  That is also why *copy summary* exists beside *copy link*. Pasting findings
+  into a chat channel is a reasonable thing to want; handing everyone in that
+  channel a live capability usually is not, so the summary carries the grade
+  and the counts as text with no link in it - asserted by a test, because that
+  is the property worth keeping. Both buttons are rendered hidden and shown
+  only where a clipboard is actually reachable, so a reader on plain http gets
+  the address in selectable text rather than a button that cannot work.
 
-- **The Prometheus exporter no longer counts measures the operator waived.**
-  `opencloud_security_hardenings_missing_total` and
-  `opencloud_security_failed_extra_checks_total` were computed straight from
-  the result document, ignoring `ignored` - so the same instance reported zero
-  to Icinga, whose perfdata has always dropped waived entries, and non-zero to
-  Prometheus. An alert rule built on either gauge fired for exactly the
-  measures its operator had switched off, which is the noise a waiver exists
-  to remove. Both now follow the rule `failed_extra_checks()` already
-  documents: a waiver hides an alert, not the evidence.
-
-- **A pinned IPv6 literal is no longer looked up a second time.** The scan
-  carries an IPv6 host bracketed so it can go back into a URL, while the web
-  application pins the bare address it validated. `_resolved_addresses`
-  compared the two without stripping the brackets, so every IPv6 literal
-  target missed its pin and fell through to the DNS lookup the pin exists to
-  avoid - leaving `addresses` empty, and the IPv4/IPv6 TLS parity check
-  skipped, for precisely the targets that had been pinned. It now normalises
-  the key the way the debug-port and TLS lookups beside it already did.
-
-- **The webhook guard now refuses carrier-grade NAT, as the scan-target guard
-  always has.** `_webhook_address_is_public` leaned on `ipaddress` to say what
-  is private, and `ipaddress` does not classify `100.64.0.0/10` as anything -
-  not private, not reserved, not link-local. A webhook URL resolving into that
-  range was therefore delivered to, including to `100.100.100.200`, a cloud
-  metadata endpoint where a single successful request is already a breach.
-  `webapp/ssrf.py` has refused the range for a scan target since it was
-  written; the two guards answer the same question about different callers and
-  are now kept in step, with the NAT64 prefixes folded into the same table so
-  there is one list to read instead of two.
-
-  The webhook URL is operator configuration rather than a stranger's input, so
-  this was defence in depth rather than an open door - but it was the one
-  range where the two guards disagreed.
-
-### Removed
-
-- **`_base_of()` in the scanner**, which was dead code and wrong. It tried to
-  recover the pre-cap rating from the cap list by taking the lowest cap that
-  was not applied, which returns 4 rather than 5 for the ordinary case of a
-  clean instance with one medium finding. Nothing called it - `RatingExplanation`
-  has carried `base_rating` outright for several releases - so no output
-  changes.
-
-### Documentation
-
-- **[Running the check from CI](docs/ci.md) now leads with the action**
-  rather than with a hand-rolled install: the workflow to copy, how to feed
-  the SARIF into GitHub's code-scanning dashboard, and the manual installation
-  kept below for whoever wants it.
-
-- **[Prometheus and Grafana](docs/prometheus.md) gains the two files to copy
-  and a table of everything the exporter publishes** - every metric, its
-  labels and its meaning - including which two are the only ones a failed scan
-  emits, so a broken scan reads as no verdict rather than a stale one.
-
-- **[Public link sharing](docs/sharing.md) writes down what is *not* checked
-  and why.** The capabilities document says a great deal more about sharing
-  than the two flags read; the new table records which of it is a hardcoded
-  constant (so a check would say nothing about the deployment), which is
-  configurable but explicitly unsupported to change, and which is a genuine
-  judgement call deliberately not made yet - verified against OpenCloud's own
-  `services/frontend/pkg/revaconfig/config.go`, so nobody re-derives it in a
-  year.
-
-- **[`contrib/README.md`](contrib/README.md)** is no longer only about
-  scheduling; it now covers all four things it ships and how to install each.
+- `COS_WEB_TRUSTED_PROXY_HOPS` (default `1`): how many proxies of a
+  deployment's own sit in front of the service, which is how far in from the
+  right of `X-Forwarded-For` the client address is read. One reverse proxy is
+  `1`; a content delivery network in front of an ingress is `2`. Counting too
+  few names a proxy instead of the visitor and is harmless. **Counting more
+  than there are is not, and nothing can make it safe**: with `2` behind a
+  single proxy, `X-Forwarded-For: spoofed` arrives as `spoofed, <real>` and
+  the second entry from the right is the one the client wrote. The count is
+  clamped to the number of entries present, but that only prevents a read past
+  the end - nothing in the header distinguishes an entry a proxy appended from
+  one a client sent. Set it to the number of proxies you operate.

@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-08-31
+
 ### Security
 
 - **The scan service binds loopback, and binding anything else now requires a
