@@ -12,6 +12,12 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- The rescan button sits next to "scan another instance" in the report's
+  head, rather than in a card of its own further down the page - the two
+  actions a reader reaches for once a result is in, grouped together.
+
 ## [1.18.0] - 2026-08-31
 
 ### Added

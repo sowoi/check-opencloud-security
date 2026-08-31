@@ -144,8 +144,8 @@ def test_the_rescan_button_resubmits_through_the_ordinary_path():
     page, _ = _report()
 
     assert 'data-rescan-button' in page
-    start = page.index("rescan-card")
-    form = page[start:page.index("</section>", start)]
+    start = page.index('<form method="post" action="/">')
+    form = page[start:page.index("</form>", start)]
     assert 'method="post"' in form
     assert 'action="/"' in form
 
@@ -157,8 +157,8 @@ def test_a_rescan_carries_every_choice_the_first_scan_made():
     offer the button in the first place.
     """
     page, _ = _report()
-    start = page.index("rescan-card")
-    form = page[start:page.index("</section>", start)]
+    start = page.index('<form method="post" action="/">')
+    form = page[start:page.index("</form>", start)]
 
     assert 'name="target_url"' in form
     assert 'name="ignore_hardenings" value="X-Robots-Tag"' in form
@@ -271,7 +271,7 @@ def test_a_scan_still_running_is_offered_no_rescan_at_all():
         page = test_client.get(f"/scan/{IDENTIFIER}").text
 
     assert "data-rescan-button" not in page
-    assert "rescan-card" not in page
+    assert 'data-rescan-after="' not in page
 
 
 def test_the_rescan_card_adds_no_inline_script_or_handler():
@@ -280,7 +280,7 @@ def test_the_rescan_card_adds_no_inline_script_or_handler():
     dropped by the browser and the button would silently stop working.
     """
     page, _ = _report()
-    start = page.index("rescan-card")
+    start = page.index("scan-actions")
     card = page[start:page.index("</section>", start)]
 
     assert "onclick" not in card

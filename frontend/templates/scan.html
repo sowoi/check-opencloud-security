@@ -38,25 +38,6 @@
 
 {% block body_attrs %}data-scan-uuid="{{ scan.uuid }}" data-scan-state="{{ scan.state }}" data-expires-in="{{ scan.expiresIn }}"{% endblock %}
 
-{% block content %}
-<section class="card" data-reveal>
-  <div class="scan-head">
-    <div>
-      <p class="kicker">{{ t('result.kicker') }}</p>
-      <h1>{{ t('result.heading') }}</h1>
-      <p class="flush">
-        <span class="scan-target">{{ scan.target }}</span>
-        {% if scan.releaseTrack %}
-        <span class="scan-track" title="{{ t('result.track.title') }}">
-          {{ t('result.track.label', track=scan.releaseTrack) }}
-        </span>
-        {% endif %}
-      </p>
-    </div>
-    <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
-  </div>
-</section>
-
 {# ------------------------------------------------------------------ rescan #}
 {#
   Scan the same instance again, on the same terms. Every field the first
@@ -72,47 +53,71 @@
   round - a reader without scripting is never left holding a control that
   nothing on the page can release, and the 429 they may meet instead is the
   friendly one.
+
+  It sits beside "scan another instance" in the head, the two actions a reader
+  reaches for at this point in the page, styled with the same buttons as
+  everywhere else rather than a layout of their own.
 #}
-{% if scan.state in ("completed", "failed") %}
-<section class="card rescan-card" data-reveal
+{% block content %}
+<section class="card" data-reveal>
+  <div class="scan-head">
+    <div>
+      <p class="kicker">{{ t('result.kicker') }}</p>
+      <h1>{{ t('result.heading') }}</h1>
+      <p class="flush">
+        <span class="scan-target">{{ scan.target }}</span>
+        {% if scan.releaseTrack %}
+        <span class="scan-track" title="{{ t('result.track.title') }}">
+          {{ t('result.track.label', track=scan.releaseTrack) }}
+        </span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="scan-actions"
+         {% if scan.state in ("completed", "failed") %}
          data-rescan-after="{{ rescan_after }}"
          data-rescan-ready="{{ t('result.rescan.ready') }}"
-         data-rescan-wait="{{ t.raw('result.rescan.wait') }}">
-  <div class="rescan">
-    <form method="post" action="/">
-      <input type="hidden" name="target_url" value="{{ scan.target }}">
-      {% if scan.releaseTrack %}
-      <input type="hidden" name="release_track" value="{{ scan.releaseTrack }}">
+         data-rescan-wait="{{ t.raw('result.rescan.wait') }}"
+         {% endif %}>
+      {% if scan.state in ("completed", "failed") %}
+      <form method="post" action="/">
+        <input type="hidden" name="target_url" value="{{ scan.target }}">
+        {% if scan.releaseTrack %}
+        <input type="hidden" name="release_track" value="{{ scan.releaseTrack }}">
+        {% endif %}
+        <input type="hidden" name="output_format" value="{{ scan.outputFormat }}">
+        {% for name in scan.ignoreHardenings %}
+        <input type="hidden" name="ignore_hardenings" value="{{ name }}">
+        {% endfor %}
+        <button class="btn btn-primary" type="submit" data-rescan-button>
+          {{ t('result.rescan') }}
+        </button>
+      </form>
       {% endif %}
-      <input type="hidden" name="output_format" value="{{ scan.outputFormat }}">
-      {% for name in scan.ignoreHardenings %}
-      <input type="hidden" name="ignore_hardenings" value="{{ name }}">
-      {% endfor %}
-      <button class="btn btn-primary" type="submit" data-rescan-button>
-        {{ t('result.rescan') }}
-      </button>
-    </form>
-    {#
-      The first reading is written by the server, not by the script. Rendering
-      "ready" here and letting rescan.js correct it a moment later would flash
-      the wrong answer at everybody, and would be the only answer a reader
-      without scripting ever got.
-    #}
-    <p class="hint flush" id="rescan-note" aria-live="polite">
-      {%- if rescan_after -%}
-        {{ t('result.rescan.wait',
-              countdown=(rescan_after // 60) ~ ':' ~ '%02d' | format(rescan_after % 60)) }}
-      {%- else -%}
-        {{ t('result.rescan.ready') }}
-      {%- endif -%}
-    </p>
+      <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
+    </div>
   </div>
-  <p class="hint section-gap flush">
+  {% if scan.state in ("completed", "failed") %}
+  {#
+    The first reading is written by the server, not by the script. Rendering
+    "ready" here and letting rescan.js correct it a moment later would flash
+    the wrong answer at everybody, and would be the only answer a reader
+    without scripting ever got.
+  #}
+  <p class="hint section-gap flush" id="rescan-note" aria-live="polite">
+    {%- if rescan_after -%}
+      {{ t('result.rescan.wait',
+            countdown=(rescan_after // 60) ~ ':' ~ '%02d' | format(rescan_after % 60)) }}
+    {%- else -%}
+      {{ t('result.rescan.ready') }}
+    {%- endif -%}
+  </p>
+  <p class="hint flush">
     {{ t('result.rescan.note') }}
     <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('result.rescan.self_host') }}</a>.
   </p>
+  {% endif %}
 </section>
-{% endif %}
 
 {# --------------------------------------------------------------- progress #}
 {#
