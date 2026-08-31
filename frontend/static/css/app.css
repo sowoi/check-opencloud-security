@@ -1479,6 +1479,13 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 /* -------------------------------------------------------------- scan page */
 .scan-head { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
 .scan-head h1 { margin-bottom: .3rem; }
+/* Rescan and "scan another instance" are the two actions a reader reaches
+   for once a result is in, so they sit as one group: same gap and alignment
+   as every other button row on the page. */
+.scan-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.scan-actions form { margin: 0; }
+.scan-actions .btn[disabled] { opacity: .55; cursor: default; }
+.scan-actions .btn[data-waiting] { font-variant-numeric: tabular-nums; }
 /* The address that was scanned, set as a chip of the hue: it is the one
    fact the whole page hangs from, and it is a machine's word, not a
    person's. */
@@ -1718,6 +1725,35 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .finding p { margin: .5rem 0 0; font-size: .93rem; color: var(--ink-soft); }
 .finding .fix { color: var(--ink); }
 .finding .fix strong { color: var(--ink); }
+/* The documentation / advisory link reads as a small action, in the same
+   chip shape as the severity and category tags above it, rather than as a
+   sentence of body text that happens to be blue. The arrow is the same
+   affordance `.page-nav-card` uses for "this leads elsewhere", scaled down. */
+.fix a {
+    display: inline-flex; align-items: center; gap: .3rem;
+    margin-left: .4rem;
+    padding: .12rem .55rem;
+    border-radius: 6px;
+    background: var(--tint);
+    color: var(--brand-deep);
+    font-family: var(--mono);
+    font-size: .72rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .08em;
+    text-decoration: none;
+    transition: background .16s var(--ease), color .16s var(--ease);
+}
+.fix a::after {
+    content: "";
+    width: .38rem; height: .38rem;
+    border-top: 1.5px solid currentColor; border-right: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform .18s var(--ease);
+}
+.fix a:hover, .fix a:focus-visible { background: var(--brand-soft); color: var(--brand-deep); }
+.fix a:hover::after, .fix a:focus-visible::after { transform: rotate(45deg) translate(1px, -1px); }
+@media (prefers-reduced-motion: reduce) {
+    .fix a:hover::after, .fix a:focus-visible::after { transform: rotate(45deg); }
+}
 
 /* An identifier that leads to its catalogue entry. It has to still read as
    the identifier - that is what a reader is scanning the list for - so the
@@ -2043,18 +2079,8 @@ pre.json {
 }
 
 /* ----------------------------------------------------------- scan again */
-/* The button and its countdown read as one line: the control, then the
-   sentence saying whether it can be used yet. They wrap onto two lines on a
-   narrow screen rather than the sentence being squeezed beside the button. */
-.rescan { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; }
-.rescan form { margin: 0; }
-/* A waiting button is legible rather than ghosted: the countdown beside it is
-   what says why, and a control faded to the point of being hard to read says
-   only that something is wrong. */
-.rescan .btn[disabled] { opacity: .55; cursor: default; }
-.rescan .btn[data-waiting] { font-variant-numeric: tabular-nums; }
-/* Tabular figures on the countdown too, so the sentence does not shift
-   sideways every time the seconds tick over. */
+/* Tabular figures on the countdown, so the sentence does not shift sideways
+   every time the seconds tick over. */
 #rescan-note { font-variant-numeric: tabular-nums; }
 
 /* --------------------------------------------------- configuration fragment */
@@ -2205,8 +2231,8 @@ pre.config code { font-family: var(--mono); }
     /* A submit button the width of the thumb that reaches it. */
     .field-narrow { flex: 1 1 100%; }
     .export-list .btn { width: 100%; }
-    .rescan { align-items: stretch; }
-    .rescan form, .rescan .btn { width: 100%; }
+    .scan-actions { align-items: stretch; width: 100%; }
+    .scan-actions form, .scan-actions .btn { width: 100%; }
 
     /* The ledger stacks: the term above the reading, one hairline per row. */
     .score { gap: 1.25rem; }

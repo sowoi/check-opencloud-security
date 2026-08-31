@@ -162,8 +162,15 @@ def test_an_oversized_advisory_answer_is_refused_before_it_is_parsed():
     Reaching that count means the whole answer was already read and parsed,
     which is the cost this refuses to pay - so the size guard has to come
     first, and this asserts that it does.
+
+    The body is padded to just past the cap rather than to something
+    dramatically larger: ``read_capped`` only ever reads ``limit + 1`` bytes
+    and the response is closed straight after, so a body that leaves
+    megabytes of it undrained on the socket races the fake server's write
+    against the client's close - occasionally surfacing as a connection
+    reset instead of the clean refusal this asserts.
     """
-    body = b'{"vulns": [' + b'{"id": "x"},' * 200_000 + b'{"id": "y"}]}'
+    body = b'{"vulns": [' + b'{"id": "x"},' + b" " * MAX_DOCUMENT_BYTES + b']}'
     assert len(body) > MAX_DOCUMENT_BYTES
     with (
         FakeFeed(body, content_type="application/json") as site,
