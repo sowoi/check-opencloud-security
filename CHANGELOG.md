@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.18.1] - 2026-08-31
+
 ### Changed
 
 - The rescan button sits next to "scan another instance" in the report's
