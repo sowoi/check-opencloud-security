@@ -49,6 +49,7 @@ frontend/
     ├── js/docs.js   starts Swagger UI, which may not be started inline
     ├── js/reveal.js marks blocks below the fold as they scroll into view
     ├── js/back-to-top.js  reveals the pinned #main link past one viewport
+    ├── js/share.js  copies a report's address or its findings to the clipboard
     ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
     │                og-image.png rendered from it
     ├── fonts/       Space Grotesk, Inter and JetBrains Mono, self-hosted,
@@ -259,6 +260,22 @@ scroll behind it is the same reduced-motion-aware one `app.css` already gives
 every anchor jump. Without scripting the link stays `hidden` for good, the
 same way the collapsed nav stays open for good without `nav.js`: nothing on
 the page depends on it.
+
+`share.js` (about 80 lines) drives the two copy buttons in the sharing card on
+`scan.html`. It writes to the reader's own clipboard and nowhere else: the
+text it copies is already in the page, in two `hidden` divs, and no request
+leaves the browser. The email link beside those buttons is a plain `mailto:`
+built in the template and is not touched from here, because handing a
+`mailto:` to the reader's own mail client needs no script at all.
+
+The buttons are rendered `hidden` and shown from the script rather than
+rendered visible and disabled on failure. A clipboard write needs a secure
+context, so on plain http the button could never work, and the template's
+fallback paragraph - the report address in selectable text - is the better
+answer there. Only when the API is genuinely present do the buttons appear
+and that paragraph go away. There is deliberately no share button for any
+third-party service: those fetch a link server-side to build a preview, and
+the address of a report page is the credential for it.
 
 All of them are plain ES5-era JavaScript in an IIFE, because there is no
 bundler and there does not need to be one.

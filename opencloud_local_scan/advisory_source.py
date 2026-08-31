@@ -33,6 +33,7 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
+from .fetch import DocumentTooLarge, decode_capped
 from .vulndb import Advisory, parse_document
 
 LOGGER = logging.getLogger("check_opencloud.advisory_source")
@@ -89,10 +90,14 @@ def fetch_records(
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - scheme validated above
-            charset = response.headers.get_content_charset() or "utf-8"
-            document = json.loads(response.read().decode(charset, errors="replace"))
+            document = json.loads(decode_capped(response))
     except OSError as exc:  # URLError and friends are all OSError
         raise AdvisoryFetchError(f"Could not read {url}: {exc}") from exc
+    except DocumentTooLarge as exc:
+        # Ahead of the ValueError branch below, which it is a subclass of: the
+        # count guard further down cannot help here, because reaching it would
+        # already have meant reading the whole answer into memory.
+        raise AdvisoryFetchError(f"Refusing the answer from {url}: {exc}") from exc
     except ValueError as exc:
         raise AdvisoryFetchError(f"{url} did not answer with JSON: {exc}") from exc
 

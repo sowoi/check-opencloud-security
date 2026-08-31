@@ -1211,7 +1211,7 @@ def _evaluate_rating(
         return (
             (
                 f"CRITICAL: Rating {rate} is at or below the critical threshold "
-                f"{RATE_MAP[context.critical_rating]}."
+                f"{RATE_MAP.get(context.critical_rating, '?')}."
             ),
             NagiosExitCode.CRITICAL,
         )
@@ -1226,7 +1226,7 @@ def _evaluate_rating(
         return (
             (
                 f"WARNING: Rating {rate} is at or below the warning threshold "
-                f"{RATE_MAP[context.warning_rating]}, but no known vulnerabilities."
+                f"{RATE_MAP.get(context.warning_rating, '?')}, but no known vulnerabilities."
             ),
             NagiosExitCode.WARNING,
         )

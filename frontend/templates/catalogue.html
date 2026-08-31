@@ -32,8 +32,14 @@
   {% for category in categories %}
   <h3 id="category-{{ category.id }}" class="section-gap">{{ category.label }}</h3>
   <ul class="findings">
+    {#
+      Every entry carries its own anchor, because a result page links a
+      finding straight to the paragraph explaining it. The id comes from the
+      same filter the result page builds its href with, so the two cannot
+      drift apart.
+    #}
     {% for check in category.checks %}
-    <li class="finding" data-tag="neutral">
+    <li class="finding" id="{{ check.id | catalogue_anchor }}" data-tag="neutral">
       <div class="finding-head">
         <code>{{ check.id }}</code>
         {% if not check.actionable %}

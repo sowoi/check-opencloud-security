@@ -43,6 +43,7 @@ from .service import (
     DEFAULT_LISTEN,
     DEFAULT_PORT,
     ScanStore,
+    ServiceMisconfigured,
     serve,
 )
 from .wizard import run as run_setup
@@ -115,7 +116,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
 
     serve_parser = sub.add_parser("serve", help="Run the HTTP scan service.")
-    serve_parser.add_argument("--listen", help=f"Bind address (default {DEFAULT_LISTEN}).")
+    serve_parser.add_argument(
+        "--listen",
+        help=(
+            f"Bind address (default {DEFAULT_LISTEN}). Anything but loopback "
+            "requires --token."
+        ),
+    )
     serve_parser.add_argument("--port", type=int, help=f"Port (default {DEFAULT_PORT}).")
     serve_parser.add_argument(
         "--cache-ttl", type=int, help="Seconds a scan result is reused."
@@ -451,12 +458,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_ttl=args.cache_ttl
         or config.get_int("SERVICE_CACHE_TTL", DEFAULT_CACHE_TTL_SECONDS),
     )
-    serve(
-        store,
-        listen=args.listen or config.get("SERVICE_LISTEN") or DEFAULT_LISTEN,
-        port=args.port or config.get_int("SERVICE_PORT", DEFAULT_PORT),
-        auth_token=args.token or config.get("SERVICE_TOKEN"),
-    )
+    try:
+        serve(
+            store,
+            listen=args.listen or config.get("SERVICE_LISTEN") or DEFAULT_LISTEN,
+            port=args.port or config.get_int("SERVICE_PORT", DEFAULT_PORT),
+            auth_token=args.token or config.get("SERVICE_TOKEN"),
+        )
+    except ServiceMisconfigured as exc:
+        # A deployment mistake, not a crash: say what is wrong and how to fix
+        # it, on stderr, with an exit code a supervisor will not retry through.
+        print(f"UNKNOWN: {exc}", file=sys.stderr)
+        return 3
     return 0
 
 

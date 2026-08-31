@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any
 
+from .fetch import DocumentTooLarge, decode_capped
 from .versions import LIFECYCLE_DOCUMENTATION_URL
 
 #: The page every release schedule in this project comes from.
@@ -129,13 +130,23 @@ class _LifecycleParser(HTMLParser):
 
 
 def fetch(url: str, timeout: int = 30) -> str:
-    """Download the lifecycle page."""
+    """
+    Download the lifecycle page.
+
+    The body is capped: the URL is operator configuration and may name a
+    mirror, and a mirror that answers with an unbounded body would otherwise
+    be read into memory in full before anything looked at it. An over-long
+    answer is a failed fetch, which every caller already degrades from by
+    keeping the schedule it had.
+    """
     if not url.startswith(("http://", "https://")):
         raise ExtractionError(f"Refusing to fetch a non-HTTP URL: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - scheme validated above
-        charset = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(charset, errors="replace")
+        try:
+            return decode_capped(response)
+        except DocumentTooLarge as exc:
+            raise ExtractionError(f"Refusing the answer from {url}: {exc}") from exc
 
 
 def parse_version(text: str) -> tuple[int, int, int] | None:

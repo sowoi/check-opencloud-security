@@ -55,10 +55,15 @@ services:
       # not a discount: every target still counts against the client limit and
       # still claims its own cooldown.
       COS_WEB_MAX_BATCH_TARGETS: "10"
-      # Only set this when a reverse proxy in front *overwrites*
-      # X-Forwarded-For. Trusting a header a client can send makes the client
-      # rate limit decorative.
+      # Only set this when a reverse proxy of your own is in front. The header
+      # is then read from the right, COS_WEB_TRUSTED_PROXY_HOPS entries in,
+      # because that end is the only part a proxy writes - nginx, Traefik and
+      # most CDNs append, so everything to the left of it is whatever the
+      # client sent. One reverse proxy is 1; a CDN in front of an ingress is 2.
+      # Counting more hops than there are reaches back into the part a client
+      # controls, which is the forgery this exists to prevent.
       COS_WEB_TRUST_FORWARDED_FOR: "false"
+      COS_WEB_TRUSTED_PROXY_HOPS: "1"
       # Required. The address this service is reached at from outside: behind
       # a proxy it only ever sees its own, and the canonical links and
       # sitemap.xml would then publish URLs nobody can reach. Set it to the

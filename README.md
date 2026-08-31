@@ -1152,7 +1152,7 @@ very same scanner, either once or as a service:
 # one-shot: print the full result document as JSON
 check-opencloud-scanner scan opencloud.example.com
 
-# as a service
+# as a service, on this machine only
 check-opencloud-scanner serve --port 8811
 ```
 
@@ -1171,12 +1171,22 @@ and so that scans can run from a host closer to the instance than the
 monitoring server is. Results are cached per host for `service.cache_ttl`
 seconds, 15 minutes by default.
 
-Protect it with a token whenever it is reachable by others - without
-`service.token` every endpoint is open to anyone who can connect, and the
-scanner will happily scan any host they name:
+**It listens on `127.0.0.1` unless you say otherwise, and any other address
+requires a token.** The service scans whatever host a request names, and it
+does not validate that host against anything - that is the plugin's trust
+model, where an operator names their own instances. Reachable by strangers and
+unauthenticated, the same property makes it a way to read the inside of the
+network it runs on. So `--listen`/`COS_SERVICE_LISTEN` anywhere but loopback
+without `--token`/`COS_SERVICE_TOKEN` refuses to start rather than serving
+open. See [ADR 0030](adr/0030-a-listener-binds-loopback-and-a-wide-bind-needs-a-credential.md).
+
+In a container that means two settings: bind the container's interfaces so the
+published port reaches the process, and set the token that makes doing so
+allowed.
 
 ```shell
 docker run -d --name opencloud-scanner -p 127.0.0.1:8811:8811 \
+  -e COS_SERVICE_LISTEN=0.0.0.0 \
   -e COS_SERVICE_TOKEN="$(openssl rand -hex 32)" \
   --entrypoint check-opencloud-scanner \
   check-opencloud-security serve

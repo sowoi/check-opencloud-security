@@ -1133,7 +1133,7 @@ very same scanner, either once or as a service:</p>
 <pre><code class="language-shell">## one-shot: print the full result document as JSON
 check-opencloud-scanner scan opencloud.example.com
 
-## as a service
+## as a service, on this machine only
 check-opencloud-scanner serve --port 8811
 </code></pre>
 <table>
@@ -1172,10 +1172,19 @@ dashboard, a script, a second monitoring system) can share one cached result,
 and so that scans can run from a host closer to the instance than the
 monitoring server is. Results are cached per host for <code>service.cache_ttl</code>
 seconds, 15 minutes by default.</p>
-<p>Protect it with a token whenever it is reachable by others - without
-<code>service.token</code> every endpoint is open to anyone who can connect, and the
-scanner will happily scan any host they name:</p>
+<p><strong>It listens on <code>127.0.0.1</code> unless you say otherwise, and any other address
+requires a token.</strong> The service scans whatever host a request names, and it
+does not validate that host against anything - that is the plugin's trust
+model, where an operator names their own instances. Reachable by strangers and
+unauthenticated, the same property makes it a way to read the inside of the
+network it runs on. So <code>--listen</code>/<code>COS_SERVICE_LISTEN</code> anywhere but loopback
+without <code>--token</code>/<code>COS_SERVICE_TOKEN</code> refuses to start rather than serving
+open. See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0030-a-listener-binds-loopback-and-a-wide-bind-needs-a-credential.md">ADR 0030</a>.</p>
+<p>In a container that means two settings: bind the container's interfaces so the
+published port reaches the process, and set the token that makes doing so
+allowed.</p>
 <pre><code class="language-shell">docker run -d --name opencloud-scanner -p 127.0.0.1:8811:8811 \
+  -e COS_SERVICE_LISTEN=0.0.0.0 \
   -e COS_SERVICE_TOKEN=&quot;$(openssl rand -hex 32)&quot; \
   --entrypoint check-opencloud-scanner \
   check-opencloud-security serve

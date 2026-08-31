@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -161,6 +161,20 @@ def _from_github(entry: dict[str, Any]) -> Advisory | None:
     else:
         return None
 
+    if not introduced and not fixed:
+        # A package matched but said nothing about which releases it affects -
+        # an unparseable `vulnerable_version_range` with no patched version.
+        # Reaching the `break` above only proves the advisory is about
+        # OpenCloud, not that it is bounded, and an unbounded advisory matches
+        # every version there has ever been. Same refusal as _from_osv and
+        # _from_native.
+        LOGGER.warning(
+            "Ignoring advisory %s: its OpenCloud entry names no affected "
+            "version range, so it would match every release.",
+            identifier,
+        )
+        return None
+
     return Advisory(
         id=str(identifier),
         title=str(entry.get("summary") or ""),
@@ -258,16 +272,68 @@ def _from_osv(entry: dict[str, Any]) -> Advisory | None:
     )
 
 
+def _native_ranges(entry: Mapping[str, Any]) -> tuple[tuple[str | None, str | None], ...]:
+    """The bounded ranges a native advisory record names, in order."""
+    return tuple(
+        (item.get("introduced"), item.get("fixed"))
+        for item in entry.get("ranges") or ()
+        if isinstance(item, Mapping) and (item.get("introduced") or item.get("fixed"))
+    )
+
+
+def names_a_version_range(entry: Mapping[str, Any]) -> bool:
+    """Whether a native advisory record says which releases it affects."""
+    ranges = _native_ranges(entry)
+    return bool(ranges or entry.get("introduced") or entry.get("fixed"))
+
+
+def is_unbounded_advisory(entry: Mapping[str, Any]) -> bool:
+    """
+    Whether this record would become an advisory that matches every release.
+
+    Public because two layers need the same answer and must not each grow
+    their own: :func:`_from_native` drops such a record so one bad line in an
+    operator's feed cannot poison a scan, and the web application refuses a
+    whole refreshed document containing one, so a feed that has started
+    emitting nonsense leaves yesterday's database in place.
+
+    A record the parser would not turn into an advisory at all is not
+    unbounded, it is simply not an advisory - the bundled ``OC-EOL`` entry is
+    exactly that, a disabled placeholder documenting the end-of-life finding
+    the scanner raises by itself. Judging it on its (absent) version range
+    would condemn every document that carries it, which is every document
+    this project ships.
+    """
+    if not entry.get("id") or entry.get("enabled") is False:
+        return False
+    return not names_a_version_range(entry)
+
+
 def _from_native(entry: dict[str, Any]) -> Advisory | None:
     """Convert a native advisory record into an Advisory."""
     identifier = entry.get("id")
     if not identifier or entry.get("enabled") is False:
         return None
-    ranges = tuple(
-        (item.get("introduced"), item.get("fixed"))
-        for item in entry.get("ranges") or ()
-        if isinstance(item, dict) and (item.get("introduced") or item.get("fixed"))
-    )
+    ranges = _native_ranges(entry)
+    introduced = entry.get("introduced") or (ranges[0][0] if ranges else None)
+    fixed = entry.get("fixed") or (ranges[0][1] if ranges else None)
+    if not names_a_version_range(entry):
+        # The same refusal _from_osv makes, for the same reason: with every
+        # bound open, `is_in_range` answers True for every version there has
+        # ever been, so a single such record reports every instance scanned
+        # with this database as critically vulnerable.
+        #
+        # It matters more here than there. The native format is the one an
+        # operator writes by hand and points `--vulnerability-feed` at, so a
+        # forgotten bound is not a quirk of somebody else's feed - it is a
+        # typo in a local file, and the result would be a fleet-wide false
+        # CRITICAL that looks exactly like a real one.
+        LOGGER.warning(
+            "Ignoring advisory %s: it names no introduced or fixed version, "
+            "so it would match every release. Give it a version range.",
+            identifier,
+        )
+        return None
     return Advisory(
         id=str(identifier),
         title=str(entry.get("title") or ""),
@@ -275,8 +341,8 @@ def _from_native(entry: dict[str, Any]) -> Advisory | None:
         severity=str(entry.get("severity") or "unknown").lower(),
         url=str(entry.get("url") or ""),
         cwe=str(entry.get("cwe") or ""),
-        introduced=entry.get("introduced") or (ranges[0][0] if ranges else None),
-        fixed=entry.get("fixed") or (ranges[0][1] if ranges else None),
+        introduced=introduced,
+        fixed=fixed,
         ranges=ranges,
     )
 

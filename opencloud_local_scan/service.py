@@ -22,6 +22,7 @@ system polling several times a minute does not hammer the instance.
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import logging
 import threading
@@ -38,10 +39,66 @@ from .scanner import ScanError, ScannerSettings, scan
 
 LOGGER = logging.getLogger("check_opencloud.service")
 
-DEFAULT_LISTEN = "0.0.0.0"  # nosec B104 - a container service must bind all interfaces
+# Loopback, for the same reason ADR 0001 moved the Prometheus exporter there
+# and ADR 0030 generalised it: this service takes a hostname from whoever
+# connects and fetches it, with no target validation of its own, so a wide
+# bind with no token is an open request forwarder into the network the
+# monitoring host sits on. A container publishes a port or joins a network to
+# be reached; that is a deployment decision, and it is made by setting this
+# explicitly.
+DEFAULT_LISTEN = "127.0.0.1"
 DEFAULT_PORT = 8811
 DEFAULT_CACHE_TTL_SECONDS = 900
 MAX_BODY_BYTES = 8192
+
+# Addresses that reach only this machine. Binding anywhere else exposes the
+# service to a network, which is what makes a token mandatory.
+LOOPBACK_LISTEN = frozenset({"127.0.0.1", "::1", "localhost", ""})
+
+
+class ServiceMisconfigured(RuntimeError):
+    """The service was asked to listen somewhere it must not listen openly."""
+
+
+def _is_loopback_listen(listen: str) -> bool:
+    """Whether this bind address reaches only the machine it runs on."""
+    candidate = listen.strip().strip("[]").lower()
+    if candidate in LOOPBACK_LISTEN:
+        return True
+    try:
+        return ipaddress.ip_address(candidate).is_loopback
+    except ValueError:
+        # A hostname that is not one of the names above. Unresolvable here
+        # without a lookup that could itself be answered with anything, so it
+        # counts as exposed - the safe way to be wrong.
+        return False
+
+
+def ensure_listen_is_safe(listen: str, auth_token: str | None) -> None:
+    """
+    Refuse to serve a network without a credential in front.
+
+    The scan endpoint takes a host from the request and connects to it. On
+    loopback that is the operator talking to their own machine. On any other
+    address it is whoever reaches the port, and an unauthenticated one is a
+    way to read the inside of the network this host sits on - the metadata
+    endpoint, a Docker socket, an admin panel - through a service that will
+    report back what it saw.
+
+    Failing to start is the right end for that: an operator who published the
+    port meant to publish the service, and would otherwise find out what they
+    published from somebody else.
+    """
+    if _is_loopback_listen(listen) or auth_token:
+        return
+    raise ServiceMisconfigured(
+        f"Refusing to serve on {listen} without a token. This service scans "
+        "whatever host a request names, so on anything but loopback it needs "
+        "a credential: set --token, or COS_SERVICE_TOKEN (a 'secret://' "
+        "reference is read from /run/secrets). Generate one with "
+        "`openssl rand -hex 32`. To serve without one, bind 127.0.0.1 and "
+        "publish the port with your container runtime instead."
+    )
 
 
 @dataclass
@@ -227,6 +284,7 @@ def build_server(
     auth_token: str | None = None,
 ) -> ThreadingHTTPServer:
     """Create the HTTP server without starting it (handy for tests)."""
+    ensure_listen_is_safe(listen, auth_token)
     handler = type("BoundHandler", (_Handler,), {"store": store, "auth_token": auth_token})
     return ThreadingHTTPServer((listen, port), handler)
 
@@ -239,7 +297,12 @@ def serve(
 ) -> None:
     """Run the scan service until interrupted."""
     server = build_server(store, listen, port, auth_token)
-    LOGGER.info("OpenCloud scan service listening on %s:%d", listen, port)
+    LOGGER.info(
+        "OpenCloud scan service listening on %s:%d (%s)",
+        listen,
+        port,
+        "token required" if auth_token else "loopback, no token",
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:  # pragma: no cover - interactive shutdown
