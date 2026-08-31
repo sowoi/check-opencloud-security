@@ -1725,6 +1725,35 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .finding p { margin: .5rem 0 0; font-size: .93rem; color: var(--ink-soft); }
 .finding .fix { color: var(--ink); }
 .finding .fix strong { color: var(--ink); }
+/* The documentation / advisory link reads as a small action, in the same
+   chip shape as the severity and category tags above it, rather than as a
+   sentence of body text that happens to be blue. The arrow is the same
+   affordance `.page-nav-card` uses for "this leads elsewhere", scaled down. */
+.fix a {
+    display: inline-flex; align-items: center; gap: .3rem;
+    margin-left: .4rem;
+    padding: .12rem .55rem;
+    border-radius: 6px;
+    background: var(--tint);
+    color: var(--brand-deep);
+    font-family: var(--mono);
+    font-size: .72rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .08em;
+    text-decoration: none;
+    transition: background .16s var(--ease), color .16s var(--ease);
+}
+.fix a::after {
+    content: "";
+    width: .38rem; height: .38rem;
+    border-top: 1.5px solid currentColor; border-right: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform .18s var(--ease);
+}
+.fix a:hover, .fix a:focus-visible { background: var(--brand-soft); color: var(--brand-deep); }
+.fix a:hover::after, .fix a:focus-visible::after { transform: rotate(45deg) translate(1px, -1px); }
+@media (prefers-reduced-motion: reduce) {
+    .fix a:hover::after, .fix a:focus-visible::after { transform: rotate(45deg); }
+}
 
 /* An identifier that leads to its catalogue entry. It has to still read as
    the identifier - that is what a reader is scanning the list for - so the

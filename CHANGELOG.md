@@ -17,6 +17,10 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 - The rescan button sits next to "scan another instance" in the report's
   head, rather than in a card of its own further down the page - the two
   actions a reader reaches for once a result is in, grouped together.
+- The documentation and advisory links inside a finding's fix line now read
+  as a small chip, in the same shape as the severity and category tags above
+  them, instead of as a sentence of body text that happened to be blue.
+  Shared by `scan.html` and `catalogue.html`, so both pages pick it up.
 
 ## [1.18.0] - 2026-08-31
 
