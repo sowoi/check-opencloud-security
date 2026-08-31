@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hmac
 import importlib.util
+import ipaddress
 import json
 import logging
 import os
@@ -32,6 +33,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Form, Request
 from fastapi.openapi.docs import get_redoc_html
@@ -63,6 +65,8 @@ from .audit import (
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
     SEVERITY_TAGS,
+    catalogue_anchor,
+    catalogue_link,
     check_catalogue,
     grade_scale,
     release_track_options,
@@ -291,21 +295,121 @@ def client_address(request: Request, settings: WebSettings) -> str:
     The address the client rate limit counts against.
 
     ``X-Forwarded-For`` is only believed when the deployment says it sits
-    behind a proxy that overwrites it. Believing it by default would make the
-    limit a suggestion.
+    behind a proxy at all. Believing it by default would make the limit a
+    suggestion.
+
+    It is then read from the *right*, ``trusted_proxy_hops`` entries in,
+    because that end is the only part a proxy writes. Reading the leftmost
+    entry - which is what this did - is correct only for a proxy that
+    overwrites the header, and the common ones (nginx's
+    ``proxy_add_x_forwarded_for``, Traefik, most CDNs) append instead. There
+    the leftmost entry is whatever the client sent, so one header would buy a
+    fresh rate-limit bucket, a fresh audit identity and a fresh allowance of
+    purge attempts per request.
+
+    Anything that is not an address is ignored rather than counted: a
+    fingerprint keyed on a hostname somebody chose is not a fingerprint.
     """
     if settings.trust_forwarded_for:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+        entries = [
+            entry.strip()
+            for entry in request.headers.get("x-forwarded-for", "").split(",")
+            if entry.strip()
+        ]
+        if entries:
+            # Fewer entries than hops means something ahead did not append.
+            # Taking the leftmost is then the closest thing to the client the
+            # header honestly offers, and it is still proxy-written.
+            #
+            # The lower bound is not decoration. Python reads ``entries[-0]``
+            # as ``entries[0]``, so a hop count of zero would silently return
+            # the leftmost entry - the one the client writes - which is the
+            # exact behaviour this function exists to stop. The environment
+            # already refuses a zero, and this makes any other way of building
+            # the settings safe too.
+            hops = min(max(1, settings.trusted_proxy_hops), len(entries))
+            candidate = _canonical_address(entries[-hops])
+            if candidate is not None:
+                return candidate
+            LOGGER.debug("forwarded_for_ignored reason=not_an_address")
     return request.client.host if request.client else "unknown"
+
+
+def _canonical_address(value: str) -> str | None:
+    """
+    One forwarded entry as a single spelling, or ``None`` if it is not one.
+
+    The canonical form matters as much as the validation. ``[2001:db8::1]``,
+    ``2001:db8::1`` and ``2001:0DB8:0000::1`` are one host written three ways,
+    and returning them verbatim would give that host three rate-limit buckets,
+    three audit identities and three allowances of purge attempts. Everything
+    downstream keys on this string, so it is the address rather than however
+    the address happened to be typed.
+    """
+    try:
+        return str(ipaddress.ip_address(value.strip("[]")))
+    except ValueError:
+        return None
 
 
 def wants_html(request: Request) -> bool:
     """Whether this submission came from the form rather than from a client."""
     accept = request.headers.get("accept", "")
     return "text/html" in accept and "application/json" not in accept
+
+
+def cross_site_post(request: Request, settings: WebSettings) -> bool:
+    """
+    Whether this POST was sent by a page on somebody else's site.
+
+    There is no session to steal here and no uuid reaches the attacker, so the
+    thing worth preventing is narrower and more awkward than classic CSRF: a
+    page anywhere can post the scan form and have *this* service scan a target
+    of its choosing, attributed to whoever's browser it borrowed. That spends
+    the visitor's rate-limit allowance and makes their network the apparent
+    origin of a scan they never asked for.
+
+    A token would need a session or a second cookie for a service that has
+    neither, so the two headers a browser attaches by itself are used instead:
+
+    * ``Sec-Fetch-Site`` is decisive where it is sent. ``cross-site`` is the
+      case being refused; ``none`` is a typed URL or a bookmark, which is a
+      person, not a page.
+    * ``Origin`` is the fallback, and browsers send it on every cross-origin
+      form POST whether or not they send the first.
+
+    Neither header means a caller that is not a browser - curl, an agent, the
+    in-process MCP client - and those are refused nothing. That is not a hole
+    a browser can climb through: a page cannot make a browser omit these.
+    """
+    site = request.headers.get("sec-fetch-site", "").strip().lower()
+    if site:
+        return site == "cross-site"
+    origin = request.headers.get("origin", "").strip()
+    if not origin or origin.lower() == "null":
+        return False
+    return _origin_host(origin) not in _own_hosts(request, settings)
+
+
+def _origin_host(value: str) -> str:
+    """The ``host:port`` an ``Origin`` names, lowercased."""
+    return urlsplit(value).netloc.lower()
+
+
+def _own_hosts(request: Request, settings: WebSettings) -> set[str]:
+    """
+    Every ``host:port`` this deployment legitimately answers as.
+
+    The configured public address is the authority - it is required at startup
+    precisely so the service does not have to trust a header for questions
+    like this one - and the address the request actually arrived on is
+    accepted alongside it, which is what keeps a local run working before
+    anybody has put a proxy in front.
+    """
+    hosts = {urlsplit(str(request.base_url)).netloc.lower()}
+    if settings.public_base_url:
+        hosts.add(_origin_host(settings.public_base_url))
+    return {host for host in hosts if host}
 
 
 def is_safe_link(value: Any) -> bool:
@@ -350,6 +454,11 @@ def build_templates(directory: Path | None = None) -> Jinja2Templates:
     root = directory or (frontend_dir() / "templates")
     templates = Jinja2Templates(directory=str(root))
     templates.env.tests["safe_link"] = is_safe_link
+    # The catalogue page builds its anchors with these and the result page
+    # builds its links with them, so neither can invent a fragment the other
+    # does not publish.
+    templates.env.filters["catalogue_anchor"] = catalogue_anchor
+    templates.env.filters["catalogue_link"] = catalogue_link
     # English is what a render falls back to when nobody negotiated a
     # language, so a template is never one missing context variable away from
     # an exception.
@@ -898,6 +1007,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         locale: str = _LOCALE_FIELD,
         next_path: str = _NEXT_FIELD,
     ) -> Response:
+        # A language is a small thing to change for somebody, and changing it
+        # from another site is still doing something to their browser that
+        # they did not ask for.
+        if cross_site_post(request, settings):
+            LOGGER.info("language_cross_site")
+            return _cross_site_response(request, wants_html(request))
+
         chosen = normalise_locale(locale)
         destination = safe_next_path(next_path)
         response = RedirectResponse(destination, status_code=303)
@@ -1016,6 +1132,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         output_format: str | None = _FORMAT_FIELD,
         release_track: str | None = _TRACK_FIELD,
     ) -> Response:
+        # Before the rate limiter, deliberately: a cross-site submission must
+        # not be able to spend the allowance of the browser it borrowed, which
+        # is most of what it was worth sending.
+        if cross_site_post(request, settings):
+            LOGGER.info("submission_cross_site")
+            return _cross_site_response(request, wants_html(request))
+
         html_requested = wants_html(request)
         body: dict[str, Any] = {}
         if request.headers.get("content-type", "").startswith(
@@ -1490,6 +1613,20 @@ def _render_export(result: dict[str, Any], fmt: str, identifier: str) -> bytes |
     if fmt == "pdf":
         return pdf_report(result, identifier=identifier)
     return json.dumps(result, indent=2)
+
+
+CROSS_SITE_DETAIL = (
+    "This form was submitted from another site, so it was not carried out. "
+    "Open the page directly and try again. A client that is not a browser "
+    "reaches the same endpoint at /api/scans."
+)
+
+
+def _cross_site_response(request: Request, html: bool) -> Response:
+    """What a submission from somebody else's page gets back."""
+    if html:
+        return PlainTextResponse(CROSS_SITE_DETAIL, status_code=403)
+    return JSONResponse({"detail": CROSS_SITE_DETAIL}, status_code=403)
 
 
 def _presented_token(request: Request) -> str:

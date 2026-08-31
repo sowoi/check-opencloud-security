@@ -17,7 +17,12 @@ import pytest
 
 from opencloud_local_scan import service as service_module
 from opencloud_local_scan.scanner import ScanError
-from opencloud_local_scan.service import ScanStore, build_server
+from opencloud_local_scan.service import (
+    ScanStore,
+    ServiceMisconfigured,
+    build_server,
+    ensure_listen_is_safe,
+)
 
 RESULT = {"domain": "cloud.example.com", "rating": 5, "version": "7.2.0"}
 
@@ -235,3 +240,95 @@ def test_purge_drops_stale_entries(fake_scan):
     store.purge()
 
     assert store.get_by_uuid(entry.uuid) is None
+
+
+# --- where this service may listen ------------------------------------------
+#
+# The scan endpoint takes a hostname from the request and connects to it, with
+# no target validation of its own - that lives in `webapp/ssrf.py`, which this
+# path never touches. Unauthenticated on a network, that is a request
+# forwarder into whatever the monitoring host can reach.
+
+
+def test_the_service_listens_on_loopback_unless_told_otherwise():
+    """
+    The default must reach only this machine.
+
+    ADR 0001 moved the Prometheus exporter here for exposing rather less;
+    ADR 0030 is why the same now holds for every listener in the project.
+    """
+    assert service_module.DEFAULT_LISTEN == "127.0.0.1"
+
+
+# The guard is checked without opening a socket: which addresses are loopback
+# is the decision under test, and binding them is the host's business - a CI
+# runner with no IPv6, or no spare address in 127/8, would otherwise fail these
+# for a reason that has nothing to do with the rule.
+
+
+@pytest.mark.parametrize("listen", ["127.0.0.1", "::1", "localhost", "127.0.0.5", ""])
+def test_loopback_needs_no_token(listen):
+    """
+    An operator on their own machine is not made to invent a credential.
+
+    Requiring one here would push people towards `--listen 0.0.0.0` to make
+    the nuisance go away, which is the opposite of the point.
+    """
+    ensure_listen_is_safe(listen, None)
+
+
+@pytest.mark.parametrize(
+    "listen", ["0.0.0.0", "::", "192.168.1.10", "10.0.0.4", "some-host"]
+)
+def test_a_wide_bind_without_a_token_is_refused(listen):
+    """
+    The negative case, and the whole of this fix.
+
+    Serving is refused rather than logged: an operator who published the port
+    meant to publish the service, and would otherwise learn what they
+    published from somebody else.
+    """
+    with pytest.raises(ServiceMisconfigured) as raised:
+        ensure_listen_is_safe(listen, None)
+
+    message = str(raised.value)
+    assert "COS_SERVICE_TOKEN" in message
+    assert "127.0.0.1" in message
+
+
+@pytest.mark.parametrize("listen", ["0.0.0.0", "::", "192.168.1.10", "some-host"])
+def test_a_wide_bind_with_a_token_is_allowed(listen):
+    """
+    A credential is what makes exposure a decision rather than an accident.
+
+    This is the shipped container's configuration, so it has to keep working.
+    """
+    ensure_listen_is_safe(listen, "s3cret")
+
+
+def test_an_unresolvable_bind_address_counts_as_exposed():
+    """
+    A hostname nobody here can classify is not evidence of loopback.
+
+    Guessing would mean a name that happens to look harmless opening the
+    service to whatever it resolves to later.
+    """
+    with pytest.raises(ServiceMisconfigured):
+        ensure_listen_is_safe("not-a-name.invalid", None)
+
+
+def test_build_server_applies_the_guard_rather_than_only_documenting_it():
+    """
+    The check has to be on the path that actually opens the socket.
+
+    A rule enforced only by `serve()` would be missed by every caller that
+    builds the server itself, which is how the tests above reach it too.
+    """
+    with pytest.raises(ServiceMisconfigured):
+        build_server(ScanStore(), "0.0.0.0", 0, None)  # nosec B104 - asserting the refusal
+
+
+def test_a_loopback_server_still_starts(fake_scan):
+    """The guard must not have made the ordinary case fail to build."""
+    server = build_server(ScanStore(), "127.0.0.1", 0, None)
+    server.server_close()

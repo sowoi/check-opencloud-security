@@ -320,24 +320,30 @@ for a scan to finish.</p>
 <ul>
 <li><strong>A real client address.</strong> The rate limit and the target cooldown are the
   only things standing between a public scanner and being used as an
-  amplifier, and both key off the client address. Overwrite <code>X-Forwarded-For</code>
-  at the edge and set <code>COS_WEB_TRUST_FORWARDED_FOR=true</code>; without the
-  overwrite, a client can pick its own bucket by sending the header itself.</li>
-<li><strong>Timeouts longer than a scan.</strong> A scan takes seconds to a minute; a PDF
+  amplifier, and both key off the client address. Pass <code>X-Forwarded-For</code> and
+  set <code>COS_WEB_TRUST_FORWARDED_FOR=true</code>, plus <code>COS_WEB_TRUSTED_PROXY_HOPS</code> if
+  more than one proxy of yours is in the path.</li>
+</ul>
+<p>The header is read from the <strong>right</strong>, that many entries in, so a proxy that
+  appends is as safe as one that overwrites - what a client sends stays to the
+  left of the entry your own proxy wrote, and is never reached. Set the hop
+  count to the number of proxies <em>you operate</em>: too few names a proxy instead
+  of the visitor, which is harmless, while too many walks back into the part
+  of the header the client controls.
+- <strong>Timeouts longer than a scan.</strong> A scan takes seconds to a minute; a PDF
   export and an MCP <code>scan_instance</code> call can hold a response for minutes. 120
-  seconds is a sensible floor and the MCP endpoint wants more.</li>
-<li><strong>No response buffering on <code>/mcp</code>.</strong> The Model Context Protocol endpoint
+  seconds is a sensible floor and the MCP endpoint wants more.
+- <strong>No response buffering on <code>/mcp</code>.</strong> The Model Context Protocol endpoint
   answers with an event stream. A proxy that buffers it turns a working
-  session into a client that waits for ever.</li>
-<li><strong>No rewriting of the discovery paths.</strong> <code>/.well-known/ai.json</code>,
+  session into a client that waits for ever.
+- <strong>No rewriting of the discovery paths.</strong> <code>/.well-known/ai.json</code>,
   <code>/openapi.json</code>, <code>/arazzo.json</code>, <code>/robots.txt</code> and <code>/sitemap.xml</code> are served
   by the application and must reach it unchanged. A proxy that answers
-  <code>/.well-known/</code> itself - some ACME setups do - has to exclude that file.</li>
-<li><strong>The public origin, once.</strong> Set <code>COS_WEB_PUBLIC_BASE_URL</code> to the address
+  <code>/.well-known/</code> itself - some ACME setups do - has to exclude that file.
+- <strong>The public origin, once.</strong> Set <code>COS_WEB_PUBLIC_BASE_URL</code> to the address
   visitors use. Canonical links, the sitemap and the absolute URLs in the
   discovery document are built from it, and behind a proxy the application
-  cannot work it out on its own.</li>
-</ul>
+  cannot work it out on its own.</p>
 <h3 id="nginx_1">nginx</h3>
 <pre><code class="language-nginx">map $http_upgrade $connection_upgrade {
     default upgrade;
@@ -385,6 +391,7 @@ server {
 </code></pre>
 <p>Then:</p>
 <pre><code class="language-bash">COS_WEB_TRUST_FORWARDED_FOR=true
+COS_WEB_TRUSTED_PROXY_HOPS=1
 COS_WEB_PUBLIC_BASE_URL=https://scan.example.com
 COS_WEB_MCP_ALLOWED_HOSTS=scan.example.com
 </code></pre>
@@ -442,8 +449,8 @@ the only check.</p>
 </code></pre>
 <p><code>flush_interval -1</code> disables buffering, which is what the event stream needs.
 Caddy writes <code>X-Forwarded-For</code> from the connection and drops what the client
-sent, so <code>COS_WEB_TRUST_FORWARDED_FOR=true</code> is safe with no extra
-configuration.</p>
+sent, so <code>COS_WEB_TRUST_FORWARDED_FOR=true</code> is safe with the default
+<code>COS_WEB_TRUSTED_PROXY_HOPS=1</code>.</p>
 <h3 id="traefik_1">Traefik</h3>
 <pre><code class="language-yaml">labels:
   - &quot;traefik.enable=true&quot;
@@ -465,10 +472,12 @@ configuration.</p>
         writeTimeout: 0       # a scan may take a minute, an MCP call longer
         idleTimeout: 300s
 </code></pre>
-<p>Traefik overwrites <code>X-Real-Ip</code> and appends to <code>X-Forwarded-For</code>; the
-application reads the <strong>first</strong> entry, which is the client, so
-<code>COS_WEB_TRUST_FORWARDED_FOR=true</code> is correct here as long as Traefik is the
-only proxy and is not itself behind one it trusts blindly.</p>
+<p>Traefik overwrites <code>X-Real-Ip</code> and <em>appends</em> to <code>X-Forwarded-For</code>. The
+application reads the header from the right, so the entry it takes is the one
+Traefik wrote and not whatever the client put in front of it:
+<code>COS_WEB_TRUST_FORWARDED_FOR=true</code> with the default
+<code>COS_WEB_TRUSTED_PROXY_HOPS=1</code> is correct here. Behind a CDN as well, count
+both and set <code>2</code>.</p>
 <h3 id="haproxy_1">HAProxy</h3>
 <pre><code class="language-haproxy">frontend scan-in
     bind :443 ssl crt /etc/ssl/scan/scan.pem alpn h2,http/1.1

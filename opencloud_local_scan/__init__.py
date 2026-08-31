@@ -81,7 +81,7 @@ from .selfupdate import (
     self_update_note,
     upgrade_self,
 )
-from .service import ScanStore, build_server, serve
+from .service import ScanStore, ServiceMisconfigured, build_server, serve
 from .versions import (
     LifecycleStatus,
     ReleaseLine,
@@ -181,6 +181,7 @@ __all__ = [
     "ScannerSettings",
     "SecretProvider",
     "SecretResolutionError",
+    "ServiceMisconfigured",
     "SetupAborted",
     "Snapshot",
     "UpdateInfo",

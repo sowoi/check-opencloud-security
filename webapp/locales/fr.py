@@ -1268,6 +1268,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.fix": "Correctif :",
     "result.documentation": "Documentation",
+    "result.explain.title": "Ce que signifie ce contrôle",
     "result.plan.kicker": "Plan de remédiation",
     "result.plan.heading": "Ce qui vous mène à {label}",
     "result.plan.then": "puis {label}",
@@ -1425,6 +1426,50 @@ MESSAGES: dict[str, str] = {
         "Ces contrôles sont revenus propres, ils n'apparaissent donc pas dans le "
         "plan ci-dessus."
     ),
+    "result.share.kicker": "Partager",
+    "result.share.heading": "Partager ce rapport",
+    "result.share.lede": (
+        "Par courriel, ou via votre propre presse-papiers. Rien ne transite "
+        "par ce service et aucune autre entreprise n'est sollicitée."
+    ),
+    "result.share.warning": (
+        "L'adresse de cette page est la seule chose qui la protège : qui la "
+        "détient peut lire le rapport jusqu'à son expiration. La publier dans "
+        "un canal la partage avec tout le monde, et avec tout ce qui consulte "
+        "les liens pour en faire un aperçu. Copiez plutôt le résumé lorsque "
+        "ce sont les constats qui comptent."
+    ),
+    "result.share.email": "Partager par courriel",
+    "result.share.email.hint": (
+        "Ouvre votre propre logiciel de messagerie avec le message prêt. Rien "
+        "ne quitte votre navigateur avant l'envoi."
+    ),
+    "result.share.email.subject": "Rapport de sécurité OpenCloud pour {target}",
+    "result.share.email.body": (
+        "Voici le rapport de sécurité de notre instance OpenCloud :\n\n"
+        "{url}\n\n"
+        "Ce lien est ce qui donne accès au rapport : traitez-le comme un mot "
+        "de passe. Il expire de lui-même, après quoi la page n'existe plus."
+    ),
+    "result.share.link": "Copier le lien",
+    "result.share.link.hint": (
+        "L'adresse de cette page. Quiconque la reçoit peut ouvrir le rapport."
+    ),
+    "result.share.summary": "Copier le résumé",
+    "result.share.summary.hint": (
+        "Les constats en texte, sans aucun lien. Le plus sûr à coller dans un "
+        "canal de discussion."
+    ),
+    "result.share.summary.body": (
+        "Rapport de sécurité OpenCloud - {domain}\n"
+        "Note {label} ({rating} sur 5)\n"
+        "Critiques {critical} | Avertissements {warning} | Info {info} | "
+        "Alertes {advisories} | Réussis {passed}\n"
+        "Mesuré avec check-opencloud-security."
+    ),
+    "result.share.done": "Copié",
+    "result.share.failed": "Copie impossible",
+    "result.share.fallback": "L'adresse de ce rapport :",
     "result.feedback.prompt": "Vous pensez que l'analyse s'est trompée ?",
     "result.feedback.link": "Signaler un faux positif ou un faux négatif",
     "result.expiry.one": (

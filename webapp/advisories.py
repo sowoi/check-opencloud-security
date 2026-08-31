@@ -36,6 +36,7 @@ from opencloud_local_scan.advisory_source import (
 from opencloud_local_scan.vulndb import (
     BUNDLED_DB,
     VulnerabilityDatabase,
+    is_unbounded_advisory,
     load_database,
     parse_document,
 )
@@ -104,11 +105,28 @@ def _is_usable(document: dict[str, Any]) -> bool:
     An entry with no ``introduced`` and no ``fixed`` matches every version
     there has ever been, so a single one of them turns every scan this
     deployment runs into a critical finding.
+
+    Read off the *raw* records rather than the parsed advisories. The parser
+    now drops an unbounded record on its own, which is right for the plugin -
+    a scan should not be poisoned by one bad line in an operator's feed - but
+    it would leave this function inspecting a list the bad entry had already
+    been filtered out of, and quietly turn a refusal into a silent repair.
+    That is the wrong trade here: a feed emitting an advisory that affects
+    every version is a feed that has gone wrong, and ADR 0017's answer is to
+    keep the database this deployment already had rather than accept the rest
+    of a document that demonstrably contains nonsense.
     """
-    advisories = parse_document(document)
-    return all(
-        any(introduced or fixed for introduced, fixed in advisory.all_ranges())
-        for advisory in advisories
+    records = document.get("advisories")
+    if records is None:
+        # Nothing to disbelieve. An empty or differently shaped document is
+        # judged by the callers, which fall back to the bundled database.
+        return True
+    if not isinstance(records, list):
+        return False
+    return not any(
+        is_unbounded_advisory(record)
+        for record in records
+        if isinstance(record, dict)
     )
 
 

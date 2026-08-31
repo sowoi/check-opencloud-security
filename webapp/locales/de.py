@@ -1229,6 +1229,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.fix": "Fix:",
     "result.documentation": "Dokumentation",
+    "result.explain.title": "Was diese Prüfung bedeutet",
     "result.plan.kicker": "Sanierungsplan",
     "result.plan.heading": "Was dich zu {label} bringt",
     "result.plan.then": "dann {label}",
@@ -1384,6 +1385,50 @@ MESSAGES: dict[str, str] = {
     "result.export.passed.note": (
         "Diese Prüfungen waren unauffällig und stehen deshalb nicht im Plan oben."
     ),
+    "result.share.kicker": "Teilen",
+    "result.share.heading": "Diesen Bericht teilen",
+    "result.share.lede": (
+        "Per E-Mail oder über die eigene Zwischenablage. Nichts läuft über "
+        "diesen Dienst, und kein anderes Unternehmen wird um Hilfe gebeten."
+    ),
+    "result.share.warning": (
+        "Die Adresse dieser Seite ist das Einzige, was sie schützt: Wer sie "
+        "hat, kann den Bericht lesen, bis er abläuft. Wer sie in einen Kanal "
+        "stellt, teilt sie mit allen dort - und mit allem, was Links abruft, "
+        "um eine Vorschau zu bauen. Kopiere stattdessen die Zusammenfassung, "
+        "wenn es um die Befunde geht."
+    ),
+    "result.share.email": "Per E-Mail teilen",
+    "result.share.email.hint": (
+        "Öffnet dein eigenes Mailprogramm mit fertiger Nachricht. Bis du "
+        "sendest, verlässt nichts deinen Browser."
+    ),
+    "result.share.email.subject": "OpenCloud-Sicherheitsbericht für {target}",
+    "result.share.email.body": (
+        "Hier ist der Sicherheitsbericht für unsere OpenCloud-Instanz:\n\n"
+        "{url}\n\n"
+        "Dieser Link gewährt den Zugang zum Bericht - behandle ihn wie ein "
+        "Passwort. Er läuft von selbst ab, danach ist die Seite weg."
+    ),
+    "result.share.link": "Link kopieren",
+    "result.share.link.hint": (
+        "Die Adresse dieser Seite. Wer sie bekommt, kann den Bericht öffnen."
+    ),
+    "result.share.summary": "Zusammenfassung kopieren",
+    "result.share.summary.hint": (
+        "Die Befunde als Text, ohne Link darin. Das Sicherere zum Einfügen in "
+        "einen Chat-Kanal."
+    ),
+    "result.share.summary.body": (
+        "OpenCloud-Sicherheitsbericht - {domain}\n"
+        "Note {label} ({rating} von 5)\n"
+        "Kritisch {critical} | Warnung {warning} | Info {info} | "
+        "Hinweise {advisories} | Bestanden {passed}\n"
+        "Gemessen mit check-opencloud-security."
+    ),
+    "result.share.done": "Kopiert",
+    "result.share.failed": "Kopieren nicht möglich",
+    "result.share.fallback": "Die Adresse dieses Berichts:",
     "result.feedback.prompt": "Glaubst du, dass der Scan etwas falsch bewertet hat?",
     "result.feedback.link": "Falsch positives oder falsch negatives Ergebnis melden",
     "result.expiry.one": (

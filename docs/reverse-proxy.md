@@ -287,9 +287,16 @@ for a scan to finish.
 
 - **A real client address.** The rate limit and the target cooldown are the
   only things standing between a public scanner and being used as an
-  amplifier, and both key off the client address. Overwrite `X-Forwarded-For`
-  at the edge and set `COS_WEB_TRUST_FORWARDED_FOR=true`; without the
-  overwrite, a client can pick its own bucket by sending the header itself.
+  amplifier, and both key off the client address. Pass `X-Forwarded-For` and
+  set `COS_WEB_TRUST_FORWARDED_FOR=true`, plus `COS_WEB_TRUSTED_PROXY_HOPS` if
+  more than one proxy of yours is in the path.
+
+  The header is read from the **right**, that many entries in, so a proxy that
+  appends is as safe as one that overwrites - what a client sends stays to the
+  left of the entry your own proxy wrote, and is never reached. Set the hop
+  count to the number of proxies *you operate*: too few names a proxy instead
+  of the visitor, which is harmless, while too many walks back into the part
+  of the header the client controls.
 - **Timeouts longer than a scan.** A scan takes seconds to a minute; a PDF
   export and an MCP `scan_instance` call can hold a response for minutes. 120
   seconds is a sensible floor and the MCP endpoint wants more.
@@ -357,6 +364,7 @@ Then:
 
 ```bash
 COS_WEB_TRUST_FORWARDED_FOR=true
+COS_WEB_TRUSTED_PROXY_HOPS=1
 COS_WEB_PUBLIC_BASE_URL=https://scan.example.com
 COS_WEB_MCP_ALLOWED_HOSTS=scan.example.com
 ```
@@ -423,8 +431,8 @@ scan.example.com {
 
 `flush_interval -1` disables buffering, which is what the event stream needs.
 Caddy writes `X-Forwarded-For` from the connection and drops what the client
-sent, so `COS_WEB_TRUST_FORWARDED_FOR=true` is safe with no extra
-configuration.
+sent, so `COS_WEB_TRUST_FORWARDED_FOR=true` is safe with the default
+`COS_WEB_TRUSTED_PROXY_HOPS=1`.
 
 ### Traefik
 
@@ -453,10 +461,12 @@ entryPoints:
         idleTimeout: 300s
 ```
 
-Traefik overwrites `X-Real-Ip` and appends to `X-Forwarded-For`; the
-application reads the **first** entry, which is the client, so
-`COS_WEB_TRUST_FORWARDED_FOR=true` is correct here as long as Traefik is the
-only proxy and is not itself behind one it trusts blindly.
+Traefik overwrites `X-Real-Ip` and *appends* to `X-Forwarded-For`. The
+application reads the header from the right, so the entry it takes is the one
+Traefik wrote and not whatever the client put in front of it:
+`COS_WEB_TRUST_FORWARDED_FOR=true` with the default
+`COS_WEB_TRUSTED_PROXY_HOPS=1` is correct here. Behind a CDN as well, count
+both and set `2`.
 
 ### HAProxy
 

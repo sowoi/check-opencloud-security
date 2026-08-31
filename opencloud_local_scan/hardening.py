@@ -1267,6 +1267,42 @@ def describe(name: str) -> Hardening:
     )
 
 
+def catalogue_id(name: str) -> str | None:
+    """
+    The identifier of the entry that *explains* this one, or ``None``.
+
+    ``describe`` answers "what does this mean" and always answers something.
+    This answers the narrower question behind a link: which entry in the
+    published catalogue is the explanation, given that a reader clicking a
+    finding expects to land on the paragraph about it.
+
+    The two differ for the per-path and per-port families. A result names
+    ``exposed:/config/opencloud.yaml``, and ``describe`` builds a sentence
+    about that exact path, but the catalogue lists the family root
+    ``exposed`` once rather than every path an instance might serve - so that
+    is where the link has to go.
+
+    ``None`` means this build cannot explain the identifier, and a caller
+    should render it as plain text. A link to an anchor that does not exist
+    leaves a reader on an unfamiliar page with nothing highlighted, which is
+    worse than not offering the link.
+    """
+    if (
+        name in HARDENINGS
+        or name in CHECKS
+        or name in _HEADER_NOTES
+        # The bare family root is itself a catalogue entry - it is what
+        # `all_checks` lists - so it resolves to itself, while a member of the
+        # family resolves up to it.
+        or name in _CHECK_FAMILIES
+    ):
+        return name
+    family, _, subject = name.partition(":")
+    if subject and family in _CHECK_FAMILIES:
+        return family
+    return None
+
+
 def is_actionable(name: str) -> bool:
     """Whether an administrator can change the outcome of this flag."""
     return describe(name).actionable

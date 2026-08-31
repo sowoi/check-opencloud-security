@@ -28,6 +28,9 @@ DEFAULT_IP_RATE_LIMIT = 10
 DEFAULT_IP_RATE_WINDOW_SECONDS = 60
 DEFAULT_TARGET_COOLDOWN_SECONDS = 300
 DEFAULT_MAX_BATCH_TARGETS = 10
+# One reverse proxy, which is what a deployment that turns
+# COS_WEB_TRUST_FORWARDED_FOR on almost always has.
+DEFAULT_TRUSTED_PROXY_HOPS = 1
 DEFAULT_MCP_MAX_CONCURRENT_WAITS = 8
 # An audit trail written to a file outlives the container, which is the point
 # of it and also the risk: a log nobody rotates fills the volume it sits on and
@@ -194,7 +197,32 @@ class WebSettings:
 
     trust_forwarded_for: bool = False
     """Read the client address from ``X-Forwarded-For``. Only behind a proxy
-    that overwrites the header, otherwise the rate limit is trivially evaded."""
+    that appends to or overwrites the header, and only with
+    ``trusted_proxy_hops`` set to match how many of them there are."""
+
+    trusted_proxy_hops: int = DEFAULT_TRUSTED_PROXY_HOPS
+    """How many proxies of this deployment's own sit in front of the service.
+
+    ``X-Forwarded-For`` is read from the *right*, because that is the end
+    only a proxy writes. nginx's ``proxy_add_x_forwarded_for``, Traefik and
+    most content delivery networks append, so the leftmost entry is whatever
+    the client sent - reading it would let any caller mint a fresh rate-limit
+    bucket, a fresh audit identity and a fresh allowance of purge attempts per
+    request, by adding one header.
+
+    ``1`` is right for the ordinary case of a single reverse proxy. Two
+    proxies - a CDN in front of an ingress - is ``2``.
+
+    Counting too few is safe: it reports the address of a proxy further out,
+    which is written by a proxy either way. **Counting more than there are is
+    not**, and nothing here can make it safe. With this set to ``2`` behind a
+    single proxy, a request carrying ``X-Forwarded-For: spoofed`` arrives as
+    ``spoofed, <real>`` and the second entry from the right is the one the
+    client wrote. The count is clamped to the number of entries the header
+    carries, but that only stops a read past the end - it cannot tell an entry
+    a proxy appended from one a client sent, because nothing in the header
+    says which is which. Set this to the number of proxies you operate, and
+    only for proxies that overwrite or append the header themselves."""
 
     rate_limit_salt: str | None = None
     """Salt for the rate-limit and cooldown fingerprints. Unset means a random
@@ -422,6 +450,9 @@ class WebSettings:
             ),
             target_cooldown=_env_int("TARGET_COOLDOWN", DEFAULT_TARGET_COOLDOWN_SECONDS),
             trust_forwarded_for=_env_bool("TRUST_FORWARDED_FOR", False),
+            trusted_proxy_hops=_env_int(
+                "TRUSTED_PROXY_HOPS", DEFAULT_TRUSTED_PROXY_HOPS, minimum=1
+            ),
             rate_limit_salt=_env("RATE_LIMIT_SALT"),
             public_base_url=_env("PUBLIC_BASE_URL"),
             index_meta_tags=_env_index_meta_tags(),

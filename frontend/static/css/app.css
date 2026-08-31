@@ -1719,6 +1719,23 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .finding .fix { color: var(--ink); }
 .finding .fix strong { color: var(--ink); }
 
+/* An identifier that leads to its catalogue entry. It has to still read as
+   the identifier - that is what a reader is scanning the list for - so the
+   affordance is an underline that only fills in on hover, rather than link
+   colour fighting the `code` colour beside it. */
+.check-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
+.check-link:hover, .check-link:focus-visible { text-decoration-style: solid; }
+.check-link code { cursor: pointer; }
+.pill-list .check-link { text-underline-offset: 2px; }
+
+/* Arriving from a result page, the entry that was clicked is the only reason
+   the reader is on this page, so it says which one it is rather than leaving
+   them to find it in a list of sixty. */
+.finding:target {
+    border-left-color: var(--brand); background: var(--brand-soft);
+    scroll-margin-top: 5rem;
+}
+
 /* remediation plan - the findings list, numbered and with a predicted grade */
 .plan { margin-top: .4rem; }
 .plan-step[data-gain="no"] { border-left-color: var(--line); }
@@ -1988,6 +2005,22 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 .export-list li:last-child { border-bottom: 0; }
 .export-list .btn { min-width: 8.5rem; text-align: center; }
 .export-list .hint { margin: 0; }
+
+/* Sharing. The caution above the buttons carries the one thing a reader has
+   to know before using them - the address is the credential - so it is toned
+   rather than left as another grey hint nobody reads. */
+.share-warning {
+    color: var(--fair-ink); border-left: 3px solid var(--fair);
+    padding: .5rem 0 .5rem .8rem; margin-top: .8rem;
+}
+/* The copy buttons report back in place. Colour alone would say nothing to a
+   reader who cannot see it, so the label itself changes and this only tints
+   what the label already says. */
+.share-list .btn[data-share-state="done"] { color: var(--good-ink); border-color: var(--good); }
+.share-list .btn[data-share-state="failed"] { color: var(--bad-ink); border-color: var(--bad); }
+/* A report address is long and has no spaces, so it needs somewhere to break
+   rather than widening the card on a phone. */
+.share-fallback code { overflow-wrap: anywhere; }
 
 /* A plain disclosure (the raw JSON on the result page): quiet, with the
    marker the browser supplies, unlike the waiver panel's custom chevron. */

@@ -170,6 +170,119 @@ def test_disabled_entries_never_match(tmp_path):
     assert database.matches("7.1.0") == []
 
 
+# The bundled file is checked below, but the file is only one of the ways an
+# advisory gets in: `--vulnerability-feed` reads an operator's own JSON, and
+# the OSV refresh reads somebody else's. The parser is what all three go
+# through, so the refusal belongs there rather than in a review of the file.
+
+
+def test_a_native_advisory_with_no_version_range_is_refused(tmp_path):
+    """
+    An advisory that cannot say what it affects matches everything.
+
+    `is_in_range(v, None, None)` is True for every version, so one such record
+    reports every instance scanned with this database as critically
+    vulnerable - and the native format is the one an operator writes by hand
+    and points `--vulnerability-feed` at, where a forgotten bound is a typo
+    rather than somebody else's feed quirk.
+    """
+    payload = {"advisories": [{"id": "OC-NO-BOUNDS", "severity": "critical"}]}
+
+    database = vulndb.load_database(
+        extra_files=(_write(tmp_path, "unbounded.json", payload),),
+        include_bundled=False,
+    )
+
+    assert database.advisories == []
+    assert database.matches("7.2.0") == []
+    assert database.matches("99.99.99") == []
+
+
+def test_a_native_advisory_keeps_a_single_open_bound(tmp_path):
+    """
+    The negative case: only *both* bounds open is meaningless.
+
+    An advisory with no fix yet is the normal shape of a fresh one, and an
+    advisory with no introduced version affects everything up to its fix.
+    Refusing either would drop real advisories.
+    """
+    payload = {
+        "advisories": [
+            {"id": "OC-NO-FIX", "severity": "high", "introduced": "7.0.0"},
+            {"id": "OC-NO-START", "severity": "high", "fixed": "7.2.1"},
+        ]
+    }
+
+    database = vulndb.load_database(
+        extra_files=(_write(tmp_path, "half-open.json", payload),),
+        include_bundled=False,
+    )
+
+    assert {advisory.id for advisory in database.advisories} == {
+        "OC-NO-FIX",
+        "OC-NO-START",
+    }
+    assert {advisory.id for advisory in database.matches("7.1.0")} == {
+        "OC-NO-FIX",
+        "OC-NO-START",
+    }
+    # Bounded on the side that is stated, so neither matches everything.
+    assert [advisory.id for advisory in database.matches("6.0.0")] == ["OC-NO-START"]
+    assert [advisory.id for advisory in database.matches("8.0.0")] == ["OC-NO-FIX"]
+
+
+def test_a_disabled_placeholder_is_not_mistaken_for_an_unbounded_advisory():
+    """
+    A record the parser never turns into an advisory has no range to judge.
+
+    The bundled ``OC-EOL`` entry is exactly that: ``enabled: false``, no
+    version bounds, there to document the end-of-life finding the scanner
+    raises by itself. Judging it on its absent range would condemn every
+    document this project ships, including the bundled one.
+    """
+    placeholder = {"id": "OC-EOL", "introduced": None, "fixed": None, "enabled": False}
+    real = {"id": "OC-REAL", "introduced": None, "fixed": None}
+
+    assert vulndb.is_unbounded_advisory(placeholder) is False
+    assert vulndb.is_unbounded_advisory(real) is True
+    # And the file that carries it is still readable.
+    assert vulndb.load_database().advisories
+
+
+def test_a_github_advisory_whose_range_cannot_be_parsed_is_refused(tmp_path):
+    """
+    Matching the package is not the same as knowing the versions.
+
+    The converter stops at the first OpenCloud entry, which proves the
+    advisory is about OpenCloud and nothing about which releases it affects.
+    An unparseable `vulnerable_version_range` with no patched version left it
+    unbounded, and unbounded means every instance.
+    """
+    payload = {
+        "advisories": [
+            {
+                "ghsa_id": "GHSA-aaaa-bbbb-cccc",
+                "summary": "Unparseable range",
+                "vulnerabilities": [
+                    {
+                        "package": {"name": "github.com/opencloud-eu/opencloud"},
+                        "vulnerable_version_range": "whenever it feels like it",
+                        "first_patched_version": None,
+                    }
+                ],
+            }
+        ]
+    }
+
+    database = vulndb.load_database(
+        extra_files=(_write(tmp_path, "ghsa.json", payload),),
+        include_bundled=False,
+    )
+
+    assert database.advisories == []
+    assert database.matches("99.99.99") == []
+
+
 def test_no_bundled_advisory_can_match_every_version():
     """
     An advisory without bounds reports every instance in the world as vulnerable.

@@ -28,7 +28,11 @@ from typing import Any
 
 import pytest
 
-from opencloud_local_scan.vulndb import BUNDLED_DB, is_in_range, parse_document
+from opencloud_local_scan.vulndb import (
+    BUNDLED_DB,
+    is_in_range,
+    is_unbounded_advisory,
+)
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     MEMORY_URL,
     _isolated_backend,
@@ -282,9 +286,11 @@ def test_a_stored_document_carrying_an_unbounded_advisory_is_refused():
             }
         ]
     }
+    # Read off the raw record: the parser drops an unbounded advisory by
+    # itself now, so asking it would only ever confirm that it had already
+    # been filtered out, and the guard would stop guarding anything.
     assert any(
-        advisory.introduced is None and advisory.fixed is None
-        for advisory in parse_document(poisoned)
+        is_unbounded_advisory(record) for record in poisoned["advisories"]
     ), "the document has to actually be unbounded for this test to mean anything"
 
     run(store.set(ADVISORY_DOCUMENT_KEY, json.dumps(poisoned)))

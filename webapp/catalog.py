@@ -28,7 +28,7 @@ from opencloud_local_scan import (
     describe_hardening,
     failed_extra_checks,
 )
-from opencloud_local_scan.hardening import is_actionable
+from opencloud_local_scan.hardening import catalogue_id, is_actionable
 from opencloud_local_scan.remediation import SEVERITY_RATING_CAP
 from opencloud_local_scan.versions import RELEASE_TRACK_CHOICES, TRACK_AUTO
 
@@ -224,6 +224,32 @@ def check_catalogue(translate: Translator | None = None) -> tuple[CatalogueCateg
         for category in CATEGORIES
         if category in grouped
     )
+
+
+#: The catalogue page gives every check an anchor built from this prefix, and
+#: the result page links to it. One prefix in one place, because two templates
+#: agreeing by coincidence is two templates that will stop agreeing.
+CATALOGUE_ANCHOR_PREFIX = "check-"
+CATALOGUE_PATH = "/catalogue"
+
+
+def catalogue_anchor(name: object) -> str | None:
+    """
+    The ``id`` the catalogue page gives this check, or ``None``.
+
+    ``None`` is the answer for an identifier this build cannot explain, and
+    both templates treat it the same way: render the identifier as plain text.
+    A link to a fragment that does not exist drops the reader at the top of a
+    long page with nothing highlighted, having promised an explanation.
+    """
+    entry = catalogue_id(str(name))
+    return None if entry is None else f"{CATALOGUE_ANCHOR_PREFIX}{entry}"
+
+
+def catalogue_link(name: object) -> str | None:
+    """Where a result page sends a reader who clicks a finding, or ``None``."""
+    anchor = catalogue_anchor(name)
+    return None if anchor is None else f"{CATALOGUE_PATH}#{anchor}"
 
 
 # Working the track out from the release the instance reports is right more

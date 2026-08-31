@@ -1136,6 +1136,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.fix": "Fix:",
     "result.documentation": "Documentation",
+    "result.explain.title": "What this check means",
     "result.plan.kicker": "Remediation plan",
     "result.plan.heading": "What gets you to {label}",
     "result.plan.then": "then {label}",
@@ -1276,6 +1277,50 @@ MESSAGES: dict[str, str] = {
     "result.export.passed.note": (
         "These checks came back clean, so they are not in the plan above."
     ),
+    "result.share.kicker": "Share",
+    "result.share.heading": "Share this report",
+    "result.share.lede": (
+        "By email, or on your own clipboard. Nothing is sent through this "
+        "service and no other company is asked to help."
+    ),
+    "result.share.warning": (
+        "The address of this page is the only thing protecting it: anyone who "
+        "has it can read the report until it expires. Posting it in a channel "
+        "shares it with everyone in that channel, and with whatever fetches "
+        "links there to build a preview. Copy the summary instead where the "
+        "findings are the point."
+    ),
+    "result.share.email": "Share by email",
+    "result.share.email.hint": (
+        "Opens your own mail client with the message ready. Nothing leaves "
+        "your browser until you send it."
+    ),
+    "result.share.email.subject": "OpenCloud security report for {target}",
+    "result.share.email.body": (
+        "Here is the security report for our OpenCloud instance:\n\n"
+        "{url}\n\n"
+        "This link is what grants access to the report, so treat it as a "
+        "password. It expires on its own, after which the page is gone."
+    ),
+    "result.share.link": "Copy link",
+    "result.share.link.hint": (
+        "The address of this page. Anyone you give it to can open the report."
+    ),
+    "result.share.summary": "Copy summary",
+    "result.share.summary.hint": (
+        "The findings as text, with no link in it. The safer thing to paste "
+        "into a chat channel."
+    ),
+    "result.share.summary.body": (
+        "OpenCloud security report - {domain}\n"
+        "Grade {label} ({rating} out of 5)\n"
+        "Critical {critical} | Warning {warning} | Info {info} | "
+        "Advisories {advisories} | Passed {passed}\n"
+        "Measured by check-opencloud-security."
+    ),
+    "result.share.done": "Copied",
+    "result.share.failed": "Could not copy",
+    "result.share.fallback": "The address of this report:",
     "result.feedback.prompt": "Think the scan got something wrong?",
     "result.feedback.link": "Report a false positive or false negative",
     "result.expiry.one": (

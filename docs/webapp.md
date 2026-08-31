@@ -94,7 +94,7 @@ and all three live in `.env` beside the compose file:
 |:--------|:---------------|
 | `COS_WEB_PUBLIC_BASE_URL` | Canonical URLs, the sitemap and the discovery document are built from it rather than from an incoming `Host` header. It defaults to `http://localhost:8811` so a first `up` works; anything a stranger reaches must set it |
 | `COS_REDIS_PASSWORD` | Redis holds every live scan and every result still inside its TTL. Unset, it asks for nothing. See [Redis](redis.md) |
-| `COS_WEB_TRUST_FORWARDED_FOR` | `true` only behind a proxy that **overwrites** `X-Forwarded-For`, otherwise every client can forge its own rate-limit identity |
+| `COS_WEB_TRUST_FORWARDED_FOR` | `true` only behind a proxy of your own, otherwise every client can forge its own rate-limit identity. Set `COS_WEB_TRUSTED_PROXY_HOPS` to how many proxies there are |
 
 The published image is on Docker Hub as **`okxo/opencloud-scanner`**, so a
 deployment does not have to build one. `latest` and `MAJOR.MINOR.PATCH` follow
@@ -233,6 +233,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_TARGET_COOLDOWN` | `300` | Seconds before the same instance may be scanned again. `0` disables |
 | `COS_WEB_MAX_BATCH_TARGETS` | `10` | Targets one `POST /api/scans/batch` may carry. Each still counts against every limit |
 | `COS_WEB_TRUST_FORWARDED_FOR` | `false` | Read the client address from `X-Forwarded-For` |
+| `COS_WEB_TRUSTED_PROXY_HOPS` | `1` | How many proxies of your own sit in front. The header is read from the **right**, this many entries in, because that end is the only part a proxy writes |
 | `COS_WEB_RATE_LIMIT_SALT` | *(random per process)* | Salt for the rate-limit and cooldown keys. Required to be the **same value in every web process** of a deployment that runs more than one: without it each derives its own keys, and a client gets one allowance per process |
 | `COS_WEB_PUBLIC_BASE_URL` | *(required)* | The stable origin this service is reached at, used for canonical links, `sitemap.xml`, and machine discovery. An unset value refuses startup so an incoming `Host` header cannot publish attacker-controlled URLs |
 | `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 optional `name=content` metadata pairs on the landing page, separated by `;`. Names and content are escaped separately; raw HTML, duplicate or reserved names, and prohibited platform metadata are refused |
@@ -580,9 +581,23 @@ including the streaming the MCP endpoint needs and the paths a proxy must not
 rewrite - is in [Reverse proxies](reverse-proxy.md). The short version:
 
 Terminate TLS in front, pass `X-Forwarded-For`, and only then set
-`COS_WEB_TRUST_FORWARDED_FOR=true`. The proxy must **overwrite** the header
-rather than append to it - trusting a header a client can send makes the
-client rate limit decorative.
+`COS_WEB_TRUST_FORWARDED_FOR=true`.
+
+The header is read from the **right**, `COS_WEB_TRUSTED_PROXY_HOPS` entries in
+(`1` by default, which is one reverse proxy). That end is the only part a
+proxy writes: nginx's `proxy_add_x_forwarded_for`, Traefik and most content
+delivery networks *append*, so everything to the left of the last entry is
+whatever the client sent. A CDN in front of an ingress is two hops and needs
+`COS_WEB_TRUSTED_PROXY_HOPS=2`.
+
+Counting too few is safe - the address recorded is a proxy's rather than the
+visitor's. Counting more hops than there really are is what to avoid: it walks
+the reader back into the part of the header a client controls, which is
+exactly the forgery the setting exists to prevent. When in doubt, count the
+proxies you operate and no others.
+
+An entry that is not an IP address is ignored rather than counted, so an
+obfuscated identifier cannot become somebody's rate-limit bucket.
 
 The application sends its own security headers, including
 `Content-Security-Policy: default-src 'self'` with no `unsafe-inline`

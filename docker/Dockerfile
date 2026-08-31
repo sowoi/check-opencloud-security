@@ -67,7 +67,12 @@ ENTRYPOINT ["check-opencloud-security"]
 # remote backend to point it at. The same image also ships the scanner as a
 # standalone service for scheduled scans and for reusing one cached result
 # across several monitoring consumers:
-#   docker run --rm -p 8811:8811 \
+# It listens on loopback unless told otherwise, so reaching it from outside the
+# container means binding the container's own interfaces - and that needs a
+# token, because the service scans whatever host a request names:
+#   docker run --rm -p 127.0.0.1:8811:8811 \
+#     -e COS_SERVICE_LISTEN=0.0.0.0 \
+#     -e COS_SERVICE_TOKEN="$(openssl rand -hex 32)" \
 #     --entrypoint check-opencloud-scanner check-opencloud-security serve
 # and a one-shot scan that prints the result document as JSON:
 #   docker run --rm \

@@ -145,7 +145,7 @@ and all three live in <code>.env</code> beside the compose file:</p>
 </tr>
 <tr>
 <td><code>COS_WEB_TRUST_FORWARDED_FOR</code></td>
-<td><code>true</code> only behind a proxy that <strong>overwrites</strong> <code>X-Forwarded-For</code>, otherwise every client can forge its own rate-limit identity</td>
+<td><code>true</code> only behind a proxy of your own, otherwise every client can forge its own rate-limit identity. Set <code>COS_WEB_TRUSTED_PROXY_HOPS</code> to how many proxies there are</td>
 </tr>
 </tbody>
 </table>
@@ -345,6 +345,11 @@ somebody could.</p>
 <td><code>COS_WEB_TRUST_FORWARDED_FOR</code></td>
 <td><code>false</code></td>
 <td>Read the client address from <code>X-Forwarded-For</code></td>
+</tr>
+<tr>
+<td><code>COS_WEB_TRUSTED_PROXY_HOPS</code></td>
+<td><code>1</code></td>
+<td>How many proxies of your own sit in front. The header is read from the <strong>right</strong>, this many entries in, because that end is the only part a proxy writes</td>
 </tr>
 <tr>
 <td><code>COS_WEB_RATE_LIMIT_SALT</code></td>
@@ -780,9 +785,20 @@ meant.</p>
 including the streaming the MCP endpoint needs and the paths a proxy must not
 rewrite - is in <a href="/documentation/reverse-proxy">Reverse proxies</a>. The short version:</p>
 <p>Terminate TLS in front, pass <code>X-Forwarded-For</code>, and only then set
-<code>COS_WEB_TRUST_FORWARDED_FOR=true</code>. The proxy must <strong>overwrite</strong> the header
-rather than append to it - trusting a header a client can send makes the
-client rate limit decorative.</p>
+<code>COS_WEB_TRUST_FORWARDED_FOR=true</code>.</p>
+<p>The header is read from the <strong>right</strong>, <code>COS_WEB_TRUSTED_PROXY_HOPS</code> entries in
+(<code>1</code> by default, which is one reverse proxy). That end is the only part a
+proxy writes: nginx's <code>proxy_add_x_forwarded_for</code>, Traefik and most content
+delivery networks <em>append</em>, so everything to the left of the last entry is
+whatever the client sent. A CDN in front of an ingress is two hops and needs
+<code>COS_WEB_TRUSTED_PROXY_HOPS=2</code>.</p>
+<p>Counting too few is safe - the address recorded is a proxy's rather than the
+visitor's. Counting more hops than there really are is what to avoid: it walks
+the reader back into the part of the header a client controls, which is
+exactly the forgery the setting exists to prevent. When in doubt, count the
+proxies you operate and no others.</p>
+<p>An entry that is not an IP address is ignored rather than counted, so an
+obfuscated identifier cannot become somebody's rate-limit bucket.</p>
 <p>The application sends its own security headers, including
 <code>Content-Security-Policy: default-src 'self'</code> with no <code>unsafe-inline</code>
 anywhere. Everything the pages load - CSS, JavaScript, icons, the type stack -

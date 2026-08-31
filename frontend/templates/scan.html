@@ -8,6 +8,25 @@
   {%- endif -%}
 {%- endmacro %}
 
+{#
+  An identifier, linked to the catalogue paragraph that explains it.
+
+  `catalogue_link` returns nothing for an identifier this build cannot
+  explain, and then the identifier is rendered as plain text rather than as a
+  link to an anchor the catalogue does not publish. The per-path findings
+  resolve to their family - `exposed:/config/opencloud.yaml` lands on
+  `exposed` - because that is the entry the catalogue actually lists.
+#}
+{% macro check_code(value) -%}
+  {%- set href = value | catalogue_link -%}
+  {%- if href %}<a class="check-link" href="{{ href }}" title="{{ t('result.explain.title') }}"><code>{{ value }}</code></a>{% else %}<code>{{ value }}</code>{% endif -%}
+{%- endmacro %}
+
+{% macro check_name(value) -%}
+  {%- set href = value | catalogue_link -%}
+  {%- if href %}<a class="check-link" href="{{ href }}" title="{{ t('result.explain.title') }}">{{ value }}</a>{% else %}{{ value }}{% endif -%}
+{%- endmacro %}
+
 {% macro category_tag(value) -%}
   {%- if value -%}
   <a class="tag tag-neutral" href="/catalogue#category-{{ value }}">{%- if t.has('category.' ~ value) -%}{{ t('category.' ~ value) }}{%- else -%}{{ value }}{%- endif -%}</a>
@@ -232,6 +251,44 @@
   <p class="hint">{{ t.html('result.verdict.caveat') }}</p>
 </section>
 
+{#
+  The contents list, built the same way the documentation pages build theirs.
+
+  A report is as long as the instance made it, and the sections that matter
+  most to a reader in a hurry - the plan, the advisories - sit below a score
+  dial that fills the first screen. Every entry is conditional on the section
+  it names actually being rendered, so this never offers a link to a card that
+  is not there: a clean instance has no advisories section and gets no
+  advisories entry. `_toc.html` renders nothing at all below two entries.
+
+  The labels are each section's own heading, not a second wording of it, for
+  the reason that partial gives: a heading rewritten in one language cannot
+  leave the contents list behind saying the old thing.
+#}
+{% set toc = [] %}
+{% if summary.remediation.steps %}
+  {% set _ = toc.append({"href": "#remediation",
+                         "label": t('result.plan.heading', label=summary.remediation.achievableLabel)}) %}
+{% endif %}
+{% if summary.vulnerabilities %}
+  {% set _ = toc.append({"href": "#advisories", "label": t('result.advisories.heading')}) %}
+{% endif %}
+{% set _ = toc.append({"href": "#findings", "label": t('result.findings.heading')}) %}
+{% if summary.missingHardenings or summary.missingHeaders %}
+  {% set _ = toc.append({"href": "#hardening", "label": t('result.hardening.heading')}) %}
+{% endif %}
+{% if summary.waived or summary.unfixable %}
+  {% set _ = toc.append({"href": "#excluded", "label": t('result.excluded.heading')}) %}
+{% endif %}
+{% if summary.tls and summary.tls.reachable %}
+  {% set _ = toc.append({"href": "#tls", "label": t('result.tls.heading')}) %}
+{% endif %}
+{% set _ = toc.append({"href": "#scan-limits", "label": t('result.scope.heading')}) %}
+{% set _ = toc.append({"href": "#raw-document", "label": t('result.raw.heading')}) %}
+{% set _ = toc.append({"href": "#exports", "label": t('result.export.heading')}) %}
+{% set _ = toc.append({"href": "#share", "label": t('result.share.heading')}) %}
+{% include "_toc.html" %}
+
 {% if summary.remediation.steps %}
 <section class="card" data-reveal="3">
   <p class="kicker">{{ t('result.plan.kicker') }}</p>
@@ -243,7 +300,7 @@
         data-gain="{{ 'yes' if step.ratingGain > 0 else 'no' }}">
       <div class="finding-head">
         <span class="plan-order" aria-hidden="true">{{ step.order }}</span>
-        <code>{{ step.id }}</code>
+        {{ check_code(step.id) }}
         <span class="tag tag-{{ step.tag }}">{{ severity_label(step.severity) }}</span>
         <span class="plan-grade">
           {%- if step.ratingGain > 0 -%}
@@ -287,7 +344,7 @@
 {% if summary.vulnerabilities %}
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.advisories.kicker') }}</p>
-  <h2>{{ t('result.advisories.heading') }}</h2>
+  <h2 id="advisories">{{ t('result.advisories.heading') }}</h2>
   <p class="lede">{{ t('result.advisories.lede', version=summary.version) }}</p>
   <ul class="findings">
     {% for advisory in summary.vulnerabilities %}
@@ -312,14 +369,14 @@
 
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.findings.kicker') }}</p>
-  <h2>{{ t('result.findings.heading') }}</h2>
+  <h2 id="findings">{{ t('result.findings.heading') }}</h2>
   <p class="lede">{{ t('result.findings.lede') }}</p>
   {% if summary.issues %}
   <ul class="findings">
     {% for issue in summary.issues %}
     <li class="finding" data-tag="{{ issue.tag }}">
       <div class="finding-head">
-        <code>{{ issue.id }}</code>
+        {{ check_code(issue.id) }}
         <span class="tag tag-{{ issue.tag }}">{{ severity_label(issue.severity) }}</span>
         {{ category_tag(issue.category) }}
       </div>
@@ -340,13 +397,13 @@
 {% if summary.missingHardenings or summary.missingHeaders %}
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.hardening.kicker') }}</p>
-  <h2>{{ t('result.hardening.heading') }}</h2>
+  <h2 id="hardening">{{ t('result.hardening.heading') }}</h2>
   <p class="lede">{{ t('result.hardening.lede') }}</p>
   <ul class="findings">
     {% for item in summary.missingHardenings %}
     <li class="finding" data-tag="warning">
       <div class="finding-head">
-        <code>{{ item.id }}</code>
+        {{ check_code(item.id) }}
         <span class="tag tag-warning">{{ t('result.hardening.tag') }}</span>
         {{ category_tag(item.category) }}
       </div>
@@ -359,7 +416,7 @@
     {% for item in summary.missingHeaders %}
     <li class="finding" data-tag="info">
       <div class="finding-head">
-        <code>{{ item.id }}</code>
+        {{ check_code(item.id) }}
         <span class="tag tag-info">{{ t('result.header.tag') }}</span>
         {{ category_tag(item.category) }}
       </div>
@@ -374,19 +431,19 @@
 {% if summary.waived or summary.unfixable %}
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.excluded.kicker') }}</p>
-  <h2>{{ t('result.excluded.heading') }}</h2>
+  <h2 id="excluded">{{ t('result.excluded.heading') }}</h2>
   {% if summary.waived %}
   <h3>{{ t('result.excluded.waived.heading') }}</h3>
   <p class="hint">{{ t('result.excluded.waived.note') }}</p>
   <ul class="pill-list">
-    {% for item in summary.waived %}<li>{{ item.id }}</li>{% endfor %}
+    {% for item in summary.waived %}<li>{{ check_name(item.id) }}</li>{% endfor %}
   </ul>
   {% endif %}
   {% if summary.unfixable %}
   <h3 class="section-gap">{{ t('result.excluded.unfixable.heading') }}</h3>
   <p class="hint">{{ t('result.excluded.unfixable.note') }}</p>
   <ul class="pill-list">
-    {% for name in summary.unfixable %}<li>{{ name }}</li>{% endfor %}
+    {% for name in summary.unfixable %}<li>{{ check_name(name) }}</li>{% endfor %}
   </ul>
   {% endif %}
 </section>
@@ -405,7 +462,7 @@
 {% if summary.tls and summary.tls.reachable %}
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.tls.kicker') }}</p>
-  <h2>{{ t('result.tls.heading') }}</h2>
+  <h2 id="tls">{{ t('result.tls.heading') }}</h2>
   <p class="lede">{{ t('result.tls.lede') }}</p>
   <dl class="facts">
     <dt>{{ t('result.tls.protocol') }}</dt>
@@ -468,7 +525,7 @@
 
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.raw.kicker') }}</p>
-  <h2>{{ t('result.raw.heading') }}</h2>
+  <h2 id="raw-document">{{ t('result.raw.heading') }}</h2>
   <p class="lede">{{ t('result.raw.lede') }}</p>
   <details>
     <summary>{{ t('result.raw.summary') }}</summary>
@@ -479,7 +536,7 @@
 
 <section class="card" data-reveal>
   <p class="kicker">{{ t('result.export.kicker') }}</p>
-  <h2>{{ t('result.export.heading') }}</h2>
+  <h2 id="exports">{{ t('result.export.heading') }}</h2>
   <p class="lede">{{ t('result.export.lede') }}</p>
   <ul class="export-list">
     <li>
@@ -515,6 +572,70 @@
     <a href="{{ project_url }}/issues" rel="noopener noreferrer">{{ t('result.feedback.link') }}</a>.
   </p>
 </section>
+
+{#
+  Sharing, without a third party in it. The email link is a plain `mailto:`
+  the browser hands to whatever mail client the reader already uses, and the
+  two buttons copy to their own clipboard. Nothing here contacts anybody:
+  there is no share-intent URL, no SDK and no button that posts on the
+  reader's behalf, because a link to this page is a working credential for it
+  (ADR 0007) and a service that unfurls links would be fetching somebody's
+  security report to build a preview of it.
+
+  That is also why the summary is offered separately from the link. Pasting a
+  report into a chat channel is a reasonable thing to want; handing everyone
+  in that channel a live capability is usually not the part that was meant.
+#}
+{% set report_url = origin ~ '/scan/' ~ scan.uuid if origin else '/scan/' ~ scan.uuid %}
+<section class="card" data-reveal>
+  <p class="kicker">{{ t('result.share.kicker') }}</p>
+  <h2 id="share">{{ t('result.share.heading') }}</h2>
+  <p class="lede">{{ t('result.share.lede') }}</p>
+  <p class="hint share-warning">{{ t('result.share.warning') }}</p>
+  <ul class="export-list share-list">
+    <li>
+      <a class="btn btn-quiet"
+         href="mailto:?subject={{ t('result.share.email.subject', target=summary.domain) | urlencode }}&amp;body={{ t('result.share.email.body', url=report_url) | urlencode }}"
+        >{{ t('result.share.email') }}</a>
+      <span class="hint">{{ t('result.share.email.hint') }}</span>
+    </li>
+    <li>
+      <button type="button" class="btn btn-quiet" hidden
+              data-share-copy="link"
+              data-share-done="{{ t('result.share.done') }}"
+              data-share-failed="{{ t('result.share.failed') }}"
+              >{{ t('result.share.link') }}</button>
+      <span class="hint">{{ t('result.share.link.hint') }}</span>
+    </li>
+    <li>
+      <button type="button" class="btn btn-quiet" hidden
+              data-share-copy="summary"
+              data-share-done="{{ t('result.share.done') }}"
+              data-share-failed="{{ t('result.share.failed') }}"
+              >{{ t('result.share.summary') }}</button>
+      <span class="hint">{{ t('result.share.summary.hint') }}</span>
+    </li>
+  </ul>
+  {#
+    The two copy buttons start `hidden` and the script shows them, so a reader
+    without JavaScript is never offered a button that cannot work. They get
+    the address itself instead, which is selectable and needs nothing.
+  #}
+  <p class="hint share-fallback" data-share-fallback>
+    {{ t('result.share.fallback') }} <code>{{ report_url }}</code>
+  </p>
+  {# Read by the script; never shown. Findings only - no uuid, no link. #}
+  <div hidden data-share-summary-text>{{ t('result.share.summary.body',
+      domain=summary.domain,
+      label=summary.label,
+      rating=summary.rating,
+      critical=summary.counts.critical,
+      warning=summary.counts.warning,
+      info=summary.counts.info,
+      advisories=summary.counts.vulnerabilities,
+      passed=summary.passedCount) }}</div>
+  <div hidden data-share-link-text>{{ report_url }}</div>
+</section>
 {% endif %}
 
 {% set expiry_minutes = (scan.expiresIn // 60) or 1 %}
@@ -536,4 +657,5 @@
 
 {% block scripts %}
 <script src="/static/js/scan.js" defer></script>
+<script src="/static/js/share.js" defer></script>
 {% endblock %}
