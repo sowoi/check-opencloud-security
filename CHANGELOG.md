@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-08-31
+
 ### Added
 
 - **`check-opencloud-scanner explain` looks a finding up without scanning

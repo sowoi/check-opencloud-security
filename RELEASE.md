@@ -1,175 +1,166 @@
-## check-opencloud-security 1.17.0
-
-### Security
-
-- **The scan service binds loopback, and binding anything else now requires a
-  token.** `check-opencloud-scanner serve` defaulted to `0.0.0.0` with no
-  credential, and `GET /api/scan?url=<host>` hands the hostname a request
-  names straight to the scanner - which, by design, validates nothing: the
-  SSRF guard lives in `webapp/ssrf.py` and that path never reaches it. On a
-  network with no token in front, that is an open request forwarder into
-  whatever the monitoring host can reach - the cloud metadata endpoint, a
-  container runtime socket, an internal admin panel - each answered back to
-  the caller as scan evidence.
-
-  `COS_SERVICE_LISTEN` now defaults to `127.0.0.1`, and any other address
-  without `--token`/`COS_SERVICE_TOKEN` refuses to start rather than serving
-  open. An operator who published the port meant to publish the service, and
-  would otherwise have learned what they published from somebody else.
-
-  **This is a breaking change** for a container that published the port
-  without a token: it now needs `COS_SERVICE_LISTEN=0.0.0.0` *and*
-  `COS_SERVICE_TOKEN`. The failure names both.
-  `docker/docker-compose.monitoring.yml` already set both and is unchanged;
-  local use needs neither. ADR 0001 made this argument for the Prometheus
-  exporter and stopped there, so
-  [ADR 0030](adr/0030-a-listener-binds-loopback-and-a-wide-bind-needs-a-credential.md)
-  generalises it: a listener binds loopback, and a wide bind needs a
-  credential.
-
-- **`X-Forwarded-For` is read from the right rather than the left.** The
-  leftmost entry is only the client behind a proxy that *overwrites* the
-  header; nginx's `proxy_add_x_forwarded_for`, Traefik and most content
-  delivery networks *append*, and there the leftmost entry is whatever the
-  client sent. A caller could therefore mint a fresh rate-limit bucket, a
-  fresh audit identity and a fresh allowance of `DELETE /api/purge` attempts
-  per request, by adding one header.
-
-  The header is now read from the end only a proxy writes,
-  `COS_WEB_TRUSTED_PROXY_HOPS` entries in. An entry that is not an IP address
-  is ignored rather than counted, so an obfuscated identifier cannot become
-  somebody's bucket either, and an entry that *is* one is reduced to its
-  canonical form before anything keys on it - `[2001:db8::1]`, `2001:db8::1`
-  and `2001:0DB8:0000::1` are one host written three ways, and would otherwise
-  have been three buckets, three audit identities and three allowances of
-  purge attempts. `docs/reverse-proxy.md` said the opposite for Traefik - that
-  the first entry is the client - and now says what happens.
-
-- **The two daily reference-data fetches cap what they will read.** The
-  release lifecycle page and the OSV advisory feed were both read into memory
-  in full before anything looked at them, and both URLs are operator
-  configuration that may name a mirror. The advisory feed's `MAX_ADVISORIES`
-  guard could not help: reaching it already meant paying for the whole answer.
-  Because both jobs run `run_at_startup`, an oversized answer was a worker
-  that crashed, restarted, asked again and crashed again.
-
-  Both now read at most one megabyte and treat more as a failed fetch, which
-  every caller already degrades from by keeping the document it had. The
-  ceiling lives in one place, `opencloud_local_scan/fetch.py`, so the two
-  cannot drift - the same rule `ScannerSettings.max_response_bytes` has always
-  applied to the instances being scanned, now applied to the documents they
-  are rated against.
-
-- **A submission from another site is refused before it is counted.** `POST /`
-  and `POST /language` took a plain form body with no check on where it came
-  from, so a page anywhere could queue a scan against a target of its choosing
-  and have it attributed to whichever browser it borrowed - spending that
-  visitor's rate-limit allowance and making their network the apparent origin
-  of a scan they never asked for.
-
-  Both now refuse a cross-site submission, using the `Sec-Fetch-Site` and
-  `Origin` headers a browser attaches by itself rather than a token, since
-  this service has no session to hang one on. The check runs before the rate
-  limiter, so a refused submission costs the borrowed visitor nothing. A
-  caller that is not a browser - curl, an agent, the in-process MCP client -
-  sends neither header and is refused nothing; a page cannot make a browser
-  omit them.
-
-### Fixed
-
-- **An advisory that names no version range is dropped instead of matching
-  every release.** `is_in_range(version, None, None)` is true of every version
-  there has ever been, so one such record reported *every* instance scanned
-  with that database as critically vulnerable - a fleet-wide false CRITICAL
-  that looks exactly like a real one, on the check whose exit code drives the
-  alerting.
-
-  `_from_osv` already refused these and said why; the other two parsers did
-  not. The native format is the one an operator writes by hand and points
-  `--vulnerability-feed` at, where a forgotten bound is a typo rather than
-  somebody else's feed quirk, and the GitHub parser stopped at the first
-  OpenCloud entry - which proves an advisory is *about* OpenCloud and nothing
-  about which releases it affects, so an unparseable
-  `vulnerable_version_range` with no patched version left it unbounded. All
-  three now refuse alike and log which advisory was dropped.
-
-  A single open bound is untouched: no fix yet is the normal shape of a fresh
-  advisory, and no introduced version means everything up to the fix. Only
-  *both* ends open is meaningless. A disabled placeholder such as the bundled
-  `OC-EOL` is not judged at all - it never becomes an advisory, and it
-  documents the end-of-life finding the scanner raises by itself.
-
-  The web application keeps refusing such a *document* wholesale rather than
-  quietly dropping the entry from it, which is what
-  [ADR 0017](adr/0017-the-advisory-database-refreshes-itself.md) asks for: a
-  feed emitting an advisory that affects every version has gone wrong, and
-  yesterday's database is the better answer than the rest of today's.
-
-- **A rating threshold outside 0-5 no longer crashes the plugin into a
-  WARNING.** `-w`/`-c` are plain integers and the environment feeds the same
-  values, so nothing stopped `-c 6`. The evaluation then looked the threshold
-  up in `RATE_MAP` to name it in the alert line and raised `KeyError`; with no
-  handler above `main()`, Python exited 1, which Nagios reads as WARNING. A
-  typo in a check command became a warning state on the monitored host with a
-  traceback as its status text. The thresholds are now validated before any
-  scan starts, and the two alert-line lookups no longer index `RATE_MAP`
-  directly.
+## check-opencloud-security 1.18.0
 
 ### Added
 
-- **Every finding on a report links to the catalogue entry that explains it,
-  and the report has a contents list.** A result named identifiers -
-  `basicAuthDisabled`, `exposed:/config/opencloud.yaml` - and left the reader
-  to search for what they mean. The category badge already led to the
-  catalogue, but only as far as the category: a reader who wanted the
-  paragraph about *their* finding still had to find it among sixty entries.
+- **`check-opencloud-scanner explain` looks a finding up without scanning
+  anything.** A monitoring system prints `cspWithoutUnsafeInline` and stops
+  there. Until now the three ways to find out what that meant were to run a
+  scan that fails the same check, open the web application, or read
+  `hardening.py` - none of which is available to the person the alert woke up.
 
-  Each catalogue entry now carries its own anchor, and every finding, missing
-  hardening, missing header, plan step, waived check and unfixable flag on a
-  report links straight to it. Both sides are built from one function,
-  `hardening.catalogue_id`, so a report cannot offer a fragment the catalogue
-  does not publish - asserted in both directions by a test. The per-path and
-  per-port findings resolve to the family the catalogue actually lists, so
-  `exposed:/config/opencloud.yaml` lands on `exposed`; an identifier this
-  build cannot explain is rendered as plain text rather than as a link
-  promising an explanation that is not there. The entry a reader arrives at
-  highlights itself.
+  `explain <id>` prints the same paragraph `--debug` and the web catalogue
+  print, from the same catalogue, and it reads nothing else: no configuration
+  file, no network, no instance. It takes header names (`Referrer-Policy`) and
+  per-path findings (`exposed:/config/opencloud.yaml`, which resolves to the
+  family the catalogue actually lists) as readily as hardening flags, so
+  whatever the alert said can be pasted in as it stands. With no identifier it
+  prints the whole catalogue; `--category transport` narrows it, `--list`
+  gives bare identifiers for a pipeline, and `--format json` gives the entry
+  with its category, setting and reference. A typo exits 1 and suggests the
+  nearest identifiers rather than printing a confident placeholder.
 
-  The report also gets the contents list the documentation pages have, built
-  from the same `_toc.html`. Every entry is conditional on the section it
-  names being rendered, so a clean instance is not offered a jump to an
-  advisories card it does not have.
+- **The scan reports whether a `security.txt` says how to report a
+  vulnerability**, as `securityTxtPublished` under the new
+  `setup.advisoryChecks`. Somebody who finds a flaw and cannot find an address
+  for it falls back to a public issue tracker or to nothing, and a report that
+  never arrives looks from the outside exactly like a flaw nobody found.
 
-- **A report can be shared by email or from the clipboard, and by nothing
-  else.** A finished report had no way out of the browser except the exports,
-  so the address got copied out of the URL bar - and that address is the whole
-  of the authorisation for the page ([ADR 0007](adr/0007-erasure-on-request.md)).
-  The page now says so, and offers three ways to act on it.
+  It is reported and never counted, on the reasoning
+  [ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md)
+  applied to the modern response headers: no OpenCloud publishes one on any
+  instance, so an absence describes the software rather than this deployment,
+  and counting it would hand every `--check-hardening` user a WARNING about
+  the shipped state of OpenCloud.
+  [ADR 0034](adr/0034-an-advisory-observation-need-not-be-a-header.md)
+  generalises that block to what is not a header. It reaches neither the alert
+  line, the rating, the metrics, the webhook nor the exit code, and it is not
+  offered as a waiver; `--debug` and the web catalogue explain it like any
+  other check.
 
-  The email link is a plain `mailto:`, which the browser hands to whatever
-  mail client the reader already has; nothing is posted through this service
-  and no third party is asked to help. **There is deliberately no Slack,
-  Teams or social share button**, and not only for the reason in `AGENTS.md`:
-  those services fetch a link server-side to build a preview of it, so a share
-  button would hand a company a working credential for somebody's security
-  report and have it fetch the report to make a thumbnail.
+  The check reads the body rather than the status code. OpenCloud's frontend
+  answers unknown paths with its own single-page shell, so a 200 at
+  `/.well-known/security.txt` is the normal case and means nothing - the file
+  has to carry the `Contact` field RFC 9116 makes mandatory, and must not be
+  served as markup. The block is `{}` rather than a dictionary of `false`
+  under `--no-extra-checks`: an observation nobody made is not one that
+  failed.
 
-  That is also why *copy summary* exists beside *copy link*. Pasting findings
-  into a chat channel is a reasonable thing to want; handing everyone in that
-  channel a live capability usually is not, so the summary carries the grade
-  and the counts as text with no link in it - asserted by a test, because that
-  is the property worth keeping. Both buttons are rendered hidden and shown
-  only where a clipboard is actually reachable, so a reader on plain http gets
-  the address in selectable text rather than a button that cannot work.
+- **`Cross-Origin-Embedder-Policy` joins the advisory headers.** It is the
+  missing half of `Cross-Origin-Opener-Policy`, which was already reported:
+  only both together give the browser grounds to isolate the origin against
+  the Spectre-family side channels either one alone leaves open. Like the
+  other three it is measured, explained and never counted, and
+  `unsafe-none` - the browser default written out - is not credited as
+  protection. The remediation says plainly that `require-corp` will stop a
+  Collabora or WOPI embed loading unless that origin sends a
+  `Cross-Origin-Resource-Policy` of its own, because a header that breaks the
+  office integration is not one to roll out unrehearsed.
 
-- `COS_WEB_TRUSTED_PROXY_HOPS` (default `1`): how many proxies of a
-  deployment's own sit in front of the service, which is how far in from the
-  right of `X-Forwarded-For` the client address is read. One reverse proxy is
-  `1`; a content delivery network in front of an ingress is `2`. Counting too
-  few names a proxy instead of the visitor and is harmless. **Counting more
-  than there are is not, and nothing can make it safe**: with `2` behind a
-  single proxy, `X-Forwarded-For: spoofed` arrives as `spoofed, <real>` and
-  the second entry from the right is the one the client wrote. The count is
-  clamped to the number of entries present, but that only prevents a read past
-  the end - nothing in the header distinguishes an entry a proxy appended from
-  one a client sent. Set it to the number of proxies you operate.
+- **A `### Security` changelog entry now has to say whether anybody was ever at
+  risk.** The heading records that something about this project's security
+  changed; it never said whether a released version actually carried the
+  defect, and reviewing the whole changelog showed how far those two come
+  apart. Of nineteen security entries, seven described something a release
+  shipped. The rest were defects introduced and fixed inside one development
+  cycle - the `/catalogue` XSS, and all three MCP entries, whose templates and
+  modules first appear in the very release said to fix them - plus hardening
+  that closed no exploitable gap, and one bug that failed closed. Read as
+  prose all nineteen look the same; the difference is only visible in the git
+  tags.
+
+  `security/advisories/<slug>.yml` now records one decision per entry, with the
+  `git show` output it rests on in `verified:`.
+  `scripts/security_advisories.py --check` fails when an entry from `1.14.0`
+  onwards has no record, and runs on every pull request, so the question is
+  answered by whoever fixed the defect rather than by somebody reconstructing
+  it at release time. Declining is a normal answer - a record saying *never
+  shipped, and here is the command that shows it* is worth as much as an
+  advisory. Leaving the entry undecided is the only outcome the check refuses.
+
+  After a release, `--sync` creates a GitHub **draft** advisory for each record
+  that asked for one and commits the new identifiers back. Publishing stays
+  manual and always will: it enters the GitHub Advisory Database and raises
+  Dependabot alerts for every affected installation, which cannot be undone. A
+  web-application record files against ecosystem `other` rather than `pip`,
+  because `webapp/` never ships to PyPI and an alert there would be about code
+  the installation does not have.
+
+  Seven advisories were published from this review, covering `1.2.3` through
+  `1.17.0`: the open scan-service bind, three webhook SSRF defects, the
+  unpinned web-scan connection, results that were never encrypted at rest
+  despite the setting, and CSV export formula injection.
+
+- **A report page can rescan the instance, and says how long that has to
+  wait.** The loop somebody actually runs is scan, fix, scan again - and the
+  second half of it meant going back to the front page and retyping the
+  address, with the waivers and the release track re-picked from memory or
+  quietly forgotten. A result that was rated on different terms from the one
+  before it is not a comparison, it is two unrelated reports.
+
+  A finished report now carries **Scan again**, which resubmits the same
+  target with the same waivers, the same release track and the same output
+  format. It is an ordinary form posting to `/`, which is the point: the
+  cross-site check, both rate limits, the SSRF guard and the audit trail are
+  the ones every other submission already goes through, and there is no
+  second write path to keep in step with them.
+
+  Beside it is the wait. Both limits are read - the instance's cooldown and
+  the visitor's own allowance - and the longer of the two is counted down in
+  the page, because a countdown that expired into a refusal from the *other*
+  limit would be worse than none. `RateLimiter` gains `peek_client` and
+  `peek_target` for this: reading a limit must not spend it, or showing
+  somebody their wait would be the request that caused it. The hostname comes
+  from the record the uuid already unlocked, so nothing here can be asked
+  about a target the caller does not hold a uuid for.
+
+  The button is rendered enabled and the script disables it, rather than the
+  other way round. A reader without scripting is never left holding a control
+  that nothing on the page can release, and the 429 they may meet instead is
+  the friendly one that points at self-hosting.
+  [ADR 0032](adr/0032-a-rescan-is-an-ordinary-submission-and-reading-a-limit-never-spends-it.md)
+  records the boundary.
+
+- **The fixes a report names, in the syntax of the file that has to change.**
+  Every finding already carried a sentence - *Set PROXY_ENABLE_BASIC_AUTH=false*
+  - and an operator with eleven of them translated eleven sentences into one
+  Compose file by hand. The translation is where the mistakes were.
+
+  A report now renders that step: `opencloud_local_scan/snippets.py` turns the
+  identifiers a scan reported into a fragment, in **Docker Compose**, **.env**,
+  **nginx**, **Caddy** or **Traefik**, with the chosen one remembered in the
+  browser. It renders, it does not decide - every name and value comes from
+  the new `env_fix` and `header_fix` fields on the catalogue entries, so the
+  fragment and the sentence above it cannot come to say different things, and
+  a test asserts each header value still appears in its own Fix line.
+
+  A fragment is complete or it says so. A check whose right value is a
+  decision about the deployment - a CORS origin, a path to a CSP file - is
+  named as having nothing to paste rather than given a placeholder: a fragment
+  that has to be edited first is worse than the sentence it replaced, because
+  it looks finished. Environment assignments and response headers are never
+  mixed, either, since they are set in different files on usually different
+  machines; what the chosen flavour cannot express is named, with the flavours
+  that can.
+  [ADR 0033](adr/0033-a-generated-configuration-fragment-is-complete-or-it-says-so.md)
+  records the boundary.
+
+### Changed
+
+- **`--help` is grouped rather than a flat list of forty-five options.** The
+  plugin's options were printed in one run, in the order they happened to be
+  defined, and the flag somebody needed was always in the middle of it. They
+  now sit under nine headings - which instance to check, what to probe, how
+  the result is judged, version and update information, comparing against an
+  earlier run, how the scan runs, what is printed, posting the result
+  elsewhere, and the program itself - in the order a first run needs them.
+  No flag, default, environment variable or behaviour changed.
+
+### Documentation
+
+- `AGENTS.md` gains **Security advisories**, and `SECURITY.md` explains how the
+  advisory a reporter is promised actually gets published - including that the
+  records for entries decided *against* are public too, so the reasoning can be
+  read either way. `CONTRIBUTING.md` shows the two record shapes a contributor
+  writes, the pull request template asks for one, and
+  [`security/advisories/README.md`](security/advisories/README.md) documents
+  the fields and why `package` is not cosmetic.
