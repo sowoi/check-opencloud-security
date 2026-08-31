@@ -1,0 +1,47 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: web-scan-dns-rebinding
+state: published
+ghsa: GHSA-hfr6-jqcg-mmxc
+changelog_version: "1.9.0"
+changelog_entry: "DNS rebinding protection now pins validated scan connections."
+shipped: true
+severity: high
+cwe_ids:
+  - CWE-918
+  - CWE-367
+package: web
+introduced: "1.4.0"
+fixed: "1.9.0"
+summary: >-
+  Web application scan connections are not pinned to the validated
+  address, allowing DNS rebinding past the SSRF guard
+verified: |
+  git show v1.8.0:webapp/runner.py - no address pinning; the HTTP connection
+  re-resolves the hostname independently of webapp/ssrf.py.
+  webapp/ first appears in v1.4.0.
+description: |
+  ### Impact
+
+  The web application validated a submitted scan target through the SSRF
+  resolver, but the subsequent HTTP connection re-resolved the hostname
+  independently. A target whose DNS answer changed between validation and
+  connection could therefore be directed at a private, loopback or link-local
+  address after passing the guard. Redirects followed during a scan had the same
+  weakness.
+
+  ### Patches
+
+  Fixed in **1.9.0**. Web scans now dial the addresses accepted by the SSRF
+  resolver, preserving the original hostname for the HTTP `Host` header and TLS
+  certificate validation. Redirects are validated and pinned before each hop.
+
+  ### Note on distribution
+
+  The web application is **not** published to PyPI - the wheel and the sdist
+  exclude `webapp/` and `frontend/`. It ships as
+  `check_opencloud_security_web.tar.gz`. Installations of the
+  `check-opencloud-security` PyPI package are unaffected.

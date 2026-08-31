@@ -1,0 +1,25 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: forwarded-for-read-from-the-left
+state: declined
+changelog_version: "1.17.0"
+changelog_entry: "X-Forwarded-For is read from the right rather than the left."
+shipped: true
+declined_because: |
+  A real defect in released versions, deliberately left without an
+  advisory: what it buys an attacker is a fresh rate-limit bucket, audit
+  identity and purge-attempt allowance on a public, unauthenticated
+  service that grants no account and holds no data of the caller's. There
+  is no confidentiality or integrity loss, and the service already queues
+  rather than refuses under load. Promote this to an advisory if a
+  deployment is found where the rate limit is the only thing standing
+  between a caller and a cost.
+summary: >-
+  The leftmost X-Forwarded-For entry is attacker-controlled behind an
+  appending proxy, letting a caller mint fresh rate-limit buckets
+verified: |
+  git show v1.16.0:webapp/app.py:299 - forwarded.split(",")[0].strip().
+  Shipped in every web release from v1.4.0 to v1.16.0.

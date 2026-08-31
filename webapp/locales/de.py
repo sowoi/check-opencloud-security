@@ -1284,6 +1284,46 @@ MESSAGES: dict[str, str] = {
     ),
     "result.hardening.tag": "Härtung",
     "result.header.tag": "Header",
+    # ------------------------------------------------- configuration fragment
+    "result.fragment.kicker": "Die Behebung, ausgeschrieben",
+    "result.fragment.heading": "Das hier in Ihre Konfiguration einfügen",
+    "result.fragment.lede": (
+        "Die Befunde von oben, in der Syntax der Datei, die geändert werden "
+        "muss. Wählen Sie, wo Ihre Instanz konfiguriert wird."
+    ),
+    "result.fragment.caution": (
+        "Lesen Sie vor dem Einfügen die Zeile „Behebung“ jedes Befundes. Dies "
+        "sind die Werte, nach denen die Prüfungen suchen, keine Bewertung "
+        "dessen, was Ihre Installation braucht."
+    ),
+    "result.fragment.picker": "Konfigurationsformat",
+    "result.fragment.file": "Gehört in {name}.",
+    "result.fragment.copy": "Kopieren",
+    "result.fragment.copied": "Kopiert",
+    "result.fragment.copy_failed": "Kopieren fehlgeschlagen",
+    "result.fragment.nothing": (
+        "Hier wird nichts auf diese Weise gesetzt. Was offen ist, gehört "
+        "nach {flavours}."
+    ),
+    "result.fragment.elsewhere": (
+        "Diese werden woanders behoben - sie gehören nach {flavours}:"
+    ),
+    "result.fragment.undecided": (
+        "Für diese gibt es keinen Wert zum Einfügen: der richtige ist eine "
+        "Entscheidung über diese Installation, und die Zeile „Behebung“ des "
+        "Befundes ist die ganze Antwort."
+    ),
+    # ------------------------------------------------------------ scan again
+    "result.rescan": "Erneut scannen",
+    "result.rescan.ready": "Diese Instanz kann erneut gescannt werden.",
+    "result.rescan.wait": "Erneut scannen möglich in {countdown}.",
+    "result.rescan.note": (
+        "Gleiches Ziel, gleiche Ausnahmen, gleicher Release-Track - damit das "
+        "nächste Ergebnis mit diesem vergleichbar ist. Die Wartezeit hält "
+        "diesen kleinen Dienst am Laufen; der Scanner ist quelloffen und "
+        "läuft auf Ihrem eigenen Rechner ganz ohne Limits:"
+    ),
+    "result.rescan.self_host": "selbst betreiben",
     "result.excluded.kicker": "Ausgeschlossen",
     "result.excluded.heading": "Gemeldet, aber nicht gezählt",
     "result.excluded.waived.heading": "Du batest darum, diese zu ignorieren",

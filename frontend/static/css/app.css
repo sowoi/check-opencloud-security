@@ -2042,6 +2042,53 @@ pre.json {
     max-height: 26rem; color: var(--code-ink);
 }
 
+/* ----------------------------------------------------------- scan again */
+/* The button and its countdown read as one line: the control, then the
+   sentence saying whether it can be used yet. They wrap onto two lines on a
+   narrow screen rather than the sentence being squeezed beside the button. */
+.rescan { display: flex; flex-wrap: wrap; align-items: center; gap: .9rem; }
+.rescan form { margin: 0; }
+/* A waiting button is legible rather than ghosted: the countdown beside it is
+   what says why, and a control faded to the point of being hard to read says
+   only that something is wrong. */
+.rescan .btn[disabled] { opacity: .55; cursor: default; }
+.rescan .btn[data-waiting] { font-variant-numeric: tabular-nums; }
+/* Tabular figures on the countdown too, so the sentence does not shift
+   sideways every time the seconds tick over. */
+#rescan-note { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------- configuration fragment */
+/* The picker is hidden until fragment.js reveals it. Without scripting every
+   fragment stays on the page under its own heading, which is why the heading
+   is styled to work in both arrangements. */
+.flavour-picker {
+    display: flex; flex-wrap: wrap; gap: .4rem;
+    margin: 1rem 0 .2rem;
+}
+.flavour {
+    font: inherit; font-size: .82rem; font-weight: 600;
+    padding: .4rem .8rem; cursor: pointer;
+    color: var(--ink-soft); background: var(--tint);
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.flavour:hover { color: var(--brand-deep); }
+.flavour[aria-pressed="true"] {
+    color: var(--brand-deep); background: var(--card);
+    border-color: var(--brand);
+}
+.fragment { margin-top: 1.1rem; }
+/* With the picker showing, the heading would repeat the pressed button, so it
+   goes; without scripting it is the only thing separating five blocks. */
+[data-fragment-picked] .fragment-name { display: none; }
+.fragment-name { font-size: .95rem; margin: 0 0 .4rem; }
+pre.config {
+    background: var(--code-bg); border: 1px solid transparent;
+    border-radius: var(--radius-sm); padding: 1rem 1.1rem;
+    overflow-x: auto; font-size: .84rem; line-height: 1.55;
+    color: var(--code-ink); margin: .5rem 0 .7rem;
+}
+pre.config code { font-family: var(--mono); }
+
 /* -------------------------------------------------------------- not found */
 .empty { text-align: center; padding: 3rem 0; }
 .empty .kicker { justify-content: center; }
@@ -2158,6 +2205,8 @@ pre.json {
     /* A submit button the width of the thumb that reaches it. */
     .field-narrow { flex: 1 1 100%; }
     .export-list .btn { width: 100%; }
+    .rescan { align-items: stretch; }
+    .rescan form, .rescan .btn { width: 100%; }
 
     /* The ledger stacks: the term above the reading, one hairline per row. */
     .score { gap: 1.25rem; }

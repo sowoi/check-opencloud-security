@@ -1,0 +1,42 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: webhook-validation-toctou
+state: published
+ghsa: GHSA-r838-9hf3-34j4
+changelog_version: "1.6.0"
+changelog_entry: "A time-of-check-time-of-use vulnerability in webhook URL validation allowed DNS rebinding attacks"
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-367
+  - CWE-918
+package: plugin
+introduced: "1.2.3"
+fixed: "1.6.0"
+summary: >-
+  Time-of-check-to-time-of-use in webhook URL validation allows DNS
+  rebinding to bypass the SSRF guard
+verified: |
+  git show v1.5.5:check_opencloud_security.py:749 - the hostname is resolved once
+  at validation time and never re-resolved before delivery.
+description: |
+  ### Impact
+
+  The webhook SSRF guard resolved the configured hostname once, at validation
+  time, and did not resolve it again before delivery. A hostname under an
+  attacker's control could answer with a public address during validation and a
+  private, loopback or link-local address at the moment of delivery, so the
+  notification - including any secret carried with it - was sent to an internal
+  address the guard had refused.
+
+  ### Patches
+
+  Fixed in **1.6.0**. Webhook DNS resolution is re-validated immediately before
+  delivery and the delivery is blocked if the address has changed.
+
+  ### Workarounds
+
+  Configure webhook URLs with literal IP addresses rather than hostnames.

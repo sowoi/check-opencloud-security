@@ -543,6 +543,12 @@ sets the same thing - is **[the CLI option reference](docs/cli-reference.md)**.
 It moved to its own page because it is a lookup table fifty rows long, and
 having it here meant everything below it started halfway down the file.
 
+`--help` prints the same options grouped under nine headings - which instance
+to check, what to probe, how the result is judged, version and update
+information, comparing against an earlier run, how the scan runs, what is
+printed, posting the result elsewhere, and the program itself - so the dozen
+lines you want can be found without reading the other forty.
+
 The handful you will actually type most days:
 
 | Option | Description |
@@ -739,14 +745,25 @@ Read from the instance itself:
   `Referrer-Policy`, reported as `setup.headers` - see
   [`docs/csp.md`](docs/csp.md) for what the `Content-Security-Policy` checks
   look for and why
-- three further headers that **no** OpenCloud sends - `Permissions-Policy`,
-  `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` - reported
-  separately as `setup.advisoryHeaders`. A reverse proxy can add all three and
-  the instance is better for it, but their absence is the shipped state of
-  every OpenCloud rather than a fact about this deployment, so they are
-  explained by `--debug` and never counted as a missing hardening, never
-  alerted on and never allowed to change an exit code. See
-  [ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md)
+- four further headers that **no** OpenCloud sends - `Permissions-Policy`,
+  `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` and
+  `Cross-Origin-Embedder-Policy` - reported separately as
+  `setup.advisoryHeaders`. A reverse proxy can add all four and the instance
+  is better for it, but their absence is the shipped state of every OpenCloud
+  rather than a fact about this deployment, so they are explained by `--debug`
+  and never counted as a missing hardening, never alerted on and never allowed
+  to change an exit code. See
+  [ADR 0028](adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md).
+  Rehearse `Cross-Origin-Embedder-Policy: require-corp` before rolling it
+  out - an office integration that embeds Collabora or a WOPI host stops
+  loading unless that origin sends a `Cross-Origin-Resource-Policy` of its own
+- whether `/.well-known/security.txt` tells somebody who finds a flaw where to
+  report it, as `securityTxtPublished` under `setup.advisoryChecks`. The same
+  bargain as the headers above, for what is not a header: OpenCloud publishes
+  none on any instance, so it is explained and never counted. The file has to
+  carry the `Contact` field RFC 9116 requires - a 200 alone means nothing on
+  an instance whose frontend answers every unknown path with its own shell.
+  See [ADR 0034](adr/0034-an-advisory-observation-need-not-be-a-header.md)
 - `hardenings` derived from those headers and capabilities
 - known vulnerabilities from the [advisory database](#advisory-database) and
   the resulting rating (`0`-`5`)

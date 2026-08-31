@@ -1,0 +1,22 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: catalogue-advisory-url-xss
+state: declined
+changelog_version: "1.14.0"
+changelog_entry: "Stored XSS on the public /catalogue page via a feed-supplied advisory URL."
+shipped: false
+declined_because: |
+  Never shipped. The defect was introduced and fixed inside the 1.14.0
+  development cycle, so no released version rendered the unguarded href.
+  Publishing an advisory would tell operators to upgrade away from
+  versions that were never affected.
+summary: >-
+  catalogue.html rendered a feed-supplied advisory URL as an href with
+  only a truthiness check, allowing a javascript: URL
+verified: |
+  frontend/templates/catalogue.html is absent from v1.12.0, v1.12.1 and v1.13.0,
+  and first appears in v1.14.0 at line 67 already carrying the
+  `advisory.url is safe_link` guard.

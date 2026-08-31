@@ -29,7 +29,7 @@ import json
 import logging
 import os
 import uuid as uuid_module
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -48,6 +48,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from opencloud_local_scan import __version__
+from opencloud_local_scan.snippets import (
+    FLAVOURS,
+    KIND_ENV,
+    KIND_HEADER,
+    flavours_for,
+)
+from opencloud_local_scan.snippets import fragment as configuration_fragment
 
 from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
@@ -69,6 +76,7 @@ from .catalog import (
     catalogue_link,
     check_catalogue,
     grade_scale,
+    open_findings,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
@@ -154,6 +162,7 @@ from .store import (
     WORKER_HEARTBEAT_KEY,
     ScanRecord,
     ScanStore,
+    target_hostname,
 )
 
 LOGGER = logging.getLogger("check_opencloud.web")
@@ -725,6 +734,27 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if wants_html(request):
             return page(request, "404.html", {}, status=404)
         return JSONResponse({"detail": "Not found."}, status_code=404)
+
+    async def rescan_wait(request: Request, record: ScanRecord) -> int:
+        """
+        Seconds until this scan's target could be submitted again, or zero.
+
+        Both limits are read, because either can be the one in the way and a
+        countdown that expires into a refusal is worse than no countdown: the
+        instance has its cooldown, and the visitor has their own allowance.
+        Whichever runs longer is the honest answer.
+
+        Nothing is claimed and nothing is counted - :meth:`peek_client` and
+        :meth:`peek_target` exist precisely so that showing somebody their
+        wait is not itself a request they have to wait for. The hostname
+        comes from the record the uuid already unlocked, so this reveals
+        nothing the caller did not bring with them: there is no way to ask
+        about a target you do not hold a uuid for.
+        """
+        limiter: RateLimiter = app.state.limiter
+        client = await limiter.peek_client(client_address(request, settings))
+        target = await limiter.peek_target(target_hostname(record.metadata.get("target")))
+        return max(client.retry_after, target.retry_after)
 
     async def accept_submission(
         request: Request,
@@ -1422,6 +1452,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if json_requested:
             return JSONResponse(_scan_payload(record))
         translate = translator_for(request)
+        summary = summarise(record.result, translate) if record.result else None
         return page(
             request,
             "scan.html",
@@ -1430,8 +1461,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "scan": record.as_dict(),
                 # The labels around the evidence are translated; the evidence
                 # itself - versions, identifiers, what the host said - is not.
-                "summary": (
-                    summarise(record.result, translate) if record.result else None
+                "summary": summary,
+                # Only once there is a report to act on. A scan still queued
+                # or running has nothing to rescan and nothing to fix, and a
+                # countdown beside a progress bar would be answering a
+                # question nobody has yet.
+                "rescan_after": (
+                    await rescan_wait(request, record)
+                    if record.state in (STATE_COMPLETED, STATE_FAILED)
+                    else 0
+                ),
+                "fragments": (
+                    _configuration_fragments(summary) if summary else ()
                 ),
                 "webmcp_tools": (
                     {
@@ -1588,6 +1629,44 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         return not_found(request)
 
     return app
+
+
+def _configuration_fragments(summary: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """
+    Every flavour of the fix fragment, rendered once for this report.
+
+    All five are built here rather than one per request, because the picker
+    that swaps between them is a script and the alternative would be either a
+    round trip per click or the fragments being assembled in the browser -
+    which would put a second, untested implementation of
+    ``opencloud_local_scan.snippets`` in JavaScript. They are small: at most
+    a dozen lines each.
+
+    ``elsewhere_in`` names the flavours that *can* write what this one
+    cannot, so a reader who picked nginx and has OpenCloud settings open is
+    pointed at the picker rather than left thinking the fragment is the whole
+    answer.
+    """
+    names = open_findings(summary)
+    if not names:
+        return ()
+    rendered: list[dict[str, Any]] = []
+    for flavour in FLAVOURS:
+        fragment = configuration_fragment(names, flavour.id)
+        other = KIND_HEADER if flavour.kind == KIND_ENV else KIND_ENV
+        rendered.append(
+            {
+                "id": flavour.id,
+                "label": flavour.label,
+                "filename": flavour.filename,
+                "text": fragment.text,
+                "covered": fragment.covered,
+                "elsewhere": fragment.elsewhere,
+                "elsewhere_in": ", ".join(flavours_for(other)),
+                "undecided": fragment.undecided,
+            }
+        )
+    return tuple(rendered)
 
 
 def _scan_payload(record: ScanRecord) -> dict[str, Any]:

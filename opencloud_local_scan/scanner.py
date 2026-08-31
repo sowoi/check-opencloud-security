@@ -17,6 +17,9 @@ What is inspected:
   against the headers OpenCloud's proxy service sets by default, plus
   ``setup.advisoryHeaders`` for the modern ones it sets on no instance at all -
   reported, explained, and never counted against a deployment (ADR 0028).
+* ``setup.advisoryChecks`` - the same bargain for what is not a header,
+  currently whether a security.txt says how to report a vulnerability
+  (ADR 0034).
 * ``hardenings`` derived from what the instance actually answers: HSTS
   quality, CSP quality, whether HTTP basic authentication is offered, and the
   sharing/password policy from the capabilities document.
@@ -111,6 +114,7 @@ ADVISORY_HEADERS: tuple[str, ...] = (
     "Permissions-Policy",
     "Cross-Origin-Opener-Policy",
     "Cross-Origin-Resource-Policy",
+    "Cross-Origin-Embedder-Policy",
 )
 
 # Values that actually restrict something. A Cross-Origin-Opener-Policy of
@@ -119,7 +123,14 @@ ADVISORY_HEADERS: tuple[str, ...] = (
 ADVISORY_HEADER_REJECTED: dict[str, frozenset[str]] = {
     "Cross-Origin-Opener-Policy": frozenset({"unsafe-none"}),
     "Cross-Origin-Resource-Policy": frozenset({"cross-origin"}),
+    "Cross-Origin-Embedder-Policy": frozenset({"unsafe-none"}),
 }
+
+# Observations reported under 'setup.advisoryChecks'. They obey the rule ADR
+# 0028 set for the advisory headers - explained, published, never counted -
+# and are listed here rather than derived so that the catalogue entry and the
+# measurement cannot drift apart. See ADR 0034.
+ADVISORY_CHECK_IDS: tuple[str, ...] = ("securityTxtPublished",)
 
 # HSTS max-age considered long enough (one year). OpenCloud itself sends ten.
 HSTS_MIN_MAX_AGE = 31_536_000
@@ -166,6 +177,7 @@ DEFAULT_DEBUG_PORTS: tuple[tuple[int, str], ...] = (
 
 CAPABILITIES_PATH = "/ocs/v1.php/cloud/capabilities"
 OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration"
+SECURITY_TXT_PATH = "/.well-known/security.txt"
 APP_LIST_PATH = "/app/list"
 CALDAV_PATH = "/.well-known/caldav"
 WEB_CONFIG_PATH = "/config.json"
@@ -987,6 +999,41 @@ def _check_advisory_headers(response: requests.Response | None) -> dict[str, boo
         rejected = ADVISORY_HEADER_REJECTED.get(name, frozenset())
         result[name] = bool(value) and value not in rejected
     return result
+
+
+def _security_txt_published(response: requests.Response | None) -> bool:
+    """
+    Whether the well-known path serves something that is actually a security.txt.
+
+    A 200 is not the question. OpenCloud's frontend answers every unknown path
+    with its own single-page shell, so a scan that accepted the status code
+    would report every instance in existence as publishing a policy it does
+    not have - the same trap :data:`SERVICE_PRESENT_STATUS` exists for.
+
+    What is asked instead is whether the body is a policy: RFC 9116 makes
+    ``Contact`` the one mandatory field, so a document without it cannot tell
+    a finder anything even if a file is there. The media type is only used to
+    rule out markup; a proxy serving the right file as
+    ``application/octet-stream`` is a mistake worth nobody's alert.
+    """
+    if response is None or response.status_code != 200:
+        return False
+    media_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+    if media_type.endswith(("html", "xml")):
+        return False
+    return any(
+        line.strip().lower().startswith("contact:")
+        for line in response.text[:8000].splitlines()
+    )
+
+
+def _check_advisory_checks(probe: _Probe) -> dict[str, bool]:
+    """Measure the advisory observations that are not response headers."""
+    return {
+        "securityTxtPublished": _security_txt_published(
+            probe.get(SECURITY_TXT_PATH, allow_redirects=True)
+        )
+    }
 
 
 def _set_cookie_values(response: requests.Response | None) -> list[str]:
@@ -2630,6 +2677,10 @@ def scan(
             if settings.extra_checks
             else {"office": {}, "calendar": {}}
         )
+        # Left empty rather than false when the extra checks are off: an
+        # observation nobody made is not an observation that failed, and a
+        # reader of the document cannot tell the two apart from a bool.
+        advisory_checks = _check_advisory_checks(probe) if settings.extra_checks else {}
 
         schedule = settings.release_schedule
         if schedule is None:
@@ -2776,6 +2827,7 @@ def scan(
                 "https": https,
                 "headers": headers,
                 "advisoryHeaders": advisory_headers,
+                "advisoryChecks": advisory_checks,
             },
             "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
             "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},

@@ -1,0 +1,23 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: cross-site-scan-submission
+state: declined
+changelog_version: "1.17.0"
+changelog_entry: "A submission from another site is refused before it is counted."
+shipped: true
+declined_because: |
+  A real defect in released versions, deliberately left without an
+  advisory: the forged submission spends a borrowed visitor's rate-limit
+  allowance and makes their network the apparent origin of a scan, but
+  the service has no session, no account and no state belonging to that
+  visitor to act upon, so there is nothing for the forged request to
+  authorise. Reconsider if the service ever gains a session.
+summary: >-
+  POST / and POST /language accepted a cross-site form submission,
+  queueing a scan attributed to a borrowed browser
+verified: |
+  git show v1.16.0:webapp/app.py - no Sec-Fetch-Site or Origin check on the
+  form handlers. Shipped in every web release from v1.4.0 to v1.16.0.

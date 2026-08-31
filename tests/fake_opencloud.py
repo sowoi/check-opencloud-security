@@ -168,6 +168,9 @@ class InstanceBehaviour:
     # them. Empty means the endpoint answers with an empty list, which is what
     # an instance without an office integration does.
     app_providers: tuple[str, ...] = ()
+    # What /.well-known/security.txt serves, as (body, content type). None
+    # answers 404, the way every stock OpenCloud does.
+    security_txt: tuple[str, str] | None = None
     # Something answers /.well-known/caldav, the way a proxied Radicale does.
     caldav: bool = False
     # What the CORS middleware grants a request that carries an Origin.
@@ -306,6 +309,14 @@ def _make_handler(behaviour: InstanceBehaviour):
 
             if path == "/config.json" and behaviour.web_config is not None:
                 self._json(behaviour.web_config)
+                return
+
+            # Falls through when no file is configured, so that `catch_all`
+            # can answer it with the SPA shell - which is exactly the response
+            # the scanner must not read as a published policy.
+            if path == "/.well-known/security.txt" and behaviour.security_txt is not None:
+                body, content_type = behaviour.security_txt
+                self._respond(200, body.encode("utf-8"), {"Content-Type": content_type})
                 return
 
             if path in ("/.well-known/caldav", "/.well-known/carddav"):

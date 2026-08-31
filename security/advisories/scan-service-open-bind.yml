@@ -1,0 +1,48 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: scan-service-open-bind
+state: published
+ghsa: GHSA-8x56-cx39-7fq9
+changelog_version: "1.17.0"
+changelog_entry: "The scan service binds loopback, and binding anything else now requires a token."
+shipped: true
+severity: high
+cwe_ids:
+  - CWE-306
+  - CWE-918
+package: plugin
+introduced: "1.0.0"
+fixed: "1.17.0"
+summary: >-
+  check-opencloud-scanner serve binds all interfaces with no credential,
+  exposing an unauthenticated request forwarder
+verified: |
+  git show v1.16.0:opencloud_local_scan/service.py:41 - DEFAULT_LISTEN = "0.0.0.0".
+  opencloud_local_scan/service.py is present from v1.0.1 onwards.
+description: |
+  ### Impact
+
+  `check-opencloud-scanner serve` defaulted to binding `0.0.0.0` with no
+  credential required, and `GET /api/scan?url=<host>` passes the hostname in the
+  request straight to the scanner. That code path performs no validation of its
+  own: the SSRF guard lives in `webapp/ssrf.py` and is never reached from the
+  service.
+
+  On any network where the port was published without a token in front of it,
+  this is an open request forwarder into whatever the monitoring host can reach -
+  the cloud metadata endpoint, a container runtime socket, an internal admin
+  panel - with each response handed back to the caller as scan evidence.
+
+  ### Patches
+
+  Fixed in **1.17.0**. `COS_SERVICE_LISTEN` now defaults to `127.0.0.1`, and
+  binding any other address without `--token` / `COS_SERVICE_TOKEN` refuses to
+  start rather than serving open.
+
+  ### Workarounds
+
+  For releases before 1.17.0, bind the service to loopback explicitly, set
+  `COS_SERVICE_TOKEN`, or keep the port unpublished.

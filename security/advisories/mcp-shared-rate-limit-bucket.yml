@@ -1,0 +1,19 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: mcp-shared-rate-limit-bucket
+state: declined
+changelog_version: "1.8.0"
+changelog_entry: "Every MCP tool call is now rate limited against the address it actually came from."
+shipped: false
+declined_because: |
+  Never shipped. MCP was introduced in 1.8.0 and the per-address rate
+  limiting landed in the same release.
+summary: >-
+  The in-process MCP transport reported a hardcoded 127.0.0.1, so every
+  agent would have shared one rate-limit bucket
+verified: |
+  webapp/mcp_server.py is absent from v1.7.0. git show v1.8.0:webapp/mcp_server.py:53
+  already forwards x-forwarded-for / x-real-ip as the client address.

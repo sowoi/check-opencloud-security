@@ -54,6 +54,7 @@ ADVISORY_HEADER_IDS: tuple[str, ...] = (
     "Permissions-Policy",
     "Cross-Origin-Opener-Policy",
     "Cross-Origin-Resource-Policy",
+    "Cross-Origin-Embedder-Policy",
 )
 
 # Findings from the extra-check pass that an operator can legitimately accept.
@@ -534,6 +535,35 @@ def summarise(
             "vulnerabilities": len(result.get("vulnerabilities") or []),
         },
     }
+
+
+def open_findings(summary: Mapping[str, Any]) -> tuple[str, ...]:
+    """
+    Every identifier a summary still has open, in the order they are shown.
+
+    The three lists are the three the dashboard prints: the checks that
+    failed, the hardening measures that are missing, and the headers that are
+    absent. Waived and unfixable entries are left out on purpose - one was
+    excluded deliberately and the other cannot be acted on, so neither
+    belongs in a fragment offered as the work to do.
+
+    Order is the report's own, so a fragment built from this reads in the
+    same order as the findings above it.
+
+    One identifier can be in two of those lists at once - ``basicAuthDisabled``
+    is both a failed check and a missing hardening, which is why the dashboard
+    shows it twice under two different headings. Here it is one thing to fix,
+    so the first mention wins and the second is dropped.
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+    for key in ("issues", "missingHardenings", "missingHeaders"):
+        for entry in summary.get(key) or []:
+            identifier = entry.get("id") if isinstance(entry, Mapping) else None
+            if identifier and str(identifier) not in seen:
+                seen.add(str(identifier))
+                names.append(str(identifier))
+    return tuple(names)
 
 
 def _addresses(result: Mapping[str, Any]) -> dict[str, list[str]]:

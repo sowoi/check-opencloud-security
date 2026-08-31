@@ -398,6 +398,11 @@ OpenCloud instance.</p>
 sets the same thing - is <strong><a href="/documentation/cli-reference">the CLI option reference</a></strong>.
 It moved to its own page because it is a lookup table fifty rows long, and
 having it here meant everything below it started halfway down the file.</p>
+<p><code>--help</code> prints the same options grouped under nine headings - which instance
+to check, what to probe, how the result is judged, version and update
+information, comparing against an earlier run, how the scan runs, what is
+printed, posting the result elsewhere, and the program itself - so the dozen
+lines you want can be found without reading the other forty.</p>
 <p>The handful you will actually type most days:</p>
 <table>
 <thead>
@@ -585,14 +590,25 @@ below describes what the built-in scanner does and how to tune it.</p>
   <code>Referrer-Policy</code>, reported as <code>setup.headers</code> - see
   <a href="/documentation/csp"><code>docs/csp.md</code></a> for what the <code>Content-Security-Policy</code> checks
   look for and why</li>
-<li>three further headers that <strong>no</strong> OpenCloud sends - <code>Permissions-Policy</code>,
-  <code>Cross-Origin-Opener-Policy</code> and <code>Cross-Origin-Resource-Policy</code> - reported
-  separately as <code>setup.advisoryHeaders</code>. A reverse proxy can add all three and
-  the instance is better for it, but their absence is the shipped state of
-  every OpenCloud rather than a fact about this deployment, so they are
-  explained by <code>--debug</code> and never counted as a missing hardening, never
-  alerted on and never allowed to change an exit code. See
-  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md">ADR 0028</a></li>
+<li>four further headers that <strong>no</strong> OpenCloud sends - <code>Permissions-Policy</code>,
+  <code>Cross-Origin-Opener-Policy</code>, <code>Cross-Origin-Resource-Policy</code> and
+  <code>Cross-Origin-Embedder-Policy</code> - reported separately as
+  <code>setup.advisoryHeaders</code>. A reverse proxy can add all four and the instance
+  is better for it, but their absence is the shipped state of every OpenCloud
+  rather than a fact about this deployment, so they are explained by <code>--debug</code>
+  and never counted as a missing hardening, never alerted on and never allowed
+  to change an exit code. See
+  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0028-headers-no-opencloud-sends-are-reported-but-never-alerted.md">ADR 0028</a>.
+  Rehearse <code>Cross-Origin-Embedder-Policy: require-corp</code> before rolling it
+  out - an office integration that embeds Collabora or a WOPI host stops
+  loading unless that origin sends a <code>Cross-Origin-Resource-Policy</code> of its own</li>
+<li>whether <code>/.well-known/security.txt</code> tells somebody who finds a flaw where to
+  report it, as <code>securityTxtPublished</code> under <code>setup.advisoryChecks</code>. The same
+  bargain as the headers above, for what is not a header: OpenCloud publishes
+  none on any instance, so it is explained and never counted. The file has to
+  carry the <code>Contact</code> field RFC 9116 requires - a 200 alone means nothing on
+  an instance whose frontend answers every unknown path with its own shell.
+  See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0034-an-advisory-observation-need-not-be-a-header.md">ADR 0034</a></li>
 <li><code>hardenings</code> derived from those headers and capabilities</li>
 <li>known vulnerabilities from the <a href="#advisory-database">advisory database</a> and
   the resulting rating (<code>0</code>-<code>5</code>)</li>

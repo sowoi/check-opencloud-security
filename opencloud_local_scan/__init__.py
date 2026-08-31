@@ -82,6 +82,16 @@ from .selfupdate import (
     upgrade_self,
 )
 from .service import ScanStore, ServiceMisconfigured, build_server, serve
+from .snippets import (
+    DEFAULT_FLAVOUR,
+    FLAVOURS,
+    Flavour,
+    Fragment,
+    flavours_for,
+)
+from .snippets import (
+    fragment as configuration_fragment,
+)
 from .versions import (
     LifecycleStatus,
     ReleaseLine,
@@ -159,6 +169,8 @@ __all__ = [
     "DEFAULT_CONFIG_NAME",
     "DEFAULT_CONFIG_PATHS",
     "DEFAULT_FEED_URL",
+    "DEFAULT_FLAVOUR",
+    "FLAVOURS",
     "HARDENINGS",
     "MAX_CONCURRENCY",
     "RELEASE_MODES",
@@ -169,6 +181,8 @@ __all__ = [
     "Configuration",
     "ConfigurationError",
     "Finding",
+    "Flavour",
+    "Fragment",
     "Hardening",
     "LifecycleStatus",
     "RatingCap",
@@ -192,11 +206,13 @@ __all__ = [
     "all_checks",
     "build_server",
     "compare_versions",
+    "configuration_fragment",
     "derive_hardenings",
     "describe_hardening",
     "enable_completion",
     "failed_extra_checks",
     "fetch_update_info",
+    "flavours_for",
     "is_actionable",
     "is_end_of_life",
     "is_legacy_version",

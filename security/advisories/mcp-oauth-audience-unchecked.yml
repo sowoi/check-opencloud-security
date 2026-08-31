@@ -1,0 +1,21 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: mcp-oauth-audience-unchecked
+state: declined
+changelog_version: "1.9.0"
+changelog_entry: "A sign-in on /mcp with no audience now refuses to start."
+shipped: false
+declined_because: |
+  Never shipped. MCP OAuth was introduced in 1.9.0 and the required
+  audience check landed in the same release, so no released version
+  accepted a token whose aud claim went uncompared.
+summary: >-
+  An unchecked aud claim would make any token from the same issuer a key
+  to the /mcp endpoint
+verified: |
+  webapp/mcp_auth.py is absent from v1.8.0 and first appears in v1.9.0, where
+  lines 187-189 already refuse to start without COS_WEB_MCP_AUTH_AUDIENCE
+  and line 327 fails closed in the verifier.

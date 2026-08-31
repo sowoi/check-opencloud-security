@@ -1,0 +1,38 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: webhook-ssrf-private-addresses
+state: published
+ghsa: GHSA-8v3w-3cx5-33pp
+changelog_version: "1.2.3"
+changelog_entry: "Block webhook notifications to private, loopback, and link-local addresses by default"
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-918
+package: plugin
+introduced: "1.0.0"
+fixed: "1.2.3"
+summary: >-
+  Webhook notifications are delivered to private, loopback and link-local
+  addresses with no restriction (SSRF)
+verified: |
+  git show v1.2.2:check_opencloud_security.py - no is_private, gethostbyname or
+  allow_private guard anywhere; webhook support is present from v1.0.1.
+description: |
+  ### Impact
+
+  Before 1.2.3 the plugin applied no address restriction to webhook
+  notifications. A webhook URL could name a private, loopback or link-local
+  address, and the plugin would deliver to it from the monitoring host. That
+  makes the plugin a server-side request forgery primitive against whatever the
+  monitoring host can reach, including cloud metadata endpoints and internal
+  services, with the webhook payload as the request body.
+
+  ### Patches
+
+  Fixed in **1.2.3**. Delivery to private, loopback and link-local addresses is
+  blocked by default; an internal receiver requires the explicit
+  `--allow-private-webhooks` / `COS_ALLOW_PRIVATE_WEBHOOKS` opt-out.

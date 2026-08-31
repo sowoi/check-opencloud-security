@@ -1,0 +1,20 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: mcp-uuid-path-traversal
+state: declined
+changelog_version: "1.8.0"
+changelog_entry: "A uuid given to an MCP tool is validated as a UUID before it reaches a request path."
+shipped: false
+declined_because: |
+  Never shipped. MCP was introduced in 1.8.0 and the validation landed in
+  the same release, so no released version accepted an unvalidated uuid.
+summary: >-
+  An unvalidated uuid reaching an MCP tool's request path would let ../..
+  address the application rather than a scan
+verified: |
+  webapp/mcp_server.py is absent from v1.7.0 and first appears in v1.8.0.
+  git show v1.8.0:webapp/workflows.py:277 already calls uuidlib.UUID(str(value))
+  and percent-encodes the identifier.

@@ -588,6 +588,18 @@ move the rating:</p>
 </tbody>
 </table>
 <p>The <code>files.app_providers</code> capability is a hardcoded constant and is ignored.</p>
+<p><code>setup.advisoryChecks</code> is the other block that cannot move the rating, and for
+a different reason: not that the observation is neutral, but that OpenCloud
+satisfies it on no instance, so counting it would report the shipped state of
+the software as a fault in this deployment. It currently holds one entry,
+<code>securityTxtPublished</code> - whether <code>/.well-known/security.txt</code> carries the
+<code>Contact</code> field RFC 9116 requires, so that somebody who finds a flaw knows
+where to send it. The body is what is read, not the status code: an instance
+whose frontend answers every unknown path with its own shell returns 200 for
+that path too. The block is <code>{}</code> rather than a dictionary of <code>false</code> when the
+extra checks are off, because an observation nobody made is not one that
+failed. See
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0034-an-advisory-observation-need-not-be-a-header.md">ADR 0034</a>.</p>
 <p>The <code>identityProvider</code> observation names an external provider when its OIDC
 issuer identifies one. For Keycloak, Authelia and Authentik it also includes
 <code>advisoryUrl</code>, which points to the provider's official GitHub Security
@@ -633,11 +645,55 @@ print(describe_hardening(&quot;basicAuthDisabled&quot;).describe())
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default). ...
     Docs: https://docs.opencloud.eu/docs/dev/server/services/proxy/environment-variables
 </code></pre>
-<p>The catalogue also covers the security headers from <code>setup.headers</code> and
-<code>httpsEnforced</code>, and returns a named placeholder for an identifier it does not
-know, so a future check can never crash a report. A test scans the fake
-instance and asserts that every flag it produces has an entry, so adding a
-hardening without documenting it fails the suite.</p>
+<p>The catalogue also covers the security headers from <code>setup.headers</code>, the
+advisory observations from <code>setup.advisoryHeaders</code> and
+<code>setup.advisoryChecks</code>, and <code>httpsEnforced</code>, and returns a named placeholder
+for an identifier it does not know, so a future check can never crash a
+report. A test scans the fake instance and asserts that every flag it produces
+has an entry, so adding a hardening without documenting it fails the suite.</p>
+<p>The same catalogue is a command, for the far more common case of having an
+identifier and no Python prompt:</p>
+<pre><code class="language-shell">$ check-opencloud-scanner explain basicAuthDisabled
+$ check-opencloud-scanner explain exposed:/config/opencloud.yaml
+$ check-opencloud-scanner explain --category transport
+$ check-opencloud-scanner explain --list
+$ check-opencloud-scanner explain --format json cookieSecure
+</code></pre>
+<p>It reads nothing but its own package - no configuration file, no network, no
+instance - so it answers at three in the morning on a host that cannot reach
+anything. Header names and per-path findings are accepted as they appear in an
+alert; <code>exposed:/config/opencloud.yaml</code> resolves to the <code>exposed</code> family the
+catalogue actually lists. With no identifier it prints the whole catalogue. An
+identifier it does not know exits 1 and suggests the nearest ones, rather than
+printing the placeholder above as though it were an answer.</p>
+<h3 id="the-same-fix-as-configuration">The same fix, as configuration</h3>
+<p>The sentence above is what a person reads. <code>snippets.py</code> writes the same
+answer in the syntax of the file that has to change, from the <code>env_fix</code> and
+<code>header_fix</code> pairs the catalogue entries carry:</p>
+<pre><code class="language-python">from opencloud_local_scan import configuration_fragment
+
+print(configuration_fragment([&quot;basicAuthDisabled&quot;, &quot;demoUsersDisabled&quot;], &quot;compose&quot;).text)
+</code></pre>
+<pre><code class="language-yaml">services:
+  opencloud:
+    environment:
+      PROXY_ENABLE_BASIC_AUTH: &quot;false&quot;
+      IDM_CREATE_DEMO_USERS: &quot;false&quot;
+</code></pre>
+<p>Five flavours: <code>compose</code>, <code>env</code>, <code>nginx</code>, <code>caddy</code>, <code>traefik</code>. Each expresses
+one kind of fix, because the two kinds live in different files on usually
+different machines - environment assignments go on the OpenCloud instance,
+response headers on whatever terminates TLS in front of it. Rendering a header
+into a Compose environment block would produce a line that does nothing, so a
+flavour reports what it cannot express in <code>Fragment.elsewhere</code> instead, and
+<code>flavours_for</code> names the flavours that can.</p>
+<p>It renders, it does not decide. Every name and value comes from the
+catalogue - this module holds no configuration knowledge of its own - and a
+check whose right value is a decision about the deployment (a CORS origin, a
+path to a CSP file) carries no pair at all. Those land in
+<code>Fragment.undecided</code> rather than being guessed at with a placeholder: a
+fragment that has to be edited before it is pasted is worse than the sentence
+it replaced, because it looks finished.</p>
 <h2 id="debug-ports">Debug ports</h2>
 <p>Every OpenCloud service runs a debug listener serving <code>/healthz</code>, <code>/readyz</code>,
 <code>/metrics</code>, <code>/config</code> and <code>/debug/pprof</code>. <code>/metrics</code> exposes the exact version

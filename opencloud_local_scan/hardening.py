@@ -8,7 +8,7 @@ research task. This module is the missing half: for every flag the scanner can
 report, a plain sentence, the OpenCloud setting behind it, and a link to the
 official documentation.
 
-Three namespaces share one lookup, because a reader does not care which of
+Four namespaces share one lookup, because a reader does not care which of
 them an identifier came from:
 
 - ``HARDENINGS`` - the capability and header flags OpenCloud itself controls;
@@ -16,7 +16,14 @@ them an identifier came from:
   which are the ones that actually cap a rating, including the per-path and
   per-port families written ``exposed:/config/opencloud.yaml`` or
   ``debugPort:9205``;
+- ``ADVISORY_CHECKS`` - observations reported under ``setup.advisoryChecks``
+  that are explained like any other check and counted like none of them;
 - ``_HEADER_NOTES`` - the security response headers.
+
+``ADVISORY_CHECKS`` is kept out of ``HARDENINGS`` deliberately, and not merely
+for tidiness: the web application builds its waiver tick boxes by iterating
+``HARDENINGS``, so an entry placed there would be offered for waiving, and
+offering to waive something that never alerts says it does.
 
 Three of the flags are not settings at all, and saying so matters more than
 listing them:
@@ -91,6 +98,11 @@ DOCS_OAUTH_METADATA = "https://www.rfc-editor.org/rfc/rfc8414.html#section-2"
 # than merely stopping it being lowered, so the remediation planner names it.
 DOCS_UPDATE = "https://docs.opencloud.eu/docs/admin/maintenance/upgrade/upgrade-guide"
 
+# Publishing a way to report a vulnerability is not an OpenCloud setting at
+# all: the file is served by whatever is in front of the instance, and the
+# format is specified by the RFC rather than by this project.
+DOCS_SECURITY_TXT = "https://www.rfc-editor.org/rfc/rfc9116.html"
+
 
 @dataclass(frozen=True)
 class Hardening:
@@ -111,6 +123,31 @@ class Hardening:
 
     setting: str = ""
     """The environment variable that controls this, if any."""
+
+    env_fix: tuple[tuple[str, str], ...] = ()
+    """
+    The environment assignments on the instance that satisfy this check.
+
+    ``remediation`` is the sentence a person reads; this is the same answer
+    in the form a configuration file wants, and :mod:`opencloud_local_scan.
+    snippets` is the only thing that renders it. It is empty wherever the
+    right value is a decision only the deployment can make - an origin, a
+    file path - because a fragment that has to be edited before it is pasted
+    would be worse than the sentence it replaced.
+
+    Where both this and :attr:`setting` are set, :attr:`setting` is named
+    here too: it is the headline variable, and the pair carrying it is what
+    makes the two impossible to drift apart.
+    """
+
+    header_fix: tuple[tuple[str, str], ...] = ()
+    """
+    The response headers that satisfy this check, name and value.
+
+    Separate from :attr:`env_fix` because they are set somewhere else
+    entirely - whatever terminates TLS in front of the instance - and a
+    fragment that mixed the two would be paste-able into neither.
+    """
 
     actionable: bool = True
     """
@@ -182,6 +219,9 @@ HARDENINGS: dict[str, Hardening] = {
         ),
         reference=DOCS_PROXY,
         setting="PROXY_ENABLE_BASIC_AUTH",
+        env_fix=(
+            ("PROXY_ENABLE_BASIC_AUTH", "false"),
+        ),
     ),
     "cspWithoutUnsafeInline": Hardening(
         id="cspWithoutUnsafeInline",
@@ -235,6 +275,10 @@ HARDENINGS: dict[str, Hardening] = {
         ),
         reference=DOCS_SHARING,
         setting="OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD",
+        env_fix=(
+            ("OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD", "true"),
+            ("OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD", "true"),
+        ),
     ),
     "publicLinkExpirationEnforced": Hardening(
         id="publicLinkExpirationEnforced",
@@ -287,6 +331,10 @@ HARDENINGS: dict[str, Hardening] = {
         ),
         reference=DOCS_LINK_PASSWORD,
         setting="OC_PASSWORD_POLICY_MIN_CHARACTERS",
+        env_fix=(
+            ("OC_PASSWORD_POLICY_DISABLED", "false"),
+            ("OC_PASSWORD_POLICY_MIN_CHARACTERS", "8"),
+        ),
     ),
     "passwordPolicyComplexity": Hardening(
         id="passwordPolicyComplexity",
@@ -312,6 +360,12 @@ HARDENINGS: dict[str, Hardening] = {
         ),
         reference=DOCS_LINK_PASSWORD,
         setting="OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS",
+        env_fix=(
+            ("OC_PASSWORD_POLICY_MIN_LOWERCASE_CHARACTERS", "1"),
+            ("OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS", "1"),
+            ("OC_PASSWORD_POLICY_MIN_DIGITS", "1"),
+            ("OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS", "1"),
+        ),
     ),
     "hstsLongMaxAge": Hardening(
         id="hstsLongMaxAge",
@@ -973,6 +1027,9 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference="https://docs.opencloud.eu/docs/admin/resources/demo-user/",
         setting="IDM_CREATE_DEMO_USERS",
+        env_fix=(
+            ("IDM_CREATE_DEMO_USERS", "false"),
+        ),
     ),
     "versionDetection": Hardening(
         id="versionDetection",
@@ -991,6 +1048,40 @@ CHECKS: dict[str, Hardening] = {
             "of this report as unknown rather than as good."
         ),
         reference=DOCS_PROXY,
+    ),
+}
+
+
+# Observations reported under 'setup.advisoryChecks': measured, explained and
+# published, never counted. The same reasoning ADR 0028 applied to the modern
+# response headers, applied to what is not a header. No OpenCloud publishes a
+# security.txt, so its absence describes the software rather than this
+# deployment - and turning every existing instance into a WARNING that only a
+# new file can clear is how an operator learns to stop reading the hardening
+# line. See ADR 0034.
+ADVISORY_CHECKS: dict[str, Hardening] = {
+    "securityTxtPublished": Hardening(
+        id="securityTxtPublished",
+        category="exposure",
+        title="No security.txt says how to report a vulnerability",
+        meaning=(
+            "Nothing was served at /.well-known/security.txt, so somebody who "
+            "finds a flaw in this instance has to guess at an address to send "
+            "it to. What they guess is usually a public issue tracker, a "
+            "support form read by nobody in a hurry, or nothing at all - and a "
+            "report that never arrives is indistinguishable, from the outside, "
+            "from a report nobody bothered to write."
+        ),
+        remediation=(
+            "Serve a plain-text file at /.well-known/security.txt from the "
+            "reverse proxy in front of OpenCloud. RFC 9116 requires 'Contact:' "
+            "and 'Expires:' - a date far enough out that it does not lapse "
+            "unnoticed, and near enough that a stale file gets replaced - and "
+            "'Preferred-Languages:' and 'Policy:' are worth the two extra "
+            "lines. OpenCloud itself serves no such file on any instance, so "
+            "this is a deployment decision rather than a setting to switch on."
+        ),
+        reference=DOCS_SECURITY_TXT,
     ),
 }
 
@@ -1048,6 +1139,9 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
         ),
         reference=DOCS_PROXY,
         setting="OC_DEBUG_ADDR",
+        env_fix=(
+            ("OC_DEBUG_ADDR", "127.0.0.1:9205"),
+        ),
     ),
     "debugPort": Hardening(
         id="debugPort",
@@ -1066,6 +1160,9 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
         ),
         reference=DOCS_PROXY,
         setting="OC_DEBUG_ADDR",
+        env_fix=(
+            ("OC_DEBUG_ADDR", "127.0.0.1:9205"),
+        ),
     ),
     "backendPortClosed": Hardening(
         id="backendPortClosed",
@@ -1083,6 +1180,9 @@ _CHECK_FAMILIES: dict[str, Hardening] = {
         ),
         reference=DOCS_REVERSE_PROXY,
         setting="PROXY_HTTP_ADDR",
+        env_fix=(
+            ("PROXY_HTTP_ADDR", "127.0.0.1:9200"),
+        ),
     ),
     "webEmbedMessageOriginRestricted": Hardening(
         id="webEmbedMessageOriginRestricted",
@@ -1205,6 +1305,51 @@ _HEADER_NOTES: dict[str, tuple[str, str]] = {
             "when a sibling subdomain has to embed OpenCloud content."
         ),
     ),
+    "Cross-Origin-Embedder-Policy": (
+        (
+            "This origin loads cross-origin subresources without requiring "
+            "them to opt in, which is the condition that keeps the browser "
+            "from granting it a process of its own. It is the missing half of "
+            "Cross-Origin-Opener-Policy: only both together isolate the "
+            "instance from the Spectre-family side channels either one alone "
+            "leaves open."
+        ),
+        (
+            "Send 'Cross-Origin-Embedder-Policy: require-corp', or "
+            "'credentialless' where third-party content cannot be changed. "
+            "Test it before rolling it out: an office or media integration "
+            "that embeds Collabora, a WOPI host or an avatar from another "
+            "origin will stop loading unless that origin answers with a "
+            "Cross-Origin-Resource-Policy of its own."
+        ),
+    ),
+}
+
+
+# The value each header note asks for, in the form a proxy configuration
+# wants it. Every one of these is quoted verbatim from the sentence above it,
+# so the fragment a reader pastes and the sentence they read cannot say
+# different things - `test_hardening.py` checks that the value still appears
+# in its own remediation text.
+#
+# Two headers are deliberately absent. Content-Security-Policy has no value to
+# recommend: OpenCloud ships a policy and a missing one means a proxy stripped
+# it, so the fix is to stop stripping it rather than to invent a replacement.
+# Cross-Origin-Embedder-Policy has one, but its own remediation says to test
+# it first because an office or media integration will stop loading - and a
+# fragment offered for pasting is the wrong place for a change that needs a
+# trial run.
+_HEADER_VALUES: dict[str, str] = {
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Permitted-Cross-Domain-Policies": "none",
+    "X-Robots-Tag": "noindex, nofollow",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
 }
 
 
@@ -1217,6 +1362,7 @@ def _header_hardening(name: str) -> Hardening:
             "Set the header in OpenCloud's proxy or the reverse proxy in front of it.",
         ),
     )
+    value = _HEADER_VALUES.get(name)
     return Hardening(
         id=name,
         category="headers",
@@ -1224,6 +1370,7 @@ def _header_hardening(name: str) -> Hardening:
         meaning=meaning,
         remediation=remediation,
         reference=f"{DOCS_MDN_HEADERS}/{name}",
+        header_fix=((name, value),) if value else (),
     )
 
 
@@ -1236,6 +1383,8 @@ def _family_hardening(family: Hardening, subject: str) -> Hardening:
         remediation=family.remediation,
         reference=family.reference,
         setting=family.setting,
+        env_fix=family.env_fix,
+        header_fix=family.header_fix,
         actionable=family.actionable,
         category=family.category,
     )
@@ -1254,6 +1403,9 @@ def describe(name: str) -> Hardening:
     check = CHECKS.get(name)
     if check is not None:
         return check
+    advisory = ADVISORY_CHECKS.get(name)
+    if advisory is not None:
+        return advisory
     if name in _HEADER_NOTES:
         return _header_hardening(name)
     family, _, subject = name.partition(":")
@@ -1290,6 +1442,7 @@ def catalogue_id(name: str) -> str | None:
     if (
         name in HARDENINGS
         or name in CHECKS
+        or name in ADVISORY_CHECKS
         or name in _HEADER_NOTES
         # The bare family root is itself a catalogue entry - it is what
         # `all_checks` lists - so it resolves to itself, while a member of the
@@ -1319,7 +1472,25 @@ def all_checks() -> tuple[Hardening, ...]:
     of its own until :func:`_header_hardening` builds one, so callers that
     want those too should also describe each name in it.
     """
-    return (*HARDENINGS.values(), *CHECKS.values(), *_CHECK_FAMILIES.values())
+    return (
+        *HARDENINGS.values(),
+        *CHECKS.values(),
+        *ADVISORY_CHECKS.values(),
+        *_CHECK_FAMILIES.values(),
+    )
+
+
+def header_names() -> tuple[str, ...]:
+    """
+    Every response header name this build explains, counted and advisory alike.
+
+    :func:`all_checks` deliberately leaves these out, because a header has no
+    ``Hardening`` of its own until :func:`_header_hardening` builds one. A
+    caller listing the whole catalogue - the ``explain`` command, the web
+    application's catalogue page - wants them anyway, and this is cheaper to
+    keep honest than a second copy of the names.
+    """
+    return tuple(_HEADER_NOTES)
 
 
 def explain(names: list[str]) -> list[str]:
