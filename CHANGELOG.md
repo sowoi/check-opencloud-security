@@ -40,6 +40,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   `run-tests.yml` now syncs and runs with `--extra signing` alongside
   `--group test`, so both tests run on every push and pull request.
 
+- **A flaky advisory-feed test no longer races a real socket close against a
+  megabyte of unread data.** `read_capped` reads at most `MAX_DOCUMENT_BYTES
+  + 1` bytes and the response is closed right after; the test built a body
+  roughly twice that size to prove the size guard fires before the
+  `MAX_ADVISORIES` count guard even gets a chance to. Closing a socket with
+  over a megabyte still incoming makes the kernel send a reset instead of a
+  clean close, which occasionally raced the fake server's single write and
+  surfaced as a `ConnectionResetError` where the test expected the guard's
+  own `AdvisoryFetchError`. The body is now padded to just past the cap, the
+  same way the sibling schedule-page test already did, leaving nothing sized
+  enough to race over.
+
 ## [1.18.0] - 2026-08-31
 
 ### Added
