@@ -29,6 +29,18 @@ from opencloud_local_scan.schedule_source import ExtractionError, fetch
 
 class _Handler(BaseHTTPRequestHandler):
     def _reply(self) -> None:
+        # fetch_records POSTs a small JSON query; a GET carries none. Either
+        # way, the request body has to be drained before the connection
+        # closes - this server answers one request and closes (HTTP/1.0),
+        # and closing a socket with an unread request body still sitting in
+        # the kernel's receive buffer makes it send a reset instead of a
+        # clean close. That reset can then land on the client mid-read of
+        # the *response*, regardless of the response's own size, which is
+        # what made this fixture an intermittent `ConnectionResetError`
+        # rather than the clean refusal the tests using it assert on.
+        request_length = int(self.headers.get("Content-Length") or 0)
+        if request_length:
+            self.rfile.read(request_length)
         body = self.server.body  # type: ignore[attr-defined]
         self.send_response(200)
         self.send_header("Content-Type", self.server.content_type)  # type: ignore[attr-defined]

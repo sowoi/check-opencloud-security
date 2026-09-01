@@ -12,6 +12,23 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The reference-data test fixture no longer leaves its own request body
+  unread.** `fetch_records` POSTs a small JSON query; the fake HTTP server in
+  `tests/test_reference_data_limits.py` answered without ever reading that
+  body off the socket, then closed the connection (it runs HTTP/1.0, so it
+  closes after every request). Closing a socket with an unread request body
+  still sitting in the kernel's receive buffer makes it send a reset instead
+  of a clean close, and that reset could land on the client mid-read of the
+  *response* - intermittently surfacing as a `ConnectionResetError` in
+  `test_an_oversized_advisory_answer_is_refused_before_it_is_parsed` instead
+  of the `AdvisoryFetchError` the test asserts on, regardless of how large the
+  response body was. Only the advisory test could ever hit this: the
+  schedule/lifecycle fetch this fixture also serves is a plain GET with no
+  request body to leave unread. The handler now drains `Content-Length` bytes
+  of the request before replying.
+
 ## [1.18.1] - 2026-08-31
 
 ### Changed
