@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.18.2] - 2026-09-01
+
 ### Added
 
 - **The severity counters on a report are the filter for its findings.**
