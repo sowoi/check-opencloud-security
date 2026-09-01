@@ -1,5 +1,42 @@
 ## check-opencloud-security 1.18.1
 
+### Added
+
+- The severity counters on a report are now the filter for its findings:
+  pressing `Critical`, `Warning` or `Info` narrows the list to that severity,
+  pressing it again restores it, and a sentence beside the heading says which
+  filter is on with a way out. A counter at zero is disabled, no count is ever
+  rewritten, and without scripting the counters are the readings they were.
+- A switch between the light and dark themes in the header. The operating
+  system still decides until somebody presses it, the choice lives in that
+  browser alone, and it is applied before the first paint so an override never
+  opens with a flash of the other scheme.
+- The waiver picker can be searched by identifier or title, hiding a group
+  whose entries have all gone. Ticked boxes stay ticked and stay submitted:
+  filtering only ever sets `hidden`.
+- An address that will not do says so under the field once the visitor has
+  typed and left, so the red bar no longer carries a meaning nothing spells
+  out.
+
+### Changed
+
+- The progress card says how long the wait has run and how long a scan usually
+  takes. The clock is measured against a wall-clock instant, so a laptop that
+  sleeps wakes with the right answer rather than a tally of missed ticks.
+
+### Documentation
+
+- `ADMIN.md` collects the operational knowledge a system administrator needs:
+  refreshing the vulnerability database and release schedule by hand, pulling
+  the reviewed and attested data onto a monitoring host, regenerating the
+  frontend documentation, search index and web bundle, raising a disposable
+  local stack with `docker/setup-wizard.py` to test the frontend in a
+  browser, what the daily runtime
+  refresh keeps in Redis and how `/healthz` reflects it, the log markers worth
+  grepping for and what the logs deliberately never contain, and what to do
+  when OpenCloud moves a documented link. It is internal, and excluded from
+  every artefact that ships.
+
 ### Changed
 
 - The rescan button sits next to "scan another instance" in the report's
