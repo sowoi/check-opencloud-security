@@ -2497,3 +2497,174 @@ pre.config code { font-family: var(--mono); }
   align-items: flex-end;
   gap: 0.5rem;
 }
+/* --------------------------------------------------------------- on paper */
+/*
+ * A report is a document before it is a page: it gets printed for a change
+ * record, saved to PDF for somebody who was not at the screen, and filed. The
+ * screen design is glass over a moving aurora, which is exactly the wrong
+ * thing to put on paper - so print gets its own reading of the same markup
+ * rather than a second template.
+ *
+ * Three rules decide everything below.
+ *
+ * The tokens are forced back to daylight. This is not taste: `--ink` in the
+ * dark scheme is near-white, and a reader who chose dark and pressed print
+ * would otherwise be handed a sheet of blank paper with the ink the printer
+ * refused to lay down. Paper has one scheme.
+ *
+ * Anything that only exists to be pressed goes. A menu, a search field, a
+ * scheme switch, an export button, a copy-to-clipboard control and a rescan
+ * form are all instructions to a browser, and on paper they are furniture
+ * that survived a move. What stays is what says something: the grade, the
+ * facts, the findings, the plan, and the notice at the foot of the page.
+ *
+ * Nothing that carries meaning is allowed to depend on colour reaching the
+ * page, because most of the time it will not - a browser drops backgrounds
+ * from a print unless it is told otherwise. Every severity is already a word
+ * as well as a tint, so the words are what print; the tints are asked for
+ * with `print-color-adjust` and are welcome if they arrive.
+ */
+@media print {
+    /* Daylight, whatever the screen was set to. */
+    :root,
+    :root[data-theme="dark"],
+    :root[data-theme="light"] {
+        color-scheme: light;
+        --ink: #0d0f17;
+        --ink-soft: #33394a;
+        --ink-faint: #4d5468;
+        --paper: #ffffff;
+        --card: #ffffff;
+        --card-solid: #ffffff;
+        --line: rgba(13, 15, 23, .28);
+        --line-strong: rgba(13, 15, 23, .45);
+        --tint: transparent;
+        --glass-blur: none;
+        --glass-hi: transparent;
+        --glass-edge: none;
+        --brand: #2f2599;
+        --brand-deep: #241c76;
+        --brand-soft: transparent;
+        --brand-glow: transparent;
+        --brand-glow-strong: transparent;
+        --sky: none;
+        --grain: none;
+        --horizon: none;
+        --shadow-sm: none;
+        --shadow: none;
+        --shadow-lg: none;
+        --code-bg: #ffffff;
+        --code-ink: #0d0f17;
+    }
+
+    @page { margin: 16mm; }
+
+    body {
+        font-size: 10.5pt;
+        line-height: 1.45;
+        background: #ffffff;
+        background-image: none;
+        min-height: 0;
+        display: block;
+    }
+    /* The aurora and the lattice are fixed layers: on paper a fixed layer is
+       a stamp on every sheet. */
+    body::before, body::after { display: none; }
+
+    /*
+     * The chrome. Everything here is a control or a way to somewhere else,
+     * and paper is neither.
+     */
+    .site-header,
+    .skip-link,
+    .back-to-top,
+    .theme-toggle,
+    .nav-toggle,
+    .site-nav,
+    .docs-toc,
+    .footer-note,
+    .footer-nav,
+    .build,
+    .progress-beam,
+    .pulse,
+    .hero-art,
+    .scan-actions,
+    .export-list,
+    .filter-clear,
+    .flavour-picker,
+    [data-copy-fragment],
+    [data-print="hide"] {
+        display: none !important;
+    }
+
+    /* With the picker gone, the heading each fragment carries is the only
+       thing left saying which file the block belongs in - so the rule that
+       hides it as a repeat of the pressed button is lifted. */
+    [data-fragment-picked] .fragment-name { display: block; }
+
+    /* A pane becomes a ruled block: one hairline, no frost, no lift. */
+    .card {
+        background: #ffffff;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border: 1px solid var(--line);
+        border-radius: 0;
+        box-shadow: none;
+        padding: 1rem 1.1rem;
+        break-inside: auto;
+    }
+    .card + .card { margin-top: .8rem; }
+
+    /* A finding split across a fold is two half-findings. The same goes for a
+       reading, a step of the plan and a block of configuration. */
+    .finding, .counter, .step, .toggle, pre, .waiver-group {
+        break-inside: avoid;
+    }
+    h1, h2, h3 { break-after: avoid; }
+
+    /*
+     * The grade. The ring is a conic gradient and will usually not be
+     * printed; the letter inside it is text and always will be, so the dial
+     * is given an outline that does not depend on ink arriving.
+     */
+    .score-dial {
+        width: 112px; height: 112px;
+        border: 2px solid var(--ink);
+        box-shadow: none;
+        animation: none;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+    .score-dial::after { inset: 8px; box-shadow: none; }
+    .score-dial .grade { font-size: 2.2rem; color: var(--ink); }
+
+    /* A severity is a word first. The tint is asked for and not relied on. */
+    .tag, .tls-fact {
+        border: 1px solid var(--line);
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* A counter is a reading again, not a control. */
+    .counter { border: 1px solid var(--line); }
+    .counter:disabled { opacity: 1; }
+
+    /*
+     * A link on paper is a dead end unless it says where it went. Only the
+     * references inside a finding get their address printed - the
+     * documentation and the advisory, which are the two somebody reads next
+     * with the sheet in their hand.
+     */
+    .fix a { text-decoration: underline; background: none; padding: 0; }
+    .fix a::after {
+        content: " (" attr(href) ")";
+        font-family: var(--mono);
+        font-size: .78em;
+        word-break: break-all;
+    }
+
+    /* The trademark and scope notices stay: a printed report stands on its
+       own, and DESIGN.md says every surface that does carries them. */
+    .site-footer { border-top: 1px solid var(--line); padding-top: .6rem; }
+    .legal { font-size: .72rem; color: var(--ink-soft); }
+}

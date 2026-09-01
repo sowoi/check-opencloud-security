@@ -717,7 +717,10 @@
 </section>
 {% endif %}
 
-<section class="card" data-reveal>
+{# Downloading a file and copying a link are both instructions to a browser,
+   so the whole card leaves on paper rather than printing as a heading over
+   controls that cannot be pressed. #}
+<section class="card" data-reveal data-print="hide">
   <p class="kicker">{{ t('result.export.kicker') }}</p>
   <h2 id="exports">{{ t('result.export.heading') }}</h2>
   <p class="lede">{{ t('result.export.lede') }}</p>
@@ -770,7 +773,7 @@
   in that channel a live capability is usually not the part that was meant.
 #}
 {% set report_url = origin ~ '/scan/' ~ scan.uuid if origin else '/scan/' ~ scan.uuid %}
-<section class="card" data-reveal>
+<section class="card" data-reveal data-print="hide">
   <p class="kicker">{{ t('result.share.kicker') }}</p>
   <h2 id="share">{{ t('result.share.heading') }}</h2>
   <p class="lede">{{ t('result.share.lede') }}</p>

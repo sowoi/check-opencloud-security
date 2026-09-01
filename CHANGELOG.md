@@ -12,6 +12,21 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **A report prints as a document.** It gets printed for a change record and
+  saved to PDF for somebody who was not at the screen, and until now that
+  sheet carried the aurora, a menu, a scheme switch and a row of export
+  buttons nobody can press. Print now forces the tokens back to daylight -
+  which is a correctness fix, not a preference: the dark scheme's ink is
+  near-white, so a reader who chose dark and pressed print was handed a blank
+  page - drops the chrome and the controls, keeps the grade, the facts, the
+  findings, the plan and the trademark notice every standing surface carries,
+  stops a finding being split across a fold, and prints the address behind
+  each documentation and advisory reference, which on paper is the only way a
+  link says anything. No second template and no new markup beyond a marker on
+  the two cards that are entirely controls.
+
 ## [1.18.2] - 2026-09-01
 
 ### Added
