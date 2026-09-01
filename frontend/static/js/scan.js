@@ -119,6 +119,43 @@
         }
     }
 
+    /*
+     * How long the wait has run. Measured against a wall-clock instant rather
+     * than counted up, for the reason the rescan countdown is: a laptop that
+     * sleeps wakes with the right answer instead of a tally of missed ticks.
+     *
+     * It starts when this page did, which is what the reader is actually
+     * waiting through - the scan may have been submitted a moment earlier,
+     * and a clock that disagreed with the reader's own sense of the wait
+     * would be worse than no clock.
+     */
+    var elapsed = document.getElementById("progress-elapsed");
+    var started = Date.now();
+    var ticker = null;
+
+    function clock(seconds) {
+        var minutes = Math.floor(seconds / 60);
+        var rest = seconds % 60;
+        return minutes + ":" + (rest < 10 ? "0" + rest : String(rest));
+    }
+
+    function tick() {
+        if (!elapsed) {
+            return;
+        }
+        var seconds = Math.floor((Date.now() - started) / 1000);
+        elapsed.textContent = fill(phrase(card, "elapsed"), {
+            duration: clock(seconds)
+        });
+    }
+
+    function stopClock() {
+        if (ticker !== null) {
+            window.clearInterval(ticker);
+            ticker = null;
+        }
+    }
+
     function countdown(seconds) {
         if (!expiry || typeof seconds !== "number" || seconds <= 0) {
             return;
@@ -141,6 +178,7 @@
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     function finish(state) {
+        stopClock();
         if (reducedMotion) {
             window.location.reload();
             return;
@@ -199,6 +237,8 @@
 
     setSteps(state);
     if (!terminal(state)) {
+        tick();
+        ticker = window.setInterval(tick, 1000);
         window.setTimeout(poll, 600);
     }
 }());

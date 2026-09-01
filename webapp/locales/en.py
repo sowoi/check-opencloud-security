@@ -32,6 +32,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secondary",
     "chrome.search.label": "Search documentation",
     "chrome.search.placeholder": "Search",
+    "chrome.theme.toggle": "Toggle colour theme",
     "chrome.back_to_top": "Back to top",
     "nav.new_scan": "New scan",
     "nav.how_it_works": "How it works",
@@ -162,6 +163,10 @@ MESSAGES: dict[str, str] = {
         "fragments, parameters and path traversal are refused. Public addresses "
         "only, and only instances you run or have permission to test."
     ),
+    "index.field.invalid": (
+        "Not a valid address: a hostname, optional port and a plain subfolder - "
+        "no query, fragment or parameters."
+    ),
     "index.submit": "Start audit",
     "index.submit.busy": "Starting audit...",
     "index.track.label": "Release track",
@@ -179,6 +184,9 @@ MESSAGES: dict[str, str] = {
         "A waived check stays in the report and is still shown - it just stops "
         "holding the grade down. Only checks that actually failed can be waived."
     ),
+    "index.waivers.search.label": "Filter checks",
+    "index.waivers.search.placeholder": "Search by name...",
+    "index.waivers.search.empty": "No checks match your search.",
     "index.assurance.aria": "How this service handles your data",
     "index.assurance.airgapped.title": "100% air-gapped",
     "index.assurance.airgapped.body": (
@@ -1055,6 +1063,8 @@ MESSAGES: dict[str, str] = {
     "result.progress.step.queued": "Queued",
     "result.progress.step.running": "Running",
     "result.progress.step.done": "Result",
+    "result.progress.estimate": "Most scans finish in under a minute.",
+    "result.progress.elapsed": "{duration} elapsed",
     "result.progress.noscript": (
         "This page updates itself with JavaScript. Without it, reload the page in "
         "a few seconds to see the result."
@@ -1172,6 +1182,9 @@ MESSAGES: dict[str, str] = {
         "Each one caps the grade at the level its severity allows. Fix the "
         "critical ones first: they are the ones holding the score down hardest."
     ),
+    "result.findings.filter.aria": "Filter findings by severity",
+    "result.findings.filter.active": "Showing {severity} findings only.",
+    "result.findings.filter.clear": "Show all findings",
     "result.findings.allclear.tag": "All clear",
     "result.findings.allclear.body": (
         "Every check this scanner runs passed on this instance."

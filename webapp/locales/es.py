@@ -17,6 +17,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secundaria",
     "chrome.search.label": "Buscar en la documentación",
     "chrome.search.placeholder": "Buscar",
+    "chrome.theme.toggle": "Cambiar el tema de color",
     "chrome.back_to_top": "Volver arriba",
     "nav.new_scan": "Nuevo análisis",
     "nav.how_it_works": "Cómo funciona",
@@ -152,6 +153,10 @@ MESSAGES: dict[str, str] = {
         "direcciones públicas, y solo instancias que administras o para las "
         "que tienes permiso de comprobación."
     ),
+    "index.field.invalid": (
+        "No es una dirección válida: un nombre de host, un puerto opcional y "
+        "una subcarpeta simple - sin consultas, fragmentos ni parámetros."
+    ),
     "index.submit": "Iniciar auditoría",
     "index.submit.busy": "Iniciando auditoría...",
     "index.track.label": "Canal de publicación",
@@ -170,6 +175,9 @@ MESSAGES: dict[str, str] = {
         "mostrándose; simplemente deja de frenar la calificación. Solo se "
         "pueden exceptuar las comprobaciones que realmente fallaron."
     ),
+    "index.waivers.search.label": "Filtrar comprobaciones",
+    "index.waivers.search.placeholder": "Buscar por nombre...",
+    "index.waivers.search.empty": "Ninguna comprobación coincide con tu búsqueda.",
     "index.assurance.aria": "Cómo maneja este servicio tus datos",
     "index.assurance.airgapped.title": "100% aislado",
     "index.assurance.airgapped.body": (
@@ -1120,6 +1128,8 @@ MESSAGES: dict[str, str] = {
     "result.progress.step.queued": "En cola",
     "result.progress.step.running": "En ejecución",
     "result.progress.step.done": "Resultado",
+    "result.progress.estimate": "La mayoría de los análisis terminan en menos de un minuto.",
+    "result.progress.elapsed": "{duration} transcurridos",
     "result.progress.noscript": (
         "Esta página se actualiza sola mediante JavaScript. Sin él, recarga "
         "la página en unos segundos para ver el resultado."
@@ -1243,6 +1253,9 @@ MESSAGES: dict[str, str] = {
         "Cada uno limita la calificación al nivel que permite su gravedad. "
         "Corrige primero los críticos: son los que más frenan la puntuación."
     ),
+    "result.findings.filter.aria": "Filtrar hallazgos por gravedad",
+    "result.findings.filter.active": "Mostrando solo hallazgos de gravedad {severity}.",
+    "result.findings.filter.clear": "Mostrar todos los hallazgos",
     "result.findings.allclear.tag": "Todo en orden",
     "result.findings.allclear.body": (
         "Todas las comprobaciones que ejecuta este escáner se superaron en "

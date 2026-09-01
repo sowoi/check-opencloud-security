@@ -49,9 +49,34 @@ Three rules hold the whole thing together, and each of them is a *no*:
 ## Colour
 
 Every colour is a custom property at the top of `app.css`, and the dark theme
-is a `prefers-color-scheme: dark` block that redefines *the same names*. There
-is no second stylesheet and no theme switcher: a token added without a dark
-value will look wrong on half the machines that visit.
+redefines *the same names*. There is no second stylesheet: a token added
+without a dark value will look wrong on half the machines that visit.
+
+**The system decides, until somebody says otherwise.** The dark tokens are
+written twice, and the pair is the whole mechanism:
+
+```css
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }
+:root[data-theme="dark"] { … }
+```
+
+The first is the original behaviour, untouched: with nothing stored, the
+operating system is the only thing that decides, on a first visit and on
+every visit after it. The second is the override, and `data-theme` is only
+ever on the root element because a visitor pressed the switch in the header -
+`theme.js` writes it back before the first paint, `theme-toggle.js` puts it
+there. A token defined in one block and forgotten in the other is a token
+half the readers see in the wrong colour, so the two are kept adjacent and
+edited together. Anything that cannot be expressed as a token - the `select`
+chevron, which is a data URI and cannot read one - needs the same pair of
+rules for the same reason.
+
+The switch itself is one icon: the scheme a press would move *to*, chosen in
+CSS from those same two questions rather than drawn from script, so it is
+never briefly wrong. It is hidden until `theme.js` marks the document, so a
+reader without scripting is not shown a control that cannot work - they still
+get the scheme their system asked for, which is the part that never depended
+on us.
 
 | Role | Light | Dark |
 |:-----|:------|:-----|

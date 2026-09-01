@@ -59,6 +59,7 @@
   everywhere else rather than a layout of their own.
 #}
 {% block content %}
+{% set can_rescan = scan.state in ("completed", "failed") %}
 <section class="card" data-reveal>
   <div class="scan-head">
     <div>
@@ -74,12 +75,12 @@
       </p>
     </div>
     <div class="scan-actions"
-         {% if scan.state in ("completed", "failed") %}
+         {% if can_rescan %}
          data-rescan-after="{{ rescan_after }}"
          data-rescan-ready="{{ t('result.rescan.ready') }}"
          data-rescan-wait="{{ t.raw('result.rescan.wait') }}"
          {% endif %}>
-      {% if scan.state in ("completed", "failed") %}
+      {% if can_rescan %}
       <form method="post" action="/">
         <input type="hidden" name="target_url" value="{{ scan.target }}">
         {% if scan.releaseTrack %}
@@ -97,7 +98,7 @@
       <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
     </div>
   </div>
-  {% if scan.state in ("completed", "failed") %}
+  {% if can_rescan %}
   {#
     The first reading is written by the server, not by the script. Rendering
     "ready" here and letting rescan.js correct it a moment later would flash
@@ -112,7 +113,7 @@
       {{ t('result.rescan.ready') }}
     {%- endif -%}
   </p>
-  <p class="hint flush">
+  <p class="hint section-gap flush">
     {{ t('result.rescan.note') }}
     <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('result.rescan.self_host') }}</a>.
   </p>
@@ -137,7 +138,8 @@
          data-failed-detail="{{ t('result.progress.failed.detail') }}"
          data-queue-position="{{ t.raw('result.progress.queue.position') }}"
          data-queue-next="{{ t('result.progress.queue.next') }}"
-         data-queue-waiting="{{ t('result.progress.queue.waiting') }}">
+         data-queue-waiting="{{ t('result.progress.queue.waiting') }}"
+         data-elapsed="{{ t.raw('result.progress.elapsed') }}">
   <p class="kicker">{{ t('result.progress.kicker') }}</p>
   <h2 id="progress-heading">
     <span class="pulse" aria-hidden="true"></span>
@@ -165,6 +167,21 @@
     </div>
     <div class="progress-beam" aria-hidden="true"><span></span></div>
     <p class="queue-note" id="queue-note" hidden></p>
+    {#
+      How long this has taken, and how long it usually takes. The estimate is
+      the server's sentence and is there without scripting; the clock beside
+      it is written by scan.js and starts empty, because a page that never
+      ticks should not claim 0:00 for ever.
+
+      `aria-live="off"` on the clock, inside a card that is otherwise polite:
+      a reading that changes every second would be announced every second,
+      which is the difference between telling somebody where they are and
+      talking over them.
+    #}
+    <p class="progress-timing hint">
+      <span class="progress-elapsed" id="progress-elapsed" aria-live="off"></span>
+      <span>{{ t('result.progress.estimate') }}</span>
+    </p>
     <noscript>
       <p class="hint flush">{{ t('result.progress.noscript') }}</p>
     </noscript>
@@ -287,16 +304,32 @@
         <dt>{{ t('result.facts.score') }}</dt><dd>{{ t('result.facts.score.value', rating=summary.rating) }}</dd>
       </dl>
 
-      <div class="counters">
-        <div class="counter">
+      {#
+        The three severity counters are the filter for the list of findings
+        further down: each one already counts exactly the entries tagged with
+        its severity, so pressing it is the shortest way to ask "show me only
+        those". A counter standing at zero is rendered disabled - there is
+        nothing behind it to show - and the two that count something other
+        than a finding, the advisories and the checks that passed, stay
+        readings rather than becoming controls: neither has a list on this
+        page that could be narrowed.
+
+        Nothing here depends on the script. Without it the counters are five
+        readings, which is what they were.
+      #}
+      <div class="counters" role="group" aria-label="{{ t('result.findings.filter.aria') }}">
+        <button class="counter" type="button" data-filter="critical" aria-pressed="false"
+                {% if not summary.counts.critical %}disabled{% endif %}>
           <strong>{{ summary.counts.critical }}</strong><span>{{ t('result.counter.critical') }}</span>
-        </div>
-        <div class="counter">
+        </button>
+        <button class="counter" type="button" data-filter="warning" aria-pressed="false"
+                {% if not summary.counts.warning %}disabled{% endif %}>
           <strong>{{ summary.counts.warning }}</strong><span>{{ t('result.counter.warning') }}</span>
-        </div>
-        <div class="counter">
+        </button>
+        <button class="counter" type="button" data-filter="info" aria-pressed="false"
+                {% if not summary.counts.info %}disabled{% endif %}>
           <strong>{{ summary.counts.info }}</strong><span>{{ t('result.counter.info') }}</span>
-        </div>
+        </button>
         <div class="counter">
           <strong>{{ summary.counts.vulnerabilities }}</strong><span>{{ t('result.counter.advisories') }}</span>
         </div>
@@ -436,8 +469,25 @@
   <p class="kicker">{{ t('result.findings.kicker') }}</p>
   <h2 id="findings">{{ t('result.findings.heading') }}</h2>
   <p class="lede">{{ t('result.findings.lede') }}</p>
+  {#
+    What the pressed counter is doing, in a sentence, and the way back to the
+    whole list. Hidden until a filter is on: findings-filter.js reveals it,
+    fills in the severity from the counter's own label - already translated,
+    already on the page - and hides it again when the list is whole.
+
+    It is a live region because the change it describes happens elsewhere on
+    the page: a reader who cannot see two thirds of the list disappear has to
+    be told that it did.
+  #}
+  <p class="filter-status hint" id="findings-filter-status" hidden aria-live="polite"
+     data-filter-active="{{ t.raw('result.findings.filter.active') }}">
+    <span id="findings-filter-text"></span>
+    <button class="filter-clear" type="button" data-filter-clear>
+      {{ t('result.findings.filter.clear') }}
+    </button>
+  </p>
   {% if summary.issues %}
-  <ul class="findings">
+  <ul class="findings" data-findings-list>
     {% for issue in summary.issues %}
     <li class="finding" data-tag="{{ issue.tag }}">
       <div class="finding-head">
@@ -793,4 +843,5 @@
 <script src="/static/js/share.js" defer></script>
 <script src="/static/js/rescan.js" defer></script>
 <script src="/static/js/fragment.js" defer></script>
+<script src="/static/js/findings-filter.js" defer></script>
 {% endblock %}

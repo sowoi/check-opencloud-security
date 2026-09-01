@@ -4,6 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
+  {#
+    The one script on the site that is not deferred, and it is deliberate: it
+    reads the scheme a visitor chose and writes it onto <html> before the
+    first paint. Deferred, it would run after the page had already been drawn
+    in the operating system's scheme, and every visit under an override would
+    open with a flash of the wrong one. It is a file rather than an inline
+    block because the policy has no 'unsafe-inline' - see DESIGN.md.
+  #}
+  <script src="/static/js/theme.js"></script>
   {# A result page is reachable only with its uuid, so only the pages that
      exist before anybody scans anything are ever offered to a crawler. #}
   <meta name="robots" content="{{ robots|default('noindex, nofollow', true) }}">
@@ -26,8 +35,10 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="{{ t('site.og_image_alt') }}">
   {% endif %}
-  <meta name="theme-color" content="#eceff7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#07080e" media="(prefers-color-scheme: dark)">
+  {# Named, so theme-toggle.js can point the browser's own chrome at the
+     scheme a visitor chose rather than the one their system prefers. #}
+  <meta name="theme-color" id="theme-color-light" content="#eceff7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" id="theme-color-dark" content="#07080e" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
   {# The three faces the first screen actually uses, fetched before the
      stylesheet asks for them: body text, the headline and the machine voice
@@ -133,6 +144,26 @@
         and wrap onto their own row, so a narrow screen never has to be
         scrolled sideways to reach them.
       #}
+      {#
+        The scheme switch. It sits outside the collapsing nav, beside the menu
+        button, because how the page is lit is not something to go looking for
+        behind a menu. The label says what the control is rather than which
+        way it is currently set: the icon carries the state, and a label that
+        changed under the pointer would be read out twice for no gain.
+      #}
+      <button class="theme-toggle" type="button" data-theme-toggle
+              title="{{ t('chrome.theme.toggle') }}"
+              aria-label="{{ t('chrome.theme.toggle') }}">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+      </button>
       <button class="nav-toggle" type="button" aria-controls="site-nav" aria-expanded="false">
         <svg class="icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -270,6 +301,7 @@
 
   <script src="/static/js/nav.js" defer></script>
   <script src="/static/js/lang.js" defer></script>
+  <script src="/static/js/theme-toggle.js" defer></script>
   <script src="/static/js/reveal.js" defer></script>
   <script src="/static/js/back-to-top.js" defer></script>
   {% block scripts %}{% endblock %}
