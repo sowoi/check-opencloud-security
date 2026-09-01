@@ -29,6 +29,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   request body to leave unread. The handler now drains `Content-Length` bytes
   of the request before replying.
 
+- **The self-hosting note under a rescan lost its breathing room when the
+  rescan card merged into the report's head.** `section-gap` moved from the
+  self-host paragraph onto the rescan status line above it instead of
+  staying on both, so the two unrelated sentences - "ready to scan again" and
+  "you can self-host this" - sat almost flush against each other (.4rem
+  apart instead of the 1.25rem every other section boundary on the page
+  uses). `frontend/templates/scan.html` now keeps `section-gap` on the
+  self-host paragraph as well.
+
 ## [1.18.1] - 2026-08-31
 
 ### Changed

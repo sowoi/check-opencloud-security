@@ -59,6 +59,7 @@
   everywhere else rather than a layout of their own.
 #}
 {% block content %}
+{% set can_rescan = scan.state in ("completed", "failed") %}
 <section class="card" data-reveal>
   <div class="scan-head">
     <div>
@@ -74,12 +75,12 @@
       </p>
     </div>
     <div class="scan-actions"
-         {% if scan.state in ("completed", "failed") %}
+         {% if can_rescan %}
          data-rescan-after="{{ rescan_after }}"
          data-rescan-ready="{{ t('result.rescan.ready') }}"
          data-rescan-wait="{{ t.raw('result.rescan.wait') }}"
          {% endif %}>
-      {% if scan.state in ("completed", "failed") %}
+      {% if can_rescan %}
       <form method="post" action="/">
         <input type="hidden" name="target_url" value="{{ scan.target }}">
         {% if scan.releaseTrack %}
@@ -97,7 +98,7 @@
       <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
     </div>
   </div>
-  {% if scan.state in ("completed", "failed") %}
+  {% if can_rescan %}
   {#
     The first reading is written by the server, not by the script. Rendering
     "ready" here and letting rescan.js correct it a moment later would flash
@@ -112,7 +113,7 @@
       {{ t('result.rescan.ready') }}
     {%- endif -%}
   </p>
-  <p class="hint flush">
+  <p class="hint section-gap flush">
     {{ t('result.rescan.note') }}
     <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('result.rescan.self_host') }}</a>.
   </p>
