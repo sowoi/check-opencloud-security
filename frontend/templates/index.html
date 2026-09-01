@@ -69,7 +69,7 @@
              maxlength="2048"
              pattern="\s*(?:[Hh][Tt][Tt][Pp][Ss]?://)?(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9][A-Za-z0-9.\-]*)(?::\d{1,5})?(?:/[A-Za-z0-9._~-]+)*/?\s*"
              title="{{ t('index.field.title') }}"
-             aria-describedby="target-hint">
+             aria-describedby="target-error target-hint">
       {# The busy label travels as an attribute: app.js must not hold a
          sentence of its own, or it would be the one page element that stays
          English. #}
@@ -82,6 +82,14 @@
         {{ t('index.submit') }}
       </button>
     </div>
+    {#
+      What is wrong with the address, in a sentence, under the same condition
+      that reddens the bar: `:user-invalid` fires once the visitor has typed
+      and left, never before. It is CSS that reveals it, so a browser without
+      scripting corrects a typo just as readily - and the red bar stops being
+      colour that carries a meaning nothing spells out.
+    #}
+    <p class="field-error" id="target-error">{{ t('index.field.invalid') }}</p>
     <p class="hint" id="target-hint">{{ t.html('index.field.hint') }}</p>
 
     <div class="field-row section-gap">
@@ -115,12 +123,33 @@
                data-waiver-label-selected="{{ t.raw('index.waivers.selected') }}">{{ t('index.waivers.summary') }}</summary>
       <div class="waiver-body">
         <p class="hint hint-lead">{{ t('index.waivers.hint') }}</p>
+        {#
+          Every check the scanner runs is listed here, which is thorough and,
+          past a screenful, hard to read: somebody who came to waive one
+          identifier should not have to scan a wall of checkboxes for it.
+
+          The field narrows the list by identifier and by title, and hides a
+          group whose entries have all gone. It is revealed by waivers.js, so
+          a reader without scripting gets the full list rather than a search
+          box that does nothing - and a box that was typed in and then
+          emptied leaves the list exactly as it found it, including anything
+          already ticked, because filtering only ever sets `hidden`.
+        #}
+        <div class="waiver-search">
+          <label class="visually-hidden" for="waiver-search">{{ t('index.waivers.search.label') }}</label>
+          <input type="search" id="waiver-search" data-waiver-filter
+                 placeholder="{{ t('index.waivers.search.placeholder') }}"
+                 autocomplete="off" spellcheck="false" maxlength="120">
+          <p class="hint waiver-empty" id="waiver-empty" hidden aria-live="polite">
+            {{ t('index.waivers.search.empty') }}
+          </p>
+        </div>
         {% for group, options in waivers | groupby("group") %}
-        <div class="waiver-group">
+        <div class="waiver-group" data-waiver-group>
           <h3>{{ group }}</h3>
           <div class="waiver-list">
             {% for option in options %}
-            <label class="toggle">
+            <label class="toggle" data-waiver-option="{{ option.id | lower }} {{ option.title | lower }}">
               <input type="checkbox" name="ignore_hardenings" value="{{ option.id }}">
               <span>
                 <strong>{{ option.id }}</strong>
@@ -176,4 +205,5 @@
 
 {% block scripts %}
 <script src="/static/js/app.js" defer></script>
+<script src="/static/js/waivers.js" defer></script>
 {% endblock %}

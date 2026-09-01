@@ -17,6 +17,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Secondaire",
     "chrome.search.label": "Rechercher dans la documentation",
     "chrome.search.placeholder": "Rechercher",
+    "chrome.theme.toggle": "Changer le thème de couleur",
     "chrome.back_to_top": "Retour en haut",
     "nav.new_scan": "Nouvelle analyse",
     "nav.how_it_works": "Fonctionnement",
@@ -171,6 +172,10 @@ MESSAGES: dict[str, str] = {
         "refusés. Adresses publiques uniquement, et seulement des instances "
         "que vous exploitez ou que vous avez l'autorisation de tester."
     ),
+    "index.field.invalid": (
+        "Adresse non valide : un nom d'hôte, un port facultatif et un "
+        "sous-dossier simple - aucune requête, fragment ni paramètre."
+    ),
     "index.submit": "Démarrer l'audit",
     "index.submit.busy": "Démarrage de l'audit...",
     "index.track.label": "Canal de version",
@@ -189,6 +194,9 @@ MESSAGES: dict[str, str] = {
         "il cesse simplement de plomber la note. Seuls les contrôles "
         "réellement en échec peuvent faire l'objet d'une dérogation."
     ),
+    "index.waivers.search.label": "Filtrer les contrôles",
+    "index.waivers.search.placeholder": "Rechercher par nom...",
+    "index.waivers.search.empty": "Aucun contrôle ne correspond à votre recherche.",
     "index.assurance.aria": "Comment ce service traite vos données",
     "index.assurance.airgapped.title": "100 % isolé",
     "index.assurance.airgapped.body": (
@@ -1182,6 +1190,8 @@ MESSAGES: dict[str, str] = {
     "result.progress.step.queued": "En file d'attente",
     "result.progress.step.running": "En cours",
     "result.progress.step.done": "Résultat",
+    "result.progress.estimate": "La plupart des analyses se terminent en moins d'une minute.",
+    "result.progress.elapsed": "{duration} écoulées",
     "result.progress.noscript": (
         "Cette page se met à jour elle-même grâce à JavaScript. Sans lui, "
         "rechargez la page dans quelques secondes pour voir le résultat."
@@ -1307,6 +1317,9 @@ MESSAGES: dict[str, str] = {
         "d'abord les constats critiques : ce sont eux qui plombent le plus "
         "le score."
     ),
+    "result.findings.filter.aria": "Filtrer les constats par gravité",
+    "result.findings.filter.active": "Affichage des constats de gravité {severity} uniquement.",
+    "result.findings.filter.clear": "Afficher tous les constats",
     "result.findings.allclear.tag": "Tout est en ordre",
     "result.findings.allclear.body": (
         "Tous les contrôles exécutés par ce scanner ont réussi sur cette "

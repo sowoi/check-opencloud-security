@@ -179,8 +179,20 @@
     --page: 1180px;
 }
 
+/*
+ * Night, twice over.
+ *
+ * The scheme still follows the operating system: with nothing stored, the
+ * media query below is the only thing that decides, exactly as it always
+ * did. `theme.js` writes `data-theme` on the root element when - and only
+ * when - a visitor has asked for one explicitly, so the two blocks are the
+ * same tokens under two questions: "does the system say night, and has
+ * nobody overruled it" and "did somebody ask for night". A token added to
+ * one and forgotten in the other is a token that half the readers see in
+ * the wrong colour, so they are kept adjacent and edited together.
+ */
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
         --ink: #eaedf7;
         --ink-soft: #a6aec5;
         --ink-faint: #7b839a;
@@ -255,6 +267,89 @@
         --shadow-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 44px 90px -44px rgba(0, 0, 0, .95);
     }
 }
+
+:root[data-theme="dark"] {
+    --ink: #eaedf7;
+    --ink-soft: #a6aec5;
+    --ink-faint: #7b839a;
+    --paper: #07080e;
+    --card: rgba(22, 25, 36, .6);
+    --card-solid: #141722;
+    --line: rgba(234, 237, 247, .11);
+    --line-strong: rgba(234, 237, 247, .26);
+
+    --glass-blur: blur(24px) saturate(1.5);
+    --glass-hi: rgba(255, 255, 255, .1);
+    --glass-edge: linear-gradient(145deg,
+        rgba(255, 255, 255, .22),
+        rgba(255, 255, 255, .04) 34%,
+        rgba(168, 157, 255, .16) 68%,
+        rgba(226, 133, 255, .1));
+
+    --brand: #a89dff;
+    --brand-deep: #c8c1ff;
+    --brand-soft: #201c46;
+    /*
+     * At night the hue is the light source rather than the ink, so the
+     * action reverses: a luminous violet field carrying near-black text.
+     * White on this gradient is the one unreadable thing a dark page can
+     * put in front of somebody.
+     */
+    --accent: #b3a6ff;
+    --accent-ink: #cfc7ff;
+    --cta: linear-gradient(135deg, #a89dff 0%, #bb9bff 52%, #e58ff0 128%);
+    --cta-hover: linear-gradient(135deg, #bcb2ff 0%, #cbb0ff 52%, #f0a5f8 128%);
+    --on-accent: #0a0b14;
+    --on-brand: #0a0b14;
+
+    --good: #34d399;
+    --good-soft: #0c2a20;
+    --good-ink: #6ee7b7;
+    --fair: #fbbf24;
+    --fair-soft: #2b2110;
+    --fair-ink: #fcd34d;
+    --bad: #fb7185;
+    --bad-soft: #2f131a;
+    --bad-ink: #fda4af;
+    --info: #38bdf8;
+    --info-soft: #0d2436;
+    --info-ink: #7dd3fc;
+
+    --brand-glow: rgba(168, 157, 255, .26);
+    --brand-glow-strong: rgba(168, 157, 255, .45);
+
+    /* Night: the same three masses, deeper and further apart, so the
+       panes have something worth blurring. */
+    --sky:
+        radial-gradient(54rem 36rem at 12% 2%, rgba(109, 92, 255, .46), transparent 62%),
+        radial-gradient(46rem 32rem at 90% 8%, rgba(196, 74, 232, .3), transparent 60%),
+        radial-gradient(64rem 44rem at 52% 108%, rgba(23, 195, 178, .18), transparent 64%);
+    --horizon: linear-gradient(90deg, transparent, rgba(168, 157, 255, .55), rgba(226, 133, 255, .4), transparent);
+
+    --header-bg: rgba(7, 8, 14, .62);
+    --header-line: rgba(234, 237, 247, .09);
+
+    /* Darker than the pane around them, and with a border that actually
+       shows against it - the unreadable dark-mode field was both. */
+    --field-bg: rgba(9, 10, 18, .72);
+    --field-border: rgba(234, 237, 247, .3);
+
+    --code-bg: #0a0c14;
+    --code-ink: #dde2f2;
+    --tint: rgba(234, 237, 247, .1);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 20px 44px -26px rgba(0, 0, 0, .9);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, .5), 0 44px 90px -44px rgba(0, 0, 0, .95);
+}
+
+/* An explicit choice narrows `color-scheme` from "either" to the one that was
+   chosen, so the browser's own furniture - scrollbars, spinners, the
+   caret - follows the page instead of the operating system. With nothing
+   chosen the token stays `light dark` and the system decides, which is the
+   state every first visit is in. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 /* ------------------------------------------------------------------- fonts */
 /*
@@ -809,6 +904,45 @@ pre code { background: transparent; padding: 0; border-radius: 0; font-size: inh
 .nav-toggle[aria-expanded="true"] .icon-close { opacity: 1; transform: none; }
 
 /*
+ * The scheme switch: the same hairline-button idiom as .nav-toggle, round,
+ * and carrying one icon rather than a word - the scheme it would switch *to*,
+ * which is the only thing pressing it does.
+ *
+ * Hidden until theme.js marks the document, the way the collapsed menu is
+ * hidden until nav.js marks it. Without scripting there is nothing this
+ * button could do that the operating system is not already doing, so a reader
+ * without it is never shown a control that cannot work.
+ *
+ * Which icon shows is decided in CSS, by the same two questions the tokens
+ * ask - the system's preference, and the visitor's override - so the button
+ * is never briefly wrong while a script works out what to draw.
+ */
+.theme-toggle {
+    display: none;
+    align-items: center; justify-content: center;
+    width: 38px; height: 38px;
+    color: var(--ink-soft);
+    background: var(--card-solid);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+}
+[data-theme-ready] .theme-toggle { display: inline-flex; }
+.theme-toggle:hover { color: var(--brand-deep); border-color: var(--brand); }
+.theme-toggle svg { width: 18px; height: 18px; }
+/* Day is the base state, so the moon - the scheme a press would move to -
+   is the icon on offer. */
+.theme-toggle .icon-sun { display: none; }
+.theme-toggle .icon-moon { display: block; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
+    :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
+}
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
+/*
  * Same hairline-button idiom as .nav-toggle, pinned instead of inline.
  * back-to-top.js is what removes the `hidden` attribute past one viewport of
  * scroll; there is no entrance animation to reduce, on purpose - motion here
@@ -1144,6 +1278,20 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
     box-shadow: 0 0 0 4px var(--bad-soft);
 }
 .command:has(.command-input:user-invalid) .command-mark { color: var(--bad); }
+/*
+ * And the sentence that says what is wrong with it. The red bar alone was
+ * colour carrying meaning on its own, which this design does not do
+ * anywhere else: a severity is a word as well as a tint. It appears under
+ * the same condition the bar reddens - typed, then left - so nobody is
+ * corrected before they have finished.
+ */
+.field-error {
+    display: none;
+    margin: .55rem 0 0;
+    font-size: .85rem;
+    color: var(--bad-ink);
+}
+.command:has(.command-input:user-invalid) + .field-error { display: block; }
 
 /* The field itself is stripped bare - the bar around it is the control. */
 input[type="text"].command-input {
@@ -1213,12 +1361,18 @@ select {
 }
 input[type="text"]:hover, select:hover { border-color: var(--brand); }
 /* The chevron is an image, so it cannot read a token: the night version is
-   the same drawing in the night's faint ink. */
+   the same drawing in the night's faint ink. Both questions again - what the
+   system says, and what the visitor asked for - because an image cannot be
+   redefined once and inherited. */
 @media (prefers-color-scheme: dark) {
-    select {
+    :root:not([data-theme="light"]) select {
         background-image:
             url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9' fill='none' stroke='%237b839a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
     }
+}
+:root[data-theme="dark"] select {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9' fill='none' stroke='%237b839a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 6 6 6-6'/%3E%3C/svg%3E");
 }
 input[type="text"]:focus, select:focus {
     border-color: var(--brand);
@@ -1326,6 +1480,38 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 }
 .waiver-list { display: grid; gap: .5rem; }
 @media (min-width: 720px) { .waiver-list { grid-template-columns: 1fr 1fr; } }
+/*
+ * The catalogue is long enough that reading it is the cost of using it, so
+ * it can be narrowed to the check somebody already has in mind. Hidden until
+ * waivers.js is there to do the narrowing: a search field that does not
+ * search is worse than no search field.
+ */
+.waiver-search { display: none; margin-bottom: .9rem; }
+[data-waiver-search] .waiver-search { display: block; }
+/* The same field shell `input[type="text"]` wears, in the machine voice the
+   identifiers it searches are set in. */
+.waiver-search input[type="search"] {
+    width: 100%;
+    font: inherit;
+    font-family: var(--mono); font-size: .88rem;
+    color: var(--ink);
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    border-radius: var(--radius-sm);
+    padding: .6rem .8rem;
+    box-shadow: inset 0 1px 3px rgba(13, 15, 23, .05);
+    transition: border-color .18s var(--ease), box-shadow .18s var(--ease),
+        background .18s var(--ease);
+}
+.waiver-search input[type="search"]:hover { border-color: var(--brand); }
+.waiver-search input[type="search"]:focus {
+    border-color: var(--brand);
+    background-color: var(--card-solid);
+    box-shadow: 0 0 0 4px var(--brand-glow);
+    outline: none;
+}
+.waiver-empty { margin: .4rem 0 0; }
+.waiver-group[hidden], .toggle[hidden] { display: none; }
 
 .toggle {
     display: flex; gap: .7rem; align-items: flex-start;
@@ -1580,6 +1766,22 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
 }
 
 /*
+ * How long this has taken, and roughly how long it should. A wait with no
+ * clock on it is the one that feels stuck: twenty seconds of nothing reads
+ * as a page that has quietly died. The reading is data, so it wears the
+ * machine voice and tabular figures - the sentence beside it does not move
+ * while the seconds do.
+ */
+.progress-timing {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: .55rem;
+    margin: 0;
+}
+.progress-elapsed {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+}
+
+/*
  * The waiting beam: one highlight travelling a hairline, so a queued or
  * running scan reads as movement rather than as a page that forgot about
  * you. It lives only inside the progress card, which hides the moment there
@@ -1703,6 +1905,47 @@ details.waivers[open] > summary::after { transform: rotate(-135deg); }
     font-family: var(--mono); font-weight: 500;
     font-size: 1.35rem; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
 }
+/*
+ * A counter that filters. The reading was always a hairline box that lifted
+ * towards the pointer; pressing one now hides every finding of another
+ * severity, so it becomes a button and says so - `aria-pressed` for the
+ * reader who cannot see the tint, the severity's own colour for the reader
+ * who can. A counter standing at zero is disabled rather than offered: a
+ * filter that empties the list is a dead end nobody asked for.
+ */
+.counter[data-filter] {
+    font: inherit;
+    cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    color: inherit;
+}
+.counter:disabled { opacity: .5; cursor: not-allowed; }
+.counter:disabled:hover { border-color: var(--line); transform: none; }
+.counter[data-filter="critical"][aria-pressed="true"] { background: var(--bad-soft); border-color: var(--bad); }
+.counter[data-filter="critical"][aria-pressed="true"] strong,
+.counter[data-filter="critical"][aria-pressed="true"] span { color: var(--bad-ink); }
+.counter[data-filter="warning"][aria-pressed="true"] { background: var(--fair-soft); border-color: var(--fair); }
+.counter[data-filter="warning"][aria-pressed="true"] strong,
+.counter[data-filter="warning"][aria-pressed="true"] span { color: var(--fair-ink); }
+.counter[data-filter="info"][aria-pressed="true"] { background: var(--info-soft); border-color: var(--info); }
+.counter[data-filter="info"][aria-pressed="true"] strong,
+.counter[data-filter="info"][aria-pressed="true"] span { color: var(--info-ink); }
+/* The sentence under the list saying what is being shown, and the way back
+   to all of it. The control is a link rather than a second button: it undoes
+   a choice, it does not make one. */
+.filter-status {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+    margin: 0 0 .9rem;
+}
+.filter-clear {
+    font: inherit; font-size: inherit;
+    padding: 0; border: 0; background: none;
+    color: var(--brand-deep);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.filter-clear:hover { color: var(--brand); }
 .counter span {
     font-family: var(--mono);
     font-size: .68rem; color: var(--ink-faint);

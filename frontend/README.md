@@ -50,6 +50,10 @@ frontend/
     ├── js/reveal.js marks blocks below the fold as they scroll into view
     ├── js/back-to-top.js  reveals the pinned #main link past one viewport
     ├── js/share.js  copies a report's address or its findings to the clipboard
+    ├── js/theme.js  applies a chosen scheme before the first paint
+    ├── js/theme-toggle.js  the header switch between the two schemes
+    ├── js/findings-filter.js  the severity counters, used to filter findings
+    ├── js/waivers.js  narrows the list of checks that can be waived
     ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
     │                og-image.png rendered from it
     ├── fonts/       Space Grotesk, Inter and JetBrains Mono, self-hosted,
@@ -241,6 +245,34 @@ report would mean the untested one is the one people read. The reload is a
 hand-off: the steps settle, the page says the report is ready, falls away,
 and only then is the rendered answer asked for - unless the reader asked for
 reduced motion, which keeps the old immediate reload.
+
+`theme.js` is the one script in this directory loaded **without `defer`**, and
+in `<head>` rather than at the end of the document. It reads the scheme a
+visitor chose out of `localStorage` and writes it onto `<html>` as
+`data-theme`, which has to happen before the first paint: deferred, the page
+would already have been drawn in the operating system's scheme and every
+visit under an override would open with a flash of the wrong one. It is a
+file rather than an inline block because the policy has no `unsafe-inline`.
+With nothing stored it writes no scheme at all - the `prefers-color-scheme`
+blocks in `app.css` decide, which is what every first visit gets. It also
+sets `data-theme-ready`, which is what reveals the switch.
+
+`theme-toggle.js` turns a press on that switch into the opposite scheme,
+stores it, and re-points the two `theme-color` meta tags so the browser's own
+chrome follows the page rather than the system. Which icon the button carries
+is decided in `app.css`, from the same two questions the colour tokens ask, so
+nothing is drawn from script.
+
+`findings-filter.js` makes the three severity counters on a report a filter
+over the findings list: pressing one hides every entry tagged with another
+severity, pressing it again gives the list back. It only sets `hidden` -
+nothing is fetched, and the counts stay the server's.
+
+`waivers.js` narrows the waiver catalogue on the landing page to what matches
+a typed string, hiding a group once its last entry goes. It reveals its own
+search field, and a box that is ticked while out of sight is still submitted:
+filtering is a way of looking at the list, not a second way of choosing from
+it.
 
 `reveal.js` (74 lines) is decoration in the same sense `nav.js` is: it sets
 `data-reveal-root="on"` on `<html>`, which is what the hidden-until-revealed

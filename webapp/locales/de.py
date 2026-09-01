@@ -16,6 +16,7 @@ MESSAGES: dict[str, str] = {
     "chrome.nav.secondary": "Sekundär",
     "chrome.search.label": "Dokumentation durchsuchen",
     "chrome.search.placeholder": "Suchen",
+    "chrome.theme.toggle": "Farbschema wechseln",
     "chrome.back_to_top": "Nach oben",
     "nav.new_scan": "Neuer Scan",
     "nav.how_it_works": "So funktioniert es",
@@ -160,6 +161,10 @@ MESSAGES: dict[str, str] = {
         "öffentliche Adressen, und nur Instanzen, die du betreibst oder für "
         "deren Test du eine Erlaubnis hast."
     ),
+    "index.field.invalid": (
+        "Keine gültige Adresse: ein Hostname, optionaler Port und ein einfacher "
+        "Unterordner - keine Query, kein Fragment und keine Parameter."
+    ),
     "index.submit": "Prüfung starten",
     "index.submit.busy": "Prüfung wird gestartet...",
     "index.track.label": "Release-Track",
@@ -178,6 +183,9 @@ MESSAGES: dict[str, str] = {
         "- sie hört nur auf, die Note nach unten zu drücken. Nur Prüfungen, die "
         "tatsächlich fehlgeschlagen sind, können ausgesetzt werden."
     ),
+    "index.waivers.search.label": "Prüfungen filtern",
+    "index.waivers.search.placeholder": "Nach Name suchen...",
+    "index.waivers.search.empty": "Keine Prüfung passt zu deiner Suche.",
     "index.assurance.aria": "Wie dieser Dienst mit Ihren Daten umgeht",
     "index.assurance.airgapped.title": "100 % air-gapped",
     "index.assurance.airgapped.body": (
@@ -1140,6 +1148,8 @@ MESSAGES: dict[str, str] = {
     "result.progress.step.queued": "In Warteschlange",
     "result.progress.step.running": "Läuft",
     "result.progress.step.done": "Ergebnis",
+    "result.progress.estimate": "Die meisten Scans sind in unter einer Minute fertig.",
+    "result.progress.elapsed": "{duration} vergangen",
     "result.progress.noscript": (
         "Diese Seite aktualisiert sich mit JavaScript. Ohne dieses lädst du "
         "die Seite in ein paar Sekunden neu, um das Ergebnis zu sehen."
@@ -1271,6 +1281,9 @@ MESSAGES: dict[str, str] = {
         "Behebe zuerst die kritischen: Sie drücken die Punktzahl am "
         "stärksten nach unten."
     ),
+    "result.findings.filter.aria": "Befunde nach Schweregrad filtern",
+    "result.findings.filter.active": "Zeigt nur Befunde mit Schweregrad {severity}.",
+    "result.findings.filter.clear": "Alle Befunde anzeigen",
     "result.findings.allclear.tag": "Alles klar",
     "result.findings.allclear.body": (
         "Jede Prüfung, die dieser Scanner durchführt, wurde auf dieser Instanz "
