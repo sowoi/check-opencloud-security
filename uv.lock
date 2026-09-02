@@ -514,7 +514,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "sigstore", marker = "extra == 'signing'", specifier = ">=4.5.0" },
     { name = "types-requests", specifier = ">=2.33.0.20260712" },
-    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.52.3" },
+    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.52.4" },
 ]
 provides-extras = ["completion", "web", "signing", "mcp"]
 
@@ -532,7 +532,7 @@ test = [
     { name = "markdown", specifier = ">=3.10.3" },
     { name = "mcp", specifier = ">=2.0.0" },
     { name = "mypy", specifier = ">=2.3.0" },
-    { name = "nox", specifier = ">=2026.8.10" },
+    { name = "nox", specifier = ">=2026.8.17" },
     { name = "openapi-spec-validator", specifier = ">=0.9.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
