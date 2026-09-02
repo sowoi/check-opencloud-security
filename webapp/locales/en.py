@@ -20,6 +20,100 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------- the operator's area
+    # Served only where COS_WEB_ADMIN_ENABLED asked for it, behind an
+    # authentik sign-in, and never indexed. Kept in the catalogue like every
+    # other page so the area is translated rather than the one English
+    # corner of a localized service.
+    "admin.title": "Operator area",
+    "admin.description": "Service state, reference data and the audit trail.",
+    "admin.kicker": "Operations",
+    "admin.band": "Operator area - signed in as {user}",
+    "admin.lede": (
+        "What this deployment is doing, what it knows, and the two refreshes "
+        "the worker otherwise runs once a day. Nothing here can be asked about "
+        "a particular scan."
+    ),
+    "admin.noscript": (
+        "The readings above are filled in by JavaScript. Without it, reload the "
+        "page to see the current ones; both refresh buttons still work."
+    ),
+    "admin.state.kicker": "Now",
+    "admin.state.heading": "Service state",
+    "admin.state.lede": (
+        "Counts and configured limits. No target, uuid or client address "
+        "appears here, because none of them is kept where this could read it."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "Running",
+    "admin.state.worker.down": "Not answering",
+    "admin.state.queue": "{depth} queued, {workers} workers",
+    "admin.state.ratelimit": "Rate limit",
+    "admin.state.ratelimit.value": "{limit} per {window}s",
+    "admin.state.cooldown.value": "{seconds}s per target",
+    "admin.state.schedule": "Release schedule",
+    "admin.state.advisories": "Advisories",
+    "admin.state.checked": "checked {when}",
+    "admin.state.never": "never",
+    "admin.state.unknown": "unknown",
+    "admin.actions.kicker": "Reference data",
+    "admin.actions.heading": "Refresh what the scanner rates against",
+    "admin.actions.lede": (
+        "The same two refreshes the worker runs daily, with the same rules: a "
+        "schedule that lost a release line is refused, an advisory database "
+        "only ever gains entries, and a failed fetch changes nothing."
+    ),
+    "admin.actions.schedule": "Sync release schedule",
+    "admin.actions.schedule.hint": "Re-reads the published lifecycle page.",
+    "admin.actions.advisories": "Check for advisories",
+    "admin.actions.advisories.hint": "Asks the advisory feed for new entries.",
+    "admin.outcome.updated": "Updated. The new document is in use.",
+    "admin.outcome.unchanged": "Already current - nothing changed.",
+    "admin.outcome.rejected": (
+        "Refused: what was fetched did not pass the guards, so the previous "
+        "data is still in use."
+    ),
+    "admin.outcome.failed": "Could not be fetched. Nothing changed.",
+    "admin.outcome.disabled": "That refresh is switched off in this deployment's settings.",
+    "admin.outcome.cooldown": "Just ran. Try again in {seconds}s.",
+    "admin.search.kicker": "Search index",
+    "admin.search.heading": "Is the shipped index still current",
+    "admin.search.lede": (
+        "The index is built at release time and shipped read-only, so this "
+        "reports rather than rebuilds. It compares the pages, the languages "
+        "and the release it was generated for - not the body text, which only "
+        "the generator can extract."
+    ),
+    "admin.search.fresh": "Current",
+    "admin.search.stale": "Out of date",
+    "admin.search.detail.ok": "Every page and language is indexed for this release.",
+    "admin.search.detail.release": "Built for {built}, running {running}.",
+    "admin.search.detail.missing": "Not indexed: {list}.",
+    "admin.search.detail.changed": "{count} page titles or summaries have changed since it was built.",
+    "admin.search.detail.unreadable": "The index could not be read.",
+    "admin.search.fix": (
+        "A stale index is refreshed by the release workflow, which regenerates "
+        "it and commits it. There is nothing to press here."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "The trail, as it is written",
+    "admin.audit.lede": (
+        "Scan requests, rejections and triggered limits, arriving as they "
+        "happen. Following starts a connection; nothing is streamed until you "
+        "ask for it."
+    ),
+    "admin.audit.privacy": (
+        "A client address is a truncated HMAC under a salt this process holds, "
+        "and nothing maps one back to an address. This view cannot show more "
+        "than the audit log already decided to write down."
+    ),
+    "admin.audit.follow": "Follow",
+    "admin.audit.stop": "Stop",
+    "admin.audit.empty": "Nothing yet.",
+    "admin.audit.state.off": "Not following",
+    "admin.audit.state.live": "Live",
+    "admin.audit.state.reconnecting": "Reconnecting",
+    "admin.audit.state.unsupported": "Not supported by this browser",
     "site.og_image_alt": (
         "OpenCloud Security Scan - check an instance for known vulnerabilities, "
         "missing hardening and weak security headers"

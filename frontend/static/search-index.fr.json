@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "builtFor": "1.19.0",
   "locale": "fr",
   "pages": [
     {

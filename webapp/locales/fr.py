@@ -4,6 +4,99 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # --------------------------------------------- l'espace d'exploitation
+    "admin.title": "Espace d'exploitation",
+    "admin.description": "État du service, données de référence et journal d'audit.",
+    "admin.kicker": "Exploitation",
+    "admin.band": "Espace d'exploitation - connecté en tant que {user}",
+    "admin.lede": (
+        "Ce que fait cette installation, ce qu'elle sait, et les deux mises à "
+        "jour que le worker exécute une fois par jour. Rien ici ne peut être "
+        "interrogé au sujet d'un scan particulier."
+    ),
+    "admin.noscript": (
+        "Les valeurs ci-dessus sont remplies par JavaScript. Sans lui, recharge "
+        "la page pour voir les valeurs actuelles ; les deux boutons "
+        "fonctionnent toujours."
+    ),
+    "admin.state.kicker": "Maintenant",
+    "admin.state.heading": "État du service",
+    "admin.state.lede": (
+        "Des compteurs et des limites configurées. Aucune adresse scannée, "
+        "aucun uuid et aucune adresse de client n'y figure, parce que rien de "
+        "tout cela n'est conservé là où cette vue pourrait le lire."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "En marche",
+    "admin.state.worker.down": "Ne répond pas",
+    "admin.state.queue": "{depth} en file, {workers} workers",
+    "admin.state.ratelimit": "Limite de requêtes",
+    "admin.state.ratelimit.value": "{limit} par {window}s",
+    "admin.state.cooldown.value": "{seconds}s par cible",
+    "admin.state.schedule": "Calendrier des versions",
+    "admin.state.advisories": "Avis de sécurité",
+    "admin.state.checked": "vérifié {when}",
+    "admin.state.never": "jamais",
+    "admin.state.unknown": "inconnu",
+    "admin.actions.kicker": "Données de référence",
+    "admin.actions.heading": "Mettre à jour ce sur quoi la note repose",
+    "admin.actions.lede": (
+        "Les deux mêmes mises à jour que le worker exécute chaque jour, avec "
+        "les mêmes règles : un calendrier qui a perdu une ligne de versions est "
+        "refusé, une base d'avis ne fait qu'en gagner, et une récupération qui "
+        "échoue ne change rien."
+    ),
+    "admin.actions.schedule": "Synchroniser le calendrier",
+    "admin.actions.schedule.hint": "Relit la page de cycle de vie publiée.",
+    "admin.actions.advisories": "Chercher des avis",
+    "admin.actions.advisories.hint": "Interroge le flux d'avis sur les nouvelles entrées.",
+    "admin.outcome.updated": "Mis à jour. Le nouveau document est utilisé.",
+    "admin.outcome.unchanged": "Déjà à jour - rien n'a changé.",
+    "admin.outcome.rejected": (
+        "Refusé : ce qui a été récupéré n'a pas passé les contrôles, les "
+        "données précédentes restent donc en service."
+    ),
+    "admin.outcome.failed": "Récupération impossible. Rien n'a changé.",
+    "admin.outcome.disabled": "Cette mise à jour est désactivée dans la configuration de cette installation.",
+    "admin.outcome.cooldown": "Vient de s'exécuter. Réessaie dans {seconds}s.",
+    "admin.search.kicker": "Index de recherche",
+    "admin.search.heading": "L'index livré est-il encore à jour",
+    "admin.search.lede": (
+        "L'index est construit au moment de la publication et livré en lecture "
+        "seule : cette vue rend compte plutôt que de reconstruire. Elle compare "
+        "les pages, les langues et la version pour laquelle il a été généré - "
+        "pas le corps du texte, que seul le générateur sait extraire."
+    ),
+    "admin.search.fresh": "À jour",
+    "admin.search.stale": "Périmé",
+    "admin.search.detail.ok": "Chaque page et chaque langue est indexée pour cette version.",
+    "admin.search.detail.release": "Généré pour {built}, version en service {running}.",
+    "admin.search.detail.missing": "Non indexé : {list}.",
+    "admin.search.detail.changed": "{count} titres ou résumés ont changé depuis sa génération.",
+    "admin.search.detail.unreadable": "L'index n'a pas pu être lu.",
+    "admin.search.fix": (
+        "Un index périmé est repris par le workflow de publication, qui le "
+        "régénère et le valide. Il n'y a rien à presser ici."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "Le journal, au fil de son écriture",
+    "admin.audit.lede": (
+        "Demandes de scan, refus et limites atteintes, au moment où ils se "
+        "produisent. Suivre le journal ouvre une connexion ; rien n'est "
+        "transmis tant que tu ne le demandes pas."
+    ),
+    "admin.audit.privacy": (
+        "Une adresse de client est un HMAC tronqué sous un sel que ce processus "
+        "détient, et rien ne permet d'en revenir à une adresse. Cette vue ne "
+        "peut pas montrer plus que ce que le journal a décidé de noter."
+    ),
+    "admin.audit.follow": "Suivre",
+    "admin.audit.stop": "Arrêter",
+    "admin.audit.empty": "Rien pour l'instant.",
+    "admin.audit.state.off": "Pas de suivi",
+    "admin.audit.state.live": "En direct",
+    "admin.audit.state.reconnecting": "Reconnexion",
+    "admin.audit.state.unsupported": "Non pris en charge par ce navigateur",
     "site.og_image_alt": (
         "OpenCloud Security Scan - vérifiez la sécurité d'une instance en "
         "détectant les vulnérabilités connues, le durcissement manquant et les "

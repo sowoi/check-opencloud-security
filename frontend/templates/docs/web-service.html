@@ -462,6 +462,31 @@ somebody could.</p>
 <td>Scopes a token must carry, separated by <code>;</code>. Empty means any valid token from the issuer is enough</td>
 </tr>
 <tr>
+<td><code>COS_WEB_ADMIN_ENABLED</code></td>
+<td><code>false</code></td>
+<td>Serve the operator's area at <code>/admin</code>. Off means the routes are not registered at all, so the path 404s like any other unknown one</td>
+</tr>
+<tr>
+<td><code>COS_WEB_ADMIN_PROXY_SECRET</code></td>
+<td><em>(unset)</em></td>
+<td>The secret the authentik outpost adds as <code>X-COS-Admin-Proxy</code>, and the only reason the identity headers are believed. Required when the area is on, at least 32 characters, or startup refuses</td>
+</tr>
+<tr>
+<td><code>COS_WEB_ADMIN_USERS</code></td>
+<td><em>(empty)</em></td>
+<td>Who may use the area, by authentik username, <code>;</code>-separated. Empty with the area on refuses to start rather than meaning "everybody"</td>
+</tr>
+<tr>
+<td><code>COS_WEB_ADMIN_AUDIT_BUFFER</code></td>
+<td><code>200</code></td>
+<td>Recent audit records kept in memory for the live view, for a deployment that logs to stdout. <code>0</code> keeps none</td>
+</tr>
+<tr>
+<td><code>COS_WEB_ADMIN_REFRESH_COOLDOWN</code></td>
+<td><code>60</code></td>
+<td>Shortest gap between two operator-triggered refreshes of the same reference data</td>
+</tr>
+<tr>
 <td><code>COS_WEB_AUDIT_LOG</code></td>
 <td><code>false</code></td>
 <td>Write an audit record for every scan request, rejection and triggered limit</td>

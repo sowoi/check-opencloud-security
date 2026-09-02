@@ -379,6 +379,48 @@ that tone: apologetic rather than officious, and keep the link, in the HTML
 response (`error_self_host`) as well as the JSON one (`hint`,
 `selfHostUrl`).
 
+## The operator's area
+
+**`/admin` is optional, off by default, and absent rather than protected when
+it is off.** `COS_WEB_ADMIN_ENABLED` decides whether the routes are
+registered at all, so a deployment that does not use it answers the same
+**404** on `/admin` as on any other unknown path. Never turn that into a 401:
+the point is that a stranger cannot learn the area exists.
+
+**This service authenticates nobody there either.** An authentik proxy
+provider signs the operator in and forwards the identity as headers; the
+service believes them only because the proxy adds
+`COS_WEB_ADMIN_PROXY_SECRET` as `X-COS-Admin-Proxy`, compared in constant
+time. There is no login page, no session and no cookie of our own, exactly as
+on `/mcp`. Being signed in is not enough: `COS_WEB_ADMIN_USERS` is the guest
+list, and an empty one with the area on **refuses to start** rather than
+being read as "anybody the provider authenticated". Every refusal - no
+secret, wrong secret, no name, unlisted name - is the same 404.
+
+**It reads state and borrows the worker's two refreshes. Nothing else.** The
+buttons call `refresh_schedule` and `refresh_advisories`, the same functions
+with the same acceptance rules, behind a per-action cooldown so a button
+cannot be held down against somebody else's documentation site. Statistics
+are counts and configured limits; **no target, uuid, result or client address
+is reachable from `webapp/admin.py`**, and a test asserts it.
+
+**The search index is reported, never rebuilt.** The index stays a release
+artefact - the generator is not in the deployed bundle and the container is
+read-only - so the area says whether the shipped one still describes this
+build, by pages, languages and the release stamp `build_search_index.py`
+writes into it, and names the release workflow as the fix.
+
+**The audit view is a window, not a copy.** It streams what the audit log
+already wrote: the file when `COS_WEB_AUDIT_LOG_FILE` named one, otherwise a
+bounded in-memory ring that exists only when both the trail and the area are
+on. Never resolve a fingerprint, never persist records somewhere new.
+
+**Never advertise it.** `noindex, nofollow, noarchive`, out of the sitemap,
+`llms.txt`, `/openapi.json`, the documentation manifest and the search index -
+and deliberately **not** in `robots.txt`, because a `Disallow` line is a
+public file naming the path. See
+[ADR 0035](adr/0035-the-operator-area-is-guarded-by-a-proxy-and-authenticates-nobody.md).
+
 ## Working on the agent-facing surfaces
 
 `/llms.txt` gives an agent a short map, `/agents.txt` declares this

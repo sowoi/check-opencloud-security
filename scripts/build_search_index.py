@@ -28,6 +28,7 @@ STATIC = ROOT / "frontend" / "static"
 OUTPUT = STATIC / "search-index.json"
 
 sys.path.insert(0, str(ROOT))
+from opencloud_local_scan import __version__
 from webapp.i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, Translator
 from webapp.search import SEARCH_PAGES
 
@@ -102,9 +103,24 @@ def render(locale: str = DEFAULT_LOCALE) -> str:
         if locale == DEFAULT_LOCALE or not _generated(page.template):
             entry["body"] = _body(page.template, translate)
         pages.append(entry)
-    document: dict[str, object] = {"version": 1, "pages": pages}
+    # The release this index was generated for. The body text is extracted
+    # from the templates by this script, which is deliberately not part of
+    # the deployed bundle, so a running service cannot re-derive it to check.
+    # What it can do is compare this stamp against the version it is itself
+    # running: an index built for an earlier release is one whose page text
+    # was written before the copy currently on screen.
+    document: dict[str, object] = {
+        "version": 1,
+        "builtFor": __version__,
+        "pages": pages,
+    }
     if locale != DEFAULT_LOCALE:
-        document = {"version": 1, "locale": locale, "pages": pages}
+        document = {
+            "version": 1,
+            "builtFor": __version__,
+            "locale": locale,
+            "pages": pages,
+        }
     return json.dumps(document, ensure_ascii=True, indent=2) + "\n"
 
 

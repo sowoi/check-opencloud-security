@@ -45,6 +45,8 @@ import json
 import logging
 import logging.handlers
 import os
+import threading
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +58,9 @@ from .settings import (
 )
 
 AUDIT_LOGGER = logging.getLogger("check_opencloud.web.audit")
+
+#: The live window the operator area reads, when a deployment has one.
+_WINDOW: RecentAuditRecords | None = None
 
 # Events, named so a grep for one of them finds every occurrence.
 EVENT_SCAN_REQUESTED = "scan_requested"
@@ -237,7 +242,15 @@ class AuditLog:
         record.update({key: value for key, value in fields.items() if value is not None})
         # json.dumps escapes newlines, which is what keeps a submitted value
         # from forging a second line of the audit trail.
-        AUDIT_LOGGER.info(json.dumps(record, sort_keys=True))
+        line = json.dumps(record, sort_keys=True)
+        AUDIT_LOGGER.info(line)
+        # The operator area's live view reads this window. It is fed here
+        # rather than through a logging handler so that attaching it cannot
+        # disturb the file handler's own bookkeeping, and so that a
+        # deployment without the area keeps an audit path with nothing extra
+        # in it at all.
+        if _WINDOW is not None:
+            _WINDOW.add(line)
 
     def _client(self, client: str) -> str:
         return self.fingerprint(client)
@@ -334,3 +347,70 @@ class AuditLog:
             remaining=remaining,
             receipt=receipt,
         )
+
+
+# --------------------------------------------------------- the live window
+
+
+class RecentAuditRecords:
+    """A bounded window onto the audit trail, for the operator's area.
+
+    A deployment that logs to the container's stdout has no file to read
+    back, so the live view would have nothing to show on the configuration
+    almost everybody starts with. This keeps the last few records in memory
+    instead - and *only* the last few, because a second, unbounded copy of
+    the audit trail inside the process is exactly the retention this module
+    exists to avoid.
+
+    It stores the record as the log already rendered it: pseudonymised,
+    JSON-encoded, newline-escaped. Nothing here can widen what the audit log
+    decided to write down, and nothing resolves a fingerprint back to the
+    address it stands for - the salt is one way and this holds no map.
+
+    The sequence number is what lets the view resume without replaying: a
+    reader that has seen up to *n* asks for what came after it.
+    """
+
+    def __init__(self, capacity: int) -> None:
+        self._records: deque[tuple[int, str]] = deque(maxlen=max(capacity, 0))
+        self._sequence = 0
+        self._lock = threading.Lock()
+
+    def add(self, line: str) -> None:
+        """Keep one rendered record, dropping the oldest when full."""
+        if self._records.maxlen == 0:
+            return
+        with self._lock:
+            self._sequence += 1
+            self._records.append((self._sequence, line))
+
+    def since(self, cursor: int) -> tuple[int, list[str]]:
+        """Every record after ``cursor``, and the cursor to ask with next.
+
+        A cursor from before the window has scrolled past gets what is left
+        rather than an error: the reader missed some, and saying so is the
+        view's business, not this buffer's.
+        """
+        with self._lock:
+            pending = [line for number, line in self._records if number > cursor]
+            return self._sequence, pending
+
+    @property
+    def capacity(self) -> int:
+        return self._records.maxlen or 0
+
+
+def install_recent_audit(settings: WebSettings) -> RecentAuditRecords | None:
+    """Attach the window to the audit logger, when there is a reason to.
+
+    Only for a deployment that both keeps an audit trail and serves the area
+    that can read it. Without the admin area the buffer would be memory held
+    for nobody.
+    """
+    if not (settings.audit_log and settings.admin_enabled):
+        return None
+    if settings.admin_audit_buffer <= 0:
+        return None
+    global _WINDOW
+    _WINDOW = RecentAuditRecords(settings.admin_audit_buffer)
+    return _WINDOW

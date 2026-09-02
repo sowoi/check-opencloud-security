@@ -34,6 +34,7 @@ where to look when the service misbehaves.
 - [Building the web bundle](#building-the-web-bundle)
 - [A local instance for testing the frontend](#a-local-instance-for-testing-the-frontend)
 - [The web service refreshes itself at runtime](#the-web-service-refreshes-itself-at-runtime)
+- [The operator's area at /admin](#the-operators-area-at-admin)
 - [Where to look when something breaks](#where-to-look-when-something-breaks)
 - [When OpenCloud moves its documentation](#when-opencloud-moves-its-documentation)
 - [Limitations worth knowing before somebody asks](#limitations-worth-knowing-before-somebody-asks)
@@ -429,6 +430,67 @@ purpose:
 
 So the correct response to "the refresh was rejected" is to look at what
 upstream published, not to relax the rule.
+
+## The operator's area at /admin
+
+Optional, off by default, and worth knowing the shape of before you turn it
+on.
+
+```bash
+COS_WEB_ADMIN_ENABLED=true
+COS_WEB_ADMIN_PROXY_SECRET=<32+ characters, generated>
+COS_WEB_ADMIN_USERS=okko;sam
+```
+
+The wizard asks for all three (`docker/setup-wizard.py`, the "operator's area"
+section) and generates the secret into `.env`.
+
+**Off means absent, not protected.** With `COS_WEB_ADMIN_ENABLED` unset the
+routes are never registered and `/admin` answers the same 404 as any other
+unknown path, so a deployment that does not use the area does not disclose
+that the area exists.
+
+**The service authenticates nobody.** An authentik proxy provider signs the
+operator in and forwards the identity as headers; the service believes those
+headers only because the proxy also sends `COS_WEB_ADMIN_PROXY_SECRET` as
+`X-COS-Admin-Proxy`. Two consequences worth internalising:
+
+- **Reaching the container directly gets you nothing.** Another container on
+  the same Docker network, or a port you accidentally published, answers 404
+  without that header.
+- **If you put your own reverse proxy in front instead of the bundled
+  Authentik, you must add that header yourself.** Otherwise the area is
+  unreachable - which is the failure mode you want, but it will look like a
+  bug. `authentik/blueprints/opencloud-admin.yaml` provisions the provider,
+  the operator group and the outpost for the bundled stack.
+
+**A deployment that cannot enforce the sign-in refuses to start.** No secret,
+a secret under 32 characters, or an empty `COS_WEB_ADMIN_USERS` all raise at
+startup rather than serving an open console. An empty user list is never read
+as "anybody authentik authenticated".
+
+What the area does:
+
+| Card | What it does |
+|:--|:--|
+| Service state | Worker liveness, queue depth, the configured limits, and when each reference document was last read |
+| Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
+| Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job |
+| Audit | Streams the audit records as they are written, from the log file when one is configured and otherwise from a bounded in-memory ring |
+
+What it deliberately cannot do: name a target, a uuid, a result or a client
+address. The statistics are counts and settings, and the audit view shows the
+pseudonymised records the log already wrote - a fingerprint is a truncated
+HMAC under a salt the process holds, and nothing maps one back.
+
+![The operator's area: service state, the two reference-data refreshes and the search-index check](img/admin-area-dark.png)
+
+![The audit card while following: each line a pseudonymised client and target fingerprint, never the real thing](img/admin-area-audit.png)
+
+The area is never advertised: `noindex, nofollow, noarchive`, and absent from
+the sitemap, `llms.txt`, `/openapi.json`, the documentation manifest and the
+search index. It is deliberately **not** in `robots.txt` either, because a
+`Disallow` line is a public file naming the path.
 
 ## Where to look when something breaks
 

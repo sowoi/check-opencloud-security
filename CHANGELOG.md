@@ -14,6 +14,37 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Added
 
+- **An optional operator's area at `/admin`, off unless a deployment asks for
+  it.** It refreshes the release schedule and the advisory database on a
+  press, follows the audit trail as it is written, and shows what the service
+  is doing: the worker and its queue depth, every configured limit, when each
+  piece of reference data was last updated, and whether the shipped search
+  index still describes this build.
+
+  It authenticates nobody. An authentik proxy provider stands in front of it
+  and forwards the identity it established, and this service believes those
+  headers only because the outpost adds a shared secret alongside them,
+  compared in constant time - the same shape `/mcp` already uses. Three
+  refusals hold it together: a deployment that enables the area without
+  `COS_WEB_ADMIN_PROXY_SECRET` does not start, one whose
+  `COS_WEB_ADMIN_USERS` names nobody does not start, and every failure to
+  authorise answers **404** rather than 401, because whoever is asking
+  without the secret is finding out whether the area exists. With the area
+  off the routes are never registered, so the path is as absent as any other
+  unknown one.
+
+  Nothing about an operator is stored - the identity names the actor in an
+  audit record and is then gone. The readings are counts and settings only:
+  no address anybody scanned reaches them. The audit view starts at the end
+  of the trail rather than replaying what was retained, and a client in it is
+  a truncated HMAC under a salt this process holds, which nothing here can
+  resolve. The page is `noindex, nofollow, noarchive` and deliberately absent
+  from `robots.txt`, where a `Disallow` line would advertise it, and it is
+  not linked from the documentation.
+
+  `docker/setup-wizard.py` asks whether to serve it - answering no by
+  default - and configures the authentik user who may use it.
+
 - **A report prints as a document.** It gets printed for a change record and
   saved to PDF for somebody who was not at the screen, and until now that
   sheet carried the aurora, a menu, a scheme switch and a row of export

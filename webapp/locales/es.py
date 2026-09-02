@@ -4,6 +4,98 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------ el área de operación
+    "admin.title": "Área de operación",
+    "admin.description": "Estado del servicio, datos de referencia y el registro de auditoría.",
+    "admin.kicker": "Operación",
+    "admin.band": "Área de operación - sesión iniciada como {user}",
+    "admin.lede": (
+        "Qué está haciendo esta instalación, qué sabe y las dos "
+        "actualizaciones que el worker ejecuta una vez al día. Nada de esto "
+        "puede consultarse sobre un análisis concreto."
+    ),
+    "admin.noscript": (
+        "Los valores de arriba los rellena JavaScript. Sin él, recarga la "
+        "página para ver los actuales; los dos botones siguen funcionando."
+    ),
+    "admin.state.kicker": "Ahora",
+    "admin.state.heading": "Estado del servicio",
+    "admin.state.lede": (
+        "Recuentos y límites configurados. Aquí no aparece ninguna dirección "
+        "analizada, ningún uuid ni ninguna dirección de cliente, porque nada de "
+        "eso se guarda donde esta vista pudiera leerlo."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "En marcha",
+    "admin.state.worker.down": "No responde",
+    "admin.state.queue": "{depth} en cola, {workers} workers",
+    "admin.state.ratelimit": "Límite de peticiones",
+    "admin.state.ratelimit.value": "{limit} por {window}s",
+    "admin.state.cooldown.value": "{seconds}s por destino",
+    "admin.state.schedule": "Calendario de versiones",
+    "admin.state.advisories": "Avisos",
+    "admin.state.checked": "comprobado {when}",
+    "admin.state.never": "nunca",
+    "admin.state.unknown": "desconocido",
+    "admin.actions.kicker": "Datos de referencia",
+    "admin.actions.heading": "Actualizar aquello contra lo que se califica",
+    "admin.actions.lede": (
+        "Las mismas dos actualizaciones que el worker ejecuta a diario, con las "
+        "mismas reglas: un calendario que ha perdido una línea de versiones se "
+        "rechaza, una base de avisos solo puede ganar entradas y una descarga "
+        "fallida no cambia nada."
+    ),
+    "admin.actions.schedule": "Sincronizar el calendario",
+    "admin.actions.schedule.hint": "Vuelve a leer la página de ciclo de vida publicada.",
+    "admin.actions.advisories": "Buscar avisos",
+    "admin.actions.advisories.hint": "Pregunta al feed de avisos por entradas nuevas.",
+    "admin.outcome.updated": "Actualizado. El documento nuevo está en uso.",
+    "admin.outcome.unchanged": "Ya estaba al día - nada ha cambiado.",
+    "admin.outcome.rejected": (
+        "Rechazado: lo descargado no ha pasado las comprobaciones, así que "
+        "siguen en uso los datos anteriores."
+    ),
+    "admin.outcome.failed": "No se ha podido descargar. Nada ha cambiado.",
+    "admin.outcome.disabled": "Esa actualización está desactivada en la configuración de esta instalación.",
+    "admin.outcome.cooldown": "Acaba de ejecutarse. Inténtalo en {seconds}s.",
+    "admin.search.kicker": "Índice de búsqueda",
+    "admin.search.heading": "Sigue siendo válido el índice publicado",
+    "admin.search.lede": (
+        "El índice se construye al publicar una versión y se entrega en solo "
+        "lectura, así que esta vista informa en lugar de reconstruir. Compara "
+        "las páginas, los idiomas y la versión para la que se generó - no el "
+        "cuerpo del texto, que solo el generador puede extraer."
+    ),
+    "admin.search.fresh": "Al día",
+    "admin.search.stale": "Desactualizado",
+    "admin.search.detail.ok": "Todas las páginas e idiomas están indexados para esta versión.",
+    "admin.search.detail.release": "Generado para {built}, en ejecución {running}.",
+    "admin.search.detail.missing": "Sin indexar: {list}.",
+    "admin.search.detail.changed": "{count} títulos o resúmenes han cambiado desde que se generó.",
+    "admin.search.detail.unreadable": "No se ha podido leer el índice.",
+    "admin.search.fix": (
+        "De un índice desactualizado se encarga el flujo de publicación, que lo "
+        "regenera y lo confirma. Aquí no hay nada que pulsar."
+    ),
+    "admin.audit.kicker": "Auditoría",
+    "admin.audit.heading": "El registro, según se escribe",
+    "admin.audit.lede": (
+        "Peticiones de análisis, rechazos y límites alcanzados, a medida que "
+        "ocurren. Seguir el registro abre una conexión; no se transmite nada "
+        "hasta que lo pides."
+    ),
+    "admin.audit.privacy": (
+        "Una dirección de cliente es un HMAC truncado bajo una sal que guarda "
+        "este proceso, y nada permite volver de ahí a una dirección. Esta vista "
+        "no puede mostrar más de lo que el registro ya decidió anotar."
+    ),
+    "admin.audit.follow": "Seguir",
+    "admin.audit.stop": "Detener",
+    "admin.audit.empty": "Todavía nada.",
+    "admin.audit.state.off": "Sin seguir",
+    "admin.audit.state.live": "En directo",
+    "admin.audit.state.reconnecting": "Reconectando",
+    "admin.audit.state.unsupported": "No compatible con este navegador",
     "site.og_image_alt": (
         "OpenCloud Security Scan: comprueba una instancia en busca de "
         "vulnerabilidades conocidas, medidas de refuerzo faltantes y "

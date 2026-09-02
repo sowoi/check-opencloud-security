@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{#
+  The operator's area. It is the same design as every other page - same
+  tokens, same cards, same type - with one deliberate difference: a band
+  across the top and a marked accent, so nobody is ever a moment unsure
+  whether the thing they are looking at can change what the service knows.
+  Standing out is the safety property here, not decoration.
+
+  Nothing on this page is public, and nothing on it is indexed: the route is
+  only registered when an operator turned it on, the page is served
+  `noindex, nofollow`, and it is absent from the sitemap, from llms.txt, from
+  the documentation manifest and from the search index's page list.
+#}
+
+{% block title %}{{ t('admin.title') }}{% endblock %}
+{% block description %}{{ t('admin.description') }}{% endblock %}
+
+{% block head %}
+{# Its own sheet: the public bundle should not carry the styles of a page
+   most deployments never serve. #}
+<link rel="stylesheet" href="/static/css/admin.css">
+{% endblock %}
+
+{#
+  Every sentence the script writes, rendered here by the server in the
+  language the page is in. admin.js holds no English of its own, the same
+  rule the rest of the frontend follows.
+#}
+{% block body_attrs %}data-admin data-admin-poll="{{ poll_interval }}"
+  data-admin-worker-up="{{ t('admin.state.worker.up') }}"
+  data-admin-worker-down="{{ t('admin.state.worker.down') }}"
+  data-admin-queue="{{ t.raw('admin.state.queue') }}"
+  data-admin-ratelimit="{{ t.raw('admin.state.ratelimit.value') }}"
+  data-admin-cooldown="{{ t.raw('admin.state.cooldown.value') }}"
+  data-admin-checked="{{ t.raw('admin.state.checked') }}"
+  data-admin-never="{{ t('admin.state.never') }}"
+  data-admin-unknown="{{ t('admin.state.unknown') }}"
+  data-admin-index-fresh="{{ t('admin.search.fresh') }}"
+  data-admin-index-stale="{{ t('admin.search.stale') }}"
+  data-admin-index-ok="{{ t('admin.search.detail.ok') }}"
+  data-admin-index-release="{{ t.raw('admin.search.detail.release') }}"
+  data-admin-index-missing="{{ t.raw('admin.search.detail.missing') }}"
+  data-admin-index-changed="{{ t.raw('admin.search.detail.changed') }}"
+  data-admin-index-unreadable="{{ t('admin.search.detail.unreadable') }}"
+  data-admin-outcome-updated="{{ t.raw('admin.outcome.updated') }}"
+  data-admin-outcome-unchanged="{{ t.raw('admin.outcome.unchanged') }}"
+  data-admin-outcome-rejected="{{ t.raw('admin.outcome.rejected') }}"
+  data-admin-outcome-failed="{{ t.raw('admin.outcome.failed') }}"
+  data-admin-outcome-cooldown="{{ t.raw('admin.outcome.cooldown') }}"
+  data-admin-outcome-disabled="{{ t('admin.outcome.disabled') }}"
+  data-admin-audit-off="{{ t('admin.audit.state.off') }}"
+  data-admin-audit-live="{{ t('admin.audit.state.live') }}"
+  data-admin-audit-reconnecting="{{ t('admin.audit.state.reconnecting') }}"
+  data-admin-audit-unsupported="{{ t('admin.audit.state.unsupported') }}"
+  data-admin-audit-follow="{{ t('admin.audit.follow') }}"
+  data-admin-audit-stop="{{ t('admin.audit.stop') }}"{% endblock %}
+
+{% block content %}
+<section class="admin-band" role="note">
+  <span class="admin-band-dot" aria-hidden="true"></span>
+  <p class="flush">
+    {{ t('admin.band', user=operator.username) }}
+  </p>
+</section>
+
+<section class="page-head admin-head">
+  <p class="kicker">{{ t('admin.kicker') }}</p>
+  <h1>{{ t('admin.title') }}</h1>
+  <p class="lede">{{ t('admin.lede') }}</p>
+</section>
+
+{# ------------------------------------------------------------ statistics #}
+<section class="card section-gap" aria-labelledby="admin-state" data-reveal>
+  <p class="kicker">{{ t('admin.state.kicker') }}</p>
+  <h2 id="admin-state">{{ t('admin.state.heading') }}</h2>
+  <p class="lede">{{ t('admin.state.lede') }}</p>
+
+  {#
+    Every reading below is a count or a configured limit. None of them names
+    a target, a uuid or a client: an operator's area that could answer "what
+    did people scan" would be the record the rest of this service refuses to
+    keep.
+  #}
+  <div class="admin-grid" id="admin-stats" aria-live="polite">
+    <div class="admin-stat" data-stat="worker">
+      <span class="admin-stat-label">{{ t('admin.state.worker') }}</span>
+      <strong class="admin-stat-value" data-value="worker">-</strong>
+      <span class="admin-stat-note" data-value="queue">-</span>
+    </div>
+    <div class="admin-stat" data-stat="limits">
+      <span class="admin-stat-label">{{ t('admin.state.ratelimit') }}</span>
+      <strong class="admin-stat-value" data-value="ratelimit">-</strong>
+      <span class="admin-stat-note" data-value="cooldown">-</span>
+    </div>
+    <div class="admin-stat" data-stat="schedule">
+      <span class="admin-stat-label">{{ t('admin.state.schedule') }}</span>
+      <strong class="admin-stat-value" data-value="schedule">-</strong>
+      <span class="admin-stat-note" data-value="schedule-checked">-</span>
+    </div>
+    <div class="admin-stat" data-stat="advisories">
+      <span class="admin-stat-label">{{ t('admin.state.advisories') }}</span>
+      <strong class="admin-stat-value" data-value="advisories">-</strong>
+      <span class="admin-stat-note" data-value="advisories-checked">-</span>
+    </div>
+  </div>
+
+  <noscript>
+    <p class="hint section-gap flush">{{ t('admin.noscript') }}</p>
+  </noscript>
+</section>
+
+{# --------------------------------------------------------------- actions #}
+<section class="card section-gap" aria-labelledby="admin-actions" data-reveal>
+  <p class="kicker">{{ t('admin.actions.kicker') }}</p>
+  <h2 id="admin-actions">{{ t('admin.actions.heading') }}</h2>
+  <p class="lede">{{ t('admin.actions.lede') }}</p>
+
+  {#
+    Ordinary forms, posting to an ordinary route. They work without
+    scripting - the page simply reloads with the outcome - and admin.js only
+    turns the reload into an in-place answer. The cross-site check every
+    other POST here meets applies to these too.
+  #}
+  <div class="admin-actions">
+    <form method="post" action="/admin/refresh" data-admin-action>
+      <input type="hidden" name="action" value="schedule">
+      <button class="btn btn-primary" type="submit">
+        {{ t('admin.actions.schedule') }}
+      </button>
+      <span class="hint">{{ t('admin.actions.schedule.hint') }}</span>
+    </form>
+
+    <form method="post" action="/admin/refresh" data-admin-action>
+      <input type="hidden" name="action" value="advisories">
+      <button class="btn btn-primary" type="submit">
+        {{ t('admin.actions.advisories') }}
+      </button>
+      <span class="hint">{{ t('admin.actions.advisories.hint') }}</span>
+    </form>
+  </div>
+
+  {% if outcome %}
+  <p class="admin-outcome" data-outcome="{{ outcome.state }}">
+    {{ t('admin.outcome.' ~ outcome.state, action=outcome.action, seconds=outcome.seconds) }}
+  </p>
+  {% endif %}
+  <p class="admin-outcome" id="admin-outcome" hidden aria-live="polite"></p>
+</section>
+
+{# ---------------------------------------------------------- search index #}
+<section class="card section-gap" aria-labelledby="admin-search" data-reveal>
+  <p class="kicker">{{ t('admin.search.kicker') }}</p>
+  <h2 id="admin-search">{{ t('admin.search.heading') }}</h2>
+  {#
+    Reported, never rebuilt. The index is a release artefact (ADR 0019): the
+    generator is not part of the deployed bundle, the container filesystem is
+    read-only, and an index built here would be page text nobody reviewed
+    sitting in front of every visitor's search. So this says whether the
+    shipped one still describes this build, and who fixes it if not.
+  #}
+  <p class="lede">{{ t('admin.search.lede') }}</p>
+
+  <div class="admin-index" id="admin-index" aria-live="polite">
+    <p class="flush"><strong data-value="index-state">-</strong></p>
+    <p class="hint flush" data-value="index-detail">-</p>
+  </div>
+  <p class="hint section-gap flush">{{ t('admin.search.fix') }}</p>
+</section>
+
+{# ------------------------------------------------------------- audit view #}
+<section class="card section-gap" aria-labelledby="admin-audit" data-reveal>
+  <p class="kicker">{{ t('admin.audit.kicker') }}</p>
+  <h2 id="admin-audit">{{ t('admin.audit.heading') }}</h2>
+  <p class="lede">{{ t('admin.audit.lede') }}</p>
+
+  {#
+    The records exactly as the audit log wrote them: a client is a truncated
+    HMAC under a salt this process holds and nothing maps back. Nothing here
+    resolves a fingerprint, and the view cannot ask for more than the log
+    already decided to keep.
+  #}
+  <p class="admin-privacy">{{ t('admin.audit.privacy') }}</p>
+
+  <div class="admin-audit" data-audit-region>
+    <div class="admin-audit-head">
+      <span class="admin-audit-state" id="admin-audit-state" aria-live="polite">-</span>
+      <button class="btn btn-quiet" type="button" data-audit-toggle
+              aria-pressed="false">{{ t('admin.audit.follow') }}</button>
+    </div>
+    <ol class="admin-audit-list" id="admin-audit-list" aria-live="off"></ol>
+    <p class="hint flush" id="admin-audit-empty">{{ t('admin.audit.empty') }}</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js" defer></script>
+{% endblock %}

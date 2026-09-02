@@ -1,0 +1,231 @@
+/*
+ * The operator's area.
+ *
+ * Loaded only by /admin, which most deployments never serve, so none of this
+ * reaches the bundle a visitor downloads. It is an extension of app.css and
+ * not a replacement: every colour here is one of the tokens defined there, so
+ * the area inherits the palette, both schemes and the dark-mode pair without
+ * restating any of it.
+ *
+ * The one thing it deliberately does differently is announce itself. A page
+ * that can refresh the advisory database and read the audit trail should
+ * never be mistaken, at a glance, for the page that scans an instance - so
+ * there is a band across the top, a warm accent instead of the brand's cool
+ * one, and a heading rule the public pages do not have. Standing out is the
+ * safety property, which is why it is a band and not a badge in a corner.
+ *
+ * Following DESIGN.md: the dark values are written as the same pair every
+ * other token uses - `prefers-color-scheme` for the system's answer, and
+ * `[data-theme="dark"]` for a reader who overruled it - and the two are
+ * edited together.
+ */
+
+:root {
+    /* The area's own accent, warm against the brand's blue, defined here
+       rather than in app.css because nothing else on the site uses it. */
+    --admin-accent: #8a5a00;
+    --admin-accent-soft: #fdf3e0;
+    --admin-accent-line: #e9c98a;
+    --admin-band: #fbf1de;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --admin-accent: #f0b866;
+        --admin-accent-soft: #2a1f0d;
+        --admin-accent-line: #4d3a17;
+        --admin-band: #241a0b;
+    }
+}
+
+:root[data-theme="dark"] {
+    --admin-accent: #f0b866;
+    --admin-accent-soft: #2a1f0d;
+    --admin-accent-line: #4d3a17;
+    --admin-band: #241a0b;
+}
+
+/* ------------------------------------------------------------- the band */
+/* Across the top of the content, before anything else: the first thing read
+   on the page says what the page is. */
+.admin-band {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .6rem .9rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--admin-accent-line);
+    border-left-width: 3px;
+    border-radius: 8px;
+    background: var(--admin-band);
+    color: var(--admin-accent);
+    font-family: var(--mono);
+    font-size: .78rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.admin-band-dot {
+    width: .5rem;
+    height: .5rem;
+    border-radius: 50%;
+    background: var(--admin-accent);
+    flex: 0 0 auto;
+}
+
+.admin-head h1 { border-bottom: 2px solid var(--admin-accent-line); padding-bottom: .4rem; }
+.admin-head .kicker { color: var(--admin-accent); }
+
+/* -------------------------------------------------------- the statistics */
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.admin-stat {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--tint);
+}
+
+.admin-stat-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--ink-soft);
+    font-family: var(--mono);
+}
+
+.admin-stat-value { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.admin-stat-note { font-size: .8rem; color: var(--ink-soft); }
+
+/* A reading that says something is wrong carries the colour that says so,
+   using the palette's own bad/good tokens rather than inventing a red. */
+.admin-stat-value[data-state="bad"] { color: var(--bad); }
+.admin-stat-value[data-state="good"] { color: var(--good); }
+.admin-stat-value[data-state="warn"] { color: var(--admin-accent); }
+
+/* ----------------------------------------------------------- the actions */
+.admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+.admin-actions form {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    margin: 0;
+    flex: 1 1 240px;
+}
+
+.admin-outcome {
+    margin-top: 1rem;
+    padding: .6rem .8rem;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--tint);
+    font-size: .9rem;
+}
+
+.admin-outcome[data-outcome="updated"] { border-color: var(--good); }
+.admin-outcome[data-outcome="rejected"],
+.admin-outcome[data-outcome="failed"] { border-color: var(--bad); }
+.admin-outcome[data-outcome="cooldown"] { border-color: var(--admin-accent-line); }
+
+/* ------------------------------------------------------ the search index */
+.admin-index {
+    margin-top: 1rem;
+    padding: .9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--tint);
+}
+
+.admin-index strong[data-state="stale"] { color: var(--admin-accent); }
+.admin-index strong[data-state="fresh"] { color: var(--good); }
+.admin-index strong[data-state="unknown"] { color: var(--ink-soft); }
+
+/* ------------------------------------------------------- the audit stream */
+/* The sentence that says what a fingerprint is, kept beside the records
+   rather than in a footnote: somebody reading a log of pseudonyms should not
+   have to go looking for whether they are pseudonyms. */
+.admin-privacy {
+    margin-top: 1rem;
+    padding: .7rem .9rem;
+    border-left: 3px solid var(--admin-accent-line);
+    background: var(--admin-accent-soft);
+    color: var(--ink);
+    font-size: .88rem;
+    border-radius: 0 8px 8px 0;
+}
+
+.admin-audit { margin-top: 1.25rem; }
+
+.admin-audit-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .6rem;
+}
+
+.admin-audit-state {
+    font-family: var(--mono);
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ink-soft);
+}
+
+.admin-audit-state[data-state="live"] { color: var(--good); }
+.admin-audit-state[data-state="off"] { color: var(--ink-soft); }
+.admin-audit-state[data-state="unavailable"] { color: var(--admin-accent); }
+
+.admin-audit-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 22rem;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--tint);
+    font-family: var(--mono);
+    font-size: .78rem;
+}
+
+.admin-audit-list:empty { display: none; }
+
+.admin-audit-list li {
+    padding: .45rem .8rem;
+    border-bottom: 1px solid var(--line);
+    /* A record is one long JSON line; wrapping beats a horizontal scrollbar
+       on a list somebody is watching go past. */
+    overflow-wrap: anywhere;
+}
+
+.admin-audit-list li:last-child { border-bottom: none; }
+
+/* The newest record arrives at the top and is worth a moment's emphasis,
+   for anybody who is not watching the exact row it lands in. */
+.admin-audit-list li[data-fresh] { background: var(--admin-accent-soft); }
+
+@media (prefers-reduced-motion: no-preference) {
+    .admin-audit-list li[data-fresh] { transition: background 1.2s var(--ease); }
+}
+
+@media (max-width: 640px) {
+    .admin-actions form { flex: 1 1 100%; }
+    .admin-actions .btn { width: 100%; }
+    .admin-band { font-size: .7rem; }
+}

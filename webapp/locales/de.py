@@ -4,6 +4,101 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------ der Betriebsbereich
+    "admin.title": "Betriebsbereich",
+    "admin.description": "Dienstzustand, Referenzdaten und das Audit-Protokoll.",
+    "admin.kicker": "Betrieb",
+    "admin.band": "Betriebsbereich - angemeldet als {user}",
+    "admin.lede": (
+        "Was diese Installation gerade tut, was sie weiß, und die beiden "
+        "Aktualisierungen, die der Worker sonst einmal täglich ausführt. Nichts "
+        "hier lässt sich zu einem einzelnen Scan befragen."
+    ),
+    "admin.noscript": (
+        "Die Werte oben werden per JavaScript eingesetzt. Ohne JavaScript lade "
+        "die Seite neu, um die aktuellen zu sehen; beide Schaltflächen "
+        "funktionieren weiterhin."
+    ),
+    "admin.state.kicker": "Jetzt",
+    "admin.state.heading": "Dienstzustand",
+    "admin.state.lede": (
+        "Zählwerte und eingestellte Grenzen. Kein Ziel, keine UUID und keine "
+        "Client-Adresse steht hier, weil nichts davon dort liegt, wo diese "
+        "Ansicht lesen könnte."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "Läuft",
+    "admin.state.worker.down": "Antwortet nicht",
+    "admin.state.queue": "{depth} in der Warteschlange, {workers} Worker",
+    "admin.state.ratelimit": "Ratenbegrenzung",
+    "admin.state.ratelimit.value": "{limit} pro {window}s",
+    "admin.state.cooldown.value": "{seconds}s pro Ziel",
+    "admin.state.schedule": "Release-Zeitplan",
+    "admin.state.advisories": "Advisories",
+    "admin.state.checked": "geprüft {when}",
+    "admin.state.never": "nie",
+    "admin.state.unknown": "unbekannt",
+    "admin.actions.kicker": "Referenzdaten",
+    "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
+    "admin.actions.lede": (
+        "Dieselben zwei Aktualisierungen, die der Worker täglich ausführt, mit "
+        "denselben Regeln: Ein Zeitplan, der eine Release-Linie verloren hat, "
+        "wird abgelehnt, eine Advisory-Datenbank gewinnt nur hinzu, und ein "
+        "fehlgeschlagener Abruf ändert nichts."
+    ),
+    "admin.actions.schedule": "Release-Zeitplan abgleichen",
+    "admin.actions.schedule.hint": "Liest die veröffentlichte Lifecycle-Seite neu.",
+    "admin.actions.advisories": "Nach Advisories suchen",
+    "admin.actions.advisories.hint": "Fragt den Advisory-Feed nach neuen Einträgen.",
+    "admin.outcome.updated": "Aktualisiert. Das neue Dokument ist in Gebrauch.",
+    "admin.outcome.unchanged": "Bereits aktuell - nichts geändert.",
+    "admin.outcome.rejected": (
+        "Abgelehnt: Das Abgerufene hat die Prüfungen nicht bestanden, die "
+        "bisherigen Daten bleiben in Gebrauch."
+    ),
+    "admin.outcome.failed": "Konnte nicht abgerufen werden. Nichts geändert.",
+    "admin.outcome.disabled": "Diese Aktualisierung ist in den Einstellungen dieser Installation abgeschaltet.",
+    "admin.outcome.cooldown": "Lief gerade eben. In {seconds}s wieder möglich.",
+    "admin.search.kicker": "Suchindex",
+    "admin.search.heading": "Ist der ausgelieferte Index noch aktuell",
+    "admin.search.lede": (
+        "Der Index entsteht beim Release und wird schreibgeschützt "
+        "ausgeliefert, deshalb meldet diese Ansicht nur, statt neu zu bauen. "
+        "Verglichen werden die Seiten, die Sprachen und das Release, für das er "
+        "erzeugt wurde - nicht der Fließtext, den nur der Generator gewinnen "
+        "kann."
+    ),
+    "admin.search.fresh": "Aktuell",
+    "admin.search.stale": "Veraltet",
+    "admin.search.detail.ok": "Jede Seite und jede Sprache ist für dieses Release indiziert.",
+    "admin.search.detail.release": "Erzeugt für {built}, in Betrieb ist {running}.",
+    "admin.search.detail.missing": "Nicht indiziert: {list}.",
+    "admin.search.detail.changed": "{count} Seitentitel oder Kurzbeschreibungen haben sich seither geändert.",
+    "admin.search.detail.unreadable": "Der Index konnte nicht gelesen werden.",
+    "admin.search.fix": (
+        "Ein veralteter Index wird vom Release-Workflow erneuert, der ihn neu "
+        "erzeugt und eincheckt. Hier gibt es nichts zu drücken."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "Das Protokoll, während es geschrieben wird",
+    "admin.audit.lede": (
+        "Scan-Anfragen, Ablehnungen und ausgelöste Grenzen, sobald sie "
+        "auftreten. Das Mitlesen öffnet eine Verbindung; ohne Aufforderung wird "
+        "nichts übertragen."
+    ),
+    "admin.audit.privacy": (
+        "Eine Client-Adresse ist ein gekürzter HMAC unter einem Salt, das "
+        "dieser Prozess hält, und nichts führt von dort zurück zu einer "
+        "Adresse. Diese Ansicht kann nicht mehr zeigen, als das Audit-Protokoll "
+        "ohnehin festgehalten hat."
+    ),
+    "admin.audit.follow": "Mitlesen",
+    "admin.audit.stop": "Anhalten",
+    "admin.audit.empty": "Noch nichts.",
+    "admin.audit.state.off": "Kein Mitlesen",
+    "admin.audit.state.live": "Live",
+    "admin.audit.state.reconnecting": "Verbindet neu",
+    "admin.audit.state.unsupported": "Von diesem Browser nicht unterstützt",
     "site.og_image_alt": (
         "OpenCloud Security Scan - eine Instanz auf bekannte Schwachstellen, "
         "fehlende Härtung und schwache Sicherheits-Header prüfen"
