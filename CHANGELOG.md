@@ -75,6 +75,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   fetch - under a key of its own, so it is available in the moment after a
   refresh has failed, which is the only moment anybody wants it.
 
+  **And a way out of it.** The band said who was signed in and offered no way
+  to stop being, which for a console left open on a shared screen is the one
+  control it was missing. This service has no session to end, so it cannot
+  invent one: `COS_WEB_ADMIN_SIGN_OUT_URL` names the exit of the provider
+  that did the signing in - `/outpost.goauthentik.io/sign_out` for the
+  bundled stack, which the wizard now writes - and the link appears only
+  where a deployment named one, because a *Sign out* that leaves somebody
+  signed in is worse than no control at all. Only a local path or an
+  `http(s)` URL is accepted and startup refuses anything else: the value is
+  rendered into an `href` on a page whose content policy exists to keep
+  script off it, and `javascript:` in a link is script by another name.
+
 - **A report prints as a document.** It gets printed for a change record and
   saved to PDF for somebody who was not at the screen, and until now that
   sheet carried the aurora, a menu, a scheme switch and a row of export

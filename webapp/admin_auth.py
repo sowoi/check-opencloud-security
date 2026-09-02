@@ -17,7 +17,7 @@ account of the person, in ordinary HTTP headers.
 Which is the whole problem, because a header is a thing anybody can send. The
 identity headers are worth exactly as much as the certainty that they came
 from the outpost, and that certainty is a shared secret the outpost adds and
-nobody else knows. Three rules follow, and each of them is a refusal:
+nobody else knows. Four rules follow, and each of them is a refusal:
 
 - **No secret, no area.** A deployment that enables the admin area without
   ``COS_WEB_ADMIN_PROXY_SECRET`` does not start. Serving an unauthenticated
@@ -32,10 +32,21 @@ nobody else knows. Three rules follow, and each of them is a refusal:
   is not an operator who mistyped something; they are somebody finding out
   whether the area exists. They get the answer every other unknown path
   gives.
+- **The way out is a link, so it has to be one.** ``COS_WEB_ADMIN_SIGN_OUT_URL``
+  is rendered as an ``href`` on a page whose content policy exists to keep
+  script off it, and ``javascript:`` in a link is script by another name. A
+  local path or an ordinary web address is accepted and anything else is
+  refused at startup, where an operator is looking, rather than served.
 
 Nothing here is written down. The identity is used to decide the request and
 to name the actor in an audit record, and is then gone - there is no admin
 account in this service, and no way to make one.
+
+**Signing out is somebody else's to do.** This service has no session to end,
+so the area cannot offer an exit of its own; the only honest one is the
+provider's, and only the deployment knows where that is. Unset means the band
+names the operator and offers no way out, which is better than a control that
+appears to sign somebody out and does not.
 """
 
 from __future__ import annotations
@@ -97,6 +108,40 @@ def ensure_admin_ready(settings: WebSettings) -> None:
             "An empty list is not read as 'anybody the provider authenticated' "
             "- that would hand the area to every account in the directory."
         )
+
+    exit_url = sign_out_url(settings)
+    if exit_url is not None and not _linkable(exit_url):
+        raise ValueError(
+            "COS_WEB_ADMIN_SIGN_OUT_URL is not an address this page may link "
+            "to. Give it a local path such as /outpost.goauthentik.io/sign_out "
+            "or an http(s) URL: the value is rendered as an href, and a scheme "
+            "like javascript: there is script on a page whose content policy "
+            "exists to forbid it."
+        )
+
+
+def sign_out_url(settings: WebSettings) -> str | None:
+    """Where this deployment says the sign-in is ended, if it says.
+
+    ``None`` covers both an unset value and one that is only whitespace: a
+    deployment that set the variable to nothing did not name an address, and
+    the band shows no link rather than an empty one.
+    """
+    return (settings.admin_sign_out_url or "").strip() or None
+
+
+def _linkable(url: str) -> bool:
+    """Whether a configured sign-out address is one this page may put in an href.
+
+    A local path, or an ordinary web address, and nothing else. Refusing by
+    naming what is allowed rather than listing what is not is what makes this
+    hold for the next scheme somebody thinks of. ``//host/path`` is refused
+    with them: it reads as a path and is not one, it is whatever scheme the
+    page happens to be on pointed at somebody else's host.
+    """
+    if url.startswith("/"):
+        return not url.startswith("//")
+    return url.lower().startswith(("http://", "https://"))
 
 
 def _from_proxy(request: Request, settings: WebSettings) -> bool:

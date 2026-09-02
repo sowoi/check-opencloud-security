@@ -68,7 +68,7 @@ from .admin import (
     run_probe,
     statistics,
 )
-from .admin_auth import Operator, ensure_admin_ready, operator_for
+from .admin_auth import Operator, ensure_admin_ready, operator_for, sign_out_url
 from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
@@ -1635,6 +1635,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "audit_window_in_memory": bool(
                     settings.audit_log and not settings.audit_log_file
                 ),
+                # Where the sign-in this service never performed is ended.
+                # There is no session here to drop, so the only honest exit
+                # is the provider's own and only the deployment knows where
+                # that is; unset, the band names the operator and offers
+                # none. Startup has already refused an address this page
+                # would not be allowed to link to.
+                "sign_out_url": sign_out_url(settings),
                 "outcome": outcome,
                 # Stated rather than inherited. `is_indexable` already
                 # answers no for any path outside PUBLIC_PAGES, and the

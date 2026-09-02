@@ -477,6 +477,11 @@ somebody could.</p>
 <td>Who may use the area, by authentik username, <code>;</code>-separated. Empty with the area on refuses to start rather than meaning "everybody"</td>
 </tr>
 <tr>
+<td><code>COS_WEB_ADMIN_SIGN_OUT_URL</code></td>
+<td><em>(unset)</em></td>
+<td>Where the area's sign-out link goes. This service holds no session to end, so the exit belongs to the provider in front - for the bundled stack, <code>/outpost.goauthentik.io/sign_out</code>. Unset, the band names the operator and offers no way out. Only a local path or an <code>http(s)</code> URL is accepted; anything else refuses to start, because the value is rendered as an <code>href</code> on a page whose content policy forbids script</td>
+</tr>
+<tr>
 <td><code>COS_WEB_ADMIN_AUDIT_BUFFER</code></td>
 <td><code>200</code></td>
 <td>Recent audit records kept in memory for the live view, for a deployment that logs to stdout. <code>0</code> keeps none</td>

@@ -410,6 +410,22 @@ class WebSettings:
     reference data, so a button cannot be held down against somebody else's
     server."""
 
+    admin_sign_out_url: str | None = None
+    """Where the operator's area sends somebody who wants to stop being signed
+    in - for the bundled stack, the authentik outpost's
+    ``/outpost.goauthentik.io/sign_out``.
+
+    This service has no session to end, which is exactly why the address has
+    to be configured rather than derived: the sign-in belongs to the provider
+    in front, and only the deployment knows where that provider's exit is.
+    Unset means the band names the operator and offers no way out, which is
+    what it did before this existed.
+
+    Only ``http``, ``https`` and a local path are accepted, checked at
+    startup. The value ends up in an ``href``, and a scheme like
+    ``javascript:`` there would be a script this page's own policy exists to
+    forbid."""
+
     webhook_secret: str | None = None
     """Shared secret for signing webhook payloads. If set, webhook POSTs include
     an X-COS-Signature header. The receiver must verify the signature."""
@@ -549,6 +565,7 @@ class WebSettings:
             admin_audit_buffer=_env_int(
                 "ADMIN_AUDIT_BUFFER", DEFAULT_ADMIN_AUDIT_BUFFER, minimum=0
             ),
+            admin_sign_out_url=_env("ADMIN_SIGN_OUT_URL"),
             admin_refresh_cooldown=_env_int(
                 "ADMIN_REFRESH_COOLDOWN",
                 DEFAULT_ADMIN_REFRESH_COOLDOWN_SECONDS,

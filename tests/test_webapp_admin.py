@@ -163,6 +163,76 @@ def test_the_area_opens_for_the_operator_it_was_configured_for():
     assert OPERATOR in answer.text
 
 
+# ------------------------------------------------------------- the way out
+
+
+def test_the_band_offers_no_way_out_where_the_deployment_named_none():
+    """This service has no session to end, so it cannot invent an exit.
+
+    A "sign out" that leaves somebody signed in is worse than no control at
+    all: the operator walks away from a browser believing the area is closed.
+    Where the deployment has not said where the provider's exit is, the band
+    says who is signed in and nothing else.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+
+    from webapp.locales.en import MESSAGES
+
+    assert MESSAGES["admin.band.signout"] not in page
+    assert "admin-band-exit" not in page
+
+
+def test_the_band_links_to_the_exit_the_deployment_named():
+    """The positive case: configured, the way out is on the page it belongs on."""
+    exit_url = "/outpost.goauthentik.io/sign_out"
+    with TestClient(
+        create_app(_admin_settings(admin_sign_out_url=exit_url))
+    ) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+
+    from webapp.locales.en import MESSAGES
+
+    link = re.search(r'<a class="admin-band-exit"[^>]*>', page)
+    assert link is not None
+    assert f'href="{exit_url}"' in link.group(0)
+    assert MESSAGES["admin.band.signout"] in page
+
+
+def test_an_exit_that_would_be_script_is_refused_at_startup():
+    """The value is rendered into an href on a page that forbids inline script.
+
+    `javascript:` in a link is script by another name, and this page's whole
+    content policy exists to keep script off it. A protocol-relative address
+    is refused with it: it reads as a local path and is not one - it is
+    somebody else's host on whatever scheme the page happens to be on.
+    """
+    for refused in (
+        "javascript:alert(1)",
+        "JavaScript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "//evil.example.net/sign_out",
+    ):
+        with pytest.raises(ValueError, match="SIGN_OUT_URL"):
+            create_app(_admin_settings(admin_sign_out_url=refused))
+
+
+def test_an_ordinary_address_is_accepted_as_the_exit():
+    """The negative case above must not be refusing every address.
+
+    Both shapes a real deployment uses: the outpost's path on this host, and
+    a provider that ends its session somewhere else entirely.
+    """
+    for accepted in (
+        "/outpost.goauthentik.io/sign_out",
+        "https://sso.example.com/if/session-end/opencloud/",
+    ):
+        with TestClient(
+            create_app(_admin_settings(admin_sign_out_url=accepted))
+        ) as client:
+            assert client.get("/admin", headers=FORWARDED).status_code == 200
+
+
 # ----------------------------------------------------------- never in an index
 
 

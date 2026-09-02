@@ -82,6 +82,12 @@ AUTHENTIK_TAG = "2026.8.0"
 BLUEPRINT_SOURCE = REPO_ROOT / "authentik" / "blueprints" / "opencloud-scanner.yaml"
 BLUEPRINT_RELATIVE = Path("authentik") / "blueprints" / "opencloud-scanner.yaml"
 
+# Where an outpost ends the session it started. A local path, because the
+# reverse proxy that routes `/outpost.goauthentik.io/` for the forward auth is
+# the same one serving /admin - a stack where this path does not answer is one
+# where signing *in* did not work either.
+AUTHENTIK_SIGN_OUT_PATH = "/outpost.goauthentik.io/sign_out"
+
 # Where the two things a deployment can choose to keep live *inside* the
 # containers. Both are mount points rather than paths in an image layer: a
 # read-only container cannot write to either without one, which is the whole
@@ -2306,6 +2312,19 @@ def _web_environment(setup: Setup) -> list[EnvEntry]:
                 "so a request that does not carry it is refused.",
             )
         )
+        if _uses_authentik(setup):
+            entries.append(
+                _entry(
+                    "COS_WEB_ADMIN_SIGN_OUT_URL",
+                    f'"{AUTHENTIK_SIGN_OUT_PATH}"',
+                    "Where the area's sign-out link goes. The service has no session",
+                    "of its own to end - the sign-in belongs to the outpost - and the",
+                    "same reverse proxy that routes /outpost.goauthentik.io/ for the",
+                    "forward auth serves this path. Without the bundled Authentik,",
+                    "name your own provider's exit here or leave it unset and the",
+                    "band offers no way out.",
+                )
+            )
     entries.append(
         _entry(
             "COS_WEB_AUDIT_LOG",

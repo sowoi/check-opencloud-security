@@ -9,6 +9,7 @@ MESSAGES: dict[str, str] = {
     "admin.description": "État du service, données de référence et journal d'audit.",
     "admin.kicker": "Exploitation",
     "admin.band": "Espace d'exploitation - connecté en tant que {user}",
+    "admin.band.signout": "Se déconnecter",
     "admin.lede": (
         "Ce que fait cette installation, ce qu'elle sait, et les deux mises à "
         "jour que le worker exécute une fois par jour. Rien ici ne peut être "

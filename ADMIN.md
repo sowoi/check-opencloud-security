@@ -469,6 +469,23 @@ a secret under 32 characters, or an empty `COS_WEB_ADMIN_USERS` all raise at
 startup rather than serving an open console. An empty user list is never read
 as "anybody authentik authenticated".
 
+**Signing out is the provider's job too.** The service has no session to end,
+so the band's *Sign out* link only appears once you say where the exit is:
+
+```bash
+COS_WEB_ADMIN_SIGN_OUT_URL=/outpost.goauthentik.io/sign_out
+```
+
+That path is the bundled stack's answer - the same reverse proxy that routes
+`/outpost.goauthentik.io/` for the forward auth serves it, so a deployment
+where signing in works has it. The wizard writes it for you when the bundled
+Authentik is in the stack; with your own provider, name its exit instead.
+Leave it unset and the band names the operator and offers no way out, which
+is better than a control that appears to sign somebody out and does not. Only
+a local path or an `http(s)` URL is accepted - the value is rendered into an
+`href` on a page whose content policy exists to keep script off it, so
+anything else refuses to start.
+
 What the area does:
 
 | Card | What it does |

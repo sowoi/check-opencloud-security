@@ -9,6 +9,7 @@ MESSAGES: dict[str, str] = {
     "admin.description": "Dienstzustand, Referenzdaten und das Audit-Protokoll.",
     "admin.kicker": "Betrieb",
     "admin.band": "Betriebsbereich - angemeldet als {user}",
+    "admin.band.signout": "Abmelden",
     "admin.lede": (
         "Was diese Installation gerade tut, was sie weiß, und die beiden "
         "Aktualisierungen, die der Worker sonst einmal täglich ausführt. Nichts "

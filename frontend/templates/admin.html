@@ -75,6 +75,18 @@
   <p class="flush">
     {{ t('admin.band', user=operator.username) }}
   </p>
+  {#
+    The way out, where the deployment named one.
+
+    This service holds no session to end - the sign-in belongs to the provider
+    in front of it - so the link goes to that provider's exit, and a
+    deployment that has not said where that is gets a band with no link rather
+    than a control that appears to sign somebody out and does not. Startup has
+    already refused an address this page would not be allowed to link to.
+  #}
+  {% if sign_out_url %}
+  <a class="admin-band-exit" href="{{ sign_out_url }}">{{ t('admin.band.signout') }}</a>
+  {% endif %}
 </section>
 
 <section class="page-head admin-head">
