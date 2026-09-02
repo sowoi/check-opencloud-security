@@ -62,8 +62,10 @@ from .admin import (
     ADMIN_PATH,
     ADMIN_POLL_SECONDS,
     ADMIN_ROBOTS,
+    ADMIN_STREAM_MAX_MINUTES,
     audit_events,
     run_action,
+    run_probe,
     statistics,
 )
 from .admin_auth import Operator, ensure_admin_ready, operator_for
@@ -1618,33 +1620,43 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         def admin_operator(request: Request) -> Operator | None:
             return operator_for(request, settings)
 
+        def admin_context(
+            operator: Operator, outcome: dict[str, Any] | None
+        ) -> dict[str, Any]:
+            return {
+                "operator": operator,
+                "poll_interval": ADMIN_POLL_SECONDS,
+                "stream_minutes": ADMIN_STREAM_MAX_MINUTES,
+                # Whether the audit view is reading a file every replica
+                # appends to, or this process's own in-memory ring. ADR 0035
+                # states the limit; without this the page cannot, and a
+                # reader behind two replicas sees half a trail with nothing
+                # saying so.
+                "audit_window_in_memory": bool(
+                    settings.audit_log and not settings.audit_log_file
+                ),
+                "outcome": outcome,
+                # Stated rather than inherited. `is_indexable` already
+                # answers no for any path outside PUBLIC_PAGES, and the
+                # X-Robots-Tag header says the same - but this page is
+                # the one where a future edit to that list must not be
+                # able to turn indexing on by accident.
+                #
+                # It is deliberately *not* in robots.txt: a Disallow line
+                # is a public file naming the path, which would advertise
+                # to everybody that this deployment has an operator's
+                # area. noindex keeps it out of an index; silence keeps
+                # it out of a list of things to go looking for.
+                "robots": ADMIN_ROBOTS,
+                "canonical_url": None,
+            }
+
         @app.get(ADMIN_PATH, response_class=HTMLResponse, include_in_schema=False)
         async def admin_page(request: Request) -> Response:
             operator = admin_operator(request)
             if operator is None:
                 return not_found(request)
-            return page(
-                request,
-                "admin.html",
-                {
-                    "operator": operator,
-                    "poll_interval": ADMIN_POLL_SECONDS,
-                    "outcome": None,
-                    # Stated rather than inherited. `is_indexable` already
-                    # answers no for any path outside PUBLIC_PAGES, and the
-                    # X-Robots-Tag header says the same - but this page is
-                    # the one where a future edit to that list must not be
-                    # able to turn indexing on by accident.
-                    #
-                    # It is deliberately *not* in robots.txt: a Disallow line
-                    # is a public file naming the path, which would advertise
-                    # to everybody that this deployment has an operator's
-                    # area. noindex keeps it out of an index; silence keeps
-                    # it out of a list of things to go looking for.
-                    "robots": ADMIN_ROBOTS,
-                    "canonical_url": None,
-                },
-            )
+            return page(request, "admin.html", admin_context(operator, None))
 
         @app.get(f"{ADMIN_PATH}/state", include_in_schema=False)
         async def admin_state(request: Request) -> Response:
@@ -1687,17 +1699,32 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "seconds": remaining,
             }
             if wants_html(request):
-                return page(
-                    request,
-                    "admin.html",
-                    {
-                        "operator": operator,
-                        "poll_interval": ADMIN_POLL_SECONDS,
-                        "outcome": answer,
-                        "robots": ADMIN_ROBOTS,
-                        "canonical_url": None,
-                    },
-                )
+                return page(request, "admin.html", admin_context(operator, answer))
+            return JSONResponse(answer)
+
+        @app.post(f"{ADMIN_PATH}/probe", include_in_schema=False)
+        async def admin_probe(request: Request) -> Response:
+            # The dry run. It reads both sources through the same fetchers
+            # and the same guards a refresh uses and then discards what came
+            # back, so it can say which of the two a `failed` was - the
+            # network, or this deployment refusing a document it did read.
+            # Nothing it does is written down anywhere.
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            if cross_site_post(request, settings):
+                LOGGER.info("admin_cross_site")
+                return _cross_site_response(request, wants_html(request))
+
+            ran, sources, remaining = await run_probe(app.state.backend, settings)
+            answer = {
+                "state": "probed" if ran else "cooldown",
+                "action": "probe",
+                "sources": sources,
+                "seconds": remaining,
+            }
+            if wants_html(request):
+                return page(request, "admin.html", admin_context(operator, answer))
             return JSONResponse(answer)
 
         @app.get(f"{ADMIN_PATH}/audit/stream", include_in_schema=False)

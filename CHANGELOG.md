@@ -45,6 +45,36 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   `docker/setup-wizard.py` asks whether to serve it - answering no by
   default - and configures the authentik user who may use it.
 
+  **The area says what it does not know.** Its readings are polled, and a
+  poll that stops answering used to look exactly like a service with nothing
+  happening on it: the numbers simply stopped moving. So the age of the last
+  answer is on the page and counts up between polls, a reading older than a
+  few of them says the service has not answered and that what is on screen
+  is the last thing it said, a tile lights when its value moves, and the
+  band's dot pulses while a fetch is actually in flight. The audit view now
+  reads the account of the connection the server was already sending: the
+  stream ending at its half-hour cap and a deployment that keeps no trail at
+  all are each said in a sentence, instead of arriving as the silence a
+  dropped connection produces - and a capped stream is let go rather than
+  reopened, which the browser would otherwise do for ever. Where the records
+  come from a ring in one process's memory rather than a file, the page says
+  so, because behind more than one replica that is a part of the trail and
+  not all of it. And the page stops polling while nobody is looking at it: a
+  tab left open overnight was asking for the state every ten seconds until
+  morning.
+
+  **Three controls that change nothing were added, and one that reaches
+  upstream.** The readings can be re-read on demand and copied as the
+  service's own JSON for an issue report, the audit list on screen can be
+  emptied, and *Test the sources* runs both refreshes as a dry run: the same
+  fetch, the same guards, and then the answer is thrown away. It exists
+  because a refresh reporting `failed` and one reporting `rejected` both
+  leave the data exactly as it was, and only one of them is a network to go
+  and look at. It reaches somebody else's server, so it is held back by
+  `COS_WEB_ADMIN_REFRESH_COOLDOWN` like the buttons that apply what they
+  fetch - under a key of its own, so it is available in the moment after a
+  refresh has failed, which is the only moment anybody wants it.
+
 - **A report prints as a document.** It gets printed for a change record and
   saved to PDF for somebody who was not at the screen, and until now that
   sheet carried the aurora, a menu, a scheme switch and a row of export

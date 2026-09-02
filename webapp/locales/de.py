@@ -38,6 +38,17 @@ MESSAGES: dict[str, str] = {
     "admin.state.checked": "geprüft {when}",
     "admin.state.never": "nie",
     "admin.state.unknown": "unbekannt",
+    "admin.state.age.seconds": "Vor {seconds}s gelesen",
+    "admin.state.age.minutes": "Vor {minutes}m gelesen",
+    "admin.state.age.waiting": "Warten auf den ersten Messwert",
+    "admin.state.stale": (
+        "Der Dienst hat eine Weile nicht geantwortet. Oben steht der letzte "
+        "Messwert, den er geliefert hat - nicht zwingend der aktuelle Stand."
+    ),
+    "admin.state.refresh": "Erneut lesen",
+    "admin.state.copy": "Diagnose kopieren",
+    "admin.state.copy.done": "Kopiert",
+    "admin.state.copy.failed": "Kopieren nicht möglich",
     "admin.actions.kicker": "Referenzdaten",
     "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
     "admin.actions.lede": (
@@ -59,6 +70,17 @@ MESSAGES: dict[str, str] = {
     "admin.outcome.failed": "Konnte nicht abgerufen werden. Nichts geändert.",
     "admin.outcome.disabled": "Diese Aktualisierung ist in den Einstellungen dieser Installation abgeschaltet.",
     "admin.outcome.cooldown": "Lief gerade eben. In {seconds}s wieder möglich.",
+    "admin.probe.action": "Quellen testen",
+    "admin.probe.hint": (
+        "Liest beide Quellen und meldet, was eine Aktualisierung daraus machen "
+        "würde. Es wird nichts gespeichert."
+    ),
+    "admin.probe.schedule": "Release-Zeitplan: {answer}",
+    "admin.probe.advisories": "Advisories: {answer}",
+    "admin.probe.usable": "gelesen, eine Aktualisierung würde ihn übernehmen",
+    "admin.probe.rejected": "gelesen, aber die Prüfungen würden ihn ablehnen",
+    "admin.probe.unreadable": "nicht lesbar - nicht erreichbar oder nicht mehr in der erwarteten Form",
+    "admin.probe.disabled": "nicht geprüft - diese Aktualisierung ist abgeschaltet",
     "admin.search.kicker": "Suchindex",
     "admin.search.heading": "Ist der ausgelieferte Index noch aktuell",
     "admin.search.lede": (
@@ -92,13 +114,31 @@ MESSAGES: dict[str, str] = {
         "Adresse. Diese Ansicht kann nicht mehr zeigen, als das Audit-Protokoll "
         "ohnehin festgehalten hat."
     ),
+    "admin.audit.replicas": (
+        "Diese Installation führt keine Audit-Datei, deshalb stammen diese "
+        "Einträge aus dem Speicher genau des Prozesses, der geantwortet hat - "
+        "bei mehr als einer Replik ist das ein Teil des Protokolls und nicht "
+        "das ganze."
+    ),
     "admin.audit.follow": "Mitlesen",
     "admin.audit.stop": "Anhalten",
+    "admin.audit.clear": "Leeren",
     "admin.audit.empty": "Noch nichts.",
+    "admin.audit.closed": (
+        "Die Verbindung hat ihre Grenze von {minutes} Minuten erreicht und "
+        "wurde vom Dienst geschlossen. Bis dahin ist nichts verloren gegangen; "
+        "„Mitlesen“ öffnet eine neue."
+    ),
+    "admin.audit.disabled": (
+        "Diese Installation führt kein Audit-Protokoll, es gibt also nichts "
+        "mitzulesen. COS_WEB_AUDIT_LOG schaltet es ein."
+    ),
     "admin.audit.state.off": "Kein Mitlesen",
     "admin.audit.state.live": "Live",
     "admin.audit.state.reconnecting": "Verbindet neu",
     "admin.audit.state.unsupported": "Von diesem Browser nicht unterstützt",
+    "admin.audit.state.closed": "Vom Dienst geschlossen",
+    "admin.audit.state.disabled": "Nicht geführt",
     "site.og_image_alt": (
         "OpenCloud Security Scan - eine Instanz auf bekannte Schwachstellen, "
         "fehlende Härtung und schwache Sicherheits-Header prüfen"

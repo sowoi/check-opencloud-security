@@ -483,6 +483,32 @@ address. The statistics are counts and settings, and the audit view shows the
 pseudonymised records the log already wrote - a fingerprint is a truncated
 HMAC under a salt the process holds, and nothing maps one back.
 
+**The readings say how old they are.** They are polled every ten seconds, and
+a poll that stops answering would otherwise be indistinguishable from a
+service with nothing happening on it - the numbers just stop moving. So the
+page stamps the age of the last answer, counts it up between polls, and says
+plainly when what you are looking at is the last reading the service gave
+rather than the current one. A tile lights when its value changes. The page
+stops polling while its tab is in the background and re-reads the moment you
+come back to it.
+
+**Test the sources** is the dry run beside those two buttons: it performs the
+same fetch and the same guards and then discards the result, so you can tell
+a `failed` (unreachable, or the page changed shape) from a `rejected` (read
+fine, refused by the guards) without applying anything. It reaches upstream,
+so it is held back by `COS_WEB_ADMIN_REFRESH_COOLDOWN` - under its own key,
+so it is available in the moment after a refresh failed. Beside them, *Read
+again*, *Copy diagnostics* (the `/admin/state` document on the clipboard, for
+an issue report) and the audit list's *Clear* change nothing anywhere.
+
+Two things the audit card will tell you that are worth knowing in advance.
+The stream is closed by the service after 30 minutes and says so, rather than
+going quiet - press *Follow* for another. And **without
+`COS_WEB_AUDIT_LOG_FILE` the window is a ring in one process's memory**, so
+behind more than one replica you are watching the records of whichever
+replica answered; the card says so where that is the case. Configure the file
+if you need the whole trail.
+
 ![The operator's area: service state, the two reference-data refreshes and the search-index check](img/admin-area-dark.png)
 
 ![The audit card while following: each line a pseudonymised client and target fingerprint, never the real thing](img/admin-area-audit.png)

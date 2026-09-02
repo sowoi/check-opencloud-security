@@ -38,6 +38,17 @@ MESSAGES: dict[str, str] = {
     "admin.state.checked": "vérifié {when}",
     "admin.state.never": "jamais",
     "admin.state.unknown": "inconnu",
+    "admin.state.age.seconds": "Lu il y a {seconds}s",
+    "admin.state.age.minutes": "Lu il y a {minutes}m",
+    "admin.state.age.waiting": "En attente de la première lecture",
+    "admin.state.stale": (
+        "Le service n'a pas répondu depuis un moment. Ce qui précède est la "
+        "dernière lecture qu'il a donnée, pas forcément l'état actuel."
+    ),
+    "admin.state.refresh": "Relire",
+    "admin.state.copy": "Copier le diagnostic",
+    "admin.state.copy.done": "Copié",
+    "admin.state.copy.failed": "Copie impossible",
     "admin.actions.kicker": "Données de référence",
     "admin.actions.heading": "Mettre à jour ce sur quoi la note repose",
     "admin.actions.lede": (
@@ -59,6 +70,17 @@ MESSAGES: dict[str, str] = {
     "admin.outcome.failed": "Récupération impossible. Rien n'a changé.",
     "admin.outcome.disabled": "Cette mise à jour est désactivée dans la configuration de cette installation.",
     "admin.outcome.cooldown": "Vient de s'exécuter. Réessaie dans {seconds}s.",
+    "admin.probe.action": "Tester les sources",
+    "admin.probe.hint": (
+        "Lit les deux sources et rapporte ce qu'une mise à jour en ferait. "
+        "Rien n'est enregistré."
+    ),
+    "admin.probe.schedule": "Calendrier des versions : {answer}",
+    "admin.probe.advisories": "Avis : {answer}",
+    "admin.probe.usable": "lu, et une mise à jour l'accepterait",
+    "admin.probe.rejected": "lu, mais les contrôles le refuseraient",
+    "admin.probe.unreadable": "illisible - injoignable, ou plus dans la forme attendue",
+    "admin.probe.disabled": "non vérifié - cette mise à jour est désactivée",
     "admin.search.kicker": "Index de recherche",
     "admin.search.heading": "L'index livré est-il encore à jour",
     "admin.search.lede": (
@@ -90,13 +112,31 @@ MESSAGES: dict[str, str] = {
         "détient, et rien ne permet d'en revenir à une adresse. Cette vue ne "
         "peut pas montrer plus que ce que le journal a décidé de noter."
     ),
+    "admin.audit.replicas": (
+        "Cette installation ne tient pas de fichier d'audit : ces "
+        "enregistrements viennent de la mémoire du seul processus qui a "
+        "répondu - avec plusieurs répliques, c'est une partie du journal et non "
+        "sa totalité."
+    ),
     "admin.audit.follow": "Suivre",
     "admin.audit.stop": "Arrêter",
+    "admin.audit.clear": "Vider",
     "admin.audit.empty": "Rien pour l'instant.",
+    "admin.audit.closed": (
+        "La connexion a atteint sa limite de {minutes} minutes et le service "
+        "l'a fermée. Rien n'a été perdu jusque-là ; « Suivre » en ouvre une "
+        "autre."
+    ),
+    "admin.audit.disabled": (
+        "Cette installation ne tient pas de journal d'audit, il n'y a donc rien "
+        "à suivre. COS_WEB_AUDIT_LOG l'active."
+    ),
     "admin.audit.state.off": "Pas de suivi",
     "admin.audit.state.live": "En direct",
     "admin.audit.state.reconnecting": "Reconnexion",
     "admin.audit.state.unsupported": "Non pris en charge par ce navigateur",
+    "admin.audit.state.closed": "Fermée par le service",
+    "admin.audit.state.disabled": "Non tenu",
     "site.og_image_alt": (
         "OpenCloud Security Scan - vérifiez la sécurité d'une instance en "
         "détectant les vulnérabilités connues, le durcissement manquant et les "

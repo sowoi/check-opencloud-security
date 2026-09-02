@@ -7,6 +7,8 @@ This directory contains repository images used in project documentation:
 | `opencloud-demo-scan-result.png` | Example scan-result documentation image |
 | `opencloud-scan-landing.png` | Example landing-page documentation image |
 | `architecture-*.png` | Rendered from the `` ```mermaid `` fences in [`ARCHITECTURE.md`](../ARCHITECTURE.md) by [`render-architecture-diagram.yml`](../.github/workflows/render-architecture-diagram.yml). Generated - do not hand-edit; change the Mermaid source instead. |
+| `admin-area-dark.png` | The operator's area at `/admin`, used in [`ADMIN.md`](../ADMIN.md) |
+| `admin-area-audit.png` | The operator's area audit card while following, used in [`ADMIN.md`](../ADMIN.md) |
 
 Images must use `opencloud.example.com` or another reserved example address.
 Do not add screenshots containing real instance names, addresses, tokens,

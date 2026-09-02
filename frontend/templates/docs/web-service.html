@@ -484,7 +484,7 @@ somebody could.</p>
 <tr>
 <td><code>COS_WEB_ADMIN_REFRESH_COOLDOWN</code></td>
 <td><code>60</code></td>
-<td>Shortest gap between two operator-triggered refreshes of the same reference data</td>
+<td>Shortest gap between two operator-triggered refreshes of the same reference data. The area's dry run - which reads both sources and applies nothing - is held back for the same interval under a key of its own, so it stays available in the moment after a refresh reported a failure</td>
 </tr>
 <tr>
 <td><code>COS_WEB_AUDIT_LOG</code></td>

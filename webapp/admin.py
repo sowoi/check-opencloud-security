@@ -21,6 +21,13 @@ morning is refused when a person presses the button too. A cooldown sits in
 front of both, because a button that can be held down is a way to point one
 deployment's impatience at somebody else's documentation site.
 
+**A refusal and a failure are told apart by asking, not by guessing.** Both
+outcomes leave the reference data exactly as it was, so from the outside they
+are the same non-event; only one of them is a network an operator can go and
+look at. The probe runs the identical fetch and the identical guards and then
+throws the answer away, which is what makes it safe to offer beside the two
+buttons that do not.
+
 **The search index is read, never written.** ADR 0019 makes the index a
 release artefact and the container read-only, so this reports whether the
 shipped index still matches the pages and the copy this build serves, and
@@ -42,10 +49,10 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .advisories import advisory_state, refresh_advisories
+from .advisories import advisory_state, probe_advisories, refresh_advisories
 from .i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, Translator
 from .redis_backend import RedisBackend, RedisUnavailable
-from .schedule import refresh_schedule, schedule_state
+from .schedule import probe_schedule, refresh_schedule, schedule_state
 from .search import SEARCH_PAGES
 from .settings import WebSettings
 
@@ -55,6 +62,12 @@ LOGGER = logging.getLogger("check_opencloud.web.admin")
 ACTION_SCHEDULE = "schedule"
 ACTION_ADVISORIES = "advisories"
 ACTIONS = frozenset({ACTION_SCHEDULE, ACTION_ADVISORIES})
+
+#: The dry run, which is not one of :data:`ACTIONS`: it is a different route
+#: because it changes nothing, and giving it its own cooldown is what lets an
+#: operator press it immediately after a refresh answered ``failed`` - which
+#: is the only moment anybody wants it.
+ACTION_PROBE = "probe"
 
 #: Where the cooldown for each action is remembered. Keyed per action, so a
 #: schedule refresh does not hold up an advisory one.
@@ -243,6 +256,49 @@ async def cooldown_remaining(
     return max(remaining, 0)
 
 
+async def _claim(backend: RedisBackend, settings: WebSettings, action: str) -> None:
+    """Start ``action``'s cooldown, or note that it could not be started."""
+    if settings.admin_refresh_cooldown <= 0:
+        return
+    try:
+        await backend.set(
+            _COOLDOWN_KEY.format(action=action),
+            str(int(time.time())),
+            ex=settings.admin_refresh_cooldown,
+        )
+    except RedisUnavailable:
+        # The refresh itself is still safe to run; losing the cooldown
+        # only means the next press is not held back.
+        LOGGER.info("admin_cooldown_unavailable action=%s", action)
+
+
+async def run_probe(
+    backend: RedisBackend, settings: WebSettings
+) -> tuple[bool, dict[str, str], int]:
+    """Ask both sources what a refresh would make of them, and store nothing.
+
+    It reaches somebody else's server exactly as a refresh does, so it is
+    held back exactly as a refresh is - under its own key, because the moment
+    to press it is the moment after a refresh reported ``failed`` and its
+    cooldown is running.
+    """
+    remaining = await cooldown_remaining(backend, settings, ACTION_PROBE)
+    if remaining:
+        return False, {}, remaining
+
+    await _claim(backend, settings, ACTION_PROBE)
+    sources = {
+        ACTION_SCHEDULE: await probe_schedule(settings),
+        ACTION_ADVISORIES: await probe_advisories(backend, settings),
+    }
+    LOGGER.info(
+        "admin_probe schedule=%s advisories=%s",
+        sources[ACTION_SCHEDULE],
+        sources[ACTION_ADVISORIES],
+    )
+    return True, sources, await cooldown_remaining(backend, settings, ACTION_PROBE)
+
+
 async def run_action(
     backend: RedisBackend, settings: WebSettings, action: str
 ) -> tuple[bool, str, int]:
@@ -256,17 +312,7 @@ async def run_action(
     if remaining:
         return False, "cooldown", remaining
 
-    if settings.admin_refresh_cooldown > 0:
-        try:
-            await backend.set(
-                _COOLDOWN_KEY.format(action=action),
-                str(int(time.time())),
-                ex=settings.admin_refresh_cooldown,
-            )
-        except RedisUnavailable:
-            # The refresh itself is still safe to run; losing the cooldown
-            # only means the next press is not held back.
-            LOGGER.info("admin_cooldown_unavailable action=%s", action)
+    await _claim(backend, settings, action)
 
     if action == ACTION_SCHEDULE:
         outcome = await refresh_schedule(backend, settings)
@@ -293,6 +339,14 @@ _STREAM_INTERVAL_SECONDS = 1.0
 #: A stream is closed after this long whatever happens, so a forgotten tab
 #: does not hold a connection and a task open for ever.
 _STREAM_MAX_SECONDS = 60 * 30
+
+#: The same cap in whole minutes, for the sentence the page shows when it
+#: happens. A view that goes quiet after half an hour and does not say why is
+#: a view somebody eventually reads as "nothing is happening" - which is the
+#: one conclusion a live audit trail must never let somebody reach by
+#: accident. Derived rather than written twice, so the number in the sentence
+#: cannot drift away from the number that closes the connection.
+ADMIN_STREAM_MAX_MINUTES = _STREAM_MAX_SECONDS // 60
 
 
 def _sse(event: str, data: str) -> str:

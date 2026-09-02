@@ -260,7 +260,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_ADMIN_PROXY_SECRET` | *(unset)* | The secret the authentik outpost adds as `X-COS-Admin-Proxy`, and the only reason the identity headers are believed. Required when the area is on, at least 32 characters, or startup refuses |
 | `COS_WEB_ADMIN_USERS` | *(empty)* | Who may use the area, by authentik username, `;`-separated. Empty with the area on refuses to start rather than meaning "everybody" |
 | `COS_WEB_ADMIN_AUDIT_BUFFER` | `200` | Recent audit records kept in memory for the live view, for a deployment that logs to stdout. `0` keeps none |
-| `COS_WEB_ADMIN_REFRESH_COOLDOWN` | `60` | Shortest gap between two operator-triggered refreshes of the same reference data |
+| `COS_WEB_ADMIN_REFRESH_COOLDOWN` | `60` | Shortest gap between two operator-triggered refreshes of the same reference data. The area's dry run - which reads both sources and applies nothing - is held back for the same interval under a key of its own, so it stays available in the moment after a refresh reported a failure |
 | `COS_WEB_AUDIT_LOG` | `false` | Write an audit record for every scan request, rejection and triggered limit |
 | `COS_WEB_AUDIT_LOG_TARGETS` | `false` | Record the target hostname in the clear instead of as a fingerprint. On-premise deployments only |
 | `COS_WEB_AUDIT_SALT` | *(random per process)* | Salt for the audit fingerprints. Setting one lets records correlate across a restart; rotating it ends that |

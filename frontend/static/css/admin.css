@@ -73,6 +73,23 @@
     flex: 0 0 auto;
 }
 
+/* The dot breathes while the page is actually asking the service something.
+   A poll against a slow upstream takes a few seconds during which nothing on
+   the page moves, which reads as a control that did not work - so the one
+   mark that is already on every screen carries "working" as well. It is the
+   band's own dot rather than a new object, and it is still only motion where
+   there is something to know. */
+.admin-band[data-busy] .admin-band-dot { opacity: .45; }
+
+@media (prefers-reduced-motion: no-preference) {
+    .admin-band-dot { transition: opacity .3s var(--ease); }
+
+    .admin-band[data-busy] .admin-band-dot {
+        opacity: 1;
+        animation: admin-beacon 1.1s var(--ease-out) infinite;
+    }
+}
+
 .admin-head h1 { border-bottom: 2px solid var(--admin-accent-line); padding-bottom: .4rem; }
 .admin-head .kicker { color: var(--admin-accent); }
 
@@ -105,11 +122,51 @@
 .admin-stat-value { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .admin-stat-note { font-size: .8rem; color: var(--ink-soft); }
 
+/* A reading that just moved. The page re-reads itself every few seconds, so
+   without this a queue drains or a worker dies in a corner nobody happened to
+   be looking at, and the only tell is a number that was different a moment
+   ago. It is the same idea as a fresh audit record below, and deliberately
+   the same fade back: the card is tinted, never the value, so this can never
+   argue with the good/bad colour the reading itself carries. */
+.admin-stat[data-changed] {
+    background: var(--admin-accent-soft);
+    border-color: var(--admin-accent-line);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .admin-stat { transition: background 1.2s var(--ease), border-color 1.2s var(--ease); }
+}
+
 /* A reading that says something is wrong carries the colour that says so,
    using the palette's own bad/good tokens rather than inventing a red. */
 .admin-stat-value[data-state="bad"] { color: var(--bad); }
 .admin-stat-value[data-state="good"] { color: var(--good); }
 .admin-stat-value[data-state="warn"] { color: var(--admin-accent); }
+
+/* How old the readings are. Set in the machine face, because it is a
+   measurement and not a remark, and quiet until it is not: an age past a few
+   polls turns the accent colour, and the sentence under it appears. */
+.admin-age {
+    margin-top: 1rem;
+    margin-bottom: 0;
+    font-family: var(--mono);
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ink-soft);
+}
+
+.admin-age[data-state="stale"] { color: var(--admin-accent); }
+
+.admin-stale {
+    margin-top: .5rem;
+    margin-bottom: 0;
+    padding: .6rem .8rem;
+    border-left: 3px solid var(--admin-accent-line);
+    border-radius: 0 8px 8px 0;
+    background: var(--admin-accent-soft);
+    font-size: .88rem;
+}
 
 /* ----------------------------------------------------------- the actions */
 .admin-actions {
@@ -140,6 +197,33 @@
 .admin-outcome[data-outcome="rejected"],
 .admin-outcome[data-outcome="failed"] { border-color: var(--bad); }
 .admin-outcome[data-outcome="cooldown"] { border-color: var(--admin-accent-line); }
+
+/* What the dry run found, one line per source. Two answers on one card, so
+   each line carries its own colour rather than the box carrying one - the
+   whole point of asking is that the two sources can differ. */
+.admin-probe {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--tint);
+    font-size: .9rem;
+}
+
+.admin-probe li {
+    padding: .6rem .8rem;
+    border-bottom: 1px solid var(--line);
+    border-left: 3px solid var(--line);
+}
+
+.admin-probe li:first-child { border-radius: 8px 8px 0 0; }
+.admin-probe li:last-child { border-bottom: none; border-radius: 0 0 8px 8px; }
+
+.admin-probe li[data-answer="usable"] { border-left-color: var(--good); }
+.admin-probe li[data-answer="rejected"],
+.admin-probe li[data-answer="unreadable"] { border-left-color: var(--bad); }
+.admin-probe li[data-answer="disabled"] { border-left-color: var(--admin-accent-line); }
 
 /* ------------------------------------------------------ the search index */
 .admin-index {
@@ -190,6 +274,66 @@
 .admin-audit-state[data-state="live"] { color: var(--good); }
 .admin-audit-state[data-state="off"] { color: var(--ink-soft); }
 .admin-audit-state[data-state="unavailable"] { color: var(--admin-accent); }
+
+/* The one fact this view cannot tell by standing still: "Live" reads exactly
+   the same whether records are arriving or the stream died quietly thirty
+   seconds ago. So the dot breathes only while the connection is actually
+   open, and the state that is not live carries no dot at all. Functional,
+   which is the only reason to add a sixth movement to the five in DESIGN.md -
+   it is the audit trail's own heartbeat, not decoration. */
+.admin-audit-state[data-state="live"]::before {
+    content: "";
+    display: inline-block;
+    width: .45rem;
+    height: .45rem;
+    margin-right: .4rem;
+    border-radius: 50%;
+    background: var(--good);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .admin-audit-state[data-state="live"]::before {
+        animation: admin-beacon 2s var(--ease-out) infinite;
+    }
+}
+
+@keyframes admin-beacon {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+}
+
+/* The secondary controls: a poll the operator asked for rather than waited
+   for, the state as text for an issue report, and a way to empty the list on
+   screen. Quiet buttons, because none of them changes what the service
+   knows - the two that do are the primary pair above. */
+.admin-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .5rem 1rem;
+    margin-top: 1.25rem;
+}
+
+/* The dry run is a form, because it posts and must work without scripting;
+   inside this row it is laid out like the button it looks like. */
+.admin-inline-actions form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .5rem 1rem;
+    margin: 0;
+}
+
+.admin-audit-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+/* Said in place, on the button that was pressed, and gone again in a moment -
+   the same answer share.js gives on a report page. */
+.btn[data-admin-state="done"] { border-color: var(--good); color: var(--good); }
+.btn[data-admin-state="failed"] { border-color: var(--bad); color: var(--bad); }
 
 .admin-audit-list {
     list-style: none;

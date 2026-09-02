@@ -37,6 +37,17 @@ MESSAGES: dict[str, str] = {
     "admin.state.checked": "comprobado {when}",
     "admin.state.never": "nunca",
     "admin.state.unknown": "desconocido",
+    "admin.state.age.seconds": "Leído hace {seconds}s",
+    "admin.state.age.minutes": "Leído hace {minutes}m",
+    "admin.state.age.waiting": "Esperando la primera lectura",
+    "admin.state.stale": (
+        "El servicio lleva un rato sin responder. Lo de arriba es la última "
+        "lectura que dio, no necesariamente lo que ocurre ahora."
+    ),
+    "admin.state.refresh": "Leer de nuevo",
+    "admin.state.copy": "Copiar diagnóstico",
+    "admin.state.copy.done": "Copiado",
+    "admin.state.copy.failed": "No se ha podido copiar",
     "admin.actions.kicker": "Datos de referencia",
     "admin.actions.heading": "Actualizar aquello contra lo que se califica",
     "admin.actions.lede": (
@@ -58,6 +69,17 @@ MESSAGES: dict[str, str] = {
     "admin.outcome.failed": "No se ha podido descargar. Nada ha cambiado.",
     "admin.outcome.disabled": "Esa actualización está desactivada en la configuración de esta instalación.",
     "admin.outcome.cooldown": "Acaba de ejecutarse. Inténtalo en {seconds}s.",
+    "admin.probe.action": "Probar las fuentes",
+    "admin.probe.hint": (
+        "Lee ambas fuentes e informa de qué haría con ellas una actualización. "
+        "No se guarda nada."
+    ),
+    "admin.probe.schedule": "Calendario de versiones: {answer}",
+    "admin.probe.advisories": "Avisos: {answer}",
+    "admin.probe.usable": "leído, y una actualización lo aceptaría",
+    "admin.probe.rejected": "leído, pero las comprobaciones lo rechazarían",
+    "admin.probe.unreadable": "no se ha podido leer - inalcanzable, o ya no tiene la forma esperada",
+    "admin.probe.disabled": "sin comprobar - esa actualización está desactivada",
     "admin.search.kicker": "Índice de búsqueda",
     "admin.search.heading": "Sigue siendo válido el índice publicado",
     "admin.search.lede": (
@@ -89,13 +111,29 @@ MESSAGES: dict[str, str] = {
         "este proceso, y nada permite volver de ahí a una dirección. Esta vista "
         "no puede mostrar más de lo que el registro ya decidió anotar."
     ),
+    "admin.audit.replicas": (
+        "Esta instalación no mantiene un fichero de auditoría, así que estos "
+        "registros vienen de la memoria del único proceso que ha respondido - "
+        "con más de una réplica, eso es una parte del registro y no todo."
+    ),
     "admin.audit.follow": "Seguir",
     "admin.audit.stop": "Detener",
+    "admin.audit.clear": "Vaciar",
     "admin.audit.empty": "Todavía nada.",
+    "admin.audit.closed": (
+        "La conexión ha alcanzado su límite de {minutes} minutos y el servicio "
+        "la ha cerrado. Hasta ahí no se ha perdido nada; «Seguir» abre otra."
+    ),
+    "admin.audit.disabled": (
+        "Esta instalación no mantiene un registro de auditoría, así que no hay "
+        "nada que seguir. COS_WEB_AUDIT_LOG lo activa."
+    ),
     "admin.audit.state.off": "Sin seguir",
     "admin.audit.state.live": "En directo",
     "admin.audit.state.reconnecting": "Reconectando",
     "admin.audit.state.unsupported": "No compatible con este navegador",
+    "admin.audit.state.closed": "Cerrada por el servicio",
+    "admin.audit.state.disabled": "No se mantiene",
     "site.og_image_alt": (
         "OpenCloud Security Scan: comprueba una instancia en busca de "
         "vulnerabilidades conocidas, medidas de refuerzo faltantes y "

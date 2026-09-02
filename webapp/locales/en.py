@@ -56,6 +56,17 @@ MESSAGES: dict[str, str] = {
     "admin.state.checked": "checked {when}",
     "admin.state.never": "never",
     "admin.state.unknown": "unknown",
+    "admin.state.age.seconds": "Read {seconds}s ago",
+    "admin.state.age.minutes": "Read {minutes}m ago",
+    "admin.state.age.waiting": "Waiting for the first reading",
+    "admin.state.stale": (
+        "The service has not answered for a while. What is above is the last "
+        "reading it gave, not necessarily what is true now."
+    ),
+    "admin.state.refresh": "Read again",
+    "admin.state.copy": "Copy diagnostics",
+    "admin.state.copy.done": "Copied",
+    "admin.state.copy.failed": "Could not copy",
     "admin.actions.kicker": "Reference data",
     "admin.actions.heading": "Refresh what the scanner rates against",
     "admin.actions.lede": (
@@ -76,6 +87,17 @@ MESSAGES: dict[str, str] = {
     "admin.outcome.failed": "Could not be fetched. Nothing changed.",
     "admin.outcome.disabled": "That refresh is switched off in this deployment's settings.",
     "admin.outcome.cooldown": "Just ran. Try again in {seconds}s.",
+    "admin.probe.action": "Test the sources",
+    "admin.probe.hint": (
+        "Reads both sources and reports what a refresh would make of them. "
+        "Nothing is stored."
+    ),
+    "admin.probe.schedule": "Release schedule: {answer}",
+    "admin.probe.advisories": "Advisories: {answer}",
+    "admin.probe.usable": "read, and a refresh would accept it",
+    "admin.probe.rejected": "read, but the guards would refuse it",
+    "admin.probe.unreadable": "could not be read - unreachable, or no longer in the expected shape",
+    "admin.probe.disabled": "not checked - this refresh is switched off",
     "admin.search.kicker": "Search index",
     "admin.search.heading": "Is the shipped index still current",
     "admin.search.lede": (
@@ -107,13 +129,30 @@ MESSAGES: dict[str, str] = {
         "and nothing maps one back to an address. This view cannot show more "
         "than the audit log already decided to write down."
     ),
+    "admin.audit.replicas": (
+        "This deployment keeps no audit file, so these records come from the "
+        "memory of the one process that answered - behind more than one "
+        "replica, that is a part of the trail rather than all of it."
+    ),
     "admin.audit.follow": "Follow",
     "admin.audit.stop": "Stop",
+    "admin.audit.clear": "Clear",
     "admin.audit.empty": "Nothing yet.",
+    "admin.audit.closed": (
+        "The connection reached its {minutes}-minute limit and was closed by "
+        "the service. Nothing was missed before that; press Follow to start "
+        "another."
+    ),
+    "admin.audit.disabled": (
+        "This deployment does not keep an audit trail, so there is nothing to "
+        "follow. COS_WEB_AUDIT_LOG switches it on."
+    ),
     "admin.audit.state.off": "Not following",
     "admin.audit.state.live": "Live",
     "admin.audit.state.reconnecting": "Reconnecting",
     "admin.audit.state.unsupported": "Not supported by this browser",
+    "admin.audit.state.closed": "Closed by the service",
+    "admin.audit.state.disabled": "Not kept",
     "site.og_image_alt": (
         "OpenCloud Security Scan - check an instance for known vulnerabilities, "
         "missing hardening and weak security headers"

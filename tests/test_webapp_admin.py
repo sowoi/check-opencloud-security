@@ -17,6 +17,8 @@ being signed in is not the same as being on the guest list.
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -301,6 +303,60 @@ def test_the_statistics_name_nothing_anybody_scanned():
     assert "ipRateLimit" in body
 
 
+def test_a_reading_that_stopped_arriving_cannot_look_like_one_that_is_not_moving():
+    """The poll swallows its errors, so a dead backend draws the same picture.
+
+    Which is the failure mode worth designing against here: the numbers
+    simply stop moving and the page goes on presenting them as the present
+    tense. So the age of the last answer is on the page and counts up
+    between polls, and the sentence saying what the numbers actually are is
+    the server's rather than something the script composes.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    from webapp.locales.en import MESSAGES
+
+    assert 'data-value="age"' in page
+    assert MESSAGES["admin.state.stale"][:40] in page
+    # The clock ticks on its own, so an answer that never comes still ages.
+    assert "window.setInterval(age, 1000)" in script
+    # And only a poll that actually answered moves the stamp.
+    assert "lastAnswer = Date.now();" in script
+
+
+def test_the_page_stops_polling_while_nobody_is_looking_at_it():
+    """A tab left open overnight was asking for the state every ten seconds.
+
+    Nothing reads the answer, the readings are re-fetched the moment the tab
+    is looked at again, and eight thousand requests before breakfast is a
+    load this service put on itself for nobody.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        script = client.get("/static/js/admin.js").text
+
+    assert 'document.addEventListener("visibilitychange"' in script
+    assert 'document.visibilityState !== "hidden"' in script
+    assert "window.clearInterval(timer)" in script
+
+
+def test_the_control_that_needs_a_clipboard_is_hidden_until_it_has_one():
+    """A clipboard write needs a secure context; a button that cannot work is worse than none.
+
+    The same rule the report page's copy buttons follow: rendered hidden,
+    revealed by the script once the API is actually there.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    button = re.search(r"<button[^>]*data-admin-copy[^>]*>", page)
+    assert button is not None
+    assert " hidden" in button.group(0)
+    assert 'typeof clipboard.writeText === "function"' in script
+
+
 def test_the_search_index_is_reported_and_never_rebuilt():
     """ADR 0019 makes the index a release artefact, and the container is read-only.
 
@@ -319,10 +375,126 @@ def test_the_search_index_is_reported_and_never_rebuilt():
     # are the two refreshes, which is asserted against the actual form fields
     # rather than the prose, since the prose says the word "rebuild" in the
     # course of explaining that it does not do it.
-    import re
-
     offered = set(re.findall(r'name="action" value="(\w+)"', page))
     assert offered == {"schedule", "advisories"}
+
+
+# ----------------------------------------------------------------- the dry run
+
+
+def _usable_sources(monkeypatch):
+    """Both sources answering with exactly what this build already ships.
+
+    A document identical to the bundled one passes every guard by
+    construction, which is what makes it the right stand-in for "the network
+    is fine": anything the probe then declines to do, it declined for its own
+    reasons rather than because the fetch failed.
+    """
+    from opencloud_local_scan.versions import RELEASE_SCHEDULE_FILE
+    from opencloud_local_scan.vulndb import BUNDLED_DB
+    from webapp import advisories as advisories_module
+    from webapp import schedule as schedule_module
+
+    schedule = json.loads(RELEASE_SCHEDULE_FILE.read_text())
+    database = json.loads(BUNDLED_DB.read_text())
+    monkeypatch.setattr(
+        schedule_module, "fetch_schedule_document", lambda *_a: schedule
+    )
+    monkeypatch.setattr(
+        advisories_module, "fetch_advisory_document", lambda *_a: database
+    )
+
+
+def test_the_dry_run_reads_both_sources_and_stores_none_of_it(monkeypatch):
+    """The whole difference between the probe and the button beside it.
+
+    It runs the same fetch and the same guards - that is the point, since an
+    answer produced any other way would be about a different question - so
+    the only thing keeping it a dry run is that the result is thrown away.
+    Nothing may be written: not the document, not the checked stamp that
+    would otherwise tell an operator this deployment had refreshed.
+    """
+    _usable_sources(monkeypatch)
+    with TestClient(create_app(_admin_settings())) as client:
+        answer = client.post(
+            "/admin/probe", headers={**FORWARDED, "Accept": "application/json"}
+        ).json()
+        state = client.get("/admin/state", headers=FORWARDED).json()
+
+    # It did read them, and it did reach a verdict on both.
+    assert answer["state"] == "probed"
+    assert answer["sources"] == {"schedule": "usable", "advisories": "usable"}
+    # And the deployment is exactly where it was: nothing has been checked.
+    reference = state["referenceData"]
+    assert reference["releaseSchedule"]["checked"] is None
+    assert reference["advisories"]["checked"] is None
+
+
+def test_the_dry_run_tells_a_refusal_apart_from_a_failure(monkeypatch):
+    """The reason it exists: `failed` and `rejected` are the same non-event.
+
+    Both leave the reference data alone, so a refresh cannot say which of
+    them happened in any way an operator can act on - and one is a network
+    to go and look at while the other is this deployment refusing a document
+    it read perfectly well.
+    """
+    from opencloud_local_scan.schedule_source import ExtractionError
+    from webapp import schedule as schedule_module
+    from webapp.schedule import probe_schedule
+
+    def unreachable(*_args):
+        raise ExtractionError("nothing answered")
+
+    monkeypatch.setattr(schedule_module, "fetch_schedule_document", unreachable)
+    assert asyncio.run(probe_schedule(_admin_settings())) == "unreadable"
+
+    # A page that was read but has lost a release line is the other answer.
+    monkeypatch.setattr(
+        schedule_module, "fetch_schedule_document", lambda *_a: {"lines": []}
+    )
+    assert asyncio.run(probe_schedule(_admin_settings())) == "rejected"
+
+
+def test_the_dry_run_is_held_back_on_a_key_of_its_own(monkeypatch):
+    """It reaches upstream like a refresh, so it is limited like one.
+
+    But under its own cooldown, because the moment somebody wants it is the
+    moment after a refresh answered `failed` - and a probe sharing that
+    refresh's cooldown would be unavailable exactly then.
+    """
+    _usable_sources(monkeypatch)
+    json_headers = {**FORWARDED, "Accept": "application/json"}
+    with TestClient(create_app(_admin_settings())) as client:
+        first = client.post("/admin/probe", headers=json_headers).json()
+        again = client.post("/admin/probe", headers=json_headers).json()
+        refresh = client.post(
+            "/admin/refresh", data={"action": "schedule"}, headers=json_headers
+        ).json()
+
+    assert first["state"] == "probed"
+    # Held down, it is refused like everything else that reaches a stranger.
+    assert again["state"] == "cooldown"
+    assert again["seconds"] > 0
+    # And it did not spend the refresh's cooldown on the way past.
+    assert refresh["state"] != "cooldown"
+
+
+def test_the_dry_run_is_refused_to_everybody_the_rest_of_the_area_is():
+    """A route that fetches from two upstreams on request, gated like the rest."""
+    with TestClient(create_app(_admin_settings())) as client:
+        assert client.post("/admin/probe").status_code == 404
+        assert (
+            client.post(
+                "/admin/probe", headers={"x-authentik-username": OPERATOR}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                "/admin/probe", headers={**FORWARDED, "sec-fetch-site": "cross-site"}
+            ).status_code
+            == 403
+        )
 
 
 # ------------------------------------------------------------- the audit view
@@ -346,6 +518,76 @@ def test_the_live_window_holds_nothing_when_the_audit_trail_is_off():
     app = create_app(_admin_settings(audit_log=False))
     with TestClient(app):
         assert app.state.recent_audit is None
+
+
+def test_every_state_the_stream_sends_is_one_the_page_can_explain():
+    """A stream that stops without saying why reads as a service with nothing happening.
+
+    The server has always sent its own account of the connection - `live`,
+    `closed` at the half-hour cap, `disabled` where no trail is kept - and
+    the page has to have a sentence for each of them, or the two that end
+    the stream arrive as the same silence a dropped connection produces.
+    This reads the states out of the module rather than listing them, so a
+    new one cannot be added without the page gaining words for it.
+    """
+    from pathlib import Path
+
+    from webapp import admin
+
+    source = Path(admin.__file__).read_text(encoding="utf-8")
+    states = set(re.findall(r'_sse\("state", "(\w+)"\)', source))
+    assert states == {"live", "closed", "disabled"}
+
+    with TestClient(create_app(_admin_settings(audit_log=True))) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+
+    for state in states:
+        assert f'data-admin-audit-{state}="' in page
+
+
+def test_the_sentence_about_the_cap_carries_the_cap_that_produces_it():
+    """Two numbers that must agree, written once and derived once.
+
+    "Closed after 30 minutes" beside a connection the server ends after ten
+    is worse than saying nothing: it sends an operator looking for a network
+    fault that is not there.
+    """
+    from webapp.admin import _STREAM_MAX_SECONDS
+
+    with TestClient(create_app(_admin_settings(audit_log=True))) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+
+    note = re.search(r'data-admin-audit-closed-note="([^"]*)"', page)
+    assert note is not None
+    assert str(_STREAM_MAX_SECONDS // 60) in note.group(1)
+
+
+def test_the_page_says_when_the_window_it_shows_is_one_replicas_own(tmp_path):
+    """ADR 0035 states this limit; until an operator reads it, only the ADR does.
+
+    Without an audit file the records come from a ring in one process's
+    memory, so behind two replicas a reader is watching half a trail - and a
+    half trail that presents itself as the whole one is worse than none.
+    With a file every replica appends to the same place and there is nothing
+    to warn about, so the sentence is absent rather than hedged.
+    """
+    with TestClient(create_app(_admin_settings(audit_log=True))) as client:
+        in_memory = client.get("/admin", headers=FORWARDED).text
+
+    with TestClient(
+        create_app(
+            _admin_settings(
+                audit_log=True, audit_log_file=str(tmp_path / "audit.log")
+            )
+        )
+    ) as client:
+        with_file = client.get("/admin", headers=FORWARDED).text
+
+    from webapp.locales.en import MESSAGES
+
+    caveat = MESSAGES["admin.audit.replicas"][:40]
+    assert caveat in in_memory
+    assert caveat not in with_file
 
 
 def test_the_live_window_is_bounded_and_keeps_what_the_log_wrote():

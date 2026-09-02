@@ -36,6 +36,9 @@
   data-admin-checked="{{ t.raw('admin.state.checked') }}"
   data-admin-never="{{ t('admin.state.never') }}"
   data-admin-unknown="{{ t('admin.state.unknown') }}"
+  data-admin-age-seconds="{{ t.raw('admin.state.age.seconds') }}"
+  data-admin-age-minutes="{{ t.raw('admin.state.age.minutes') }}"
+  data-admin-age-waiting="{{ t('admin.state.age.waiting') }}"
   data-admin-index-fresh="{{ t('admin.search.fresh') }}"
   data-admin-index-stale="{{ t('admin.search.stale') }}"
   data-admin-index-ok="{{ t('admin.search.detail.ok') }}"
@@ -49,10 +52,20 @@
   data-admin-outcome-failed="{{ t.raw('admin.outcome.failed') }}"
   data-admin-outcome-cooldown="{{ t.raw('admin.outcome.cooldown') }}"
   data-admin-outcome-disabled="{{ t('admin.outcome.disabled') }}"
+  data-admin-probe-schedule="{{ t.raw('admin.probe.schedule') }}"
+  data-admin-probe-advisories="{{ t.raw('admin.probe.advisories') }}"
+  data-admin-probe-usable="{{ t('admin.probe.usable') }}"
+  data-admin-probe-rejected="{{ t('admin.probe.rejected') }}"
+  data-admin-probe-unreadable="{{ t('admin.probe.unreadable') }}"
+  data-admin-probe-disabled="{{ t('admin.probe.disabled') }}"
   data-admin-audit-off="{{ t('admin.audit.state.off') }}"
   data-admin-audit-live="{{ t('admin.audit.state.live') }}"
   data-admin-audit-reconnecting="{{ t('admin.audit.state.reconnecting') }}"
   data-admin-audit-unsupported="{{ t('admin.audit.state.unsupported') }}"
+  data-admin-audit-closed="{{ t('admin.audit.state.closed') }}"
+  data-admin-audit-disabled="{{ t('admin.audit.state.disabled') }}"
+  data-admin-audit-closed-note="{{ t('admin.audit.closed', minutes=stream_minutes) }}"
+  data-admin-audit-disabled-note="{{ t('admin.audit.disabled') }}"
   data-admin-audit-follow="{{ t('admin.audit.follow') }}"
   data-admin-audit-stop="{{ t('admin.audit.stop') }}"{% endblock %}
 
@@ -105,6 +118,45 @@
     </div>
   </div>
 
+  {#
+    How old the readings above are, counting up between polls.
+
+    Without this a backend that stopped answering looks exactly like a
+    service with nothing happening on it: the numbers simply stop moving and
+    the page keeps presenting them as the present tense. So the age is said
+    out loud and ages visibly, and once it is older than a few polls the
+    sentence below appears and says what the numbers actually are.
+
+    The stamp itself is `aria-live="off"` - it changes every second, and a
+    screen reader announcing "checked 4 seconds ago, checked 5 seconds ago"
+    is a way to make a page unusable. The sentence that matters is its own
+    polite region, so it is announced once, when it becomes true.
+  #}
+  <p class="admin-age" data-value="age" aria-live="off">{{ t('admin.state.age.waiting') }}</p>
+  <p class="admin-stale" id="admin-stale" hidden aria-live="polite">{{ t('admin.state.stale') }}</p>
+
+  {#
+    Neither of these asks the service for anything it was not going to say
+    anyway: one brings the next poll forward, the other puts the same
+    readings on the clipboard for an issue report. Quiet buttons, because
+    nothing here changes what the service knows.
+
+    The copy button is rendered hidden and revealed by its script, the same
+    way the report page's copy buttons are: a clipboard write needs a secure
+    context, and offering a control that cannot work is worse than not
+    offering one.
+  #}
+  <div class="admin-inline-actions">
+    <button class="btn btn-quiet" type="button" data-admin-refresh>
+      {{ t('admin.state.refresh') }}
+    </button>
+    <button class="btn btn-quiet" type="button" data-admin-copy hidden
+            data-admin-done="{{ t('admin.state.copy.done') }}"
+            data-admin-failed="{{ t('admin.state.copy.failed') }}">
+      {{ t('admin.state.copy') }}
+    </button>
+  </div>
+
   <noscript>
     <p class="hint section-gap flush">{{ t('admin.noscript') }}</p>
   </noscript>
@@ -140,11 +192,38 @@
     </form>
   </div>
 
-  {% if outcome %}
+  {#
+    The dry run, beside the two buttons that are not one.
+
+    A refresh that answers "could not be fetched" and one that answers
+    "refused by the guards" both leave the reference data exactly as it was,
+    and the difference between them is the difference between a firewall and
+    a document this deployment is right to distrust. This asks both sources
+    the same question a refresh asks and throws the answer away, so an
+    operator can tell which they are looking at without pressing the button
+    that would apply whatever comes back.
+  #}
+  <div class="admin-inline-actions">
+    <form method="post" action="/admin/probe" data-admin-probe>
+      <button class="btn btn-quiet" type="submit">{{ t('admin.probe.action') }}</button>
+      <span class="hint">{{ t('admin.probe.hint') }}</span>
+    </form>
+  </div>
+
+  {% if outcome and outcome.state == 'probed' %}
+  <ul class="admin-probe">
+    {% for source, answer in outcome.sources.items() %}
+    <li data-answer="{{ answer }}">
+      {{ t('admin.probe.' ~ source, answer=t('admin.probe.' ~ answer)) }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif outcome %}
   <p class="admin-outcome" data-outcome="{{ outcome.state }}">
     {{ t('admin.outcome.' ~ outcome.state, action=outcome.action, seconds=outcome.seconds) }}
   </p>
   {% endif %}
+  <ul class="admin-probe" id="admin-probe" hidden aria-live="polite"></ul>
   <p class="admin-outcome" id="admin-outcome" hidden aria-live="polite"></p>
 </section>
 
@@ -182,12 +261,37 @@
   #}
   <p class="admin-privacy">{{ t('admin.audit.privacy') }}</p>
 
+  {#
+    ADR 0035 states this limit and until now only the ADR did. Without
+    COS_WEB_AUDIT_LOG_FILE the window is a ring in this process's memory, so
+    behind more than one replica a reader is watching the records of the one
+    replica their connection happened to reach - and a trail with half its
+    records missing is worse than no trail, because it reads as complete.
+    Said only where it is true: with a file, every replica appends to the
+    same one and there is nothing to warn about.
+  #}
+  {% if audit_window_in_memory %}
+  <p class="hint">{{ t('admin.audit.replicas') }}</p>
+  {% endif %}
+
   <div class="admin-audit" data-audit-region>
     <div class="admin-audit-head">
       <span class="admin-audit-state" id="admin-audit-state" aria-live="polite">-</span>
-      <button class="btn btn-quiet" type="button" data-audit-toggle
-              aria-pressed="false">{{ t('admin.audit.follow') }}</button>
+      <div class="admin-audit-controls">
+        <button class="btn btn-quiet" type="button" data-audit-clear>
+          {{ t('admin.audit.clear') }}
+        </button>
+        <button class="btn btn-quiet" type="button" data-audit-toggle
+                aria-pressed="false">{{ t('admin.audit.follow') }}</button>
+      </div>
     </div>
+    {#
+      Why the stream stopped, when it stopped for a reason rather than a
+      blip. The server sends `closed` at the half-hour cap and `disabled`
+      when this deployment keeps no trail at all, and both of those used to
+      arrive as the same silence a dropped connection produces.
+    #}
+    <p class="hint flush" id="admin-audit-note" hidden aria-live="polite"></p>
     <ol class="admin-audit-list" id="admin-audit-list" aria-live="off"></ol>
     <p class="hint flush" id="admin-audit-empty">{{ t('admin.audit.empty') }}</p>
   </div>
