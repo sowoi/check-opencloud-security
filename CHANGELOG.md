@@ -189,6 +189,21 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   row in the search index - which is where somebody looking for "shell
   completion" or "demo users" actually starts.
 
+### Fixed
+
+- **A test compared a countdown against itself and failed once a run crossed a
+  second.** `expiresIn` is the scan key's remaining TTL, read at the moment
+  each request is served, so the three answers
+  `test_a_result_page_negotiates_the_same_scan_record_as_the_api` collects -
+  the API record, the page negotiated with `Accept`, and the same page asked
+  with `output_format=json` - are entitled to differ by a second, and on one
+  Python 3.13 nox run they did: `3600` against `3599`. The test now compares
+  the record without that field and asserts the countdown separately, as a
+  retention window present in all three answers rather than an integer that
+  must match. Nothing about the service changed: a live TTL is what the field
+  is for, and the ten fields that actually make up the record are still
+  compared whole.
+
 ## [1.18.2] - 2026-09-01
 
 ### Added

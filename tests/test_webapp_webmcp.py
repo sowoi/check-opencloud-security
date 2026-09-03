@@ -6,6 +6,7 @@ import html
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -124,6 +125,17 @@ def test_json_output_overrides_a_browser_html_accept_header():
     assert "location" in response.headers
 
 
+def _record_without_the_countdown(document: dict[str, Any]) -> dict[str, Any]:
+    """
+    The scan record minus ``expiresIn``.
+
+    That field is the key's remaining TTL read as the request is served, so two
+    responses fetched a moment apart legitimately differ by a second. Comparing
+    it between requests tests the clock; every other field is the record.
+    """
+    return {key: value for key, value in document.items() if key != "expiresIn"}
+
+
 def test_a_result_page_negotiates_the_same_scan_record_as_the_api():
     """Accept and output_format provide JSON without changing capability checks."""
     served = client()
@@ -138,8 +150,17 @@ def test_a_result_page_negotiates_the_same_scan_record_as_the_api():
     by_query = served.get(f"/scan/{identifier}?output_format=json")
 
     assert by_accept.status_code == 200
-    assert by_accept.json() == api.json()
-    assert by_query.json() == api.json()
+    assert _record_without_the_countdown(by_accept.json()) == _record_without_the_countdown(
+        api.json()
+    )
+    assert _record_without_the_countdown(by_query.json()) == _record_without_the_countdown(
+        api.json()
+    )
+    # The countdown is still part of every one of the three answers, and still
+    # a retention window rather than an arbitrary number - it is only its exact
+    # value that must not be compared across requests.
+    for negotiated in (api, by_accept, by_query):
+        assert 0 < negotiated.json()["expiresIn"] <= 3600
     assert "<html" not in by_accept.text
 
     missing = served.get(
