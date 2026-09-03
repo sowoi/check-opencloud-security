@@ -284,10 +284,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   real server. `tests/test_redis_contract.py` asks both backends the same
   questions, and CI now starts a Redis service for the half that needs one;
   without `TEST_REDIS_URL` that half skips, so nothing new is needed to run
-  the suite locally. The queue is covered the same way - `memory://` must keep
+  the suite locally. Every call runs on one event loop rather than a fresh one
+  per call: a `redis.asyncio` pool binds its sockets to the loop that opened
+  them, so a per-call `asyncio.run` - which the in-process backend never
+  notices - leaves the real client's second command reaching for a connection
+  attached to a loop that is already closed, exactly as a deployment would
+  never do. The queue is covered the same way - `memory://` must keep
   selecting the queue that runs nothing, a real URL must produce an ARQ queue
   a job actually reaches, and the URL a deployment configures must survive the
-  translation into ARQ's own connection settings.
+  translation into ARQ's own connection settings. That job is read back with
+  ARQ's own reader, because ARQ's queue is a sorted set of job ids rather than
+  the list the store's own queue is, and it goes onto a queue name this run
+  invented so that a worker watching a shared server cannot take it.
 
 - **Coverage was blind to both entry points, and had been all along.** The
   plugin and the scanner CLI are tested the way a monitoring system runs

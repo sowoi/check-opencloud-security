@@ -50,12 +50,62 @@ def settings(**overrides: Any) -> WebSettings:
     defaults.update(overrides)
     return WebSettings(**defaults)
 
+
+ISOLATED_QUEUE = f"contract:{uuid.uuid4()}"
+
+
+class _IsolatedQueueSettings(WebSettings):
+    """
+    Settings whose queue is this run's own rather than the deployment's.
+
+    `WebSettings.queue_name` is a read-only constant on purpose: the API and
+    the worker have to agree on one queue without being configured to, so it
+    is not a field and cannot be passed in. A test that enqueued onto that
+    name would hand its job to whatever worker is watching the server, and
+    count whatever else is already waiting there, so the queue test points the
+    same code at a name nothing else uses.
+    """
+
+    @property
+    def queue_name(self) -> str:
+        return ISOLATED_QUEUE
+
+
 REAL_URL = os.environ.get("TEST_REDIS_URL", "")
+
+
+_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def _loop() -> asyncio.AbstractEventLoop:
+    """
+    The one event loop every call in this module runs on.
+
+    `asyncio.run` would open and close a fresh loop per call, which the
+    in-process backend does not notice and the real client cannot survive: a
+    `redis.asyncio` pool binds its sockets to the loop that opened them, so the
+    second call finds its connection attached to a loop that is already closed.
+    Production runs one loop for the life of the process, and so does this.
+    """
+    global _LOOP
+    if _LOOP is None or _LOOP.is_closed():
+        _LOOP = asyncio.new_event_loop()
+    return _LOOP
 
 
 def _run(coroutine):
     """Drive one coroutine to completion, the way the sync tests here read."""
-    return asyncio.run(coroutine)
+    return _loop().run_until_complete(coroutine)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _close_the_loop_after_the_module():
+    """Give the loop back at the end, rather than leaving it open for the run."""
+    yield
+    global _LOOP
+    if _LOOP is not None and not _LOOP.is_closed():
+        _LOOP.close()
+    _LOOP = None
 
 
 class _Namespaced:
@@ -279,6 +329,26 @@ def test_a_backend_answers_a_ping(store):
     assert _run(store.ping()) is True
 
 
+def test_every_call_in_this_file_runs_on_the_same_event_loop():
+    """
+    A fresh loop per call is what broke the real backend, and it broke quietly.
+
+    `MemoryRedis` awaits nothing that belongs to a loop, so a per-call
+    `asyncio.run` kept the memory half of every test above passing while the
+    real client failed on the second command it was given. Asserting the loop
+    itself is the only way that difference stays visible without a server.
+    """
+
+    async def running_loop() -> asyncio.AbstractEventLoop:
+        return asyncio.get_running_loop()
+
+    first = _run(running_loop())
+    second = _run(running_loop())
+
+    assert first is second
+    assert not first.is_closed()
+
+
 def test_a_memory_url_selects_the_queue_that_runs_nothing():
     """
     ``memory://`` has to keep choosing `InertQueue`, or the overload tests lie.
@@ -324,17 +394,31 @@ def test_a_real_url_selects_the_arq_queue_and_a_job_reaches_it():
     uuid and nothing else - no target and no waiver list travels through the
     queue - and this is the only place that claim is checked against a server.
     """
+    from arq import create_pool
+
     from webapp import queue
 
-    queue_name = f"contract:{uuid.uuid4()}"
-    opened = _run(queue.create_queue(settings(redis_url=REAL_URL, queue_name=queue_name)))
+    configured = _IsolatedQueueSettings(
+        public_base_url="http://testserver", redis_url=REAL_URL
+    )
+    opened = _run(queue.create_queue(configured))
+    reader = _run(create_pool(queue.redis_settings(configured)))
     backend = create_backend(REAL_URL)
+    waiting: list[Any] = []
     try:
         assert isinstance(opened, queue.ArqQueue)
         _run(opened.enqueue("11111111-1111-4111-8111-111111111111"))
 
-        assert _run(backend.llen(queue_name)) == 1
+        # ARQ's queue is a sorted set of job ids, and the definition lives
+        # beside it, so the queue is read back with ARQ's own reader rather
+        # than the list commands the store's own queue answers to.
+        waiting = _run(reader.queued_jobs(queue_name=ISOLATED_QUEUE))
+
+        assert [job.function for job in waiting] == [queue.JOB_NAME]
+        assert waiting[0].args == ("11111111-1111-4111-8111-111111111111",)
+        assert waiting[0].kwargs == {}, "nothing but the uuid travels through the queue"
     finally:
         _run(opened.close())
-        _run(backend.delete(queue_name))
+        _run(reader.aclose())
+        _run(backend.delete(ISOLATED_QUEUE, *(f"arq:job:{job.job_id}" for job in waiting)))
         _run(backend.close())
