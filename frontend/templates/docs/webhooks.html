@@ -18,6 +18,7 @@
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
   <a href="#the-payload-in-short" lang="en">The payload, in short</a>
+  <a href="#the-full-payload" lang="en">The full payload</a>
   <a href="#a-generic-receiver" lang="en">A generic receiver</a>
   <a href="#verifying-the-signature" lang="en">Verifying the signature</a>
   <a href="#uptime-kuma" lang="en">Uptime Kuma</a>
@@ -46,6 +47,7 @@ wants the generic document, and needs a few lines of translation in between.</p>
 <ul>
 <li><a href="#webhook-recipes">Webhook recipes</a></li>
 <li><a href="#the-payload-in-short">The payload, in short</a></li>
+<li><a href="#the-full-payload">The full payload</a></li>
 <li><a href="#a-generic-receiver">A generic receiver</a></li>
 <li><a href="#verifying-the-signature">Verifying the signature</a></li>
 <li><a href="#uptime-kuma">Uptime Kuma</a></li>
@@ -57,8 +59,8 @@ wants the generic document, and needs a few lines of translation in between.</p>
 <!-- TOC -->
 
 <h2 id="the-payload-in-short">The payload, in short</h2>
-<p>The fields most receivers care about, from the full example in
-<a href="/documentation/reference#webhook-notifications">Webhook notifications</a>:</p>
+<p>The fields most receivers care about, from
+<a href="#the-full-payload">the full payload</a> below:</p>
 <table>
 <thead>
 <tr>
@@ -100,6 +102,55 @@ wants the generic document, and needs a few lines of translation in between.</p>
 <p>A scan that failed outright carries only <code>plugin</code>, <code>plugin_version</code>,
 <code>timestamp</code>, <code>host</code>, <code>status</code>, <code>exit_code</code> and <code>message</code>. Any receiver that
 reaches for <code>rating</code> must tolerate its absence.</p>
+<h2 id="the-full-payload">The full payload</h2>
+<p>Everything the <code>generic</code> document carries, from a run that found an
+end-of-life release:</p>
+<pre><code class="language-json">{
+  &quot;plugin&quot;: &quot;check-opencloud-security&quot;,
+  &quot;plugin_version&quot;: &quot;1.0.0&quot;,
+  &quot;timestamp&quot;: &quot;2026-08-07T10:12:33.123456+00:00&quot;,
+  &quot;host&quot;: &quot;opencloud.example.com&quot;,
+  &quot;status&quot;: &quot;CRITICAL&quot;,
+  &quot;exit_code&quot;: 2,
+  &quot;message&quot;: &quot;CRITICAL: The 7.3 rolling release line is end-of-life and has no security fixes. Upgrade to 7.4.0.&quot;,
+  &quot;rating&quot;: 0,
+  &quot;rating_label&quot;: &quot;F&quot;,
+  &quot;product&quot;: &quot;OpenCloud&quot;,
+  &quot;product_version&quot;: &quot;7.3.0&quot;,
+  &quot;domain&quot;: &quot;opencloud.example.com&quot;,
+  &quot;scanned_at&quot;: &quot;2026-08-12 15:24:13.978540&quot;,
+  &quot;eol&quot;: true,
+  &quot;release_type&quot;: &quot;rolling&quot;,
+  &quot;lifecycle&quot;: {
+    &quot;line&quot;: &quot;7.3&quot;,
+    &quot;releaseType&quot;: &quot;rolling&quot;,
+    &quot;state&quot;: &quot;endOfLife&quot;,
+    &quot;released&quot;: &quot;2026-07-14&quot;,
+    &quot;endOfLife&quot;: &quot;2026-08-03&quot;,
+    &quot;daysRemaining&quot;: -9,
+    &quot;latestOnLine&quot;: null,
+    &quot;upgradeTo&quot;: &quot;7.4.0&quot;,
+    &quot;reason&quot;: &quot;rolling release, unsupported since 2026-08-03&quot;,
+    &quot;scheduleStale&quot;: false,
+    &quot;scheduleUpdated&quot;: &quot;2026-08-12&quot;,
+    &quot;scheduleSource&quot;: &quot;https://docs.opencloud.eu/docs/admin/resources/lifecycle/&quot;,
+    &quot;scheduleNote&quot;: null
+  },
+  &quot;vulnerability_count&quot;: 0,
+  &quot;vulnerabilities&quot;: [],
+  &quot;missing_hardenings&quot;: [],
+  &quot;failed_extra_checks&quot;: [&quot;exposed:/opencloud.yaml&quot;],
+  &quot;scan_backend&quot;: &quot;local&quot;,
+  &quot;scan_uuid&quot;: &quot;6a1d1bd0-...&quot;,
+  &quot;update&quot;: {&quot;available&quot;: true, &quot;version&quot;: &quot;7.3.0&quot;, &quot;availableVersion&quot;: &quot;7.4.0&quot;, &quot;releasedAt&quot;: &quot;2026-08-03&quot;, &quot;source&quot;: &quot;feed&quot;, &quot;error&quot;: null, &quot;track&quot;: &quot;rolling&quot;, &quot;newestRelease&quot;: null},
+  &quot;duration_seconds&quot;: 1.234
+}
+</code></pre>
+<p><code>scan_backend</code> is always <code>"local"</code> - it records how the result was obtained,
+so a receiver that also handles payloads from scanners with a remote backend
+can tell them apart without special-casing the plugin name.</p>
+<p>Notifications sent for a failed scan carry only the common fields (<code>plugin</code>,
+<code>plugin_version</code>, <code>timestamp</code>, <code>host</code>, <code>status</code>, <code>exit_code</code>, <code>message</code>).</p>
 <h2 id="a-generic-receiver">A generic receiver</h2>
 <p>Anything that accepts arbitrary JSON - a log pipeline, a webhook collector, an
 n8n or Node-RED flow - takes the payload unchanged:</p>
@@ -154,9 +205,80 @@ all, and the honest fix is to read the body yourself before parsing.</p>
   secrets</a>.</li>
 </ul>
 <h2 id="uptime-kuma">Uptime Kuma</h2>
-<p>Covered in full in <a href="/documentation/reference#uptime-kuma">Uptime Kuma</a>, because its Push
-monitor is the one receiver that takes the payload as-is <em>and</em> treats silence
-as a failure - which makes a check that stopped running visible.</p>
+<p>Uptime Kuma has no plugin system, but its <strong>Push</strong> monitor is a URL that
+expects to be called regularly - which is exactly what the webhook does. The
+check becomes a monitor in three steps.</p>
+<p><strong>1. Create the monitor.</strong> In Uptime Kuma choose <em>Add New Monitor</em>, monitor
+type <strong>Push</strong>, and name it after the instance. Uptime Kuma shows a <em>Push URL</em>
+of the form <code>https://kuma.example.com/api/push/&lt;token&gt;</code>. Set <em>Heartbeat
+Interval</em> a little longer than the interval you will run the check at - 300
+seconds for a check every four minutes - so a single slow scan does not
+already count as down.</p>
+<p><strong>2. Point the webhook at it</strong>, and set <code>--webhook-on always</code> so that a
+healthy result also reports in. Without it Uptime Kuma would only ever hear
+from the check when something is wrong, and treat silence as down:</p>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com \
+  --webhook-url 'https://kuma.example.com/api/push/&lt;token&gt;' \
+  --webhook-on always
+</code></pre>
+<p>Or in the configuration file, so the token is not in the process list:</p>
+<pre><code class="language-yaml">host: opencloud.example.com
+webhook:
+  url: secret://kuma_push_url
+  on: always
+</code></pre>
+<p><strong>3. Run it on a schedule</strong> - see
+<a href="/documentation/scheduling#systemd-timer">systemd timer</a> or
+<a href="/documentation/scheduling#cron">cron</a>. Uptime Kuma goes red when no push arrives
+within the heartbeat interval, so a plugin that cannot run at all shows up as
+well.</p>
+<p>Uptime Kuma stores the JSON body it receives and shows it on the monitor, so
+the rating, the OpenCloud version and the reason for the state are visible in
+the heartbeat detail. To surface the state in the message column too, use the
+push URL's own query parameters alongside the webhook:</p>
+<table>
+<thead>
+<tr>
+<th>Field in the payload</th>
+<th>What it tells you in Uptime Kuma</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code> / <code>exit_code</code></td>
+<td><code>OK</code>, <code>WARNING</code>, <code>CRITICAL</code> or <code>UNKNOWN</code></td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>The one-line reason, ready to paste into an alert</td>
+</tr>
+<tr>
+<td><code>rating</code>, <code>rating_label</code></td>
+<td>The <code>0</code>-<code>5</code> score and its <code>A</code>-<code>F</code> label</td>
+</tr>
+<tr>
+<td><code>product_version</code>, <code>eol</code></td>
+<td>Which OpenCloud release, and whether it still gets fixes</td>
+</tr>
+<tr>
+<td><code>update.availableVersion</code></td>
+<td>What to upgrade to</td>
+</tr>
+<tr>
+<td><code>duration_seconds</code></td>
+<td>How long the scan took</td>
+</tr>
+</tbody>
+</table>
+<p>If you would rather have Uptime Kuma go down on <em>any</em> problem, keep
+<code>--webhook-on always</code> and add a keyword check on the JSON, or run a second
+Push monitor fed by a wrapper that only pushes when the plugin exits <code>0</code>:</p>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com \
+  &amp;&amp; curl -fsS 'https://kuma.example.com/api/push/&lt;token&gt;?status=up' \
+  || curl -fsS 'https://kuma.example.com/api/push/&lt;token&gt;?status=down&amp;msg=opencloud'
+</code></pre>
+<p>The webhook route is the better one of the two: it pushes on every outcome and
+carries the detail, while the wrapper only carries up or down.</p>
 <h2 id="slack-mattermost-discord">Slack, Mattermost, Discord</h2>
 <p>These expect their own JSON. For the common case, <code>--webhook-format slack</code>
 or <code>--webhook-format discord</code> posts it directly - no adapter needed:</p>

@@ -2,14 +2,14 @@
 [Icinga Director](https://icinga.com/docs/icinga-director/latest/) manages
 `CheckCommand`, `Service Template`, and `Service` objects through its web UI
 instead of hand-written config files. The steps below work for either the
-native install or the [Docker](../README.md#docker) image.
+native install or the [Docker](installation.md#docker) image.
 
 1. **Create the Command**
    - Navigate to *Icinga Director → Commands → Add*.
    - **Command name:** `check_opencloud_security`
    - **Command:**
      - Native install: `/usr/lib/nagios/plugins/check-opencloud-security` (wherever you installed/symlinked it, see [Installation](../README.md#installation)).
-     - Docker: `/usr/bin/docker` (see the [Docker CheckCommand](../README.md#using-the-docker-image-instead) example for the required fixed arguments `run`, `--rm`, and the image name).
+     - Docker: `/usr/bin/docker` (see the [Docker CheckCommand](installation.md#using-the-docker-image-instead) example for the required fixed arguments `run`, `--rm`, and the image name).
    - **Command type:** *Plugin Check Command*.
 
 2. **Add the arguments** on the same Command object (*Fields* tab → *Add argument*):
@@ -34,7 +34,7 @@ native install or the [Docker](../README.md#docker) image.
    - *Icinga Director → Service Templates → Add*.
    - **Check command:** `check_opencloud_security`.
    - **Check interval:** `24h` is a good default; see the note under
-     [Icinga2 / Nagios](../README.md#icinga2--nagios) before going much lower.
+     [Icinga2 / Nagios](installation.md#icinga2--nagios) before going much lower.
    - Leave the Data Fields empty here so they can be filled in per service/host.
 
 5. **Apply it to a host or host group**
@@ -44,7 +44,7 @@ native install or the [Docker](../README.md#docker) image.
    - Deploy the configuration from *Icinga Director → Deployments*.
 
 Once deployed, Icinga2 invokes the command exactly as described in the
-[Icinga2 / Nagios](../README.md#icinga2--nagios) section, whether that resolves
+[Icinga2 / Nagios](installation.md#icinga2--nagios) section, whether that resolves
 to the native binary or `docker run` under the hood.
 
 To deploy the same objects without the web UI, see

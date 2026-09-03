@@ -241,7 +241,7 @@ rating the way any failed extra check does (critical -> `D`, high -> `C`,
 medium -> `A`, low -> `A+`) - see [Hardening
 checks](../README.md#hardening-checks) for how that differs from a plain
 hardening flag, and the extra-checks table in [the main
-README](../README.md#what-the-scanner-checks) for the full severity list.
+README](scanner-checks.md#what-the-scanner-checks) for the full severity list.
 
 ## Reference
 

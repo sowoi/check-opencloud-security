@@ -6,7 +6,7 @@ schedule, and as a `Deployment` of the
 consumers share. They are independent - most people want only the first.
 
 The image is built from this repository; see
-[Docker](../README.md#docker). Push it to your own registry and replace
+[Docker](installation.md#docker). Push it to your own registry and replace
 `registry.example.com/check-opencloud-security:1.1.0` below. Pin a tag rather
 than using `latest`: the release schedule and the newest known OpenCloud
 version ship *inside* the image, so which tag you run is part of the verdict.
@@ -92,7 +92,7 @@ kubectl logs job/opencloud-security-now --namespace monitoring
 
 A failed job is a blunt signal. Add the webhook and the result arrives with
 the reason attached - see [Webhook recipes](webhook-recipes.md) and
-[Uptime Kuma](../README.md#uptime-kuma):
+[Uptime Kuma](webhook-recipes.md#uptime-kuma):
 
 ```yaml
               args:

@@ -137,6 +137,36 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   link says anything. No second template and no new markup beyond a marker on
   the two cards that are entirely controls.
 
+### Documentation
+
+- **`README.md` is half its length, and the material it lost is now findable.**
+  It had reached 2,348 lines, which meant the file people open first answered
+  every question at the same volume: how to install the plugin, what each
+  hardening identifier means, which OpenCloud service listens on port 9134 and
+  how to write an Icinga2 `CheckCommand` all stood in one column with nothing
+  to skip. Eight sections that had become reference works of their own now
+  have pages of their own - [Installing the plugin](docs/installation.md),
+  [What the scanner reads, and what it deliberately does
+  not](docs/scanner-checks.md), [Release tracks, end of life and the update
+  recommendation](docs/release-lifecycle.md), [Hardening measures, one by
+  one](docs/hardening.md), [Secrets in the configuration](docs/configuration.md),
+  [Reporting only what changed](docs/baseline.md), [Running the scanner as a
+  service](docs/scan-service.md) and [Worked examples](docs/examples.md) - and
+  the example webhook payload and the Uptime Kuma walk-through joined [the
+  webhook recipes](docs/webhook-recipes.md), where every other receiver
+  already was.
+
+  What stayed behind is a summary and a link rather than a stub: the README
+  still says what the scanner reads, what a waiver does, how a track is
+  declared and what the service refuses to do without a token - it just stops
+  before the tables. Nothing was deleted, every paragraph is either still in
+  `README.md` or on one of those pages, and the anchors other documents
+  reached them by were followed to their new homes rather than left dangling.
+  The eight pages are in the `docs/README.md` index and in
+  `webapp/documentation.py`, so each is a page under `/documentation` and a
+  row in the search index - which is where somebody looking for "shell
+  completion" or "demo users" actually starts.
+
 ## [1.18.2] - 2026-09-01
 
 ### Added

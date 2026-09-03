@@ -41,7 +41,7 @@ untrusted chain is still reported, it just stops counting against the rating),
 or put a reverse proxy with a real certificate in front of the instance.</p>
 <p><strong>The version looks wrong (<code>0.1.0</code>)</strong>
 That is the hardcoded legacy field, not the release - see
-<a href="/documentation/reference#reading-the-version-correctly">Reading the version correctly</a>. The plugin
+<a href="/documentation/scanner-checks#reading-the-version-correctly">Reading the version correctly</a>. The plugin
 reports <code>legacyVersion</code> when the instance offered nothing better; upgrading the
 instance or letting the plugin reach
 <code>/ocs/v1.php/cloud/capabilities</code> resolves it.</p>
@@ -57,7 +57,7 @@ check looks for, written out for nginx, Apache, Caddy, Traefik and HAProxy.</p>
 Debug-port probing costs up to <code>debug_port_timeout</code> seconds per port on a
 firewalled host. Use <code>--no-debug-ports</code>, lower
 <code>COS_SCANNER_DEBUG_PORT_TIMEOUT</code>, shorten the port list, or scan in parallel
-with <code>--concurrency</code> (see <a href="/documentation/reference#speeding-the-scan-up">Speeding the scan up</a>).</p>
+with <code>--concurrency</code> (see <a href="/documentation/scanner-checks#speeding-the-scan-up">Speeding the scan up</a>).</p>
 <p><strong><code>UNKNOWN</code> on the update check / GitHub rate limit</strong>
 Sixty anonymous API requests per hour and IP address are shared with everything
 else on that address. Supply <code>--release-token</code>, or use <code>--update-source

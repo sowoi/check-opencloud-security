@@ -549,7 +549,7 @@ incidents live, and the only thing that shortens it is something that looks
 every few minutes.</strong></p>
 <h3 id="a-monitoring-setup-that-is-worth-having">A monitoring setup that is worth having</h3>
 <p>Start here, then read <a href="/documentation/scheduling">Scheduling</a> or
-<a href="/documentation/reference#icinga2--nagios">Icinga2 / Nagios</a> for your platform:</p>
+<a href="/documentation/installation#icinga2--nagios">Icinga2 / Nagios</a> for your platform:</p>
 <pre><code class="language-bash">check-opencloud-security \
   --host opencloud.example.com \
   --check-hardening \
@@ -572,7 +572,7 @@ every few minutes.</strong></p>
   <code>--ignore-hardening</code>, which keeps them in the result document and in the
   report while taking them out of the alert. A waiver is a decision with a
   name on it, not a silenced check - see
-  <a href="/documentation/reference#accepting-a-finding-you-are-not-going-to-fix">Accepting a finding you are not going to fix</a>.</li>
+  <a href="/documentation/hardening#accepting-a-finding-you-are-not-going-to-fix">Accepting a finding you are not going to fix</a>.</li>
 </ul>
 <p>For a fleet, <a href="/documentation/many-instances">Checking a fleet of instances</a> covers one
 configuration file per instance and keeping the waivers honest across all of
@@ -597,7 +597,7 @@ summary to put in front of people who do not read alerts.</p>
   the one credential probe it does make uses only the demo passwords
   OpenCloud publishes in its own documentation.</li>
 </ul>
-<p><a href="/documentation/reference#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
+<p><a href="/documentation/scanner-checks#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
 answer</a> is the full
 version of this list.</p>
 <h2 id="checklist">Checklist</h2>

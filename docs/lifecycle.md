@@ -20,7 +20,7 @@ real version to reason about.
 
 `/status.php` reports up to three version-shaped fields, and only one of
 them is the real release - see [Reading the version
-correctly](../README.md#reading-the-version-correctly) for what the other
+correctly](scanner-checks.md#reading-the-version-correctly) for what the other
 two are and why they exist, and [Why OpenCloud still answers
 `/status.php`](status-php.md) for where the endpoint and its hardcoded
 fields come from. This check fails when `productversion` is missing and
@@ -69,7 +69,7 @@ against that exact release is still unpatched.
 All three are `extraChecks`, reported and rating-capped on every scan -
 `versionDetection` at `medium` (caps the rating at `A`), the two disclosure
 checks at `low` (caps it at `A+`) - see the extra-checks table in [the main
-README](../README.md#what-the-scanner-checks). None require
+README](scanner-checks.md#what-the-scanner-checks). None require
 `--check-hardening`, and none of them are the same thing as the [end-of-life
 rating](../README.md#end-of-life-detection): a current, fully disclosed
 version and an end-of-life, well-hidden one are graded on entirely different

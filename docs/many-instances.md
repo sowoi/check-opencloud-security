@@ -135,7 +135,7 @@ revisited is how a regression becomes invisible. Two things keep them honest:
 
 - A waiver only ever suppresses the alert. The finding stays in the result
   document with `"ignored": true`, and `--debug` still explains it - see
-  [Accepting a finding you are not going to fix](../README.md#accepting-a-finding-you-are-not-going-to-fix).
+  [Accepting a finding you are not going to fix](hardening.md#accepting-a-finding-you-are-not-going-to-fix).
 - Only a check that *actually failed* can be waived, so a waiver cannot
   silently cover a measure that later regresses into a different finding.
 
@@ -154,7 +154,7 @@ run: `publicLinkExpirationEnforced` is hardcoded by OpenCloud and fails on
 every instance in existence, so it is recorded but deliberately kept out of
 the alert, the `hardenings_missing` metric and the webhook. Waiving it would
 be waiving nothing - see
-[Measures that are not settings](../README.md#measures-that-are-not-settings).
+[Measures that are not settings](hardening.md#measures-that-are-not-settings).
 
 ## Only alerting on what changed
 

@@ -78,4 +78,4 @@ cap the rating the way a failed `extraChecks` entry does - see
 [Hardening checks](../README.md#hardening-checks) for how hardening flags and
 capped findings differ. The missing-header finding is a `header:` extra check
 and does cap the rating when `--check-hardening` is set - see the extra-checks
-table in [the main README](../README.md#what-the-scanner-checks).
+table in [the main README](scanner-checks.md#what-the-scanner-checks).

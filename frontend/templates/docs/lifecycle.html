@@ -34,7 +34,7 @@ real version to reason about.</p>
 
 <h2 id="1-could-the-running-version-be-determined-at-all-versiondetection">1. Could the running version be determined at all: <code>versionDetection</code></h2>
 <p><code>/status.php</code> reports up to three version-shaped fields, and only one of
-them is the real release - see <a href="/documentation/reference#reading-the-version-correctly">Reading the version
+them is the real release - see <a href="/documentation/scanner-checks#reading-the-version-correctly">Reading the version
 correctly</a> for what the other
 two are and why they exist, and <a href="/documentation/status-php">Why OpenCloud still answers
 <code>/status.php</code></a> for where the endpoint and its hardcoded
@@ -73,7 +73,7 @@ against that exact release is still unpatched.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p>All three are <code>extraChecks</code>, reported and rating-capped on every scan -
 <code>versionDetection</code> at <code>medium</code> (caps the rating at <code>A</code>), the two disclosure
-checks at <code>low</code> (caps it at <code>A+</code>) - see the extra-checks table in <a href="/documentation/reference#what-the-scanner-checks">the main
+checks at <code>low</code> (caps it at <code>A+</code>) - see the extra-checks table in <a href="/documentation/scanner-checks#what-the-scanner-checks">the main
 README</a>. None require
 <code>--check-hardening</code>, and none of them are the same thing as the <a href="/documentation/reference#end-of-life-detection">end-of-life
 rating</a>: a current, fully disclosed

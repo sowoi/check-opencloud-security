@@ -754,10 +754,16 @@ HTTP API. A new setting needs a row in that table as well as in
 
 `docs/` holds the deployment guides and the worked examples, indexed by
 `docs/README.md`. Long, platform-specific material belongs there rather than
-in `README.md`; a new page needs a row in the guide table under
-`# Deployment guides` and a row in the `docs/README.md` index. Relative links
-in `docs/` point one level up (`../README.md#anchor`), so moving a section
-means fixing the links that reached it by anchor.
+in `README.md`; a new page needs a row in the `docs/README.md` index, and an
+entry in `webapp/documentation.py` so it is browsable under `/documentation`
+and reachable from the search index. The guide table under
+`# Deployment guides` in `README.md` is a shortlist of the pages people reach
+for first, not a second index - add a row there only when the new page belongs
+in it. What stays in `README.md` for a section that moved is a summary and a
+link, never a bare pointer, so the file still answers the question at a
+glance. Relative links in `docs/` point one level up
+(`../README.md#anchor`), so moving a section means fixing the links that
+reached it by anchor.
 
 `/documentation` is the browser-facing CLI reference. Its index is
 hand-written, but every document below it is generated from `README.md`,
