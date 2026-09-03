@@ -50,6 +50,12 @@ MESSAGES: dict[str, str] = {
     "admin.state.worker": "Worker",
     "admin.state.worker.up": "Running",
     "admin.state.worker.down": "Not answering",
+    # The third answer, and the one worth having: the worker's heartbeat is a
+    # key in the store, so a store that is gone is not evidence about the
+    # worker either way. Saying "not answering" there sends somebody to
+    # restart the wrong container.
+    "admin.state.worker.unknown": "Cannot tell",
+    "admin.state.store.down": "The store is not answering - the heartbeat cannot be read",
     "admin.state.queue": "{depth} queued, {workers} workers",
     "admin.state.ratelimit": "Rate limit",
     "admin.state.ratelimit.value": "{limit} per {window}s",
@@ -70,6 +76,47 @@ MESSAGES: dict[str, str] = {
     "admin.state.copy": "Copy diagnostics",
     "admin.state.copy.done": "Copied",
     "admin.state.copy.failed": "Could not copy",
+    # What this deployment offers the world. Every one of these is a setting
+    # read at startup, so the card is the server's and never repolled - and
+    # the two sentences that carry the accent describe a *combination*, since
+    # neither setting is a mistake on its own.
+    "admin.surfaces.kicker": "Exposure",
+    "admin.surfaces.heading": "What this deployment offers",
+    "admin.surfaces.lede": (
+        "The settings this process was started with, and the same ones the "
+        "diagnostics document reports. None of them changes without a "
+        "restart, so none of them is polled."
+    ),
+    "admin.surfaces.on": "On",
+    "admin.surfaces.off": "Off",
+    "admin.surfaces.mcp": "Agent endpoint at /mcp",
+    "admin.surfaces.mcp.guarded": "A token from the configured issuer is required.",
+    "admin.surfaces.mcp.open": (
+        "No token is required: any agent that can reach it can spend this "
+        "service's workers."
+    ),
+    "admin.surfaces.docs": "Browsable API pages at /docs",
+    "admin.surfaces.docs.contract": (
+        "Off hides the pages, not the contract: /openapi.json, /arazzo.json "
+        "and /.well-known/ai.json stay public."
+    ),
+    "admin.surfaces.indexed": "Findable by search engines",
+    "admin.surfaces.private": "Scans of private network addresses",
+    "admin.surfaces.private.found": (
+        "Allowed on a deployment that asks to be indexed: a stranger who "
+        "finds this service can point it at the network it stands in."
+    ),
+    "admin.surfaces.private.estate": (
+        "Allowed, which is what a deployment scanning its own estate is for."
+    ),
+    "admin.surfaces.encrypt": "Results encrypted at rest",
+    "admin.surfaces.audit": "Audit trail",
+    "admin.surfaces.audit.file": "Written to a file that outlives the container.",
+    "admin.surfaces.audit.memory": (
+        "A ring of {count} records in this process's memory, and nothing on "
+        "disk."
+    ),
+    "admin.surfaces.targets": "Targets recorded in the clear",
     "admin.actions.kicker": "Reference data",
     "admin.actions.heading": "Refresh what the scanner rates against",
     "admin.actions.lede": (

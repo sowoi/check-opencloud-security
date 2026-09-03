@@ -30,6 +30,8 @@
 {% block body_attrs %}data-admin data-admin-poll="{{ poll_interval }}"
   data-admin-worker-up="{{ t('admin.state.worker.up') }}"
   data-admin-worker-down="{{ t('admin.state.worker.down') }}"
+  data-admin-worker-unknown="{{ t('admin.state.worker.unknown') }}"
+  data-admin-store-down="{{ t('admin.state.store.down') }}"
   data-admin-queue="{{ t.raw('admin.state.queue') }}"
   data-admin-ratelimit="{{ t.raw('admin.state.ratelimit.value') }}"
   data-admin-cooldown="{{ t.raw('admin.state.cooldown.value') }}"
@@ -172,6 +174,43 @@
   <noscript>
     <p class="hint section-gap flush">{{ t('admin.noscript') }}</p>
   </noscript>
+</section>
+
+{# ---------------------------------------------------------- what is exposed #}
+{#
+  The question an operator opens this page with, and until now the one it
+  could not answer: what is this deployment offering right now. Every reading
+  is a setting read at startup - the same ones /admin/state reports, from the
+  same two functions - so the card is rendered by the server and never
+  polled. A setting that changed did so in a process this page is no longer
+  talking to.
+
+  Two combinations carry the accent, and only two. Neither is a mistake in
+  itself: an endpoint anybody may call is what a public scanner is for, and
+  scanning private addresses is what a private deployment exists to do. Each
+  is worth a second look because it is right in a deployment that is not
+  necessarily this one.
+#}
+<section class="card section-gap" aria-labelledby="admin-surfaces" data-reveal>
+  <p class="kicker">{{ t('admin.surfaces.kicker') }}</p>
+  <h2 id="admin-surfaces">{{ t('admin.surfaces.heading') }}</h2>
+  <p class="lede">{{ t('admin.surfaces.lede') }}</p>
+
+  <ul class="admin-surfaces">
+    {% for surface in surfaces %}
+    <li class="admin-surface" data-surface="{{ surface.name }}"
+        data-state="{{ 'on' if surface.on else 'off' }}"
+        {% if surface.notable %}data-notable="true"{% endif %}>
+      <span class="admin-surface-label">{{ t('admin.surfaces.' ~ surface.name) }}</span>
+      <span class="admin-surface-pill">
+        {{ t('admin.surfaces.on') if surface.on else t('admin.surfaces.off') }}
+      </span>
+      {% if surface.note %}
+      <span class="admin-surface-note">{{ t(surface.note, count=surface.count) }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
 </section>
 
 {# --------------------------------------------------------------- actions #}

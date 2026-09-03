@@ -96,16 +96,27 @@
             ? Array.prototype.map.call(tiles, signature)
             : [];
 
+        // Three answers, not two. The heartbeat this reads is a key in the
+        // store, so a store that is gone takes the answer with it - and a
+        // tile that called that "not answering" was telling an operator to
+        // restart a worker that may be perfectly healthy. `alive` is null
+        // exactly then, and the tile says which of the two outages this is.
         var worker = stats.worker || {};
-        put(
-            "worker",
-            worker.alive ? text("worker-up") : text("worker-down"),
-            worker.alive ? "good" : "bad"
-        );
-        put("queue", fill(text("queue"), {
-            depth: worker.queueDepth === null ? "?" : worker.queueDepth,
-            workers: worker.maxWorkers
-        }));
+        var store = stats.store || {};
+        if (store.reachable === false || worker.alive === null) {
+            put("worker", text("worker-unknown"), "warn");
+            put("queue", text("store-down"));
+        } else {
+            put(
+                "worker",
+                worker.alive ? text("worker-up") : text("worker-down"),
+                worker.alive ? "good" : "bad"
+            );
+            put("queue", fill(text("queue"), {
+                depth: worker.queueDepth === null ? "?" : worker.queueDepth,
+                workers: worker.maxWorkers
+            }));
+        }
 
         var limits = stats.limits || {};
         put("ratelimit", fill(text("ratelimit"), {

@@ -75,6 +75,33 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   fetch - under a key of its own, so it is available in the moment after a
   refresh has failed, which is the only moment anybody wants it.
 
+  **"Redis is gone" and "the worker died" are no longer the same picture.**
+  The heartbeat the worker tile reads is a key in the store, so a store that
+  is unreachable took the answer with it - and the tile said *Not answering*
+  either way, which is an area that sends an operator to restart a container
+  that may be perfectly healthy. It is the failure they are most likely to be
+  reading the page during. The tile now has a third answer, *Cannot tell*,
+  the state document reports `store.reachable` beside a worker liveness that
+  is `null` rather than `false` when nothing was learned, and `ADMIN.md`'s
+  troubleshooting table no longer has to draw the distinction in prose that
+  the page can draw itself.
+
+  **It says what this deployment is exposing.** The state document already
+  carried it - `/mcp` and whether a token is required, `/docs`, indexing,
+  private-network targets, encryption at rest, and what the audit trail keeps
+  and where - and the page showed none of it, so the question an operator
+  opens this area with could only be answered by reading the compose file. A
+  card of on/off pills now answers it, from the same two functions that
+  answer `/admin/state`, so the card and the diagnostics an operator copies
+  cannot disagree. They are settings rather than readings: the card is
+  rendered by the server, needs no scripting, and is never repolled, because
+  a value that changed did so in a process the open page is no longer talking
+  to. Two combinations carry the marked accent and only two - an agent
+  endpoint with no sign-in on it, and private-network targets on a deployment
+  that asks to be indexed, which is a scanner strangers can find pointed at
+  the network it stands in. Neither is refused: each is the right setting for
+  some deployment, and the area's job is to say which one this is.
+
   **And a way out of it.** The band said who was signed in and offered no way
   to stop being, which for a console left open on a shared screen is the one
   control it was missing. This service has no session to end, so it cannot

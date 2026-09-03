@@ -30,6 +30,10 @@ MESSAGES: dict[str, str] = {
     "admin.state.worker": "Worker",
     "admin.state.worker.up": "En marche",
     "admin.state.worker.down": "Ne répond pas",
+    "admin.state.worker.unknown": "Impossible à déterminer",
+    "admin.state.store.down": (
+        "Le stockage ne répond pas - impossible de lire le battement"
+    ),
     "admin.state.queue": "{depth} en file, {workers} workers",
     "admin.state.ratelimit": "Limite de requêtes",
     "admin.state.ratelimit.value": "{limit} par {window}s",
@@ -50,6 +54,48 @@ MESSAGES: dict[str, str] = {
     "admin.state.copy": "Copier le diagnostic",
     "admin.state.copy.done": "Copié",
     "admin.state.copy.failed": "Copie impossible",
+    "admin.surfaces.kicker": "Exposition",
+    "admin.surfaces.heading": "Ce que propose ce déploiement",
+    "admin.surfaces.lede": (
+        "Les réglages avec lesquels ce processus a démarré, ceux-là mêmes que "
+        "rapporte le document de diagnostic. Aucun ne change sans "
+        "redémarrage, aucun n'est donc interrogé."
+    ),
+    "admin.surfaces.on": "Activé",
+    "admin.surfaces.off": "Désactivé",
+    "admin.surfaces.mcp": "Point d'accès pour agents sur /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Un jeton de l'émetteur configuré est exigé."
+    ),
+    "admin.surfaces.mcp.open": (
+        "Aucun jeton n'est exigé : tout agent capable de l'atteindre peut "
+        "mobiliser les workers de ce service."
+    ),
+    "admin.surfaces.docs": "Pages d'API navigables sur /docs",
+    "admin.surfaces.docs.contract": (
+        "Les désactiver masque les pages, pas le contrat : /openapi.json, "
+        "/arazzo.json et /.well-known/ai.json restent publics."
+    ),
+    "admin.surfaces.indexed": "Trouvable par les moteurs de recherche",
+    "admin.surfaces.private": "Analyses d'adresses réseau privées",
+    "admin.surfaces.private.found": (
+        "Autorisé sur un déploiement qui demande à être indexé : qui trouve "
+        "ce service peut le pointer sur le réseau où il se trouve."
+    ),
+    "admin.surfaces.private.estate": (
+        "Autorisé, ce qui est précisément l'objet d'un déploiement qui "
+        "analyse son propre parc."
+    ),
+    "admin.surfaces.encrypt": "Résultats chiffrés au repos",
+    "admin.surfaces.audit": "Journal d'audit",
+    "admin.surfaces.audit.file": (
+        "Écrit dans un fichier qui survit au conteneur."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Un anneau de {count} enregistrements en mémoire de ce processus, et "
+        "rien sur disque."
+    ),
+    "admin.surfaces.targets": "Cibles enregistrées en clair",
     "admin.actions.kicker": "Données de référence",
     "admin.actions.heading": "Mettre à jour ce sur quoi la note repose",
     "admin.actions.lede": (

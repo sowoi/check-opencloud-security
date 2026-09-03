@@ -175,6 +175,122 @@ def index_freshness(frontend: Path) -> IndexFreshness:
     )
 
 
+def surfaces(settings: WebSettings) -> dict[str, bool]:
+    """What this deployment offers the world, as settings rather than counts.
+
+    Read in one place because two things ask: the state document an operator
+    copies for an issue report, and the card on the page. A second reading of
+    the same settings somewhere else is how the page and the document come to
+    disagree about what this service is doing.
+    """
+    return {
+        "mcp": settings.enable_mcp,
+        "mcpAuth": settings.mcp_auth_enabled,
+        "docs": settings.enable_docs,
+        "encryptResults": settings.encrypt_results,
+        "allowPrivateTargets": settings.allow_private_targets,
+        # Whether this deployment asks to be found at all. It is a surface in
+        # its own right, and it is the half of the question that decides
+        # whether scanning private addresses is a private estate's setting or
+        # an open relay into somebody's network.
+        "indexed": settings.allow_indexing,
+    }
+
+
+def audit_surface(settings: WebSettings) -> dict[str, Any]:
+    """What is kept about a request, and where it is kept."""
+    return {
+        "enabled": settings.audit_log,
+        "file": bool(settings.audit_log_file),
+        "buffer": settings.admin_audit_buffer,
+        "recordsTargets": settings.audit_log_targets,
+    }
+
+
+@dataclass(frozen=True)
+class Surface:
+    """One line of the exposure card: a thing this deployment does or does not.
+
+    ``name`` is the identifier the locale catalogue labels, ``note`` the key
+    of a sentence underneath it, and ``notable`` marks the two combinations
+    that are worth an operator's eye - not because either setting is wrong,
+    but because each is right in a deployment that is not this one.
+    """
+
+    name: str
+    on: bool
+    note: str | None = None
+    count: int | None = None
+    notable: bool = False
+
+
+def surface_rows(
+    exposed: dict[str, bool], audit: dict[str, Any]
+) -> tuple[Surface, ...]:
+    """The exposure card, in the order it is read.
+
+    Derived from the readings above rather than from the settings again, so
+    the card cannot say something the state document does not.
+
+    Two combinations carry the warning accent, and only two. **An agent
+    endpoint with no sign-in on it** is a deployment where anybody who can
+    reach ``/mcp`` can spend this service's workers - fine behind a private
+    network, and the default on a public scanner that is meant to be used by
+    anybody, which is exactly why it is worth saying out loud rather than
+    assuming. **Private targets on a deployment that asks to be indexed** is
+    the one combination that is almost never intended: it is a scanner
+    strangers can find, pointed at the network it is standing in.
+    """
+    rows: list[Surface] = [
+        Surface(
+            name="mcp",
+            on=exposed["mcp"],
+            note=(
+                ("admin.surfaces.mcp.guarded" if exposed["mcpAuth"]
+                 else "admin.surfaces.mcp.open")
+                if exposed["mcp"] else None
+            ),
+            notable=exposed["mcp"] and not exposed["mcpAuth"],
+        ),
+        Surface(
+            name="docs",
+            on=exposed["docs"],
+            # Said where it is a surprise: an operator who turned the
+            # browsable pages off may believe the contract went with them,
+            # and /openapi.json and /.well-known/ai.json are public whatever
+            # this setting says.
+            note=None if exposed["docs"] else "admin.surfaces.docs.contract",
+        ),
+        Surface(name="indexed", on=exposed["indexed"]),
+        Surface(
+            name="private",
+            on=exposed["allowPrivateTargets"],
+            note=(
+                ("admin.surfaces.private.found" if exposed["indexed"]
+                 else "admin.surfaces.private.estate")
+                if exposed["allowPrivateTargets"] else None
+            ),
+            notable=exposed["allowPrivateTargets"] and exposed["indexed"],
+        ),
+        Surface(name="encrypt", on=exposed["encryptResults"]),
+        Surface(
+            name="audit",
+            on=audit["enabled"],
+            note=(
+                ("admin.surfaces.audit.file" if audit["file"]
+                 else "admin.surfaces.audit.memory")
+                if audit["enabled"] else None
+            ),
+            count=None if audit["file"] else audit["buffer"],
+        ),
+    ]
+    if audit["enabled"]:
+        # Only where there is a trail for it to be true of. Off, it is not a
+        # reading about this deployment at all.
+        rows.append(Surface(name="targets", on=audit["recordsTargets"]))
+    return tuple(rows)
+
+
 async def statistics(
     backend: RedisBackend,
     settings: WebSettings,
@@ -196,8 +312,18 @@ async def statistics(
     freshness = index_freshness(frontend)
     return {
         "version": __version__,
+        # The store is reported before the worker, and the worker's liveness
+        # is `null` rather than `false` when the store did not answer,
+        # because those are two different outages with two different things
+        # to go and look at. The heartbeat is a key in Redis: a worker that
+        # died stops writing it, and a Redis that is gone takes the answer
+        # with it. Reporting the second as "the worker is not answering"
+        # sends an operator to restart a container that was never the
+        # problem, and it is the failure this document is most likely to be
+        # read during.
+        "store": {"reachable": health is not None},
         "worker": {
-            "alive": bool(health and health.worker_alive),
+            "alive": health.worker_alive if health else None,
             "queueDepth": health.queue_depth if health else None,
             "maxWorkers": settings.max_workers,
             "scanConcurrency": settings.scan_concurrency,
@@ -227,19 +353,8 @@ async def statistics(
             "extraPaths": list(freshness.extra_paths),
             "changedPaths": list(freshness.changed_paths),
         },
-        "audit": {
-            "enabled": settings.audit_log,
-            "file": bool(settings.audit_log_file),
-            "buffer": settings.admin_audit_buffer,
-            "recordsTargets": settings.audit_log_targets,
-        },
-        "surfaces": {
-            "mcp": settings.enable_mcp,
-            "mcpAuth": settings.mcp_auth_enabled,
-            "docs": settings.enable_docs,
-            "encryptResults": settings.encrypt_results,
-            "allowPrivateTargets": settings.allow_private_targets,
-        },
+        "audit": audit_surface(settings),
+        "surfaces": surfaces(settings),
     }
 
 

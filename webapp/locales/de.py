@@ -30,6 +30,10 @@ MESSAGES: dict[str, str] = {
     "admin.state.worker": "Worker",
     "admin.state.worker.up": "Läuft",
     "admin.state.worker.down": "Antwortet nicht",
+    "admin.state.worker.unknown": "Nicht feststellbar",
+    "admin.state.store.down": (
+        "Der Speicher antwortet nicht - das Lebenszeichen ist nicht lesbar"
+    ),
     "admin.state.queue": "{depth} in der Warteschlange, {workers} Worker",
     "admin.state.ratelimit": "Ratenbegrenzung",
     "admin.state.ratelimit.value": "{limit} pro {window}s",
@@ -50,6 +54,48 @@ MESSAGES: dict[str, str] = {
     "admin.state.copy": "Diagnose kopieren",
     "admin.state.copy.done": "Kopiert",
     "admin.state.copy.failed": "Kopieren nicht möglich",
+    "admin.surfaces.kicker": "Angriffsfläche",
+    "admin.surfaces.heading": "Was diese Installation anbietet",
+    "admin.surfaces.lede": (
+        "Die Einstellungen, mit denen dieser Prozess gestartet wurde - "
+        "dieselben, die auch das Diagnosedokument nennt. Keine davon ändert "
+        "sich ohne Neustart, deshalb wird keine davon abgefragt."
+    ),
+    "admin.surfaces.on": "An",
+    "admin.surfaces.off": "Aus",
+    "admin.surfaces.mcp": "Agenten-Endpunkt unter /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Ein Token des konfigurierten Ausstellers ist erforderlich."
+    ),
+    "admin.surfaces.mcp.open": (
+        "Kein Token erforderlich: Jeder Agent, der ihn erreicht, kann die "
+        "Worker dieses Dienstes belegen."
+    ),
+    "admin.surfaces.docs": "Browserbare API-Seiten unter /docs",
+    "admin.surfaces.docs.contract": (
+        "Aus verbirgt die Seiten, nicht den Vertrag: /openapi.json, "
+        "/arazzo.json und /.well-known/ai.json bleiben öffentlich."
+    ),
+    "admin.surfaces.indexed": "Über Suchmaschinen auffindbar",
+    "admin.surfaces.private": "Scans privater Netzwerkadressen",
+    "admin.surfaces.private.found": (
+        "Erlaubt auf einer Installation, die indexiert werden möchte: Wer "
+        "diesen Dienst findet, kann ihn auf das Netz richten, in dem er steht."
+    ),
+    "admin.surfaces.private.estate": (
+        "Erlaubt - genau dafür ist eine Installation da, die das eigene Netz "
+        "prüft."
+    ),
+    "admin.surfaces.encrypt": "Ergebnisse verschlüsselt gespeichert",
+    "admin.surfaces.audit": "Audit-Protokoll",
+    "admin.surfaces.audit.file": (
+        "Wird in eine Datei geschrieben, die den Container überdauert."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Ein Ring aus {count} Einträgen im Speicher dieses Prozesses, nichts "
+        "auf der Platte."
+    ),
+    "admin.surfaces.targets": "Ziele im Klartext protokolliert",
     "admin.actions.kicker": "Referenzdaten",
     "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
     "admin.actions.lede": (

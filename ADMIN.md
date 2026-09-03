@@ -490,7 +490,8 @@ What the area does:
 
 | Card | What it does |
 |:--|:--|
-| Service state | Worker liveness, queue depth, the configured limits, and when each reference document was last read |
+| Service state | Worker liveness, queue depth, the configured limits, and when each reference document was last read. The worker tile has three answers, not two: the heartbeat it reads is a key in Redis, so **Cannot tell** means the store did not answer and nothing was learned about the worker either way |
+| What this deployment offers | `/mcp` and whether a token is required, `/docs`, indexing, private-network targets, encryption at rest, and what the audit trail keeps and where. Settings rather than readings, so the card is rendered once and never polled - a value that changed did so in a process the open page is no longer talking to |
 | Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
 | Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job |
 | Audit | Streams the audit records as they are written, from the log file when one is configured and otherwise from a bounded in-memory ring |
@@ -508,6 +509,16 @@ plainly when what you are looking at is the last reading the service gave
 rather than the current one. A tile lights when its value changes. The page
 stops polling while its tab is in the background and re-reads the moment you
 come back to it.
+
+**Two combinations on the exposure card carry the warning accent, and only
+two.** Neither setting is a mistake in itself, which is why they are marked
+rather than refused: `/mcp` served without a token is what a public scanner
+is for, and scanning private addresses is the whole point of a deployment
+watching its own estate. What is worth a second look is *the pair* -
+`COS_WEB_ALLOW_PRIVATE_TARGETS` on a deployment that also asks to be indexed
+is a scanner strangers can find, pointed at the network it stands in. If that
+is deliberate, `COS_WEB_ALLOW_INDEXING=false` is almost certainly the setting
+that was meant.
 
 **Test the sources** is the dry run beside those two buttons: it performs the
 same fetch and the same guards and then discards the result, so you can tell
@@ -613,7 +624,7 @@ The optional audit log (`COS_WEB_AUDIT_LOG*`, salted via
 
 | Symptom | Where to look first |
 |:--|:--|
-| `/healthz` 503 | Worker container, then Redis connectivity (`COS_WEB_REDIS_URL`) |
+| `/healthz` 503 | Worker container, then Redis connectivity (`COS_WEB_REDIS_URL`). The operator's area separates the two for you: **Not answering** on the worker tile is the store confirming the worker has written no heartbeat, **Cannot tell** is the store itself being unreachable, which is evidence about neither |
 | Submissions accepted, nothing completes | `check_opencloud.web.worker`; queue depth in `/healthz` |
 | Everything 404s on a valid-looking scan link | Result TTL expired (`COS_WEB_RESULT_TTL`); unknown/invalid/expired all answer 404 by design |
 | Grades look generous | Advisory refresh rejected or stale — check `advisories` in `/healthz` |

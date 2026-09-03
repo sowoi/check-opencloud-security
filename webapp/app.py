@@ -64,9 +64,12 @@ from .admin import (
     ADMIN_ROBOTS,
     ADMIN_STREAM_MAX_MINUTES,
     audit_events,
+    audit_surface,
     run_action,
     run_probe,
     statistics,
+    surface_rows,
+    surfaces,
 )
 from .admin_auth import Operator, ensure_admin_ready, operator_for, sign_out_url
 from .advisories import advisory_catalogue, advisory_state, stored_database
@@ -1642,6 +1645,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 # none. Startup has already refused an address this page
                 # would not be allowed to link to.
                 "sign_out_url": sign_out_url(settings),
+                # What this deployment exposes, rendered by the server and
+                # never repainted. Every one of these is a setting read at
+                # startup, so a value that changed did so in a process this
+                # page is no longer talking to - and a card the poll cannot
+                # move needs neither the age stamp nor scripting to be true.
+                # The same two functions answer /admin/state, so the card and
+                # the document an operator copies cannot disagree.
+                "surfaces": surface_rows(surfaces(settings), audit_surface(settings)),
                 "outcome": outcome,
                 # Stated rather than inherited. `is_indexable` already
                 # answers no for any path outside PUBLIC_PAGES, and the

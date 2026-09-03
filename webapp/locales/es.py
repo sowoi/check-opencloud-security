@@ -29,6 +29,10 @@ MESSAGES: dict[str, str] = {
     "admin.state.worker": "Worker",
     "admin.state.worker.up": "En marcha",
     "admin.state.worker.down": "No responde",
+    "admin.state.worker.unknown": "No se puede saber",
+    "admin.state.store.down": (
+        "El almacén no responde: no se puede leer la señal de vida"
+    ),
     "admin.state.queue": "{depth} en cola, {workers} workers",
     "admin.state.ratelimit": "Límite de peticiones",
     "admin.state.ratelimit.value": "{limit} por {window}s",
@@ -49,6 +53,48 @@ MESSAGES: dict[str, str] = {
     "admin.state.copy": "Copiar diagnóstico",
     "admin.state.copy.done": "Copiado",
     "admin.state.copy.failed": "No se ha podido copiar",
+    "admin.surfaces.kicker": "Exposición",
+    "admin.surfaces.heading": "Qué ofrece esta instalación",
+    "admin.surfaces.lede": (
+        "Los ajustes con los que arrancó este proceso, los mismos que indica "
+        "el documento de diagnóstico. Ninguno cambia sin reiniciar, así que "
+        "ninguno se consulta periódicamente."
+    ),
+    "admin.surfaces.on": "Activado",
+    "admin.surfaces.off": "Desactivado",
+    "admin.surfaces.mcp": "Punto de acceso para agentes en /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Se exige un token del emisor configurado."
+    ),
+    "admin.surfaces.mcp.open": (
+        "No se exige ningún token: cualquier agente que llegue hasta él puede "
+        "ocupar los workers de este servicio."
+    ),
+    "admin.surfaces.docs": "Páginas de API navegables en /docs",
+    "admin.surfaces.docs.contract": (
+        "Desactivarlas oculta las páginas, no el contrato: /openapi.json, "
+        "/arazzo.json y /.well-known/ai.json siguen siendo públicos."
+    ),
+    "admin.surfaces.indexed": "Localizable por los buscadores",
+    "admin.surfaces.private": "Análisis de direcciones de red privadas",
+    "admin.surfaces.private.found": (
+        "Permitido en una instalación que pide ser indexada: quien encuentre "
+        "este servicio puede apuntarlo a la red en la que está."
+    ),
+    "admin.surfaces.private.estate": (
+        "Permitido, que es justo para lo que sirve una instalación que "
+        "analiza su propia red."
+    ),
+    "admin.surfaces.encrypt": "Resultados cifrados en reposo",
+    "admin.surfaces.audit": "Registro de auditoría",
+    "admin.surfaces.audit.file": (
+        "Se escribe en un archivo que sobrevive al contenedor."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Un anillo de {count} registros en la memoria de este proceso, y nada "
+        "en disco."
+    ),
+    "admin.surfaces.targets": "Direcciones analizadas registradas en claro",
     "admin.actions.kicker": "Datos de referencia",
     "admin.actions.heading": "Actualizar aquello contra lo que se califica",
     "admin.actions.lede": (

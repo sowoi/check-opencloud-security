@@ -233,6 +233,171 @@ def test_an_ordinary_address_is_accepted_as_the_exit():
             assert client.get("/admin", headers=FORWARDED).status_code == 200
 
 
+# ------------------------------------------------------- what is exposed now
+
+
+#: The row on the exposure card for each boolean the state document reports.
+#: The document's own names on the left, so a key renamed on one side and not
+#: the other fails here rather than quietly dropping a reading off the page.
+SURFACE_ROWS = {
+    "mcp": "mcp",
+    "docs": "docs",
+    "indexed": "indexed",
+    "allowPrivateTargets": "private",
+    "encryptResults": "encrypt",
+}
+
+#: A sign-in on /mcp that startup will accept: without an issuer and an
+#: audience the deployment refuses to start, which is a different test.
+SIGNED_IN_MCP = {
+    "mcp_auth_enabled": True,
+    "mcp_auth_issuer": "https://sso.example.com/application/o/scan/",
+    "mcp_auth_audience": "scan",
+    "public_base_url": "https://scan.example.com",
+}
+
+
+def _sentence(key):
+    """One catalogue string, escaped the way the template escapes it.
+
+    The English is written with apostrophes in it, and comparing against the
+    catalogue directly would be comparing against text no page ever contains.
+    """
+    from markupsafe import escape
+
+    from webapp.locales.en import MESSAGES
+
+    return str(escape(MESSAGES[key]))
+
+
+def _row(page, name):
+    """The one item on the exposure card for this surface, markup and all."""
+    found = re.search(
+        r'<li class="admin-surface"[^>]*data-surface="' + name + r'"[^>]*>.*?</li>',
+        page,
+        re.DOTALL,
+    )
+    assert found is not None, f"no row for {name}"
+    return found.group(0)
+
+
+def test_the_page_says_what_this_deployment_is_exposing():
+    """The question an operator opens this area with, and it went unanswered.
+
+    Every one of these readings was already in the state document and on no
+    page, so "what is switched on right now" could only be got by reading the
+    compose file - which is the file that may well be why they are here. The
+    card and the document are compared against each other rather than against
+    a list written here, because two renderings of the same settings drifting
+    apart is the failure worth catching.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        exposed = client.get("/admin/state", headers=FORWARDED).json()["surfaces"]
+
+    for key, name in SURFACE_ROWS.items():
+        assert f'data-state="{"on" if exposed[key] else "off"}"' in _row(page, name)
+
+
+def test_the_exposure_card_is_the_servers_and_needs_no_scripting():
+    """These are settings, not readings: nothing polls them and nothing may.
+
+    A setting that changed did so in a process this page is no longer talking
+    to, so the card is rendered once, in the language the page is in - and it
+    is there for an operator whose browser runs none of this file's scripting.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    assert _sentence("admin.surfaces.heading") in page
+    assert _sentence("admin.surfaces.mcp") in page
+    # No placeholder waiting to be filled in, and nothing in the script knows
+    # the card exists.
+    assert 'data-value=' not in _row(page, "mcp")
+    assert "admin-surface" not in script
+
+
+def test_an_agent_endpoint_with_no_sign_in_on_it_is_marked():
+    """Anybody who can reach /mcp can spend this service's workers.
+
+    Which is the default and often right - a public scanner is meant to be
+    used by anybody. It is marked rather than refused, because the thing an
+    operator needs is to know it, not to be argued with about it.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        open_endpoint = _row(client.get("/admin", headers=FORWARDED).text, "mcp")
+
+    with TestClient(create_app(_admin_settings(**SIGNED_IN_MCP))) as client:
+        guarded = _row(client.get("/admin", headers=FORWARDED).text, "mcp")
+
+    assert "data-notable" in open_endpoint
+    assert _sentence("admin.surfaces.mcp.open") in open_endpoint
+    # And the accent means something only if the guarded deployment lacks it.
+    assert "data-notable" not in guarded
+    assert _sentence("admin.surfaces.mcp.guarded") in guarded
+
+
+def test_private_targets_are_marked_only_where_a_stranger_can_find_the_service():
+    """The one combination that is almost never meant: a scanner that can be
+    found, pointed at the network it stands in.
+
+    On a deployment that asked not to be indexed the same setting is the
+    entire point of the deployment, and marking it there would be an area
+    that cries wolf about its own correct configuration.
+    """
+    public = _admin_settings(allow_private_targets=True)
+    private = _admin_settings(allow_private_targets=True, allow_indexing=False)
+
+    with TestClient(create_app(public)) as client:
+        found = _row(client.get("/admin", headers=FORWARDED).text, "private")
+    with TestClient(create_app(private)) as client:
+        estate = _row(client.get("/admin", headers=FORWARDED).text, "private")
+
+    assert "data-notable" in found
+    assert _sentence("admin.surfaces.private.found") in found
+    assert "data-notable" not in estate
+    assert _sentence("admin.surfaces.private.estate") in estate
+
+
+def test_the_card_says_where_the_audit_trail_is_kept():
+    """A trail in one process's memory and a trail on disk are different answers.
+
+    ADR 0035's limit again, said where an operator is asking what this
+    deployment keeps: without a file the window is a bounded ring that a
+    restart takes with it.
+    """
+    ring = _admin_settings(audit_log=True)
+    with TestClient(create_app(ring)) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        memory = _row(page, "audit")
+        # The trail exists, so what it records about a target is a reading
+        # about this deployment.
+        assert _row(page, "targets")
+
+    on_disk = _admin_settings(audit_log=True, audit_log_file="/dev/null")
+    with TestClient(create_app(on_disk)) as client:
+        filed = _row(client.get("/admin", headers=FORWARDED).text, "audit")
+
+    assert str(ring.admin_audit_buffer) in memory
+    assert _sentence("admin.surfaces.audit.file") in filed
+    assert _sentence("admin.surfaces.audit.file") not in memory
+
+
+def test_nothing_is_claimed_about_a_trail_this_deployment_does_not_keep():
+    """With the audit log off, "targets in the clear" is not a reading at all.
+
+    A pill saying `off` there would answer a question about a trail that does
+    not exist, which is an answer somebody can act on wrongly.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+
+    assert 'data-surface="targets"' not in page
+    # And the trail itself is still reported, as off.
+    assert 'data-state="off"' in _row(page, "audit")
+
+
 # ----------------------------------------------------------- never in an index
 
 
@@ -371,6 +536,67 @@ def test_the_statistics_name_nothing_anybody_scanned():
     # And the readings it does carry are there.
     assert "queueDepth" in body
     assert "ipRateLimit" in body
+
+
+def test_a_store_that_is_gone_is_not_reported_as_a_worker_that_died(monkeypatch):
+    """Two outages that drew one picture, and pointed at the wrong container.
+
+    The worker's heartbeat is a key in the store, so a store that is gone
+    takes the answer with it. Reporting that as "the worker is not answering"
+    is an area that sends an operator to restart a container that may be
+    perfectly healthy - and this is the failure they are most likely to be
+    reading this page during. `alive` is null exactly when nothing was
+    learned, and `store.reachable` names what to go and look at.
+    """
+    app = create_app(_admin_settings())
+
+    async def unavailable(*_keys):
+        from webapp.redis_backend import RedisUnavailable
+
+        raise RedisUnavailable()
+
+    with TestClient(app) as client:
+        monkeypatch.setattr(app.state.backend, "health", unavailable)
+        gone = client.get("/admin/state", headers=FORWARDED).json()
+
+    assert gone["store"]["reachable"] is False
+    assert gone["worker"]["alive"] is None
+    assert gone["worker"]["queueDepth"] is None
+
+
+def test_a_store_that_answers_is_evidence_about_the_worker():
+    """The other half: with the store up, a silent worker really is silent.
+
+    Nothing is running a worker in a test client, so this is the deployment
+    whose worker has genuinely not written a heartbeat - and it must read as
+    a fact rather than as the absence of one.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        answered = client.get("/admin/state", headers=FORWARDED).json()
+
+    assert answered["store"]["reachable"] is True
+    assert answered["worker"]["alive"] is False
+    assert answered["worker"]["queueDepth"] == 0
+
+
+def test_the_tile_says_which_of_the_two_outages_it_is():
+    """The distinction is only worth having if the page draws it.
+
+    ADMIN.md's troubleshooting table had to explain in prose that a `/healthz`
+    503 means the worker *or* the store; the tile can simply say which.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    from webapp.locales.en import MESSAGES
+
+    # The third sentence is the server's, in the language the page is in.
+    assert MESSAGES["admin.state.worker.unknown"] in page
+    assert MESSAGES["admin.state.store.down"] in page
+    # And the script reaches it from the reading rather than from a guess.
+    assert "store.reachable === false" in script
+    assert "worker.alive === null" in script
 
 
 def test_a_reading_that_stopped_arriving_cannot_look_like_one_that_is_not_moving():
