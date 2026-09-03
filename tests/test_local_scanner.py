@@ -1173,7 +1173,11 @@ def test_the_discovery_document_is_read_without_a_second_request():
 
     The scan fetched /.well-known/openid-configuration once to find the issuer
     long before it rated any of this, and adding four findings must not add a
-    request - so the count of times the instance was asked stays at one.
+    request - so the count of times the instance was asked, as itself, stays
+    at one. The forwarded-host check asks the same path again on purpose,
+    claiming a host that does not exist; those are the requests it could not
+    have made by reading a document fetched under the instance's own name, and
+    they are excluded here rather than hiding the guarantee this protects.
     """
     behaviour = InstanceBehaviour(
         openid_issuer=EXTERNAL_KEYCLOAK,
@@ -1184,9 +1188,10 @@ def test_the_discovery_document_is_read_without_a_second_request():
     result = run_scan(behaviour)
 
     asked = [
-        entry
-        for entry in behaviour.seen
-        if entry[1] == "/.well-known/openid-configuration"
+        host
+        for path, host in behaviour.claimed
+        if path == "/.well-known/openid-configuration"
+        and scanner_module.FORWARDED_HOST_PROBE not in host
     ]
     assert len(asked) == 1
     assert _hardening(result, "oidcPkceSupported") is True

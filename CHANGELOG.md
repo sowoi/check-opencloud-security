@@ -159,6 +159,33 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   link says anything. No second template and no new markup beyond a marker on
   the two cards that are entirely controls.
 
+- **A new check, `forwardedHostIgnored`: whether the instance lets the caller
+  decide what its own address is.** Every other check reads what an instance
+  volunteers. This one asks a question it cannot answer by accident - it
+  requests `/.well-known/openid-configuration` twice claiming to have arrived
+  at a host that does not exist, once as the request's own `Host` and once as
+  `X-Forwarded-Host` - and looks for that host coming back. An instance that
+  was never told its public address derives one from each request, and the
+  discovery document is where that costs something: the `issuer` and the
+  endpoints are where a client sends the next sign-in, so whoever picks the
+  host has picked where an authentication request goes. It is `medium`
+  because on its own it misleads only whoever sent the header; behind a cache
+  it becomes the answer everybody gets, and behind a proxy that forwards a
+  client's own `X-Forwarded-Host` it is a stranger who chooses. The fix is
+  `OC_URL` plus a forwarded header set from the proxy's own configuration
+  rather than passed through, and `docs/reverse-proxy.md` now says so beside
+  the `X-Forwarded-For` advice it already gave.
+
+  **Only a URL a client would be *sent* to counts**, which is the whole
+  design: the redirect target, or one of five named fields of the document,
+  compared as the host of a parsed URL. A default virtual host refusing a
+  name it does not recognise usually prints that name in its error page, and
+  a check that searched the body would report correct behaviour as the
+  finding. An instance publishing no discovery document is not judged either
+  way - two errors are the scan learning nothing, not a pass - and the two
+  probes share the batch that already ran the CORS and TRACE questions, so
+  the scan gains two requests and no round of waiting.
+
 ### Documentation
 
 - **`README.md` is half its length, and the material it lost is now findable.**

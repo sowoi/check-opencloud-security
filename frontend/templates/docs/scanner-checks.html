@@ -179,6 +179,11 @@ paragraph; the individual checks are explained one group at a time in
 <td>The server answers <code>TRACE</code> by echoing the request, session cookie included</td>
 </tr>
 <tr>
+<td><code>forwardedHostIgnored</code></td>
+<td>medium</td>
+<td>A host name the caller supplied comes back in the discovery document, so a caller chooses where a sign-in goes</td>
+</tr>
+<tr>
 <td><code>header:&lt;name&gt;</code></td>
 <td>high - low</td>
 <td>One of the headers above missing or too weak</td>
@@ -316,6 +321,30 @@ only a forwarder adds such as <code>Via</code>.</p>
 stripping the <code>Server</code> header is itself good practice, so a well-run
 deployment can look bare from outside. The finding is worth showing and is
 never worth a grade.</p>
+<p><code>forwardedHostIgnored</code> asks the other question about the same boundary: not
+whether something is in front, but whether the instance lets whoever is
+calling decide what it thinks its own address is. The scan requests
+<code>/.well-known/openid-configuration</code> twice with a host that does not exist -
+once as the request's own <code>Host</code>, once as <code>X-Forwarded-Host</code> - and looks for
+that host coming back in the <code>Location</code> it redirects to or in the <code>issuer</code>,
+<code>authorization_endpoint</code>, <code>token_endpoint</code>, <code>end_session_endpoint</code> or
+<code>jwks_uri</code> the document publishes.</p>
+<pre><code class="language-json">{&quot;id&quot;: &quot;forwardedHostIgnored&quot;, &quot;severity&quot;: &quot;medium&quot;, &quot;passed&quot;: false,
+ &quot;detail&quot;: &quot;A host name the caller supplied is published back: X-Forwarded-Host comes back as the issuer it publishes&quot;}
+</code></pre>
+<p>Those URLs are where a client sends the next sign-in, so a caller who picks
+the host has picked where an authentication request goes. On its own it
+misleads only whoever sent the header, which is why it is <code>medium</code> rather
+than higher; behind a cache it becomes the answer everybody gets, and behind
+a proxy that forwards a client's own <code>X-Forwarded-Host</code> it is a stranger who
+chooses. It means the instance was never told its public address and derives
+one from each request - set <code>OC_URL</code>, and set the forwarded headers from the
+proxy's configuration rather than passing the client's through.</p>
+<p>Only a URL a client would be <em>sent</em> to counts. A default virtual host that
+refuses an unrecognised name commonly prints that name in its error page, and
+reading the body for it would report the correct behaviour as the finding.
+An instance that publishes no discovery document at all is not judged either
+way: two errors are the scan learning nothing, not a pass.</p>
 <h3 id="office-and-calendar-integrations">Office and calendar integrations</h3>
 <p>Two integrations are visible without logging in, and both are reported as
 observations rather than verdicts:</p>

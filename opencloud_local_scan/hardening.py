@@ -956,6 +956,38 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_REVERSE_PROXY,
     ),
+    "forwardedHostIgnored": Hardening(
+        id="forwardedHostIgnored",
+        category="proxy",
+        title="The instance publishes a host name the caller chose",
+        meaning=(
+            "The scan asked for the OpenID Connect discovery document while "
+            "claiming to have arrived at a host that does not exist, once "
+            "through the request's own Host header and once through "
+            "X-Forwarded-Host, and the answer named that host back - as the "
+            "address it redirected to, or inside the issuer and the endpoints "
+            "the document publishes. Those URLs are where a client sends the "
+            "next sign-in, so whoever can choose the host has chosen where an "
+            "authentication request goes. On its own it misleads only the "
+            "caller who sent the header; behind a cache it becomes the answer "
+            "everybody gets, and behind a proxy that forwards a client's own "
+            "X-Forwarded-Host it is a stranger who chooses. It means the "
+            "instance was never told its public address and is deriving one "
+            "from each request instead."
+        ),
+        remediation=(
+            "Set OC_URL to the public address of the instance so that every "
+            "absolute URL is built from it rather than from the request. In "
+            "whatever is in front, set the forwarded headers from the proxy's "
+            "own configuration rather than passing the client's through - "
+            "'proxy_set_header X-Forwarded-Host $host;' in Nginx, "
+            "'RequestHeader set X-Forwarded-Host' in Apache - and give the "
+            "server a default virtual host that refuses a Host it does not "
+            "recognise instead of serving the instance for any name at all."
+        ),
+        reference=DOCS_REVERSE_PROXY,
+        setting="OC_URL",
+    ),
     "httpsAvailable": Hardening(
         id="httpsAvailable",
         category="transport",

@@ -90,6 +90,7 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `tlsEarlyData`                                                                                                                             | low           | The server's session tickets invite a TLS 1.3 0-RTT flight, which has no replay protection                  |
 | `corsOriginRestricted`                                                                                                                     | critical/medium | Any origin may read the API's responses; critical when credentials are allowed with it                     |
 | `traceMethodDisabled`                                                                                                                      | medium        | The server answers `TRACE` by echoing the request, session cookie included                                  |
+| `forwardedHostIgnored`                                                                                                                     | medium        | A host name the caller supplied comes back in the discovery document, so a caller chooses where a sign-in goes |
 | `header:<name>`                                                                                                                            | high - low    | One of the headers above missing or too weak                                                                |
 | `authentication:/remote.php/dav/files/`, `/graph/v1.0/users`, `/ocs/v1.php/cloud/user`                                                     | critical/high | An endpoint that must demand authentication answered anyway                                                 |
 | `exposed:/opencloud.yaml`, `/proxy/server.key`, `/idm/opencloud.boltdb`, `/.env`, `/docker-compose.yml`, `/storage/users/`, `/.git/config` | critical/high | Deployment internals published by a misconfigured reverse proxy                                             |
@@ -187,6 +188,35 @@ only a forwarder adds such as `Via`.
 stripping the `Server` header is itself good practice, so a well-run
 deployment can look bare from outside. The finding is worth showing and is
 never worth a grade.
+
+`forwardedHostIgnored` asks the other question about the same boundary: not
+whether something is in front, but whether the instance lets whoever is
+calling decide what it thinks its own address is. The scan requests
+`/.well-known/openid-configuration` twice with a host that does not exist -
+once as the request's own `Host`, once as `X-Forwarded-Host` - and looks for
+that host coming back in the `Location` it redirects to or in the `issuer`,
+`authorization_endpoint`, `token_endpoint`, `end_session_endpoint` or
+`jwks_uri` the document publishes.
+
+```json
+{"id": "forwardedHostIgnored", "severity": "medium", "passed": false,
+ "detail": "A host name the caller supplied is published back: X-Forwarded-Host comes back as the issuer it publishes"}
+```
+
+Those URLs are where a client sends the next sign-in, so a caller who picks
+the host has picked where an authentication request goes. On its own it
+misleads only whoever sent the header, which is why it is `medium` rather
+than higher; behind a cache it becomes the answer everybody gets, and behind
+a proxy that forwards a client's own `X-Forwarded-Host` it is a stranger who
+chooses. It means the instance was never told its public address and derives
+one from each request - set `OC_URL`, and set the forwarded headers from the
+proxy's configuration rather than passing the client's through.
+
+Only a URL a client would be *sent* to counts. A default virtual host that
+refuses an unrecognised name commonly prints that name in its error page, and
+reading the body for it would report the correct behaviour as the finding.
+An instance that publishes no discovery document at all is not judged either
+way: two errors are the scan learning nothing, not a pass.
 
 ### Office and calendar integrations
 
