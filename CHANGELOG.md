@@ -193,11 +193,11 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   nothing builds keeps its default for ever and reads as a setting that does
   not work, and a key the example file documents that nothing reads is advice
   an operator follows and then wonders about. Neither shows up in a test of
-  the scanner, which is perfectly happy either way. `tests/
-  test_settings_completeness.py` derives all three lists instead of keeping
-  one - the dataclass fields, the configuration names the code parses out to
-  read, and every key the example file documents including the commented-out
-  ones - and checks them against each other in both directions. The five
+  the scanner, which is perfectly happy either way.
+  `tests/test_settings_completeness.py` derives all three lists instead of
+  keeping one - the dataclass fields, the configuration names the code parses
+  out to read, and every key the example file documents including the
+  commented-out ones - and checks them against each other in both directions. The five
   fields that are genuinely not settings are named with the reason each one
   is set in this process rather than by anybody's configuration, and a second
   test makes that list shrink again when a field stops belonging on it.
