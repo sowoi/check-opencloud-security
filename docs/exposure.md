@@ -176,6 +176,6 @@ methods forwarded.
 Every check in this group is an `extraChecks` entry, reported and
 rating-capped whenever the scan runs at all - critical findings cap the
 rating at `D`, high at `C` - see the extra-checks table in [the main
-README](../README.md#what-the-scanner-checks). None of them are hardening
+README](scanner-checks.md#what-the-scanner-checks). None of them are hardening
 flags, and none require `--check-hardening`: an exposed configuration file
 or an open debug port is a finding on every scan, not an opt-in one.

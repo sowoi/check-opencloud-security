@@ -19,7 +19,7 @@
 <p><a href="https://icinga.com/docs/icinga-director/latest/">Icinga Director</a> manages
 <code>CheckCommand</code>, <code>Service Template</code>, and <code>Service</code> objects through its web UI
 instead of hand-written config files. The steps below work for either the
-native install or the <a href="/documentation/reference#docker">Docker</a> image.</p>
+native install or the <a href="/documentation/installation#docker">Docker</a> image.</p>
 <ol>
 <li>
 <p><strong>Create the Command</strong>
@@ -28,7 +28,7 @@ native install or the <a href="/documentation/reference#docker">Docker</a> image
    - <strong>Command:</strong></p>
 <ul>
 <li>Native install: <code>/usr/lib/nagios/plugins/check-opencloud-security</code> (wherever you installed/symlinked it, see <a href="/documentation/reference#installation">Installation</a>).</li>
-<li>Docker: <code>/usr/bin/docker</code> (see the <a href="/documentation/reference#using-the-docker-image-instead">Docker CheckCommand</a> example for the required fixed arguments <code>run</code>, <code>--rm</code>, and the image name).</li>
+<li>Docker: <code>/usr/bin/docker</code> (see the <a href="/documentation/installation#using-the-docker-image-instead">Docker CheckCommand</a> example for the required fixed arguments <code>run</code>, <code>--rm</code>, and the image name).</li>
 <li><strong>Command type:</strong> <em>Plugin Check Command</em>.</li>
 </ul>
 </li>
@@ -86,7 +86,7 @@ native install or the <a href="/documentation/reference#docker">Docker</a> image
    - <em>Icinga Director → Service Templates → Add</em>.
    - <strong>Check command:</strong> <code>check_opencloud_security</code>.
    - <strong>Check interval:</strong> <code>24h</code> is a good default; see the note under
-     <a href="/documentation/reference#icinga2--nagios">Icinga2 / Nagios</a> before going much lower.
+     <a href="/documentation/installation#icinga2--nagios">Icinga2 / Nagios</a> before going much lower.
    - Leave the Data Fields empty here so they can be filled in per service/host.</p>
 </li>
 <li>
@@ -98,7 +98,7 @@ native install or the <a href="/documentation/reference#docker">Docker</a> image
 </li>
 </ol>
 <p>Once deployed, Icinga2 invokes the command exactly as described in the
-<a href="/documentation/reference#icinga2--nagios">Icinga2 / Nagios</a> section, whether that resolves
+<a href="/documentation/installation#icinga2--nagios">Icinga2 / Nagios</a> section, whether that resolves
 to the native binary or <code>docker run</code> under the hood.</p>
 <p>To deploy the same objects without the web UI, see
 <a href="/documentation/ansible">Automated deployment with Ansible</a>.</p>

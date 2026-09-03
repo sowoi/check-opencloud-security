@@ -299,6 +299,37 @@ CORS_PROBE_PATH = "/graph/v1.0/me"
 # no state to change and nothing to send but the request itself.
 TRACE_PATH = "/"
 
+# The host handed to the instance to find out whether it will publish one back.
+# '.invalid' is reserved by RFC 2606, so this names no real site, cannot be
+# registered by anybody and is unmistakable in a log - the same reasoning as
+# the CORS origin above.
+FORWARDED_HOST_PROBE = "forwarded-host-probe.check-opencloud-security.invalid"
+
+# The two ways a caller can claim it arrived somewhere else: the request's own
+# Host, and the header a reverse proxy is expected to add on its behalf. Both
+# are asked, separately, because the mistake behind each is a different one -
+# an instance that was never told its public URL, or a proxy passing a
+# stranger's header through to one that was - and a single request carrying
+# both could not say which.
+FORWARDED_HOST_HEADERS: tuple[str, ...] = ("Host", "X-Forwarded-Host")
+
+# Asked for with that host. The discovery document is where a repeated host
+# name does damage rather than merely appearing: every URL in it is somewhere
+# a client is about to send an authentication request.
+FORWARDED_HOST_PATH = OPENID_CONFIGURATION_PATH
+
+# The fields of that document that send a client somewhere. They are read by
+# name rather than by searching the body for the probe host, because a server
+# that refused the unknown virtual host by naming it in an error page is the
+# opposite of this finding and would otherwise read as the finding itself.
+FORWARDED_HOST_FIELDS: tuple[str, ...] = (
+    "issuer",
+    "authorization_endpoint",
+    "token_endpoint",
+    "end_session_endpoint",
+    "jwks_uri",
+)
+
 # Re-exported from the remediation planner, which has to replay this
 # arithmetic with one finding removed at a time and would otherwise keep a
 # second copy of it. One table, two readers.
@@ -2119,6 +2150,78 @@ def _trace_finding(probe: _Probe) -> Finding | None:
     )
 
 
+def _forwarded_host_repeated(response: requests.Response) -> str:
+    """
+    Where in one answer the probe host comes back, named for the evidence.
+
+    Only somewhere a client would be *sent* counts: the redirect target, or a
+    URL the discovery document publishes. The comparison is on the host of a
+    parsed URL rather than on the text of the body, so a port appended to the
+    name still matches and a page that merely mentions it does not.
+    """
+    location = response.headers.get("Location") or ""
+    if urlsplit(location).hostname == FORWARDED_HOST_PROBE:
+        return "the address it redirects to"
+    try:
+        document = response.json()
+    except ValueError:
+        return ""
+    if not isinstance(document, Mapping):
+        return ""
+    for name in FORWARDED_HOST_FIELDS:
+        value = document.get(name)
+        if isinstance(value, str) and urlsplit(value).hostname == FORWARDED_HOST_PROBE:
+            return f"the {name} it publishes"
+    return ""
+
+
+def _forwarded_host_finding(probe: _Probe) -> Finding | None:
+    """
+    Whether the instance builds its public URLs from a host the caller chose.
+
+    An instance that was never told its own address answers with whatever the
+    request claimed, and the discovery document is where that matters: a
+    caller who can decide the ``issuer`` and the ``authorization_endpoint``
+    has decided where the next sign-in goes. On its own it misleads only
+    whoever sent the header; behind a cache it becomes the answer everybody
+    gets, and behind a proxy forwarding a client's own ``X-Forwarded-Host`` it
+    is a stranger who chooses.
+
+    Nothing is concluded from an instance that publishes no discovery
+    document: both probes answering with an error is the scan learning
+    nothing, which is not the same as the instance passing.
+    """
+    repeated: list[str] = []
+    answered = False
+    for header in FORWARDED_HOST_HEADERS:
+        response = probe.get(
+            FORWARDED_HOST_PATH,
+            allow_redirects=False,
+            headers={header: FORWARDED_HOST_PROBE},
+        )
+        if response is None or response.status_code >= 400:
+            continue
+        answered = True
+        where = _forwarded_host_repeated(response)
+        if where:
+            repeated.append(f"{header} comes back as {where}")
+    if not answered:
+        return None
+    if repeated:
+        return Finding(
+            "forwardedHostIgnored",
+            "medium",
+            False,
+            f"A host name the caller supplied is published back: {'; '.join(repeated)}",
+        )
+    return Finding(
+        "forwardedHostIgnored",
+        "medium",
+        True,
+        "A host name the caller supplied is not published back",
+    )
+
+
 def _disclosure_findings(response: requests.Response | None) -> list[Finding]:
     """Report software versions leaked through response headers."""
     if response is None:
@@ -2549,12 +2652,21 @@ def _collect_extra_findings(
     findings.append(_directory_listing_finding(probe, root_response))
     findings.extend(_debug_endpoint_findings(probe))
     findings.extend(_web_embed_findings(probe))
-    # Both ask the instance one question apiece and neither depends on the
-    # other, so they share a batch rather than each waiting for the last.
-    cors, trace = _run_all(
-        settings, [partial(_cors_finding, probe), partial(_trace_finding, probe)]
+    # None of the three depends on the others, so they share a batch rather
+    # than each waiting for the last. The forwarded-host probe asks twice, one
+    # header at a time, and does so inside its own task: a pool started there
+    # would nest inside this one and multiply the configured concurrency.
+    cors, trace, forwarded_host = _run_all(
+        settings,
+        [
+            partial(_cors_finding, probe),
+            partial(_trace_finding, probe),
+            partial(_forwarded_host_finding, probe),
+        ],
     )
-    findings.extend(finding for finding in (cors, trace) if finding is not None)
+    findings.extend(
+        finding for finding in (cors, trace, forwarded_host) if finding is not None
+    )
     if settings.check_debug_ports:
         findings.extend(_debug_port_findings(hostname, settings))
         findings.append(_backend_port_finding(probe, hostname, port, status))

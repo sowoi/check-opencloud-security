@@ -268,6 +268,15 @@ backend opencloud
 - **`X-Forwarded-For` appended from a client-supplied value.** Not a finding
   here, but it makes every rate limit and every audit log behind the proxy
   guesswork. Overwrite it at the edge.
+- **`X-Forwarded-Host` passed through from the client.** This one *is* a
+  finding - `forwardedHostIgnored` - whenever the instance then builds its
+  public URLs from it. The scan asks for the discovery document claiming a
+  host that does not exist and looks for it in the `issuer` and the
+  endpoints, because those are where the next sign-in is sent. Set `OC_URL`
+  so the instance knows its own address, and set the header from the proxy's
+  own configuration (`proxy_set_header X-Forwarded-Host $host;`) rather than
+  forwarding whatever arrived. A default virtual host that refuses a name it
+  does not recognise closes the same door for the `Host` header.
 - **HTTP left open.** A redirect is enough; this check follows it and grades
   the destination. What it will not forgive is a plain-HTTP listener that
   serves the interface as well - that is the `httpsEnforced` flag

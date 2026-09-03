@@ -1,6 +1,6 @@
 [project]
 name = "check-opencloud-security"
-version = "1.18.2"
+version = "1.19.0"
 description = "Check the security level of your OpenCloud instance with a built-in scanner - no API access required"
 authors = [{ name = "Massoud Ahmed" }]
 requires-python = ">=3.10"
@@ -24,7 +24,7 @@ completion = ["argcomplete>=3.7.2"]
 # `scripts/build_web_bundle.py`.
 web = [
     "fastapi>=0.141.1",
-    "uvicorn>=0.52.3",
+    "uvicorn>=0.52.4",
     "jinja2>=3.1.6",
     "python-multipart>=0.0.32",
     # Upper bound comes from arq, which pins redis[hiredis]<6.
@@ -102,7 +102,7 @@ build-backend = "hatchling.build"
 test = [
     "argcomplete>=3.7.2",
     "mypy>=2.3.0",
-    "nox>=2026.8.10",
+    "nox>=2026.8.17",
     "pytest>=9.1.1",
     "pytest-mock>=3.15.1",
     # The web application tests drive the ASGI app through httpx2, which is
@@ -138,22 +138,40 @@ markers = [
 # ordinary refactor.
 [tool.coverage.run]
 branch = true
+# Both entry points are tested as a monitoring system runs them - as a
+# subprocess - so measuring only this process reported the plugin at 78% while
+# the suite really reached 92%, and counted the whole SARIF/JUnit/Prometheus
+# surface as untested. Each process now writes its own data file and pytest-cov
+# combines them; `tests/conftest.coverage_environment` is what carries the
+# measurement across the deliberately scrubbed subprocess environment.
+parallel = true
+# The Prometheus exporter is a server a test stops with a signal. Without this
+# its data file is never written and the exporter looks untested again.
+sigterm = true
+# Module names, not file paths. A subprocess started by `run_plugin` inherits
+# the per-test working directory `conftest.clean_config_files` moved into, so a
+# relative `check_opencloud_security.py` resolves against a temporary directory
+# and matches nothing; the importable name resolves the same way in every
+# process, which is the only form that survives the move.
 source = [
-    "check_opencloud_security.py",
+    "check_opencloud_security",
     "opencloud_local_scan",
     "webapp",
 ]
 omit = [
     # Interactive, and driven by its own tests through a scripted stdin rather
     # than by import: measuring it here reports the prompts as uncovered.
-    "opencloud_local_scan/wizard.py",
+    # Wildcard-anchored for the same reason the sources are module names - the
+    # recorded path is absolute, and a bare relative pattern stopped matching
+    # once the subprocess runs were combined in.
+    "*/opencloud_local_scan/wizard.py",
 ]
 
 [tool.coverage.report]
-# The suite sits at 87%. The floor is two points below that so an ordinary
+# The suite sits at 89%. The floor is two points below that so an ordinary
 # refactor does not fail the build, while a module arriving untested does.
 # Raise it when the real number climbs; never lower it to make a branch pass.
-fail_under = 85
+fail_under = 87
 show_missing = true
 skip_covered = true
 exclude_also = [

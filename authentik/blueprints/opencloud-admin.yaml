@@ -1,0 +1,116 @@
+# The proxy provider that guards the operator's area at /admin.
+#
+# Applied the same way `opencloud-scanner.yaml` is - the compose file mounts
+# this directory into both Authentik containers and the worker applies every
+# blueprint it finds - but it provisions a *proxy* provider rather than an
+# OAuth2 one, because the thing it protects is a page a person opens rather
+# than an endpoint an agent holds a token for.
+#
+# The split matters. The scan service authenticates nobody: it has no login
+# page, no session and no password to check, on /mcp or here. What reaches it
+# on /admin is the outpost's account of who signed in, in ordinary headers -
+# `X-authentik-username` and its neighbours - and headers are worth exactly
+# what the certainty that they came from the outpost is worth.
+#
+# That certainty is `COS_WEB_ADMIN_PROXY_SECRET`, which the proxy in front
+# adds as `X-COS-Admin-Proxy` on every request it forwards. The service
+# compares it in constant time and refuses anything without it, so reaching
+# the container directly - from another container on the same network, say -
+# gets a 404 rather than a console. Authentik does not invent that header:
+# the reverse proxy doing the forward-auth does, from the same value in
+# `docker/.env`. `docs/authentik.md` has the nginx and Traefik forms.
+#
+# Being on the guest list is a second, separate question. Signing in here
+# only proves the directory knows you; `COS_WEB_ADMIN_USERS` decides whether
+# you are an operator of *this* deployment, and an empty list is refused at
+# startup rather than read as everybody.
+#
+# `state: created` throughout: this provisions once and then leaves the
+# operator alone.
+
+version: 1
+
+metadata:
+  name: check-opencloud-security - operator area
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+    blueprints.goauthentik.io/description: >-
+      The proxy provider and application that put a sign-in in front of the
+      scan service's /admin area.
+
+entries:
+  # A group to put operators in, so the guest list is managed in one place
+  # rather than as a binding per person.
+  - model: authentik_core.group
+    id: admin-group
+    state: created
+    identifiers:
+      name: !Env [AUTHENTIK_ADMIN_GROUP, opencloud-scanner-operators]
+    attrs:
+      name: !Env [AUTHENTIK_ADMIN_GROUP, opencloud-scanner-operators]
+
+  - model: authentik_providers_proxy.proxyprovider
+    id: admin-provider
+    state: created
+    identifiers:
+      name: check-opencloud-security - admin
+    attrs:
+      name: check-opencloud-security - admin
+      # Forward auth for a single application: the proxy in front asks
+      # authentik about each request rather than authentik proxying the
+      # traffic itself, which keeps the scan service reachable on its own
+      # address for the health check and the worker.
+      mode: forward_single
+      external_host: !Env [COS_WEB_ADMIN_URL, "http://localhost:8811"]
+      # Nothing here needs to be long-lived: the area is a console somebody
+      # opens, does something in and leaves.
+      access_token_validity: hours=8
+      authorization_flow:
+        !Find [
+          authentik_flows.flow,
+          [slug, default-provider-authorization-implicit-consent],
+        ]
+      invalidation_flow:
+        !Find [
+          authentik_flows.flow,
+          [slug, default-provider-invalidation-flow],
+        ]
+
+  - model: authentik_core.application
+    state: created
+    identifiers:
+      slug: !Env [AUTHENTIK_ADMIN_SLUG, opencloud-scanner-admin]
+    attrs:
+      name: OpenCloud scanner - operator area
+      slug: !Env [AUTHENTIK_ADMIN_SLUG, opencloud-scanner-admin]
+      provider: !KeyOf admin-provider
+      meta_description: >-
+        Service state, reference data and the audit trail of the OpenCloud
+        security scanner.
+
+  # Only the group may reach the application. Without a binding an authentik
+  # application is open to every account in the directory, which is precisely
+  # the mistake COS_WEB_ADMIN_USERS exists to catch on the other side.
+  - model: authentik_policies.policybinding
+    state: created
+    identifiers:
+      target:
+        !Find [
+          authentik_core.application,
+          [slug, !Env [AUTHENTIK_ADMIN_SLUG, opencloud-scanner-admin]],
+        ]
+      group: !KeyOf admin-group
+      order: 0
+    attrs:
+      enabled: true
+
+  # The outpost that serves the forward-auth endpoint for it.
+  - model: authentik_outposts.outpost
+    state: created
+    identifiers:
+      name: check-opencloud-security - admin outpost
+    attrs:
+      name: check-opencloud-security - admin outpost
+      type: proxy
+      providers:
+        - !KeyOf admin-provider

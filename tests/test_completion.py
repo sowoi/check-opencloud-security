@@ -21,6 +21,7 @@ import pytest
 
 from opencloud_local_scan import completion
 from opencloud_local_scan.hardening import HARDENINGS
+from tests.conftest import coverage_environment
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PLUGIN = REPO_ROOT / "check_opencloud_security.py"
@@ -43,6 +44,7 @@ def complete(tmp_path, line: str, argv: list[str]) -> list[str]:
         "COMP_LINE": line,
         "COMP_POINT": str(len(line)),
         "COMP_TYPE": "9",
+        **coverage_environment(),
     }
     subprocess.run(
         [sys.executable, *argv],
@@ -185,7 +187,11 @@ def test_completion_does_not_run_outside_a_completion_request(tmp_path):
         capture_output=True,
         text=True,
         timeout=120,
-        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO_ROOT)},
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(REPO_ROOT),
+            **coverage_environment(),
+        },
         check=False,
     )
 

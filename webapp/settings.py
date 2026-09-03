@@ -38,6 +38,30 @@ DEFAULT_MCP_MAX_CONCURRENT_WAITS = 8
 # a week of a busy public deployment and bounded at 60 MB whatever happens.
 DEFAULT_AUDIT_LOG_MAX_BYTES = 10_000_000
 DEFAULT_AUDIT_LOG_BACKUPS = 5
+
+#: How many audit records the admin area keeps in memory to show a deployment
+#: that logs to stdout, where there is no file to read back. Bounded on
+#: purpose: this is a window onto the log, not a second copy of it.
+DEFAULT_ADMIN_AUDIT_BUFFER = 200
+
+#: The shortest gap between two operator-triggered refreshes of the same
+#: reference data. The daily refresh asks upstream once; a button that can be
+#: pressed in a loop must not turn one deployment into a source of load on
+#: somebody else's documentation site.
+DEFAULT_ADMIN_REFRESH_COOLDOWN_SECONDS = 60
+
+#: The header the authentik outpost puts the signed-in username in. Fixed
+#: rather than configurable: an operator who could name it could be talked
+#: into naming one an ordinary client can send.
+ADMIN_USER_HEADER = "x-authentik-username"
+ADMIN_EMAIL_HEADER = "x-authentik-email"
+ADMIN_GROUPS_HEADER = "x-authentik-groups"
+
+#: The header carrying the secret only the outpost knows.
+ADMIN_PROXY_HEADER = "x-cos-admin-proxy"
+
+#: Below this the shared secret is not worth comparing.
+ADMIN_PROXY_SECRET_MINIMUM = 32
 # Who rotates the audit file: this process, by size, or something on the host
 # that moves it aside and expects the writer to notice. The names are the
 # accepted values of COS_WEB_AUDIT_LOG_ROTATION.
@@ -347,6 +371,61 @@ class WebSettings:
     from ``COS_WEB_PUBLIC_BASE_URL``, which behind a proxy is the only place
     this service can learn its own address from."""
 
+    admin_enabled: bool = False
+    """Serve the operator's area at ``/admin``. Off by default, and off is a
+    real absence: with this unset the routes are never registered, so the
+    path answers the same 404 any other unknown one does rather than a 401
+    that tells a stranger the area exists.
+
+    It is never authenticated by this service. An authentik proxy provider
+    terminates the sign-in in front of it and forwards the identity it
+    established; this service checks that the request really came through
+    that outpost and that the person it names is one of
+    ``COS_WEB_ADMIN_USERS``. A deployment that turns the area on without the
+    shared secret refuses to start, because the alternative is an
+    unauthenticated console."""
+
+    admin_proxy_secret: str | None = None
+    """The secret the authentik outpost sends with every forwarded request,
+    and the only reason to believe an identity header at all. Without it the
+    headers naming the signed-in operator are just headers, and anybody who
+    can reach the container could set them. Required whenever the admin area
+    is on, at least ``ADMIN_PROXY_SECRET_MINIMUM`` characters, and compared
+    in constant time."""
+
+    admin_users: tuple[str, ...] = field(default_factory=tuple)
+    """Who may use the area, by the username authentik signs them in as.
+    Empty with the area enabled is refused at startup: a list nobody is on is
+    almost always a configuration that was meant to name somebody, and
+    reading it as "everybody authentik authenticated" would hand the console
+    to every account in the directory."""
+
+    admin_audit_buffer: int = DEFAULT_ADMIN_AUDIT_BUFFER
+    """How many recent audit records to keep in memory for the live view.
+    ``0`` keeps none, and the view then works only where
+    ``COS_WEB_AUDIT_LOG_FILE`` gave it a file to read."""
+
+    admin_refresh_cooldown: int = DEFAULT_ADMIN_REFRESH_COOLDOWN_SECONDS
+    """The shortest gap between two operator-triggered refreshes of the same
+    reference data, so a button cannot be held down against somebody else's
+    server."""
+
+    admin_sign_out_url: str | None = None
+    """Where the operator's area sends somebody who wants to stop being signed
+    in - for the bundled stack, the authentik outpost's
+    ``/outpost.goauthentik.io/sign_out``.
+
+    This service has no session to end, which is exactly why the address has
+    to be configured rather than derived: the sign-in belongs to the provider
+    in front, and only the deployment knows where that provider's exit is.
+    Unset means the band names the operator and offers no way out, which is
+    what it did before this existed.
+
+    Only ``http``, ``https`` and a local path are accepted, checked at
+    startup. The value ends up in an ``href``, and a scheme like
+    ``javascript:`` there would be a script this page's own policy exists to
+    forbid."""
+
     webhook_secret: str | None = None
     """Shared secret for signing webhook payloads. If set, webhook POSTs include
     an X-COS-Signature header. The receiver must verify the signature."""
@@ -480,6 +559,18 @@ class WebSettings:
             mcp_auth_audience=_env("MCP_AUTH_AUDIENCE"),
             mcp_auth_scopes=_env_list("MCP_AUTH_SCOPES"),
             mcp_auth_resource_url=_env("MCP_AUTH_RESOURCE_URL"),
+            admin_enabled=_env_bool("ADMIN_ENABLED", False),
+            admin_proxy_secret=_env("ADMIN_PROXY_SECRET"),
+            admin_users=_env_list("ADMIN_USERS"),
+            admin_audit_buffer=_env_int(
+                "ADMIN_AUDIT_BUFFER", DEFAULT_ADMIN_AUDIT_BUFFER, minimum=0
+            ),
+            admin_sign_out_url=_env("ADMIN_SIGN_OUT_URL"),
+            admin_refresh_cooldown=_env_int(
+                "ADMIN_REFRESH_COOLDOWN",
+                DEFAULT_ADMIN_REFRESH_COOLDOWN_SECONDS,
+                minimum=0,
+            ),
             webhook_secret=_env("WEBHOOK_SECRET"),
             encrypt_results=_env_bool("ENCRYPT_RESULTS", False),
             max_batch_targets=_env_int(

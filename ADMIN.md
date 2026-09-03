@@ -34,6 +34,7 @@ where to look when the service misbehaves.
 - [Building the web bundle](#building-the-web-bundle)
 - [A local instance for testing the frontend](#a-local-instance-for-testing-the-frontend)
 - [The web service refreshes itself at runtime](#the-web-service-refreshes-itself-at-runtime)
+- [The operator's area at /admin](#the-operators-area-at-admin)
 - [Where to look when something breaks](#where-to-look-when-something-breaks)
 - [When OpenCloud moves its documentation](#when-opencloud-moves-its-documentation)
 - [Limitations worth knowing before somebody asks](#limitations-worth-knowing-before-somebody-asks)
@@ -408,9 +409,16 @@ picks them up. Nothing is written to disk.
 Redis keys, if you need to look:
 
 ```
-cos:web:schedule:document     cos:web:schedule:checked
-cos:web:advisories:document   cos:web:advisories:checked
+cos:web:schedule:document     cos:web:schedule:checked     cos:web:schedule:attempt
+cos:web:advisories:document   cos:web:advisories:checked   cos:web:advisories:attempt
 ```
+
+`:checked` moves only when a read is **accepted**, which is what makes an old
+one worth noticing and also what it cannot explain: a source nobody can reach
+and a document these guards are right to refuse both leave a date that stopped
+moving. `:attempt` is what the last run made of the source - `updated`,
+`unchanged`, `rejected` or `failed` - written whether or not anything was
+stored, so the difference below is visible without fetching anything again.
 
 The acceptance rules are the whole safety model, and they are asymmetric on
 purpose:
@@ -429,6 +437,131 @@ purpose:
 
 So the correct response to "the refresh was rejected" is to look at what
 upstream published, not to relax the rule.
+
+## The operator's area at /admin
+
+Optional, off by default, and worth knowing the shape of before you turn it
+on.
+
+```bash
+COS_WEB_ADMIN_ENABLED=true
+COS_WEB_ADMIN_PROXY_SECRET=<32+ characters, generated>
+COS_WEB_ADMIN_USERS=okko;sam
+```
+
+The wizard asks for all three (`docker/setup-wizard.py`, the "operator's area"
+section) and generates the secret into `.env`.
+
+**Off means absent, not protected.** With `COS_WEB_ADMIN_ENABLED` unset the
+routes are never registered and `/admin` answers the same 404 as any other
+unknown path, so a deployment that does not use the area does not disclose
+that the area exists.
+
+**The service authenticates nobody.** An authentik proxy provider signs the
+operator in and forwards the identity as headers; the service believes those
+headers only because the proxy also sends `COS_WEB_ADMIN_PROXY_SECRET` as
+`X-COS-Admin-Proxy`. Two consequences worth internalising:
+
+- **Reaching the container directly gets you nothing.** Another container on
+  the same Docker network, or a port you accidentally published, answers 404
+  without that header.
+- **If you put your own reverse proxy in front instead of the bundled
+  Authentik, you must add that header yourself.** Otherwise the area is
+  unreachable - which is the failure mode you want, but it will look like a
+  bug. `authentik/blueprints/opencloud-admin.yaml` provisions the provider,
+  the operator group and the outpost for the bundled stack.
+
+**A deployment that cannot enforce the sign-in refuses to start.** No secret,
+a secret under 32 characters, or an empty `COS_WEB_ADMIN_USERS` all raise at
+startup rather than serving an open console. An empty user list is never read
+as "anybody authentik authenticated".
+
+**Signing out is the provider's job too.** The service has no session to end,
+so the band's *Sign out* link only appears once you say where the exit is:
+
+```bash
+COS_WEB_ADMIN_SIGN_OUT_URL=/outpost.goauthentik.io/sign_out
+```
+
+That path is the bundled stack's answer - the same reverse proxy that routes
+`/outpost.goauthentik.io/` for the forward auth serves it, so a deployment
+where signing in works has it. The wizard writes it for you when the bundled
+Authentik is in the stack; with your own provider, name its exit instead.
+Leave it unset and the band names the operator and offers no way out, which
+is better than a control that appears to sign somebody out and does not. Only
+a local path or an `http(s)` URL is accepted - the value is rendered into an
+`href` on a page whose content policy exists to keep script off it, so
+anything else refuses to start.
+
+What the area does:
+
+| Card | What it does |
+|:--|:--|
+| Service state | Worker liveness, queue depth, the configured limits, and how long ago each reference document was last read - relative (`checked 6h ago`), with the exact stamp on the element, turning the accent past two daily cycles and naming which failure has been stopping it. The worker tile has three answers, not two: the heartbeat it reads is a key in Redis, so **Cannot tell** means the store did not answer and nothing was learned about the worker either way |
+| What this deployment offers | `/mcp` and whether a token is required, `/docs`, indexing, private-network targets, encryption at rest, and what the audit trail keeps and where. Settings rather than readings, so the card is rendered once and never polled - a value that changed did so in a process the open page is no longer talking to |
+| Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
+| Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job. Three verdicts, not two: an index that does not name the release it was built for is **Cannot tell**, because its pages and languages could be compared and its copy could not |
+| Audit | Streams the audit records as they are written, from the log file when one is configured and otherwise from a bounded in-memory ring |
+
+What it deliberately cannot do: name a target, a uuid, a result or a client
+address. The statistics are counts and settings, and the audit view shows the
+pseudonymised records the log already wrote - a fingerprint is a truncated
+HMAC under a salt the process holds, and nothing maps one back.
+
+**The readings say how old they are.** They are polled every ten seconds, and
+a poll that stops answering would otherwise be indistinguishable from a
+service with nothing happening on it - the numbers just stop moving. So the
+page stamps the age of the last answer, counts it up between polls, and says
+plainly when what you are looking at is the last reading the service gave
+rather than the current one. A tile lights when its value changes. The page
+stops polling while its tab is in the background and re-reads the moment you
+come back to it.
+
+**Two combinations on the exposure card carry the warning accent, and only
+two.** Neither setting is a mistake in itself, which is why they are marked
+rather than refused: `/mcp` served without a token is what a public scanner
+is for, and scanning private addresses is the whole point of a deployment
+watching its own estate. What is worth a second look is *the pair* -
+`COS_WEB_ALLOW_PRIVATE_TARGETS` on a deployment that also asks to be indexed
+is a scanner strangers can find, pointed at the network it stands in. If that
+is deliberate, `COS_WEB_ALLOW_INDEXING=false` is almost certainly the setting
+that was meant.
+
+**A refresh that has stopped landing says so, and says which failure it is.**
+The two reference tiles age their own readings the way the card above them
+does: `checked 6h ago` rather than a stamp to subtract from today's date, the
+exact moment on the element for whoever wants it, and the accent past two
+daily cycles. Where the last run did not succeed the note names it - *could
+not be fetched* or *refused by the guards* - so the `*_failed` / `*_rejected`
+distinction is on the page before anybody presses anything. A deployment that
+turned the refresh off is not reported as overdue; it has nothing to be late
+for.
+
+**Test the sources** is the dry run beside those two buttons: it performs the
+same fetch and the same guards and then discards the result, so you can tell
+a `failed` (unreachable, or the page changed shape) from a `rejected` (read
+fine, refused by the guards) without applying anything. It reaches upstream,
+so it is held back by `COS_WEB_ADMIN_REFRESH_COOLDOWN` - under its own key,
+so it is available in the moment after a refresh failed. Beside them, *Read
+again*, *Copy diagnostics* (the `/admin/state` document on the clipboard, for
+an issue report) and the audit list's *Clear* change nothing anywhere.
+
+Two things the audit card will tell you that are worth knowing in advance.
+The stream is closed by the service after 30 minutes and says so, rather than
+going quiet - press *Follow* for another. And **without
+`COS_WEB_AUDIT_LOG_FILE` the window is a ring in one process's memory**, so
+behind more than one replica you are watching the records of whichever
+replica answered; the card says so where that is the case. Configure the file
+if you need the whole trail.
+
+![The operator's area: service state, the two reference-data refreshes and the search-index check](img/admin-area-dark.png)
+
+![The audit card while following: each line a pseudonymised client and target fingerprint, never the real thing](img/admin-area-audit.png)
+
+The area is never advertised: `noindex, nofollow, noarchive`, and absent from
+the sitemap, `llms.txt`, `/openapi.json`, the documentation manifest and the
+search index. It is deliberately **not** in `robots.txt` either, because a
+`Disallow` line is a public file naming the path.
 
 ## Where to look when something breaks
 
@@ -508,7 +641,7 @@ The optional audit log (`COS_WEB_AUDIT_LOG*`, salted via
 
 | Symptom | Where to look first |
 |:--|:--|
-| `/healthz` 503 | Worker container, then Redis connectivity (`COS_WEB_REDIS_URL`) |
+| `/healthz` 503 | Worker container, then Redis connectivity (`COS_WEB_REDIS_URL`). The operator's area separates the two for you: **Not answering** on the worker tile is the store confirming the worker has written no heartbeat, **Cannot tell** is the store itself being unreachable, which is evidence about neither |
 | Submissions accepted, nothing completes | `check_opencloud.web.worker`; queue depth in `/healthz` |
 | Everything 404s on a valid-looking scan link | Result TTL expired (`COS_WEB_RESULT_TTL`); unknown/invalid/expired all answer 404 by design |
 | Grades look generous | Advisory refresh rejected or stale — check `advisories` in `/healthz` |

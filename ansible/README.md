@@ -3,7 +3,7 @@
 Deploy and configure [check-opencloud-security](../README.md) on one or
 more Icinga2 hosts, using either a **native** (pip/virtualenv) install or a
 **Docker**-based install. Both playbooks template the same Icinga2
-`CheckCommand`/`Service` objects documented in the main [README](../README.md#icinga2--nagios),
+`CheckCommand`/`Service` objects documented in the main [README](../docs/installation.md#icinga2--nagios),
 so switching between them just means running a different playbook.
 
 > **Important:** Do not apply both playbooks to the same host. Both roles

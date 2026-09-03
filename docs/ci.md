@@ -304,7 +304,7 @@ keeps the job out of ordinary commit pipelines.
 
 No image is published to a registry, so a container job builds it first. It
 runs as an unprivileged user and carries a `HEALTHCHECK` - see
-[Docker](../README.md#docker). Build it once, push it to your own registry,
+[Docker](installation.md#docker). Build it once, push it to your own registry,
 and pin the tag:
 
 ```shell

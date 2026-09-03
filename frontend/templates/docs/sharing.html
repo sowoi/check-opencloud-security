@@ -58,7 +58,7 @@ reports the same value regardless of how it is configured. <strong>This check is
 never alerted on</strong> for exactly that reason: it is left out of the "Missing
 hardening" line, the <code>hardenings_missing</code> metric and the webhook payload,
 because a warning nobody can ever clear is noise, and noise is how genuine
-findings get ignored - see <a href="/documentation/reference#measures-that-are-not-settings">Measures that are not
+findings get ignored - see <a href="/documentation/hardening#measures-that-are-not-settings">Measures that are not
 settings</a>. <code>--debug</code> still
 prints it, with the explanation.</p>
 <p>It is kept in the catalogue rather than removed so that a future OpenCloud
@@ -116,9 +116,8 @@ on the web result). <code>publicLinkPasswordEnforced</code> behaves like any oth
 hardening flag: a failure does not cap the rating on its own, but raises an
 otherwise-<code>OK</code> Icinga result to <code>WARNING</code> and is listed in the "Missing
 hardening" line. <code>publicLinkExpirationEnforced</code> is excluded from that line
-entirely, for the reason above - see <a href="/documentation/reference#hardening-checks">Hardening
-checks</a> for the full table and the general
-rule.</p>
+entirely, for the reason above - see <a href="/documentation/hardening">Hardening measures, one by
+one</a> for the full table and the general rule.</p>
 </article>
 
 {% include "_page-nav.html" %}

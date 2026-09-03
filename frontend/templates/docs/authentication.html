@@ -37,7 +37,7 @@ accounts still work, two properties OpenCloud's own capabilities document
 publishes about account search and password strength, whether the identity
 provider can be located at all, and four properties of the OpenID Connect
 discovery document that provider publishes. None of them submit a guessed
-credential anywhere - see <a href="/documentation/reference#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
+credential anywhere - see <a href="/documentation/scanner-checks#what-the-scan-deliberately-does-not-answer">What the scan deliberately does not
 answer</a> for what is
 out of scope on principle, and the demo-account section below for the one
 documented exception.</p>
@@ -106,7 +106,7 @@ enforced there.</p>
 worse in practice: CalDAV, CardDAV and most WebDAV clients cannot speak
 OpenID Connect and have nothing else to authenticate with. That is why this
 is rated <code>medium</code> rather than <code>critical</code> - and <code>low</code> once an external
-identity provider is confirmed to handle the interactive login (see <a href="/documentation/reference#who-signs-users-in">Who
+identity provider is confirmed to handle the interactive login (see <a href="/documentation/scanner-checks#who-signs-users-in">Who
 signs users in</a>), since the account
 passwords those provider-backed logins protect are not the ones being
 replayed here.</p>
@@ -308,7 +308,7 @@ Verified against <a href="https://github.com/libregraph/lico">libregraph/lico</a
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p><code>authentication:&lt;path&gt;</code> and <code>demoUsersDisabled</code> are <code>extraChecks</code>, reported
 and rating-capped whenever they run at all, at their own severities above -
-see the extra-checks table in <a href="/documentation/reference#what-the-scanner-checks">the main
+see the extra-checks table in <a href="/documentation/scanner-checks#what-the-scanner-checks">the main
 README</a>. <code>basicAuthDisabled</code>,
 <code>userEnumerationRestricted</code>, <code>passwordPolicyEnforced</code>,
 <code>passwordPolicyComplexity</code>, <code>identityProviderDetected</code> and the four <code>oidc*</code>

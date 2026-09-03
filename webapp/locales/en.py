@@ -20,6 +20,216 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------- the operator's area
+    # Served only where COS_WEB_ADMIN_ENABLED asked for it, behind an
+    # authentik sign-in, and never indexed. Kept in the catalogue like every
+    # other page so the area is translated rather than the one English
+    # corner of a localized service.
+    "admin.title": "Operator area",
+    "admin.description": "Service state, reference data and the audit trail.",
+    "admin.kicker": "Operations",
+    "admin.band": "Operator area - signed in as {user}",
+    # Shown only where COS_WEB_ADMIN_SIGN_OUT_URL named where the provider in
+    # front ends its session. This service has none of its own to end.
+    "admin.band.signout": "Sign out",
+    "admin.lede": (
+        "What this deployment is doing, what it knows, and the two refreshes "
+        "the worker otherwise runs once a day. Nothing here can be asked about "
+        "a particular scan."
+    ),
+    "admin.noscript": (
+        "The readings above are filled in by JavaScript. Without it, reload the "
+        "page to see the current ones; both refresh buttons still work."
+    ),
+    "admin.state.kicker": "Now",
+    "admin.state.heading": "Service state",
+    "admin.state.lede": (
+        "Counts and configured limits. No target, uuid or client address "
+        "appears here, because none of them is kept where this could read it."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "Running",
+    "admin.state.worker.down": "Not answering",
+    # The third answer, and the one worth having: the worker's heartbeat is a
+    # key in the store, so a store that is gone is not evidence about the
+    # worker either way. Saying "not answering" there sends somebody to
+    # restart the wrong container.
+    "admin.state.worker.unknown": "Cannot tell",
+    "admin.state.store.down": "The store is not answering - the heartbeat cannot be read",
+    "admin.state.queue": "{depth} queued, {workers} workers",
+    "admin.state.ratelimit": "Rate limit",
+    "admin.state.ratelimit.value": "{limit} per {window}s",
+    "admin.state.cooldown.value": "{seconds}s per target",
+    "admin.state.schedule": "Release schedule",
+    "admin.state.advisories": "Advisories",
+    "admin.state.checked": "checked {when}",
+    # The two that say why a stamp has stopped moving. Both refreshes leave
+    # the data exactly as it was when they do not succeed, so the checked
+    # stamp cannot tell these apart - and the difference between a source
+    # nobody can reach and a document this deployment is right to refuse is
+    # the whole of what an operator does next.
+    "admin.state.checked.failed": "checked {when} - the last attempt could not be fetched",
+    "admin.state.checked.rejected": (
+        "checked {when} - the last attempt was refused by the guards"
+    ),
+    "admin.state.refresh.off": "the daily refresh is off",
+    # Relative, because the question is never "what date does this say" but
+    # "how long has this been sitting there". The exact stamp is on the
+    # element, for whoever does want the date.
+    "admin.state.ago.minutes": "{minutes}m ago",
+    "admin.state.ago.hours": "{hours}h ago",
+    "admin.state.ago.days": "{days}d ago",
+    "admin.state.never": "never",
+    "admin.state.unknown": "unknown",
+    "admin.state.age.seconds": "Read {seconds}s ago",
+    "admin.state.age.minutes": "Read {minutes}m ago",
+    "admin.state.age.waiting": "Waiting for the first reading",
+    "admin.state.stale": (
+        "The service has not answered for a while. What is above is the last "
+        "reading it gave, not necessarily what is true now."
+    ),
+    "admin.state.refresh": "Read again",
+    "admin.state.copy": "Copy diagnostics",
+    "admin.state.copy.done": "Copied",
+    "admin.state.copy.failed": "Could not copy",
+    # What this deployment offers the world. Every one of these is a setting
+    # read at startup, so the card is the server's and never repolled - and
+    # the two sentences that carry the accent describe a *combination*, since
+    # neither setting is a mistake on its own.
+    "admin.surfaces.kicker": "Exposure",
+    "admin.surfaces.heading": "What this deployment offers",
+    "admin.surfaces.lede": (
+        "The settings this process was started with, and the same ones the "
+        "diagnostics document reports. None of them changes without a "
+        "restart, so none of them is polled."
+    ),
+    "admin.surfaces.on": "On",
+    "admin.surfaces.off": "Off",
+    "admin.surfaces.mcp": "Agent endpoint at /mcp",
+    "admin.surfaces.mcp.guarded": "A token from the configured issuer is required.",
+    "admin.surfaces.mcp.open": (
+        "No token is required: any agent that can reach it can spend this "
+        "service's workers."
+    ),
+    "admin.surfaces.docs": "Browsable API pages at /docs",
+    "admin.surfaces.docs.contract": (
+        "Off hides the pages, not the contract: /openapi.json, /arazzo.json "
+        "and /.well-known/ai.json stay public."
+    ),
+    "admin.surfaces.indexed": "Findable by search engines",
+    "admin.surfaces.private": "Scans of private network addresses",
+    "admin.surfaces.private.found": (
+        "Allowed on a deployment that asks to be indexed: a stranger who "
+        "finds this service can point it at the network it stands in."
+    ),
+    "admin.surfaces.private.estate": (
+        "Allowed, which is what a deployment scanning its own estate is for."
+    ),
+    "admin.surfaces.encrypt": "Results encrypted at rest",
+    "admin.surfaces.audit": "Audit trail",
+    "admin.surfaces.audit.file": "Written to a file that outlives the container.",
+    "admin.surfaces.audit.memory": (
+        "A ring of {count} records in this process's memory, and nothing on "
+        "disk."
+    ),
+    "admin.surfaces.targets": "Targets recorded in the clear",
+    "admin.actions.kicker": "Reference data",
+    "admin.actions.heading": "Refresh what the scanner rates against",
+    "admin.actions.lede": (
+        "The same two refreshes the worker runs daily, with the same rules: a "
+        "schedule that lost a release line is refused, an advisory database "
+        "only ever gains entries, and a failed fetch changes nothing."
+    ),
+    "admin.actions.schedule": "Sync release schedule",
+    "admin.actions.schedule.hint": "Re-reads the published lifecycle page.",
+    "admin.actions.advisories": "Check for advisories",
+    "admin.actions.advisories.hint": "Asks the advisory feed for new entries.",
+    "admin.outcome.updated": "Updated. The new document is in use.",
+    "admin.outcome.unchanged": "Already current - nothing changed.",
+    "admin.outcome.rejected": (
+        "Refused: what was fetched did not pass the guards, so the previous "
+        "data is still in use."
+    ),
+    "admin.outcome.failed": "Could not be fetched. Nothing changed.",
+    "admin.outcome.disabled": "That refresh is switched off in this deployment's settings.",
+    "admin.outcome.cooldown": "Just ran. Try again in {seconds}s.",
+    "admin.probe.action": "Test the sources",
+    "admin.probe.hint": (
+        "Reads both sources and reports what a refresh would make of them. "
+        "Nothing is stored."
+    ),
+    "admin.probe.schedule": "Release schedule: {answer}",
+    "admin.probe.advisories": "Advisories: {answer}",
+    "admin.probe.usable": "read, and a refresh would accept it",
+    "admin.probe.rejected": "read, but the guards would refuse it",
+    "admin.probe.unreadable": "could not be read - unreachable, or no longer in the expected shape",
+    "admin.probe.disabled": "not checked - this refresh is switched off",
+    "admin.search.kicker": "Search index",
+    "admin.search.heading": "Is the shipped index still current",
+    "admin.search.lede": (
+        "The index is built at release time and shipped read-only, so this "
+        "reports rather than rebuilds. It compares the pages, the languages "
+        "and the release it was generated for - not the body text, which only "
+        "the generator can extract."
+    ),
+    "admin.search.fresh": "Current",
+    "admin.search.stale": "Out of date",
+    # The third verdict, for an index that does not say which release it was
+    # built for. The pages and the languages were compared; the copy could
+    # not be, because only the stamp says what the copy was extracted from.
+    "admin.search.unknown": "Cannot tell",
+    "admin.search.detail.ok": "Every page and language is indexed for this release.",
+    "admin.search.detail.unstamped": (
+        "The index does not say which release it was built for, so only its "
+        "pages and languages could be compared."
+    ),
+    "admin.search.detail.release": "Built for {built}, running {running}.",
+    "admin.search.detail.missing": "Not indexed: {list}.",
+    # A page the index holds and this build does not serve: a search result
+    # leading to a page that is not there.
+    "admin.search.detail.extra": "Indexed but no longer served: {list}.",
+    "admin.search.detail.changed": "{count} page titles or summaries have changed since it was built.",
+    "admin.search.detail.unreadable": "The index could not be read.",
+    "admin.search.fix": (
+        "A stale index is refreshed by the release workflow, which regenerates "
+        "it and commits it. There is nothing to press here."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "The trail, as it is written",
+    "admin.audit.lede": (
+        "Scan requests, rejections and triggered limits, arriving as they "
+        "happen. Following starts a connection; nothing is streamed until you "
+        "ask for it."
+    ),
+    "admin.audit.privacy": (
+        "A client address is a truncated HMAC under a salt this process holds, "
+        "and nothing maps one back to an address. This view cannot show more "
+        "than the audit log already decided to write down."
+    ),
+    "admin.audit.replicas": (
+        "This deployment keeps no audit file, so these records come from the "
+        "memory of the one process that answered - behind more than one "
+        "replica, that is a part of the trail rather than all of it."
+    ),
+    "admin.audit.follow": "Follow",
+    "admin.audit.stop": "Stop",
+    "admin.audit.clear": "Clear",
+    "admin.audit.empty": "Nothing yet.",
+    "admin.audit.closed": (
+        "The connection reached its {minutes}-minute limit and was closed by "
+        "the service. Nothing was missed before that; press Follow to start "
+        "another."
+    ),
+    "admin.audit.disabled": (
+        "This deployment does not keep an audit trail, so there is nothing to "
+        "follow. COS_WEB_AUDIT_LOG switches it on."
+    ),
+    "admin.audit.state.off": "Not following",
+    "admin.audit.state.live": "Live",
+    "admin.audit.state.reconnecting": "Reconnecting",
+    "admin.audit.state.unsupported": "Not supported by this browser",
+    "admin.audit.state.closed": "Closed by the service",
+    "admin.audit.state.disabled": "Not kept",
     "site.og_image_alt": (
         "OpenCloud Security Scan - check an instance for known vulnerabilities, "
         "missing hardening and weak security headers"

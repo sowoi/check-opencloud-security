@@ -46,10 +46,12 @@ from opencloud_local_scan.versions import (
 from .redis_backend import RedisBackend
 from .reference_data import (
     REFRESH_TIMEOUT_SECONDS,
+    SCHEDULE_ATTEMPT_KEY,
     SCHEDULE_CHECKED_KEY,
     SCHEDULE_DOCUMENT_KEY,
     last_checked,
     read_document,
+    record_attempt,
     write_document,
 )
 from .settings import WebSettings
@@ -57,8 +59,10 @@ from .settings import WebSettings
 LOGGER = logging.getLogger("check_opencloud.web.schedule")
 
 __all__ = [
+    "SCHEDULE_ATTEMPT_KEY",
     "SCHEDULE_CHECKED_KEY",
     "SCHEDULE_DOCUMENT_KEY",
+    "probe_schedule",
     "refresh_schedule",
     "schedule_state",
     "stored_schedule",
@@ -122,8 +126,21 @@ async def refresh_schedule(backend: RedisBackend, settings: WebSettings) -> str:
 
     The outcome is one of ``disabled``, ``failed``, ``rejected``,
     ``unchanged`` or ``updated``, which is also what goes in the log. Every
-    one of them except ``updated`` leaves the schedule exactly as it was.
+    one of them except ``updated`` leaves the schedule exactly as it was -
+    which is why the outcome is also written down: the checked stamp cannot
+    move for a failure, so without this the only trace of a week of refusals
+    is a date that stopped changing.
+
+    The recording wraps the whole attempt rather than sitting at each of its
+    endings, so an ending added later cannot forget to be recorded.
     """
+    outcome = await _refresh_schedule(backend, settings)
+    await record_attempt(backend, SCHEDULE_ATTEMPT_KEY, outcome)
+    return outcome
+
+
+async def _refresh_schedule(backend: RedisBackend, settings: WebSettings) -> str:
+    """The attempt itself. See :func:`refresh_schedule`."""
     if not settings.schedule_refresh:
         return "disabled"
 
@@ -158,6 +175,43 @@ async def refresh_schedule(backend: RedisBackend, settings: WebSettings) -> str:
         return "unchanged"
     LOGGER.info("schedule_refresh_updated %s", document.get("updated") or "?")
     return "updated"
+
+
+async def probe_schedule(settings: WebSettings) -> str:
+    """
+    Read the lifecycle page and say what a refresh would make of it, storing nothing.
+
+    A refresh that answers ``failed`` and one that answers ``rejected`` look
+    identical from the outside - both leave the schedule exactly as it was -
+    and the difference is the whole of what an operator needs to know: the
+    first is a network or a redesigned page, the second is this deployment's
+    own guards refusing a document it did read. So this runs the fetch and
+    the same :func:`_is_improvement` test, and then throws the answer away.
+
+    ``disabled``, ``unreadable``, ``rejected`` or ``usable``. It writes
+    nothing, touches no cursor, and cannot change what any scan rates against.
+    """
+    if not settings.schedule_refresh:
+        return "disabled"
+
+    try:
+        document = await asyncio.to_thread(
+            fetch_schedule_document,
+            settings.schedule_refresh_url,
+            REFRESH_TIMEOUT_SECONDS,
+        )
+    except ExtractionError as exc:
+        LOGGER.info("schedule_probe_unreadable %s", exc)
+        return "unreadable"
+    except Exception:  # pragma: no cover - defensive, as the refresh is
+        LOGGER.exception("schedule_probe_error")
+        return "unreadable"
+
+    if not _is_improvement(schedule_from_document(document), load_release_schedule()):
+        LOGGER.info("schedule_probe_rejected")
+        return "rejected"
+    LOGGER.info("schedule_probe_usable")
+    return "usable"
 
 
 async def schedule_state(

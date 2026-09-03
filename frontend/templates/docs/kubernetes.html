@@ -21,7 +21,7 @@ schedule, and as a <code>Deployment</code> of the
 <a href="/documentation/reference#running-the-scanner-as-a-service">scan service</a> that several
 consumers share. They are independent - most people want only the first.</p>
 <p>The image is built from this repository; see
-<a href="/documentation/reference#docker">Docker</a>. Push it to your own registry and replace
+<a href="/documentation/installation#docker">Docker</a>. Push it to your own registry and replace
 <code>registry.example.com/check-opencloud-security:1.1.0</code> below. Pin a tag rather
 than using <code>latest</code>: the release schedule and the newest known OpenCloud
 version ship <em>inside</em> the image, so which tag you run is part of the verdict.</p>
@@ -98,7 +98,7 @@ kubectl logs job/opencloud-security-now --namespace monitoring
 <h2 id="sending-the-result-somewhere">Sending the result somewhere</h2>
 <p>A failed job is a blunt signal. Add the webhook and the result arrives with
 the reason attached - see <a href="/documentation/webhooks">Webhook recipes</a> and
-<a href="/documentation/reference#uptime-kuma">Uptime Kuma</a>:</p>
+<a href="/documentation/webhooks#uptime-kuma">Uptime Kuma</a>:</p>
 <pre><code class="language-yaml">              args:
                 - --host=opencloud.example.com
                 - --check-hardening

@@ -277,3 +277,50 @@ def test_tls_ca_record_is_registered_in_hardening_descriptions():
     described = hardening.describe("tlsCaaRecord")
     assert described.id == "tlsCaaRecord"
     assert described.remediation
+
+
+def test_an_answer_from_somewhere_other_than_the_resolver_is_ignored(monkeypatch):
+    """A CAA answer has to come from the resolver it was asked of.
+
+    An unconnected UDP socket accepts a datagram from anybody who can reach
+    the port it happens to be bound to, so a forged answer would only have to
+    arrive before the resolver's and carry the right request id - two bytes -
+    rather than also come from the resolver. Connecting the socket has the
+    kernel drop everything else, which is what makes the id a second check
+    rather than the only one.
+
+    Here the resolver stays silent and a well-formed answer with the right id
+    arrives from another port on the same machine, which is what an off-path
+    forgery looks like from the socket's point of view. It must not become a
+    finding - and the passing case above proves this is not simply refusing
+    every answer.
+    """
+    resolver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    resolver.bind(("127.0.0.1", 0))
+    resolver.settimeout(TIMEOUT + 1)
+    port = resolver.getsockname()[1]
+    forger = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    forger.bind(("127.0.0.1", 0))
+
+    def _serve():
+        try:
+            data, addr = resolver.recvfrom(4096)
+        except OSError:  # pragma: no cover - the query always arrives
+            return
+        query_id = int.from_bytes(data[0:2], "big")
+        answer = _caa_answer("issue", b"attacker.example")
+        forger.sendto(
+            _response(query_id, data[12:], ancount=1, answers=answer), addr
+        )
+
+    thread = threading.Thread(target=_serve, daemon=True)
+    thread.start()
+    monkeypatch.setattr(caa, "_system_nameservers", lambda: ["127.0.0.1"])
+    try:
+        result = caa.check_caa_record("example.com", 0.5, port=port)
+    finally:
+        thread.join(timeout=TIMEOUT + 1)
+        resolver.close()
+        forger.close()
+
+    assert result is None

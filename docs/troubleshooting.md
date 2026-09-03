@@ -29,7 +29,7 @@ or put a reverse proxy with a real certificate in front of the instance.
 
 **The version looks wrong (`0.1.0`)**
 That is the hardcoded legacy field, not the release - see
-[Reading the version correctly](../README.md#reading-the-version-correctly). The plugin
+[Reading the version correctly](scanner-checks.md#reading-the-version-correctly). The plugin
 reports `legacyVersion` when the instance offered nothing better; upgrading the
 instance or letting the plugin reach
 `/ocs/v1.php/cloud/capabilities` resolves it.
@@ -48,7 +48,7 @@ check looks for, written out for nginx, Apache, Caddy, Traefik and HAProxy.
 Debug-port probing costs up to `debug_port_timeout` seconds per port on a
 firewalled host. Use `--no-debug-ports`, lower
 `COS_SCANNER_DEBUG_PORT_TIMEOUT`, shorten the port list, or scan in parallel
-with `--concurrency` (see [Speeding the scan up](../README.md#speeding-the-scan-up)).
+with `--concurrency` (see [Speeding the scan up](scanner-checks.md#speeding-the-scan-up)).
 
 **`UNKNOWN` on the update check / GitHub rate limit**
 Sixty anonymous API requests per hour and IP address are shared with everything

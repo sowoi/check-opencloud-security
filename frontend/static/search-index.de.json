@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "builtFor": "1.19.0",
   "locale": "de",
   "pages": [
     {
@@ -51,6 +52,46 @@
       "path": "/documentation/reference",
       "title": "OpenCloud Security Scanner CLI reference",
       "summary": "Install, configure, rate, and automate the OpenCloud Security Scanner CLI."
+    },
+    {
+      "path": "/documentation/installation",
+      "title": "Installing the OpenCloud Security Scanner plugin",
+      "summary": "Install with pipx, uv, pip or Docker, keep it current, and wire it into Icinga2 or Nagios."
+    },
+    {
+      "path": "/documentation/examples",
+      "title": "OpenCloud Security Scanner worked examples",
+      "summary": "Copy-and-paste invocations for release tracks, waivers, private instances, thresholds and notifications."
+    },
+    {
+      "path": "/documentation/scanner-checks",
+      "title": "What the OpenCloud Security Scanner reads, and what it does not",
+      "summary": "Every endpoint read, every additional check and its severity, and the questions a scan from outside cannot answer."
+    },
+    {
+      "path": "/documentation/release-lifecycle",
+      "title": "OpenCloud release tracks, end of life and update recommendations",
+      "summary": "Why the same version can be current on one track and dead on another, and what --release-track changes."
+    },
+    {
+      "path": "/documentation/hardening",
+      "title": "OpenCloud hardening measures, one by one",
+      "summary": "What each hardening identifier means, which OpenCloud setting changes it, and how to waive one."
+    },
+    {
+      "path": "/documentation/configuration",
+      "title": "Secrets in the OpenCloud Security Scanner configuration",
+      "summary": "Resolve credentials from Docker secrets, files, the environment or a command instead of writing them down."
+    },
+    {
+      "path": "/documentation/baseline",
+      "title": "Report only what changed between OpenCloud scans",
+      "summary": "Use --baseline and --warn-on-new to alert on new or worse findings rather than the same one every run."
+    },
+    {
+      "path": "/documentation/scan-service",
+      "title": "Run the OpenCloud scanner as a local HTTP service",
+      "summary": "Share one cached scan result between consumers with check-opencloud-scanner serve."
     },
     {
       "path": "/documentation/scanner",

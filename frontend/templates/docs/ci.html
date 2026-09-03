@@ -360,7 +360,7 @@ keeps the job out of ordinary commit pipelines.</p>
 <h2 id="using-the-container-image-instead-of-installing">Using the container image instead of installing</h2>
 <p>No image is published to a registry, so a container job builds it first. It
 runs as an unprivileged user and carries a <code>HEALTHCHECK</code> - see
-<a href="/documentation/reference#docker">Docker</a>. Build it once, push it to your own registry,
+<a href="/documentation/installation#docker">Docker</a>. Build it once, push it to your own registry,
 and pin the tag:</p>
 <pre><code class="language-shell">docker build -f docker/Dockerfile \
   -t registry.example.com/check-opencloud-security:1.1.0 .

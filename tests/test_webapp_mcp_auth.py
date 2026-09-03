@@ -12,6 +12,7 @@ limit, the same guard, the same erasure credential.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 
@@ -41,6 +42,9 @@ ISSUER = "https://auth.example.com/application/o/opencloud-scanner"
 RESOURCE = "https://scanner.example.com/mcp"
 BASE = "https://scanner.example.com"
 AUDIENCE = "opencloud-scanner"
+
+#: The key name the provider publishes and every token here is signed under.
+KEY_ID = "test-signing-key"
 
 _HEADERS = {
     "accept": "application/json, text/event-stream",
@@ -75,17 +79,43 @@ def _local_keys(monkeypatch, signing_key):
     expiry, algorithm - runs exactly as it does in production.
     """
 
-    class _Key:
-        key = signing_key.public_key()
+    def _named(key_id):
+        """The provider's key, published under one name."""
+
+        class _Key:
+            key = signing_key.public_key()
+
+        _Key.key_id = key_id
+        return _Key()
 
     class _Keys:
-        def get_signing_key_from_jwt(self, token):
-            return _Key()
+        """The two methods `PyJWKClient` is actually used through.
+
+        Counting the refreshes is the point of the second one: a refresh is a
+        request to somebody's identity provider, and what may provoke one is a
+        security property rather than an implementation detail.
+        """
+
+        def __init__(self):
+            self.refreshes = 0
+            self.published = [KEY_ID]
+
+        def get_signing_keys(self, refresh=False):
+            if refresh:
+                self.refreshes += 1
+            return [_named(name) for name in self.published]
+
+        def rotate(self, key_id):
+            """Publish another name for the same key, as a rotation would."""
+            self.published.append(key_id)
+
+    keys = _Keys()
 
     async def _key_set(self):
-        return _Keys()
+        return keys
 
     monkeypatch.setattr(mcp_auth.OidcTokenVerifier, "_key_set", _key_set)
+    return keys
 
 
 def _token(signing_key, **claims):
@@ -99,7 +129,9 @@ def _token(signing_key, **claims):
         "scope": "openid profile",
     }
     payload.update(claims)
-    return jwt.encode(payload, signing_key, algorithm="RS256")
+    return jwt.encode(
+        payload, signing_key, algorithm="RS256", headers={"kid": KEY_ID}
+    )
 
 
 def _auth_settings(**overrides):
@@ -542,3 +574,99 @@ def test_an_identity_token_is_never_accepted_as_an_erasure_credential(
 
     assert result["ok"] is False
     assert result["status"] == 401
+
+
+# ------------------------------------------- a token nobody signed costs nothing
+
+
+def test_a_token_naming_an_unknown_key_cannot_order_a_fetch_per_request(
+    _local_keys, signing_key
+):
+    """An unauthenticated request must not become a request to the provider.
+
+    The key set is looked up by the `kid` in the token, and the client
+    refetches whenever that name is not in the set - which is how a rotated
+    key starts working without a restart, and how a stream of tokens signed by
+    nobody becomes a load generator aimed at somebody's identity provider,
+    with a blocking fetch in front of every other caller each time. A `kid` is
+    two lines of JSON to invent, and neither the signature nor the audience
+    has been looked at by the time the fetch would happen.
+
+    So the first miss may pay for one, and the rest are simply not tokens.
+    """
+    forged = jwt.encode(
+        {
+            "iss": ISSUER,
+            "aud": AUDIENCE,
+            "sub": "agent",
+            "exp": int(time.time()) + 300,
+        },
+        signing_key,
+        algorithm="RS256",
+        headers={"kid": "a-key-nobody-published"},
+    )
+
+    verifier = mcp_auth.OidcTokenVerifier(
+        jwks_uri="https://auth.example.com/jwks",
+        issuer=ISSUER,
+        audience=AUDIENCE,
+    )
+    for _ in range(20):
+        assert asyncio.run(verifier.verify_token(forged)) is None
+
+    assert _local_keys.refreshes == 1
+
+
+def test_a_rotated_key_is_still_picked_up_without_a_restart(
+    _local_keys, signing_key
+):
+    """The other half: the floor must not turn into a service that never rotates.
+
+    A key set that has genuinely changed is fetched on the first token that
+    names the new key, which is the behaviour the refetch exists for.
+    """
+    verifier = mcp_auth.OidcTokenVerifier(
+        jwks_uri="https://auth.example.com/jwks",
+        issuer=ISSUER,
+        audience=AUDIENCE,
+    )
+    unknown = jwt.encode(
+        {"iss": ISSUER, "aud": AUDIENCE, "exp": int(time.time()) + 300},
+        signing_key,
+        algorithm="RS256",
+        headers={"kid": "rotated-in"},
+    )
+
+    assert asyncio.run(verifier.verify_token(unknown)) is None
+    assert _local_keys.refreshes == 1
+
+    # The provider now publishes it, and the very next token is accepted -
+    # without waiting out the floor, because this fetch was already paid for.
+    _local_keys.rotate("rotated-in")
+    assert asyncio.run(verifier.verify_token(unknown)) is not None
+
+
+def test_the_signature_is_still_what_decides_it(_local_keys, signing_key):
+    """The key name selects a published key; it never stands in for a check.
+
+    The header is read without being verified, so a token naming the right
+    key while being signed with another must fail - or the lookup would be
+    the authentication.
+    """
+    someone_else = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    forged = jwt.encode(
+        {"iss": ISSUER, "aud": AUDIENCE, "exp": int(time.time()) + 300},
+        someone_else,
+        algorithm="RS256",
+        headers={"kid": KEY_ID},
+    )
+
+    verifier = mcp_auth.OidcTokenVerifier(
+        jwks_uri="https://auth.example.com/jwks",
+        issuer=ISSUER,
+        audience=AUDIENCE,
+    )
+
+    assert asyncio.run(verifier.verify_token(forged)) is None
+    # And the same token signed by the key that name really belongs to works.
+    assert asyncio.run(verifier.verify_token(_token(signing_key))) is not None

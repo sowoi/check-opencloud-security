@@ -43,11 +43,13 @@ from opencloud_local_scan.vulndb import (
 
 from .redis_backend import RedisBackend
 from .reference_data import (
+    ADVISORY_ATTEMPT_KEY,
     ADVISORY_CHECKED_KEY,
     ADVISORY_DOCUMENT_KEY,
     REFRESH_TIMEOUT_SECONDS,
     last_checked,
     read_document,
+    record_attempt,
     write_document,
 )
 from .settings import WebSettings
@@ -57,6 +59,7 @@ LOGGER = logging.getLogger("check_opencloud.web.advisories")
 __all__ = [
     "advisory_catalogue",
     "advisory_state",
+    "probe_advisories",
     "refresh_advisories",
     "stored_database",
 ]
@@ -179,8 +182,18 @@ async def refresh_advisories(backend: RedisBackend, settings: WebSettings) -> st
 
     The outcome is one of ``disabled``, ``failed``, ``rejected``,
     ``unchanged`` or ``updated``, which is also what goes in the log. Every
-    one of them except ``updated`` leaves the database exactly as it was.
+    one of them except ``updated`` leaves the database exactly as it was -
+    and is written down for that reason, exactly as
+    :func:`webapp.schedule.refresh_schedule` writes its own: a stamp that
+    only moves on success cannot say which failure has been stopping it.
     """
+    outcome = await _refresh_advisories(backend, settings)
+    await record_attempt(backend, ADVISORY_ATTEMPT_KEY, outcome)
+    return outcome
+
+
+async def _refresh_advisories(backend: RedisBackend, settings: WebSettings) -> str:
+    """The attempt itself. See :func:`refresh_advisories`."""
     if not settings.advisory_refresh:
         return "disabled"
 
@@ -222,6 +235,47 @@ async def refresh_advisories(backend: RedisBackend, settings: WebSettings) -> st
         "advisory_refresh_updated %d", len(document.get("advisories") or [])
     )
     return "updated"
+
+
+async def probe_advisories(backend: RedisBackend, settings: WebSettings) -> str:
+    """
+    Ask the feed what a refresh would make of its answer, storing nothing.
+
+    The counterpart of :func:`webapp.schedule.probe_schedule`, and for the
+    same reason: ``failed`` and ``rejected`` both leave the database as it
+    was, and only one of them is something an operator can do anything about.
+    The merge is performed exactly as a refresh performs it - against what
+    this deployment is actually using - because whether the answer is usable
+    depends on what it is merged into. The result is then discarded.
+
+    ``disabled``, ``unreadable``, ``rejected`` or ``usable``.
+    """
+    if not settings.advisory_refresh:
+        return "disabled"
+
+    previous = await read_document(backend, ADVISORY_DOCUMENT_KEY)
+    if previous is None:
+        previous = _bundled_document()
+
+    try:
+        document = await asyncio.to_thread(
+            fetch_advisory_document,
+            settings.advisory_refresh_url,
+            previous,
+            REFRESH_TIMEOUT_SECONDS,
+        )
+    except AdvisoryFetchError as exc:
+        LOGGER.info("advisory_probe_unreadable %s", exc)
+        return "unreadable"
+    except Exception:  # pragma: no cover - defensive, as the refresh is
+        LOGGER.exception("advisory_probe_error")
+        return "unreadable"
+
+    if not _is_usable(document):
+        LOGGER.info("advisory_probe_rejected")
+        return "rejected"
+    LOGGER.info("advisory_probe_usable")
+    return "usable"
 
 
 def _bundled_document() -> dict[str, Any]:

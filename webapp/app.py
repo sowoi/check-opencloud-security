@@ -46,6 +46,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.responses import StreamingResponse
 
 from opencloud_local_scan import __version__
 from opencloud_local_scan.snippets import (
@@ -56,6 +57,22 @@ from opencloud_local_scan.snippets import (
 )
 from opencloud_local_scan.snippets import fragment as configuration_fragment
 
+from .admin import (
+    ACTIONS,
+    ADMIN_PATH,
+    ADMIN_POLL_SECONDS,
+    ADMIN_ROBOTS,
+    ADMIN_STREAM_MAX_MINUTES,
+    REFERENCE_STALE_SECONDS,
+    audit_events,
+    audit_surface,
+    run_action,
+    run_probe,
+    statistics,
+    surface_rows,
+    surfaces,
+)
+from .admin_auth import Operator, ensure_admin_ready, operator_for, sign_out_url
 from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
@@ -68,6 +85,7 @@ from .audit import (
     REASON_UNSUPPORTED_FIELDS,
     AuditLog,
     configure_audit_file,
+    install_recent_audit,
 )
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
@@ -616,6 +634,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # And before the one destructive endpoint is served: a credential short
     # enough to guess is worse than the 404 an unset one answers with.
     ensure_purge_token_ready(settings.purge_token)
+    # And before /admin is registered: an area whose sign-in cannot be
+    # enforced must not be served at all.
+    ensure_admin_ready(settings)
+    # The window the live audit view reads on a deployment that logs to
+    # stdout. Attached only when both the trail and the area are on.
+    app.state.recent_audit = install_recent_audit(settings)
     app.state.store = ScanStore(
         backend=app.state.backend,
         ttl=settings.result_ttl,
@@ -1582,6 +1606,164 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
 
         return JSONResponse(_scan_payload(record))
+
+    # ------------------------------------------------------ the operator's area
+    #
+    # Registered only when an operator asked for it. That is the difference
+    # between a path that is protected and a path that is not there: with the
+    # area off, /admin answers the same 404 any other unknown address does,
+    # and a stranger learns nothing about whether this deployment has one.
+    #
+    # Nothing here authenticates anybody. An authentik proxy provider stands
+    # in front and forwards the identity it established; webapp.admin_auth
+    # checks that the request really came through that outpost, and startup
+    # has already refused a deployment that turned the area on without the
+    # shared secret to check it with.
+    if settings.admin_enabled:
+
+        def admin_operator(request: Request) -> Operator | None:
+            return operator_for(request, settings)
+
+        def admin_context(
+            operator: Operator, outcome: dict[str, Any] | None
+        ) -> dict[str, Any]:
+            return {
+                "operator": operator,
+                "poll_interval": ADMIN_POLL_SECONDS,
+                "stream_minutes": ADMIN_STREAM_MAX_MINUTES,
+                # Past how long an unrefreshed reference document is worth
+                # pointing at - two daily cycles, decided here rather than
+                # in the browser.
+                "reference_stale": REFERENCE_STALE_SECONDS,
+                # Whether the audit view is reading a file every replica
+                # appends to, or this process's own in-memory ring. ADR 0035
+                # states the limit; without this the page cannot, and a
+                # reader behind two replicas sees half a trail with nothing
+                # saying so.
+                "audit_window_in_memory": bool(
+                    settings.audit_log and not settings.audit_log_file
+                ),
+                # Where the sign-in this service never performed is ended.
+                # There is no session here to drop, so the only honest exit
+                # is the provider's own and only the deployment knows where
+                # that is; unset, the band names the operator and offers
+                # none. Startup has already refused an address this page
+                # would not be allowed to link to.
+                "sign_out_url": sign_out_url(settings),
+                # What this deployment exposes, rendered by the server and
+                # never repainted. Every one of these is a setting read at
+                # startup, so a value that changed did so in a process this
+                # page is no longer talking to - and a card the poll cannot
+                # move needs neither the age stamp nor scripting to be true.
+                # The same two functions answer /admin/state, so the card and
+                # the document an operator copies cannot disagree.
+                "surfaces": surface_rows(surfaces(settings), audit_surface(settings)),
+                "outcome": outcome,
+                # Stated rather than inherited. `is_indexable` already
+                # answers no for any path outside PUBLIC_PAGES, and the
+                # X-Robots-Tag header says the same - but this page is
+                # the one where a future edit to that list must not be
+                # able to turn indexing on by accident.
+                #
+                # It is deliberately *not* in robots.txt: a Disallow line
+                # is a public file naming the path, which would advertise
+                # to everybody that this deployment has an operator's
+                # area. noindex keeps it out of an index; silence keeps
+                # it out of a list of things to go looking for.
+                "robots": ADMIN_ROBOTS,
+                "canonical_url": None,
+            }
+
+        @app.get(ADMIN_PATH, response_class=HTMLResponse, include_in_schema=False)
+        async def admin_page(request: Request) -> Response:
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            return page(request, "admin.html", admin_context(operator, None))
+
+        @app.get(f"{ADMIN_PATH}/state", include_in_schema=False)
+        async def admin_state(request: Request) -> Response:
+            if admin_operator(request) is None:
+                return not_found(request)
+            return JSONResponse(
+                await statistics(
+                    app.state.backend,
+                    settings,
+                    queue_key=QUEUE_KEY,
+                    worker_key=WORKER_HEARTBEAT_KEY,
+                    frontend=root,
+                )
+            )
+
+        @app.post(f"{ADMIN_PATH}/refresh", include_in_schema=False)
+        async def admin_refresh(
+            request: Request, action: str = Form(default="")
+        ) -> Response:
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            # The same check every other POST here meets. An area reachable
+            # from a browser is an area a foreign page can try to post to,
+            # and these two buttons reach somebody else's server.
+            if cross_site_post(request, settings):
+                LOGGER.info("admin_cross_site")
+                return _cross_site_response(request, wants_html(request))
+            if action not in ACTIONS:
+                return JSONResponse(
+                    {"state": "failed", "action": action}, status_code=422
+                )
+
+            ran, outcome, remaining = await run_action(
+                app.state.backend, settings, action
+            )
+            answer = {
+                "state": outcome if ran else "cooldown",
+                "action": action,
+                "seconds": remaining,
+            }
+            if wants_html(request):
+                return page(request, "admin.html", admin_context(operator, answer))
+            return JSONResponse(answer)
+
+        @app.post(f"{ADMIN_PATH}/probe", include_in_schema=False)
+        async def admin_probe(request: Request) -> Response:
+            # The dry run. It reads both sources through the same fetchers
+            # and the same guards a refresh uses and then discards what came
+            # back, so it can say which of the two a `failed` was - the
+            # network, or this deployment refusing a document it did read.
+            # Nothing it does is written down anywhere.
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            if cross_site_post(request, settings):
+                LOGGER.info("admin_cross_site")
+                return _cross_site_response(request, wants_html(request))
+
+            ran, sources, remaining = await run_probe(app.state.backend, settings)
+            answer = {
+                "state": "probed" if ran else "cooldown",
+                "action": "probe",
+                "sources": sources,
+                "seconds": remaining,
+            }
+            if wants_html(request):
+                return page(request, "admin.html", admin_context(operator, answer))
+            return JSONResponse(answer)
+
+        @app.get(f"{ADMIN_PATH}/audit/stream", include_in_schema=False)
+        async def admin_audit_stream(request: Request) -> Response:
+            if admin_operator(request) is None:
+                return not_found(request)
+            return StreamingResponse(
+                audit_events(request, app.state.recent_audit, settings),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-store",
+                    # Nothing between here and the operator should be
+                    # buffering a stream whose whole point is that it is live.
+                    "X-Accel-Buffering": "no",
+                },
+            )
 
     @app.get("/healthz")
     async def healthz() -> Response:

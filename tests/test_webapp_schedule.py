@@ -39,9 +39,12 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     settings,
 )
 from webapp.redis_backend import memory_backend
+from webapp.reference_data import last_attempt
 from webapp.schedule import (
+    SCHEDULE_ATTEMPT_KEY,
     SCHEDULE_CHECKED_KEY,
     SCHEDULE_DOCUMENT_KEY,
+    probe_schedule,
     refresh_schedule,
     schedule_state,
     stored_schedule,
@@ -327,6 +330,77 @@ def test_the_health_probe_reports_when_the_schedule_was_last_read():
     assert state["checked"] is not None
     assert state["checked"].startswith(datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
     assert run(store.get(SCHEDULE_CHECKED_KEY)) == state["checked"]
+
+
+def test_every_attempt_is_recorded_and_a_refresh_nobody_ran_is_not():
+    """The checked stamp moves only on success, so it cannot say what went wrong.
+
+    A page nobody can reach and a page the guards refuse leave exactly the
+    same trace - a date that stopped moving - and ADMIN.md calls telling
+    those apart the interesting question. So each attempt writes down what it
+    made of the source, beside the stamp rather than instead of it.
+    """
+    store = memory_backend(MEMORY_URL)
+
+    # Nothing listening: the socket is refused, not slow.
+    unreachable = refresh_settings(schedule_refresh_url="http://127.0.0.1:1/lifecycle/")
+    assert run(refresh_schedule(store, unreachable)) == "failed"
+    failed = run(last_attempt(store, SCHEDULE_ATTEMPT_KEY))
+    assert failed["outcome"] == "failed"
+    # And it did not pretend a read had been accepted.
+    assert run(store.get(SCHEDULE_CHECKED_KEY)) is None
+
+    # A page that reads perfectly well and has lost a release line.
+    pruned = json.loads(json.dumps(BUNDLED))
+    pruned["lines"].pop()
+    with FakeLifecycleSite(lifecycle_page(pruned)) as site:
+        configured = refresh_settings(schedule_refresh_url=site.url)
+        assert run(refresh_schedule(store, configured)) == "rejected"
+    assert run(last_attempt(store, SCHEDULE_ATTEMPT_KEY))["outcome"] == "rejected"
+
+    # A refresh that lands says so too, so the marker is an account of the
+    # last attempt rather than a list of complaints.
+    with FakeLifecycleSite(lifecycle_page(BUNDLED)) as site:
+        configured = refresh_settings(schedule_refresh_url=site.url)
+        assert run(refresh_schedule(store, configured)) in {"updated", "unchanged"}
+    assert run(last_attempt(store, SCHEDULE_ATTEMPT_KEY))["outcome"] in {
+        "updated",
+        "unchanged",
+    }
+
+
+def test_a_refresh_that_was_never_run_leaves_no_account_of_one():
+    """`disabled` is not an attempt.
+
+    A marker written for it would be a deployment that switched the refresh
+    off reporting on a fetch nobody made - and worse, one left behind by the
+    deployment that did would be read as though it had just happened.
+    """
+    store = memory_backend(MEMORY_URL)
+    off = refresh_settings(schedule_refresh=False)
+
+    assert run(refresh_schedule(store, off)) == "disabled"
+
+    assert run(store.get(SCHEDULE_ATTEMPT_KEY)) is None
+    assert run(last_attempt(store, SCHEDULE_ATTEMPT_KEY)) is None
+
+
+def test_the_dry_run_still_writes_absolutely_nothing():
+    """The probe answers the same question and must not be mistaken for an attempt.
+
+    It reaches the same source through the same guards, so recording it would
+    put a fetch nobody applied into the account of what the daily refresh has
+    been doing.
+    """
+    store = memory_backend(MEMORY_URL)
+
+    with FakeLifecycleSite(lifecycle_page(BUNDLED)) as site:
+        configured = refresh_settings(schedule_refresh_url=site.url)
+        assert run(probe_schedule(configured)) == "usable"
+
+    assert run(store.get(SCHEDULE_ATTEMPT_KEY)) is None
+    assert run(store.get(SCHEDULE_CHECKED_KEY)) is None
+    assert run(store.get(SCHEDULE_DOCUMENT_KEY)) is None
 
 
 def test_a_refreshed_schedule_stops_calling_the_new_release_a_stale_database():

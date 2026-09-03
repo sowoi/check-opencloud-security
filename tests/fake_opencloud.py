@@ -182,10 +182,19 @@ class InstanceBehaviour:
     cors_allow_credentials: bool = False
     # Echo a TRACE request back the way a proxy with TraceEnable on does.
     trace_enabled: bool = False
+    # Build the absolute URLs of the discovery document from the host the
+    # caller asked for, the way an instance that was never told its own public
+    # address does. False publishes the address it actually listens on, which
+    # is what a configured OC_URL produces.
+    forwarded_host_trusted: bool = False
     # Cookies set on the '/' response, as raw Set-Cookie values.
     set_cookies: tuple[str, ...] = ()
     # Every request the instance saw, as (method, path, sorted header names).
     seen: list[tuple[str, str, tuple[str, ...]]] = field(default_factory=list)
+    # The host each request claimed to have arrived at, as (path, host). Kept
+    # apart from 'seen', which records header names rather than values and
+    # whose three-element shape several tests unpack by hand.
+    claimed: list[tuple[str, str]] = field(default_factory=list)
 
 
 # The demo accounts OpenCloud's documentation publishes, which an instance
@@ -269,6 +278,37 @@ def _make_handler(behaviour: InstanceBehaviour):
                 return None
             return username if DEMO_CREDENTIALS.get(username) == password else None
 
+        def _record(self):
+            """Remember one request, both what it asked and what it claimed."""
+            path = self.path.split("?", 1)[0]
+            behaviour.seen.append(
+                (self.command, path, tuple(sorted(self.headers.keys())))
+            )
+            behaviour.claimed.append(
+                (
+                    path,
+                    self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "",
+                )
+            )
+
+        def _public_host(self):
+            """
+            The host this instance believes it is reachable at.
+
+            A configured instance knows its own address and answers with it
+            whatever a caller claims, which is what the default here models.
+            With ``forwarded_host_trusted`` it derives one from the request
+            instead - the proxy's header first, then the request's own Host -
+            the way an instance with no OC_URL behind a proxy that forwards
+            whatever the client sent does.
+            """
+            if behaviour.forwarded_host_trusted:
+                claimed = self.headers.get("X-Forwarded-Host") or self.headers.get("Host")
+                if claimed:
+                    return claimed
+            address, port = self.server.server_address[:2]
+            return f"{address}:{port}"
+
         def _route_path(self):
             path = self.path.split("?", 1)[0]
             prefix = behaviour.base_path.rstrip("/")
@@ -282,13 +322,7 @@ def _make_handler(behaviour: InstanceBehaviour):
 
         def do_GET(self):
             path = self._route_path()
-            behaviour.seen.append(
-                (
-                    self.command,
-                    self.path.split("?", 1)[0],
-                    tuple(sorted(self.headers.keys())),
-                )
-            )
+            self._record()
 
             if path == "/app/list":
                 self._json(
@@ -330,7 +364,7 @@ def _make_handler(behaviour: InstanceBehaviour):
                 if not behaviour.openid_configuration:
                     self._respond(404, b"not found")
                     return
-                issuer = behaviour.openid_issuer or f"http://{self.headers.get('Host')}"
+                issuer = behaviour.openid_issuer or f"http://{self._public_host()}"
                 if behaviour.openid_redirect:
                     self._respond(
                         302,
@@ -448,9 +482,7 @@ def _make_handler(behaviour: InstanceBehaviour):
         do_PROPFIND = do_GET
 
         def do_TRACE(self):
-            behaviour.seen.append(
-                (self.command, self.path.split("?", 1)[0], tuple(sorted(self.headers.keys())))
-            )
+            self._record()
             if not behaviour.trace_enabled:
                 self._respond(405, b"method not allowed")
                 return
@@ -460,9 +492,7 @@ def _make_handler(behaviour: InstanceBehaviour):
             self._respond(200, echo, {"Content-Type": "message/http"})
 
         def do_POST(self):
-            behaviour.seen.append(
-                (self.command, self.path.split("?", 1)[0], tuple(sorted(self.headers.keys())))
-            )
+            self._record()
             self._respond(405, b"method not allowed")
 
     return _Handler

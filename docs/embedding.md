@@ -59,5 +59,5 @@ Both are `extraChecks`, reported and rating-capped whenever `/config.json`
 publishes an `embed` block - `webEmbedMessageOriginRestricted` at `high`
 (caps the rating at `C`), `webEmbedDelegatedAuthenticationRestricted` at
 `critical` (caps it at `D`) - see the extra-checks table in [the main
-README](../README.md#what-the-scanner-checks). Neither requires
+README](scanner-checks.md#what-the-scanner-checks). Neither requires
 `--check-hardening`.

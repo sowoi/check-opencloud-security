@@ -147,37 +147,3 @@ def decrypt_value(encrypted_value: str, config: EncryptionConfig) -> str | None:
         return plaintext.decode("utf-8")
     except (InvalidTag, UnicodeDecodeError, ValueError, TypeError):
         return None
-
-
-def encrypt_result_dict(result: dict, config: EncryptionConfig) -> dict:
-    """
-    Encrypt the 'result' field of a scan record if encryption is enabled.
-
-    Metadata fields (uuid, timestamp, target, status) remain in clear text
-    to allow listing and TTL operations.
-    """
-    if not config.encrypt_results or "result" not in result:
-        return result
-
-    result = result.copy()
-    if isinstance(result["result"], str):
-        result["result"] = encrypt_value(result["result"], config)
-    return result
-
-
-def decrypt_result_dict(result: dict, config: EncryptionConfig) -> dict | None:
-    """
-    Decrypt the 'result' field of a scan record if it's encrypted.
-
-    Returns None if decryption fails.
-    """
-    if "result" not in result:
-        return result
-
-    result = result.copy()
-    if isinstance(result["result"], str):
-        decrypted = decrypt_value(result["result"], config)
-        if decrypted is None:
-            return None
-        result["result"] = decrypted
-    return result

@@ -4,6 +4,204 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # --------------------------------------------- l'espace d'exploitation
+    "admin.title": "Espace d'exploitation",
+    "admin.description": "État du service, données de référence et journal d'audit.",
+    "admin.kicker": "Exploitation",
+    "admin.band": "Espace d'exploitation - connecté en tant que {user}",
+    "admin.band.signout": "Se déconnecter",
+    "admin.lede": (
+        "Ce que fait cette installation, ce qu'elle sait, et les deux mises à "
+        "jour que le worker exécute une fois par jour. Rien ici ne peut être "
+        "interrogé au sujet d'un scan particulier."
+    ),
+    "admin.noscript": (
+        "Les valeurs ci-dessus sont remplies par JavaScript. Sans lui, recharge "
+        "la page pour voir les valeurs actuelles ; les deux boutons "
+        "fonctionnent toujours."
+    ),
+    "admin.state.kicker": "Maintenant",
+    "admin.state.heading": "État du service",
+    "admin.state.lede": (
+        "Des compteurs et des limites configurées. Aucune adresse scannée, "
+        "aucun uuid et aucune adresse de client n'y figure, parce que rien de "
+        "tout cela n'est conservé là où cette vue pourrait le lire."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "En marche",
+    "admin.state.worker.down": "Ne répond pas",
+    "admin.state.worker.unknown": "Impossible à déterminer",
+    "admin.state.store.down": (
+        "Le stockage ne répond pas - impossible de lire le battement"
+    ),
+    "admin.state.queue": "{depth} en file, {workers} workers",
+    "admin.state.ratelimit": "Limite de requêtes",
+    "admin.state.ratelimit.value": "{limit} par {window}s",
+    "admin.state.cooldown.value": "{seconds}s par cible",
+    "admin.state.schedule": "Calendrier des versions",
+    "admin.state.advisories": "Avis de sécurité",
+    "admin.state.checked": "vérifié {when}",
+    "admin.state.checked.failed": (
+        "vérifié {when} - la dernière tentative n'a pas pu être récupérée"
+    ),
+    "admin.state.checked.rejected": (
+        "vérifié {when} - la dernière tentative a été refusée par les garde-fous"
+    ),
+    "admin.state.refresh.off": "la mise à jour quotidienne est désactivée",
+    "admin.state.ago.minutes": "il y a {minutes} min",
+    "admin.state.ago.hours": "il y a {hours} h",
+    "admin.state.ago.days": "il y a {days} j",
+    "admin.state.never": "jamais",
+    "admin.state.unknown": "inconnu",
+    "admin.state.age.seconds": "Lu il y a {seconds}s",
+    "admin.state.age.minutes": "Lu il y a {minutes}m",
+    "admin.state.age.waiting": "En attente de la première lecture",
+    "admin.state.stale": (
+        "Le service n'a pas répondu depuis un moment. Ce qui précède est la "
+        "dernière lecture qu'il a donnée, pas forcément l'état actuel."
+    ),
+    "admin.state.refresh": "Relire",
+    "admin.state.copy": "Copier le diagnostic",
+    "admin.state.copy.done": "Copié",
+    "admin.state.copy.failed": "Copie impossible",
+    "admin.surfaces.kicker": "Exposition",
+    "admin.surfaces.heading": "Ce que propose ce déploiement",
+    "admin.surfaces.lede": (
+        "Les réglages avec lesquels ce processus a démarré, ceux-là mêmes que "
+        "rapporte le document de diagnostic. Aucun ne change sans "
+        "redémarrage, aucun n'est donc interrogé."
+    ),
+    "admin.surfaces.on": "Activé",
+    "admin.surfaces.off": "Désactivé",
+    "admin.surfaces.mcp": "Point d'accès pour agents sur /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Un jeton de l'émetteur configuré est exigé."
+    ),
+    "admin.surfaces.mcp.open": (
+        "Aucun jeton n'est exigé : tout agent capable de l'atteindre peut "
+        "mobiliser les workers de ce service."
+    ),
+    "admin.surfaces.docs": "Pages d'API navigables sur /docs",
+    "admin.surfaces.docs.contract": (
+        "Les désactiver masque les pages, pas le contrat : /openapi.json, "
+        "/arazzo.json et /.well-known/ai.json restent publics."
+    ),
+    "admin.surfaces.indexed": "Trouvable par les moteurs de recherche",
+    "admin.surfaces.private": "Analyses d'adresses réseau privées",
+    "admin.surfaces.private.found": (
+        "Autorisé sur un déploiement qui demande à être indexé : qui trouve "
+        "ce service peut le pointer sur le réseau où il se trouve."
+    ),
+    "admin.surfaces.private.estate": (
+        "Autorisé, ce qui est précisément l'objet d'un déploiement qui "
+        "analyse son propre parc."
+    ),
+    "admin.surfaces.encrypt": "Résultats chiffrés au repos",
+    "admin.surfaces.audit": "Journal d'audit",
+    "admin.surfaces.audit.file": (
+        "Écrit dans un fichier qui survit au conteneur."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Un anneau de {count} enregistrements en mémoire de ce processus, et "
+        "rien sur disque."
+    ),
+    "admin.surfaces.targets": "Cibles enregistrées en clair",
+    "admin.actions.kicker": "Données de référence",
+    "admin.actions.heading": "Mettre à jour ce sur quoi la note repose",
+    "admin.actions.lede": (
+        "Les deux mêmes mises à jour que le worker exécute chaque jour, avec "
+        "les mêmes règles : un calendrier qui a perdu une ligne de versions est "
+        "refusé, une base d'avis ne fait qu'en gagner, et une récupération qui "
+        "échoue ne change rien."
+    ),
+    "admin.actions.schedule": "Synchroniser le calendrier",
+    "admin.actions.schedule.hint": "Relit la page de cycle de vie publiée.",
+    "admin.actions.advisories": "Chercher des avis",
+    "admin.actions.advisories.hint": "Interroge le flux d'avis sur les nouvelles entrées.",
+    "admin.outcome.updated": "Mis à jour. Le nouveau document est utilisé.",
+    "admin.outcome.unchanged": "Déjà à jour - rien n'a changé.",
+    "admin.outcome.rejected": (
+        "Refusé : ce qui a été récupéré n'a pas passé les contrôles, les "
+        "données précédentes restent donc en service."
+    ),
+    "admin.outcome.failed": "Récupération impossible. Rien n'a changé.",
+    "admin.outcome.disabled": "Cette mise à jour est désactivée dans la configuration de cette installation.",
+    "admin.outcome.cooldown": "Vient de s'exécuter. Réessaie dans {seconds}s.",
+    "admin.probe.action": "Tester les sources",
+    "admin.probe.hint": (
+        "Lit les deux sources et rapporte ce qu'une mise à jour en ferait. "
+        "Rien n'est enregistré."
+    ),
+    "admin.probe.schedule": "Calendrier des versions : {answer}",
+    "admin.probe.advisories": "Avis : {answer}",
+    "admin.probe.usable": "lu, et une mise à jour l'accepterait",
+    "admin.probe.rejected": "lu, mais les contrôles le refuseraient",
+    "admin.probe.unreadable": "illisible - injoignable, ou plus dans la forme attendue",
+    "admin.probe.disabled": "non vérifié - cette mise à jour est désactivée",
+    "admin.search.kicker": "Index de recherche",
+    "admin.search.heading": "L'index livré est-il encore à jour",
+    "admin.search.lede": (
+        "L'index est construit au moment de la publication et livré en lecture "
+        "seule : cette vue rend compte plutôt que de reconstruire. Elle compare "
+        "les pages, les langues et la version pour laquelle il a été généré - "
+        "pas le corps du texte, que seul le générateur sait extraire."
+    ),
+    "admin.search.fresh": "À jour",
+    "admin.search.stale": "Périmé",
+    "admin.search.unknown": "Impossible à déterminer",
+    "admin.search.detail.ok": "Chaque page et chaque langue est indexée pour cette version.",
+    "admin.search.detail.release": "Généré pour {built}, version en service {running}.",
+    "admin.search.detail.missing": "Non indexé : {list}.",
+    "admin.search.detail.extra": (
+        "Indexé mais plus servi : {list}."
+    ),
+    "admin.search.detail.unstamped": (
+        "L'index n'indique pas pour quelle version il a été généré ; seules "
+        "ses pages et ses langues ont pu être comparées."
+    ),
+    "admin.search.detail.changed": "{count} titres ou résumés ont changé depuis sa génération.",
+    "admin.search.detail.unreadable": "L'index n'a pas pu être lu.",
+    "admin.search.fix": (
+        "Un index périmé est repris par le workflow de publication, qui le "
+        "régénère et le valide. Il n'y a rien à presser ici."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "Le journal, au fil de son écriture",
+    "admin.audit.lede": (
+        "Demandes de scan, refus et limites atteintes, au moment où ils se "
+        "produisent. Suivre le journal ouvre une connexion ; rien n'est "
+        "transmis tant que tu ne le demandes pas."
+    ),
+    "admin.audit.privacy": (
+        "Une adresse de client est un HMAC tronqué sous un sel que ce processus "
+        "détient, et rien ne permet d'en revenir à une adresse. Cette vue ne "
+        "peut pas montrer plus que ce que le journal a décidé de noter."
+    ),
+    "admin.audit.replicas": (
+        "Cette installation ne tient pas de fichier d'audit : ces "
+        "enregistrements viennent de la mémoire du seul processus qui a "
+        "répondu - avec plusieurs répliques, c'est une partie du journal et non "
+        "sa totalité."
+    ),
+    "admin.audit.follow": "Suivre",
+    "admin.audit.stop": "Arrêter",
+    "admin.audit.clear": "Vider",
+    "admin.audit.empty": "Rien pour l'instant.",
+    "admin.audit.closed": (
+        "La connexion a atteint sa limite de {minutes} minutes et le service "
+        "l'a fermée. Rien n'a été perdu jusque-là ; « Suivre » en ouvre une "
+        "autre."
+    ),
+    "admin.audit.disabled": (
+        "Cette installation ne tient pas de journal d'audit, il n'y a donc rien "
+        "à suivre. COS_WEB_AUDIT_LOG l'active."
+    ),
+    "admin.audit.state.off": "Pas de suivi",
+    "admin.audit.state.live": "En direct",
+    "admin.audit.state.reconnecting": "Reconnexion",
+    "admin.audit.state.unsupported": "Non pris en charge par ce navigateur",
+    "admin.audit.state.closed": "Fermée par le service",
+    "admin.audit.state.disabled": "Non tenu",
     "site.og_image_alt": (
         "OpenCloud Security Scan - vérifiez la sécurité d'une instance en "
         "détectant les vulnérabilités connues, le durcissement manquant et les "

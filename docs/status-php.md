@@ -78,7 +78,7 @@ The remaining fields - `Version`, `VersionString`, `Edition`, `ProductName`,
 configuration, and do vary by build. `Version` and `VersionString` are
 themselves fixed legacy placeholders kept for old sync clients; only
 `ProductVersion` is the real release - see
-[Reading the version correctly](../README.md#reading-the-version-correctly).
+[Reading the version correctly](scanner-checks.md#reading-the-version-correctly).
 
 ## What this scanner reads from it, and what it does not
 

@@ -82,6 +82,12 @@ AUTHENTIK_TAG = "2026.8.0"
 BLUEPRINT_SOURCE = REPO_ROOT / "authentik" / "blueprints" / "opencloud-scanner.yaml"
 BLUEPRINT_RELATIVE = Path("authentik") / "blueprints" / "opencloud-scanner.yaml"
 
+# Where an outpost ends the session it started. A local path, because the
+# reverse proxy that routes `/outpost.goauthentik.io/` for the forward auth is
+# the same one serving /admin - a stack where this path does not answer is one
+# where signing *in* did not work either.
+AUTHENTIK_SIGN_OUT_PATH = "/outpost.goauthentik.io/sign_out"
+
 # Where the two things a deployment can choose to keep live *inside* the
 # containers. Both are mount points rather than paths in an image layer: a
 # read-only container cannot write to either without one, which is the whole
@@ -247,6 +253,15 @@ class Setup:
     # generated logrotate policy has any business naming.
     audit_rotation: str = "service"
     audit_retention_days: int = 30
+    # The operator's area at /admin. Off unless asked for, and when it is on
+    # it is authentik that guards it: this stack forwards a request through
+    # the outpost, which signs the person in and adds the identity headers
+    # the service then checks. The shared secret below is why those headers
+    # are worth believing.
+    admin_enabled: bool = False
+    admin_users: str = ""
+    admin_proxy_secret: str = ""
+
     purge_token: str = ""
     purge_signing_key: str = ""
     export_signing_key: str = ""
@@ -291,6 +306,7 @@ SECRET_VARIABLES: dict[str, str] = {
     # readable copy of everybody's scans.
     "redis_password": "COS_REDIS_PASSWORD",
     "releases_token": "COS_WEB_RELEASES_TOKEN",
+    "admin_proxy_secret": "COS_WEB_ADMIN_PROXY_SECRET",
     "purge_token": "COS_WEB_PURGE_TOKEN",
     "purge_signing_key": "COS_WEB_PURGE_SIGNING_KEY",
     "export_signing_key": "COS_WEB_EXPORT_SIGNING_KEY",
@@ -1172,6 +1188,54 @@ def build_sections(setup: Setup) -> list[Section]:
             ],
         ),
         Section(
+            "The operator's area",
+            "An optional console at /admin, behind the authentik sign-in.",
+            [
+                Question(
+                    key="admin_enabled",
+                    prompt="Serve the operator's area at /admin?",
+                    explain=(
+                        "A page showing this deployment's load, its limits and when "
+                        "the release schedule and advisory database were last read, "
+                        "with a button for each of those two refreshes and a live view "
+                        "of the audit trail. Off by default, and off means the path "
+                        "does not exist rather than asking for a password: a stranger "
+                        "cannot tell whether this deployment has one. It is never "
+                        "public - authentik signs the operator in before the request "
+                        "reaches the service, and the service refuses to start if it "
+                        "cannot check that."
+                    ),
+                    example="no",
+                    kind="bool",
+                ),
+                Question(
+                    key="admin_users",
+                    prompt="Who may use it, by authentik username",
+                    explain=(
+                        "Separated by semicolons. This is the whole guest list: an "
+                        "empty one is refused at startup rather than read as "
+                        "'anybody the provider authenticated', which would hand the "
+                        "console to every account in the directory. Signing in is "
+                        "not the same as being an operator here."
+                    ),
+                    example="admin",
+                ),
+                Question(
+                    key="admin_proxy_secret",
+                    prompt="Shared secret between the outpost and the service",
+                    explain=(
+                        "The outpost adds this to every request it forwards, and it "
+                        "is the only reason the identity headers are worth believing "
+                        "- without it, anybody who can reach the container could send "
+                        "the same headers and be whoever they liked. Generated, "
+                        "kept in .env, and never written into the compose file."
+                    ),
+                    example="generate",
+                    generate=32,
+                ),
+            ],
+        ),
+        Section(
             "Keeping and erasing",
             "The audit log, erasure on request, and encryption at rest.",
             [
@@ -1484,6 +1548,21 @@ def check_consistency(setup: Setup) -> list[str]:
             "A sign-in on /mcp needs a public base URL or a resource URL, "
             "because the RFC 9728 metadata has to name the address agents use."
         )
+    if setup.admin_enabled and not setup.admin_users.strip():
+        warnings.append(
+            "The operator's area is on but names nobody in COS_WEB_ADMIN_USERS. "
+            "The service refuses to start rather than treat an empty list as "
+            "everybody: add the authentik username that should reach /admin."
+        )
+    if setup.admin_enabled and not _uses_authentik(setup):
+        warnings.append(
+            "The operator's area is on without the bundled Authentik. Put a "
+            "proxy provider in front of /admin yourself and have it send "
+            "COS_WEB_ADMIN_PROXY_SECRET as X-COS-Admin-Proxy, or the area is "
+            "unreachable - the service refuses a request that did not come "
+            "through an outpost."
+        )
+
     if _uses_authentik(setup) and not setup.mcp_auth_enabled:
         warnings.append(
             "Authentik is in the stack but /mcp does not require a token, so "
@@ -2152,6 +2231,7 @@ def _web_environment(setup: Setup) -> list[EnvEntry]:
                 "everything the guard needs is already set, so turning this to",
                 "true and restarting is the whole of switching it on.",
             ]
+
         entries.append(
             _entry(
                 "COS_WEB_MCP_AUTH_ENABLED",
@@ -2203,6 +2283,48 @@ def _web_environment(setup: Setup) -> list[EnvEntry]:
                 entries.append(
                     _entry(SECRET_VARIABLES[key], f'"{_env_reference(key)}"')
                 )
+    if setup.admin_enabled:
+        entries.append(
+            _entry(
+                "COS_WEB_ADMIN_ENABLED",
+                '"true"',
+                "The operator's area at /admin. With this off the routes are never",
+                "registered, so the path answers the same 404 as any other unknown",
+                "one - which is why turning it off protects it rather than hiding",
+                "it.",
+            )
+        )
+        entries.append(
+            _entry(
+                "COS_WEB_ADMIN_USERS",
+                f'"{setup.admin_users}"',
+                "Who may use it, by the username authentik signs them in as. An",
+                "empty list is refused at startup rather than read as 'anybody the",
+                "provider authenticated'.",
+            )
+        )
+        entries.append(
+            _entry(
+                "COS_WEB_ADMIN_PROXY_SECRET",
+                f'"{_env_reference("admin_proxy_secret")}"',
+                "What makes the outpost's identity headers believable. Without it",
+                "they are headers anybody who can reach this container could send,",
+                "so a request that does not carry it is refused.",
+            )
+        )
+        if _uses_authentik(setup):
+            entries.append(
+                _entry(
+                    "COS_WEB_ADMIN_SIGN_OUT_URL",
+                    f'"{AUTHENTIK_SIGN_OUT_PATH}"',
+                    "Where the area's sign-out link goes. The service has no session",
+                    "of its own to end - the sign-in belongs to the outpost - and the",
+                    "same reverse proxy that routes /outpost.goauthentik.io/ for the",
+                    "forward auth serves this path. Without the bundled Authentik,",
+                    "name your own provider's exit here or leave it unset and the",
+                    "band offers no way out.",
+                )
+            )
     entries.append(
         _entry(
             "COS_WEB_AUDIT_LOG",
@@ -2897,6 +3019,8 @@ def _generate_unattended(setup: Setup) -> None:
     because the alternative is a deployment where nobody can ask for a
     deletion until somebody notices.
     """
+    if setup.admin_enabled:
+        setup.admin_proxy_secret = setup.admin_proxy_secret or secrets.token_hex(32)
     setup.purge_token = setup.purge_token or secrets.token_hex(32)
     setup.redis_password = setup.redis_password or secrets.token_urlsafe(32)
     setup.purge_signing_key = setup.purge_signing_key or secrets.token_hex(32)

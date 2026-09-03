@@ -4,6 +4,206 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------ der Betriebsbereich
+    "admin.title": "Betriebsbereich",
+    "admin.description": "Dienstzustand, Referenzdaten und das Audit-Protokoll.",
+    "admin.kicker": "Betrieb",
+    "admin.band": "Betriebsbereich - angemeldet als {user}",
+    "admin.band.signout": "Abmelden",
+    "admin.lede": (
+        "Was diese Installation gerade tut, was sie weiß, und die beiden "
+        "Aktualisierungen, die der Worker sonst einmal täglich ausführt. Nichts "
+        "hier lässt sich zu einem einzelnen Scan befragen."
+    ),
+    "admin.noscript": (
+        "Die Werte oben werden per JavaScript eingesetzt. Ohne JavaScript lade "
+        "die Seite neu, um die aktuellen zu sehen; beide Schaltflächen "
+        "funktionieren weiterhin."
+    ),
+    "admin.state.kicker": "Jetzt",
+    "admin.state.heading": "Dienstzustand",
+    "admin.state.lede": (
+        "Zählwerte und eingestellte Grenzen. Kein Ziel, keine UUID und keine "
+        "Client-Adresse steht hier, weil nichts davon dort liegt, wo diese "
+        "Ansicht lesen könnte."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "Läuft",
+    "admin.state.worker.down": "Antwortet nicht",
+    "admin.state.worker.unknown": "Nicht feststellbar",
+    "admin.state.store.down": (
+        "Der Speicher antwortet nicht - das Lebenszeichen ist nicht lesbar"
+    ),
+    "admin.state.queue": "{depth} in der Warteschlange, {workers} Worker",
+    "admin.state.ratelimit": "Ratenbegrenzung",
+    "admin.state.ratelimit.value": "{limit} pro {window}s",
+    "admin.state.cooldown.value": "{seconds}s pro Ziel",
+    "admin.state.schedule": "Release-Zeitplan",
+    "admin.state.advisories": "Advisories",
+    "admin.state.checked": "geprüft {when}",
+    "admin.state.checked.failed": (
+        "geprüft {when} - der letzte Versuch war nicht abrufbar"
+    ),
+    "admin.state.checked.rejected": (
+        "geprüft {when} - der letzte Versuch wurde von den Prüfungen abgelehnt"
+    ),
+    "admin.state.refresh.off": "die tägliche Aktualisierung ist aus",
+    "admin.state.ago.minutes": "vor {minutes} Min.",
+    "admin.state.ago.hours": "vor {hours} Std.",
+    "admin.state.ago.days": "vor {days} Tagen",
+    "admin.state.never": "nie",
+    "admin.state.unknown": "unbekannt",
+    "admin.state.age.seconds": "Vor {seconds}s gelesen",
+    "admin.state.age.minutes": "Vor {minutes}m gelesen",
+    "admin.state.age.waiting": "Warten auf den ersten Messwert",
+    "admin.state.stale": (
+        "Der Dienst hat eine Weile nicht geantwortet. Oben steht der letzte "
+        "Messwert, den er geliefert hat - nicht zwingend der aktuelle Stand."
+    ),
+    "admin.state.refresh": "Erneut lesen",
+    "admin.state.copy": "Diagnose kopieren",
+    "admin.state.copy.done": "Kopiert",
+    "admin.state.copy.failed": "Kopieren nicht möglich",
+    "admin.surfaces.kicker": "Angriffsfläche",
+    "admin.surfaces.heading": "Was diese Installation anbietet",
+    "admin.surfaces.lede": (
+        "Die Einstellungen, mit denen dieser Prozess gestartet wurde - "
+        "dieselben, die auch das Diagnosedokument nennt. Keine davon ändert "
+        "sich ohne Neustart, deshalb wird keine davon abgefragt."
+    ),
+    "admin.surfaces.on": "An",
+    "admin.surfaces.off": "Aus",
+    "admin.surfaces.mcp": "Agenten-Endpunkt unter /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Ein Token des konfigurierten Ausstellers ist erforderlich."
+    ),
+    "admin.surfaces.mcp.open": (
+        "Kein Token erforderlich: Jeder Agent, der ihn erreicht, kann die "
+        "Worker dieses Dienstes belegen."
+    ),
+    "admin.surfaces.docs": "Browserbare API-Seiten unter /docs",
+    "admin.surfaces.docs.contract": (
+        "Aus verbirgt die Seiten, nicht den Vertrag: /openapi.json, "
+        "/arazzo.json und /.well-known/ai.json bleiben öffentlich."
+    ),
+    "admin.surfaces.indexed": "Über Suchmaschinen auffindbar",
+    "admin.surfaces.private": "Scans privater Netzwerkadressen",
+    "admin.surfaces.private.found": (
+        "Erlaubt auf einer Installation, die indexiert werden möchte: Wer "
+        "diesen Dienst findet, kann ihn auf das Netz richten, in dem er steht."
+    ),
+    "admin.surfaces.private.estate": (
+        "Erlaubt - genau dafür ist eine Installation da, die das eigene Netz "
+        "prüft."
+    ),
+    "admin.surfaces.encrypt": "Ergebnisse verschlüsselt gespeichert",
+    "admin.surfaces.audit": "Audit-Protokoll",
+    "admin.surfaces.audit.file": (
+        "Wird in eine Datei geschrieben, die den Container überdauert."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Ein Ring aus {count} Einträgen im Speicher dieses Prozesses, nichts "
+        "auf der Platte."
+    ),
+    "admin.surfaces.targets": "Ziele im Klartext protokolliert",
+    "admin.actions.kicker": "Referenzdaten",
+    "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
+    "admin.actions.lede": (
+        "Dieselben zwei Aktualisierungen, die der Worker täglich ausführt, mit "
+        "denselben Regeln: Ein Zeitplan, der eine Release-Linie verloren hat, "
+        "wird abgelehnt, eine Advisory-Datenbank gewinnt nur hinzu, und ein "
+        "fehlgeschlagener Abruf ändert nichts."
+    ),
+    "admin.actions.schedule": "Release-Zeitplan abgleichen",
+    "admin.actions.schedule.hint": "Liest die veröffentlichte Lifecycle-Seite neu.",
+    "admin.actions.advisories": "Nach Advisories suchen",
+    "admin.actions.advisories.hint": "Fragt den Advisory-Feed nach neuen Einträgen.",
+    "admin.outcome.updated": "Aktualisiert. Das neue Dokument ist in Gebrauch.",
+    "admin.outcome.unchanged": "Bereits aktuell - nichts geändert.",
+    "admin.outcome.rejected": (
+        "Abgelehnt: Das Abgerufene hat die Prüfungen nicht bestanden, die "
+        "bisherigen Daten bleiben in Gebrauch."
+    ),
+    "admin.outcome.failed": "Konnte nicht abgerufen werden. Nichts geändert.",
+    "admin.outcome.disabled": "Diese Aktualisierung ist in den Einstellungen dieser Installation abgeschaltet.",
+    "admin.outcome.cooldown": "Lief gerade eben. In {seconds}s wieder möglich.",
+    "admin.probe.action": "Quellen testen",
+    "admin.probe.hint": (
+        "Liest beide Quellen und meldet, was eine Aktualisierung daraus machen "
+        "würde. Es wird nichts gespeichert."
+    ),
+    "admin.probe.schedule": "Release-Zeitplan: {answer}",
+    "admin.probe.advisories": "Advisories: {answer}",
+    "admin.probe.usable": "gelesen, eine Aktualisierung würde ihn übernehmen",
+    "admin.probe.rejected": "gelesen, aber die Prüfungen würden ihn ablehnen",
+    "admin.probe.unreadable": "nicht lesbar - nicht erreichbar oder nicht mehr in der erwarteten Form",
+    "admin.probe.disabled": "nicht geprüft - diese Aktualisierung ist abgeschaltet",
+    "admin.search.kicker": "Suchindex",
+    "admin.search.heading": "Ist der ausgelieferte Index noch aktuell",
+    "admin.search.lede": (
+        "Der Index entsteht beim Release und wird schreibgeschützt "
+        "ausgeliefert, deshalb meldet diese Ansicht nur, statt neu zu bauen. "
+        "Verglichen werden die Seiten, die Sprachen und das Release, für das er "
+        "erzeugt wurde - nicht der Fließtext, den nur der Generator gewinnen "
+        "kann."
+    ),
+    "admin.search.fresh": "Aktuell",
+    "admin.search.stale": "Veraltet",
+    "admin.search.unknown": "Nicht feststellbar",
+    "admin.search.detail.ok": "Jede Seite und jede Sprache ist für dieses Release indiziert.",
+    "admin.search.detail.release": "Erzeugt für {built}, in Betrieb ist {running}.",
+    "admin.search.detail.missing": "Nicht indiziert: {list}.",
+    "admin.search.detail.extra": (
+        "Indiziert, aber nicht mehr ausgeliefert: {list}."
+    ),
+    "admin.search.detail.unstamped": (
+        "Der Index nennt keine Release, für die er gebaut wurde; nur seine "
+        "Seiten und Sprachen ließen sich vergleichen."
+    ),
+    "admin.search.detail.changed": "{count} Seitentitel oder Kurzbeschreibungen haben sich seither geändert.",
+    "admin.search.detail.unreadable": "Der Index konnte nicht gelesen werden.",
+    "admin.search.fix": (
+        "Ein veralteter Index wird vom Release-Workflow erneuert, der ihn neu "
+        "erzeugt und eincheckt. Hier gibt es nichts zu drücken."
+    ),
+    "admin.audit.kicker": "Audit",
+    "admin.audit.heading": "Das Protokoll, während es geschrieben wird",
+    "admin.audit.lede": (
+        "Scan-Anfragen, Ablehnungen und ausgelöste Grenzen, sobald sie "
+        "auftreten. Das Mitlesen öffnet eine Verbindung; ohne Aufforderung wird "
+        "nichts übertragen."
+    ),
+    "admin.audit.privacy": (
+        "Eine Client-Adresse ist ein gekürzter HMAC unter einem Salt, das "
+        "dieser Prozess hält, und nichts führt von dort zurück zu einer "
+        "Adresse. Diese Ansicht kann nicht mehr zeigen, als das Audit-Protokoll "
+        "ohnehin festgehalten hat."
+    ),
+    "admin.audit.replicas": (
+        "Diese Installation führt keine Audit-Datei, deshalb stammen diese "
+        "Einträge aus dem Speicher genau des Prozesses, der geantwortet hat - "
+        "bei mehr als einer Replik ist das ein Teil des Protokolls und nicht "
+        "das ganze."
+    ),
+    "admin.audit.follow": "Mitlesen",
+    "admin.audit.stop": "Anhalten",
+    "admin.audit.clear": "Leeren",
+    "admin.audit.empty": "Noch nichts.",
+    "admin.audit.closed": (
+        "Die Verbindung hat ihre Grenze von {minutes} Minuten erreicht und "
+        "wurde vom Dienst geschlossen. Bis dahin ist nichts verloren gegangen; "
+        "„Mitlesen“ öffnet eine neue."
+    ),
+    "admin.audit.disabled": (
+        "Diese Installation führt kein Audit-Protokoll, es gibt also nichts "
+        "mitzulesen. COS_WEB_AUDIT_LOG schaltet es ein."
+    ),
+    "admin.audit.state.off": "Kein Mitlesen",
+    "admin.audit.state.live": "Live",
+    "admin.audit.state.reconnecting": "Verbindet neu",
+    "admin.audit.state.unsupported": "Von diesem Browser nicht unterstützt",
+    "admin.audit.state.closed": "Vom Dienst geschlossen",
+    "admin.audit.state.disabled": "Nicht geführt",
     "site.og_image_alt": (
         "OpenCloud Security Scan - eine Instanz auf bekannte Schwachstellen, "
         "fehlende Härtung und schwache Sicherheits-Header prüfen"

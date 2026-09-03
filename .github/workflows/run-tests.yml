@@ -20,6 +20,28 @@ jobs:
     name: python
     runs-on: ubuntu-latest
 
+    # The suite runs against `memory://`, the in-process stand-in, because a
+    # test that needs a server is a test a contributor cannot run. That left
+    # the `redis.asyncio` client every deployment actually uses executing
+    # nowhere: the stand-in was the implementation under test and the real
+    # client was the implementation shipped, with nothing checking they agree.
+    # `tests/test_redis_contract.py` asks both the same questions, and this is
+    # where the second one gets answered. Without `TEST_REDIS_URL` it skips,
+    # which is what happens on a machine with no Redis.
+    services:
+      redis:
+        image: redis:8.10-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_REDIS_URL: redis://127.0.0.1:6379/0
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 

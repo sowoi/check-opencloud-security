@@ -470,7 +470,7 @@ every few minutes.**
 ### A monitoring setup that is worth having
 
 Start here, then read [Scheduling](scheduling.md) or
-[Icinga2 / Nagios](../README.md#icinga2--nagios) for your platform:
+[Icinga2 / Nagios](installation.md#icinga2--nagios) for your platform:
 
 ```bash
 check-opencloud-security \
@@ -496,7 +496,7 @@ Four choices in there, each earning its place:
   `--ignore-hardening`, which keeps them in the result document and in the
   report while taking them out of the alert. A waiver is a decision with a
   name on it, not a silenced check - see
-  [Accepting a finding you are not going to fix](../README.md#accepting-a-finding-you-are-not-going-to-fix).
+  [Accepting a finding you are not going to fix](hardening.md#accepting-a-finding-you-are-not-going-to-fix).
 
 For a fleet, [Checking a fleet of instances](many-instances.md) covers one
 configuration file per instance and keeping the waivers honest across all of
@@ -524,7 +524,7 @@ Being clear about this is what makes the rest of the report trustworthy:
   OpenCloud publishes in its own documentation.
 
 [What the scan deliberately does not
-answer](../README.md#what-the-scan-deliberately-does-not-answer) is the full
+answer](scanner-checks.md#what-the-scan-deliberately-does-not-answer) is the full
 version of this list.
 
 ## Checklist

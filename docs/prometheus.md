@@ -3,10 +3,19 @@
 The plugin has a native Prometheus exporter. Run it with
 `--prometheus-listen-port 9102` to serve `/metrics`; it caches a scan for
 `--scrape-interval` seconds (60 by default), so normal scrapes do not trigger
-another scan. It binds to `127.0.0.1` by default; set
-`--prometheus-listen-addr 0.0.0.0` only when a firewall or network policy
-restricts remote scrapers. For a batch job, `--format=prometheus` prints one
-text exposition payload and exits. Both modes require no extra dependency.
+another scan; set it to `0` only when every scrape should. It binds to
+`127.0.0.1` by default; set `--prometheus-listen-addr 0.0.0.0` only when a
+firewall or network policy restricts remote scrapers - which is also what a
+container needs, alongside publishing the port:
+
+```shell
+docker run --rm -p 9102:9102 check-opencloud-security \
+  --host opencloud.example.com --prometheus-listen-port 9102 \
+  --prometheus-listen-addr 0.0.0.0
+```
+
+For a batch job, `--format=prometheus` prints one text exposition payload and
+exits. Both modes require no extra dependency.
 
 The textfile collector and Pushgateway patterns below remain useful when a
 scheduled scan is a better fit than a long-running exporter.

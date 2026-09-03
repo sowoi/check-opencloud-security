@@ -4,6 +4,201 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str] = {
     # ---------------------------------------------------------------- site
+    # ------------------------------------------------ el área de operación
+    "admin.title": "Área de operación",
+    "admin.description": "Estado del servicio, datos de referencia y el registro de auditoría.",
+    "admin.kicker": "Operación",
+    "admin.band": "Área de operación - sesión iniciada como {user}",
+    "admin.band.signout": "Cerrar sesión",
+    "admin.lede": (
+        "Qué está haciendo esta instalación, qué sabe y las dos "
+        "actualizaciones que el worker ejecuta una vez al día. Nada de esto "
+        "puede consultarse sobre un análisis concreto."
+    ),
+    "admin.noscript": (
+        "Los valores de arriba los rellena JavaScript. Sin él, recarga la "
+        "página para ver los actuales; los dos botones siguen funcionando."
+    ),
+    "admin.state.kicker": "Ahora",
+    "admin.state.heading": "Estado del servicio",
+    "admin.state.lede": (
+        "Recuentos y límites configurados. Aquí no aparece ninguna dirección "
+        "analizada, ningún uuid ni ninguna dirección de cliente, porque nada de "
+        "eso se guarda donde esta vista pudiera leerlo."
+    ),
+    "admin.state.worker": "Worker",
+    "admin.state.worker.up": "En marcha",
+    "admin.state.worker.down": "No responde",
+    "admin.state.worker.unknown": "No se puede saber",
+    "admin.state.store.down": (
+        "El almacén no responde: no se puede leer la señal de vida"
+    ),
+    "admin.state.queue": "{depth} en cola, {workers} workers",
+    "admin.state.ratelimit": "Límite de peticiones",
+    "admin.state.ratelimit.value": "{limit} por {window}s",
+    "admin.state.cooldown.value": "{seconds}s por destino",
+    "admin.state.schedule": "Calendario de versiones",
+    "admin.state.advisories": "Avisos",
+    "admin.state.checked": "comprobado {when}",
+    "admin.state.checked.failed": (
+        "comprobado {when}: el último intento no se pudo descargar"
+    ),
+    "admin.state.checked.rejected": (
+        "comprobado {when}: las comprobaciones rechazaron el último intento"
+    ),
+    "admin.state.refresh.off": "la actualización diaria está desactivada",
+    "admin.state.ago.minutes": "hace {minutes} min",
+    "admin.state.ago.hours": "hace {hours} h",
+    "admin.state.ago.days": "hace {days} d",
+    "admin.state.never": "nunca",
+    "admin.state.unknown": "desconocido",
+    "admin.state.age.seconds": "Leído hace {seconds}s",
+    "admin.state.age.minutes": "Leído hace {minutes}m",
+    "admin.state.age.waiting": "Esperando la primera lectura",
+    "admin.state.stale": (
+        "El servicio lleva un rato sin responder. Lo de arriba es la última "
+        "lectura que dio, no necesariamente lo que ocurre ahora."
+    ),
+    "admin.state.refresh": "Leer de nuevo",
+    "admin.state.copy": "Copiar diagnóstico",
+    "admin.state.copy.done": "Copiado",
+    "admin.state.copy.failed": "No se ha podido copiar",
+    "admin.surfaces.kicker": "Exposición",
+    "admin.surfaces.heading": "Qué ofrece esta instalación",
+    "admin.surfaces.lede": (
+        "Los ajustes con los que arrancó este proceso, los mismos que indica "
+        "el documento de diagnóstico. Ninguno cambia sin reiniciar, así que "
+        "ninguno se consulta periódicamente."
+    ),
+    "admin.surfaces.on": "Activado",
+    "admin.surfaces.off": "Desactivado",
+    "admin.surfaces.mcp": "Punto de acceso para agentes en /mcp",
+    "admin.surfaces.mcp.guarded": (
+        "Se exige un token del emisor configurado."
+    ),
+    "admin.surfaces.mcp.open": (
+        "No se exige ningún token: cualquier agente que llegue hasta él puede "
+        "ocupar los workers de este servicio."
+    ),
+    "admin.surfaces.docs": "Páginas de API navegables en /docs",
+    "admin.surfaces.docs.contract": (
+        "Desactivarlas oculta las páginas, no el contrato: /openapi.json, "
+        "/arazzo.json y /.well-known/ai.json siguen siendo públicos."
+    ),
+    "admin.surfaces.indexed": "Localizable por los buscadores",
+    "admin.surfaces.private": "Análisis de direcciones de red privadas",
+    "admin.surfaces.private.found": (
+        "Permitido en una instalación que pide ser indexada: quien encuentre "
+        "este servicio puede apuntarlo a la red en la que está."
+    ),
+    "admin.surfaces.private.estate": (
+        "Permitido, que es justo para lo que sirve una instalación que "
+        "analiza su propia red."
+    ),
+    "admin.surfaces.encrypt": "Resultados cifrados en reposo",
+    "admin.surfaces.audit": "Registro de auditoría",
+    "admin.surfaces.audit.file": (
+        "Se escribe en un archivo que sobrevive al contenedor."
+    ),
+    "admin.surfaces.audit.memory": (
+        "Un anillo de {count} registros en la memoria de este proceso, y nada "
+        "en disco."
+    ),
+    "admin.surfaces.targets": "Direcciones analizadas registradas en claro",
+    "admin.actions.kicker": "Datos de referencia",
+    "admin.actions.heading": "Actualizar aquello contra lo que se califica",
+    "admin.actions.lede": (
+        "Las mismas dos actualizaciones que el worker ejecuta a diario, con las "
+        "mismas reglas: un calendario que ha perdido una línea de versiones se "
+        "rechaza, una base de avisos solo puede ganar entradas y una descarga "
+        "fallida no cambia nada."
+    ),
+    "admin.actions.schedule": "Sincronizar el calendario",
+    "admin.actions.schedule.hint": "Vuelve a leer la página de ciclo de vida publicada.",
+    "admin.actions.advisories": "Buscar avisos",
+    "admin.actions.advisories.hint": "Pregunta al feed de avisos por entradas nuevas.",
+    "admin.outcome.updated": "Actualizado. El documento nuevo está en uso.",
+    "admin.outcome.unchanged": "Ya estaba al día - nada ha cambiado.",
+    "admin.outcome.rejected": (
+        "Rechazado: lo descargado no ha pasado las comprobaciones, así que "
+        "siguen en uso los datos anteriores."
+    ),
+    "admin.outcome.failed": "No se ha podido descargar. Nada ha cambiado.",
+    "admin.outcome.disabled": "Esa actualización está desactivada en la configuración de esta instalación.",
+    "admin.outcome.cooldown": "Acaba de ejecutarse. Inténtalo en {seconds}s.",
+    "admin.probe.action": "Probar las fuentes",
+    "admin.probe.hint": (
+        "Lee ambas fuentes e informa de qué haría con ellas una actualización. "
+        "No se guarda nada."
+    ),
+    "admin.probe.schedule": "Calendario de versiones: {answer}",
+    "admin.probe.advisories": "Avisos: {answer}",
+    "admin.probe.usable": "leído, y una actualización lo aceptaría",
+    "admin.probe.rejected": "leído, pero las comprobaciones lo rechazarían",
+    "admin.probe.unreadable": "no se ha podido leer - inalcanzable, o ya no tiene la forma esperada",
+    "admin.probe.disabled": "sin comprobar - esa actualización está desactivada",
+    "admin.search.kicker": "Índice de búsqueda",
+    "admin.search.heading": "Sigue siendo válido el índice publicado",
+    "admin.search.lede": (
+        "El índice se construye al publicar una versión y se entrega en solo "
+        "lectura, así que esta vista informa en lugar de reconstruir. Compara "
+        "las páginas, los idiomas y la versión para la que se generó - no el "
+        "cuerpo del texto, que solo el generador puede extraer."
+    ),
+    "admin.search.fresh": "Al día",
+    "admin.search.stale": "Desactualizado",
+    "admin.search.unknown": "No se puede saber",
+    "admin.search.detail.ok": "Todas las páginas e idiomas están indexados para esta versión.",
+    "admin.search.detail.release": "Generado para {built}, en ejecución {running}.",
+    "admin.search.detail.missing": "Sin indexar: {list}.",
+    "admin.search.detail.extra": (
+        "Indexado pero ya no se sirve: {list}."
+    ),
+    "admin.search.detail.unstamped": (
+        "El índice no dice para qué versión se generó, así que solo se han "
+        "podido comparar sus páginas y sus idiomas."
+    ),
+    "admin.search.detail.changed": "{count} títulos o resúmenes han cambiado desde que se generó.",
+    "admin.search.detail.unreadable": "No se ha podido leer el índice.",
+    "admin.search.fix": (
+        "De un índice desactualizado se encarga el flujo de publicación, que lo "
+        "regenera y lo confirma. Aquí no hay nada que pulsar."
+    ),
+    "admin.audit.kicker": "Auditoría",
+    "admin.audit.heading": "El registro, según se escribe",
+    "admin.audit.lede": (
+        "Peticiones de análisis, rechazos y límites alcanzados, a medida que "
+        "ocurren. Seguir el registro abre una conexión; no se transmite nada "
+        "hasta que lo pides."
+    ),
+    "admin.audit.privacy": (
+        "Una dirección de cliente es un HMAC truncado bajo una sal que guarda "
+        "este proceso, y nada permite volver de ahí a una dirección. Esta vista "
+        "no puede mostrar más de lo que el registro ya decidió anotar."
+    ),
+    "admin.audit.replicas": (
+        "Esta instalación no mantiene un fichero de auditoría, así que estos "
+        "registros vienen de la memoria del único proceso que ha respondido - "
+        "con más de una réplica, eso es una parte del registro y no todo."
+    ),
+    "admin.audit.follow": "Seguir",
+    "admin.audit.stop": "Detener",
+    "admin.audit.clear": "Vaciar",
+    "admin.audit.empty": "Todavía nada.",
+    "admin.audit.closed": (
+        "La conexión ha alcanzado su límite de {minutes} minutos y el servicio "
+        "la ha cerrado. Hasta ahí no se ha perdido nada; «Seguir» abre otra."
+    ),
+    "admin.audit.disabled": (
+        "Esta instalación no mantiene un registro de auditoría, así que no hay "
+        "nada que seguir. COS_WEB_AUDIT_LOG lo activa."
+    ),
+    "admin.audit.state.off": "Sin seguir",
+    "admin.audit.state.live": "En directo",
+    "admin.audit.state.reconnecting": "Reconectando",
+    "admin.audit.state.unsupported": "No compatible con este navegador",
+    "admin.audit.state.closed": "Cerrada por el servicio",
+    "admin.audit.state.disabled": "No se mantiene",
     "site.og_image_alt": (
         "OpenCloud Security Scan: comprueba una instancia en busca de "
         "vulnerabilidades conocidas, medidas de refuerzo faltantes y "

@@ -13,6 +13,7 @@ places this check tends to end up.
 <!-- TOC -->
 * [Documentation](#documentation)
   * [Background](#background)
+  * [Using the plugin](#using-the-plugin)
   * [Securing the instance itself](#securing-the-instance-itself)
   * [Deploying it](#deploying-it)
   * [Feeding the result somewhere](#feeding-the-result-somewhere)
@@ -28,6 +29,17 @@ places this check tends to end up.
 | Page | What it covers |
 |:-----|:---------------|
 | [What OpenCloud is, and how it differs from ownCloud and Nextcloud](what-is-opencloud.md) | The fork history behind all three projects, and the architecture, storage and release differences that follow from it |
+
+## Using the plugin
+
+| Page | What it covers |
+|:-----|:---------------|
+| [Installing the plugin](installation.md) | pipx, uv and pip; keeping the package current; shell completion; installing from a checkout; the Docker image; and the Icinga2 and Nagios object definitions |
+| [Worked examples](examples.md) | Complete, copy-and-paste invocations: the basics, release tracks, waivers, private instances, thresholds and notifications, an Icinga2 apply rule and the scanner on its own |
+| [Secrets in the configuration](configuration.md) | `secret://`, `file://`, `env://` and `exec://` references, and the `_file` suffix, so no credential is written into the configuration file |
+| [Hardening measures, one by one](hardening.md) | What each hardening identifier means, what a failure indicates and which OpenCloud setting changes it - plus the two nobody can influence, and how to waive a finding |
+| [Reporting only what changed](baseline.md) | `--baseline` and `--warn-on-new`: the diff formats, what counts as a regression, and the rules that keep a baseline from hiding anything |
+| [Release tracks, end of life and the update recommendation](release-lifecycle.md) | Why the same version can be current on one track and dead on another, what the bundled schedule knows, and what `--release-track` changes |
 
 ## Securing the instance itself
 
@@ -53,6 +65,7 @@ internet; the page below is the rest of the job.
 | [A sign-in on the MCP endpoint](authentik.md) | One compose file with Authentik in it, the provider a blueprint creates for you, the `COS_WEB_MCP_AUTH_*` settings, adding the people and service accounts allowed to use it, how each of them gets a token, and the backup Authentik does not do for you |
 | [Reverse proxies](reverse-proxy.md) | Worked nginx, Apache, Caddy, Traefik and HAProxy configuration - the headers this check grades in front of OpenCloud, and what the scan service needs from a proxy |
 | [The public scan service](webapp.md) | The self-hosted web application: FastAPI, an ARQ worker and Redis, with queueing, SSRF and rate limits. Running at [scan.okxo.de](https://scan.okxo.de) |
+| [Running the scanner as a service](scan-service.md) | The `check-opencloud-scanner serve` entry point in a container, and the monitoring compose file that starts it alongside a check container |
 | [Redis behind the scan service](redis.md) | The one piece of infrastructure that stack needs: what it holds and for how long, giving it a password, keeping it off the network, memory and eviction, and what to alert on |
 
 ## Feeding the result somewhere
@@ -62,12 +75,13 @@ internet; the page below is the rest of the job.
 | [Prometheus and Grafana](prometheus.md) | Textfile collector, Pushgateway, alerting rules and what to graph |
 | [Webhook recipes](webhook-recipes.md) | The payload, and adapters for Slack, Discord, ntfy and Alertmanager |
 | [Machine-readable output](output-formats.md) | `--format json`, `sarif` and `junit`: one document per run, and how each shape is meant to be consumed |
-| [Uptime Kuma](../README.md#uptime-kuma) | The webhook as a Push monitor - in the main README |
+| [Uptime Kuma](webhook-recipes.md#uptime-kuma) | The webhook as a Push monitor, so a check that stopped running shows up as down |
 
 ## What the scanner checks, in depth
 
 | Page | What it covers |
 |:-----|:---------------|
+| [What the scanner reads, and what it deliberately does not](scanner-checks.md) | The whole inventory: every endpoint read, every additional check and its severity, the observations that are never graded, and the questions a scan from outside cannot answer |
 | [Content-Security-Policy](csp.md) | The two independent CSP checks, why `unsafe-inline` fails on a stock instance, and how to fix it |
 | [TLS and certificates](tls.md) | Every transport and certificate check: protocol version, trust, chain, lifetime, cipher suite, CAA, OCSP stapling, and self-signed handling |
 | [Why OpenCloud still answers `/status.php`](status-php.md) | The PHP-era compatibility endpoint, its hardcoded fields, and what this scanner reads from it |

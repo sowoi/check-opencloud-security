@@ -41,6 +41,7 @@ import yaml
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 RECORD_DIR = REPO_ROOT / "security" / "advisories"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
+PYPROJECT = REPO_ROOT / "pyproject.toml"
 
 #: The repository advisories are filed against.
 REPO = "sowoi/check-opencloud-security"
@@ -83,12 +84,38 @@ def parse_version(raw: str) -> tuple[int, ...]:
     return tuple(int(part) for part in raw.split("."))
 
 
-def changelog_security_bullets() -> list[tuple[str, str]]:
-    """Every `### Security` bullet of a released version, newest first.
+def unreleased_version() -> str:
+    """The version `## [Unreleased]` will be renamed to when it is released.
 
-    Returns (version, bullet text) pairs. `## [Unreleased]` is skipped: its
-    entries have no release to be an advisory about yet, and the version they
-    will land under is the user's decision.
+    ``tomllib`` is 3.11+ and this project supports 3.10, so the one field that
+    matters is matched directly - the same way ``scripts/release_notes.py``
+    reads it. It is not a guess about the user's intention: the release
+    workflow renames the heading to exactly this number.
+    """
+    text = PYPROJECT.read_text(encoding="utf-8")
+    table = re.search(r"^\[project\]$(?P<body>.*?)(?=^\[)", text, re.MULTILINE | re.DOTALL)
+    found = (
+        re.search(r'^version\s*=\s*["\']([^"\']+)["\']', table.group("body"), re.MULTILINE)
+        if table
+        else None
+    )
+    if found is None:  # pragma: no cover - a tree without a version is broken
+        raise SystemExit("pyproject.toml declares no version under [project].")
+    return found.group(1)
+
+
+def changelog_security_bullets() -> list[tuple[str, str]]:
+    """Every `### Security` bullet, newest first, as (version, text).
+
+    `## [Unreleased]` is read under the version in `pyproject.toml`, because
+    that is the number the release workflow renames the heading to. It used to
+    be skipped, on the grounds that its entries have no release to be an
+    advisory about yet - but that put the decision, and the git archaeology it
+    rests on, at the far end of the cycle from the person who made the change
+    and knows the answer. AGENTS.md asks for the record in the same pull
+    request as the fix; this is what lets one be written there, and what makes
+    a security entry without one fail the check while it is still somebody's
+    open branch.
     """
     bullets: list[tuple[str, str]] = []
     version: str | None = None
@@ -105,7 +132,7 @@ def changelog_security_bullets() -> list[tuple[str, str]]:
         if heading:
             flush()
             raw = heading.group(1)
-            version = None if raw.lower() == "unreleased" else raw
+            version = unreleased_version() if raw.lower() == "unreleased" else raw
             in_security = False
             continue
         if line.startswith("###"):

@@ -179,8 +179,16 @@ def _query_caa(
     message = _build_query(hostname, query_id)
     with socket.socket(family, socket.SOCK_DGRAM) as sock:
         sock.settimeout(timeout)
-        sock.sendto(message, (nameserver, port))
-        data, _ = sock.recvfrom(4096)
+        # Connected, not merely sent to. An unconnected UDP socket accepts a
+        # datagram from anybody who can reach the port it happens to be bound
+        # to, so a forged answer would only have to arrive before the
+        # resolver's and guess the request id - two bytes - rather than also
+        # come from the resolver. Connecting has the kernel drop everything
+        # from any other address or port, which is what every resolver library
+        # does and what makes the id a second check rather than the only one.
+        sock.connect((nameserver, port))
+        sock.send(message)
+        data = sock.recv(4096)
     if len(data) < 2 or data[0:2] != query_id.to_bytes(2, "big"):
         raise ValueError("response id does not match the query")
     return _parse_caa_response(data)

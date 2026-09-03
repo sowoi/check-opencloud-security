@@ -18,6 +18,7 @@ Two rules apply to every recipe here:
 <!-- TOC -->
 * [Webhook recipes](#webhook-recipes)
   * [The payload, in short](#the-payload-in-short)
+  * [The full payload](#the-full-payload)
   * [A generic receiver](#a-generic-receiver)
   * [Verifying the signature](#verifying-the-signature)
   * [Uptime Kuma](#uptime-kuma)
@@ -30,8 +31,8 @@ Two rules apply to every recipe here:
 
 ## The payload, in short
 
-The fields most receivers care about, from the full example in
-[Webhook notifications](../README.md#webhook-notifications):
+The fields most receivers care about, from
+[the full payload](#the-full-payload) below:
 
 | Field | Use it for |
 |:------|:-----------|
@@ -46,6 +47,61 @@ The fields most receivers care about, from the full example in
 A scan that failed outright carries only `plugin`, `plugin_version`,
 `timestamp`, `host`, `status`, `exit_code` and `message`. Any receiver that
 reaches for `rating` must tolerate its absence.
+
+## The full payload
+
+Everything the `generic` document carries, from a run that found an
+end-of-life release:
+
+```json
+{
+  "plugin": "check-opencloud-security",
+  "plugin_version": "1.0.0",
+  "timestamp": "2026-08-07T10:12:33.123456+00:00",
+  "host": "opencloud.example.com",
+  "status": "CRITICAL",
+  "exit_code": 2,
+  "message": "CRITICAL: The 7.3 rolling release line is end-of-life and has no security fixes. Upgrade to 7.4.0.",
+  "rating": 0,
+  "rating_label": "F",
+  "product": "OpenCloud",
+  "product_version": "7.3.0",
+  "domain": "opencloud.example.com",
+  "scanned_at": "2026-08-12 15:24:13.978540",
+  "eol": true,
+  "release_type": "rolling",
+  "lifecycle": {
+    "line": "7.3",
+    "releaseType": "rolling",
+    "state": "endOfLife",
+    "released": "2026-07-14",
+    "endOfLife": "2026-08-03",
+    "daysRemaining": -9,
+    "latestOnLine": null,
+    "upgradeTo": "7.4.0",
+    "reason": "rolling release, unsupported since 2026-08-03",
+    "scheduleStale": false,
+    "scheduleUpdated": "2026-08-12",
+    "scheduleSource": "https://docs.opencloud.eu/docs/admin/resources/lifecycle/",
+    "scheduleNote": null
+  },
+  "vulnerability_count": 0,
+  "vulnerabilities": [],
+  "missing_hardenings": [],
+  "failed_extra_checks": ["exposed:/opencloud.yaml"],
+  "scan_backend": "local",
+  "scan_uuid": "6a1d1bd0-...",
+  "update": {"available": true, "version": "7.3.0", "availableVersion": "7.4.0", "releasedAt": "2026-08-03", "source": "feed", "error": null, "track": "rolling", "newestRelease": null},
+  "duration_seconds": 1.234
+}
+```
+
+`scan_backend` is always `"local"` - it records how the result was obtained,
+so a receiver that also handles payloads from scanners with a remote backend
+can tell them apart without special-casing the plugin name.
+
+Notifications sent for a failed scan carry only the common fields (`plugin`,
+`plugin_version`, `timestamp`, `host`, `status`, `exit_code`, `message`).
 
 ## A generic receiver
 
@@ -118,10 +174,68 @@ Three things worth knowing:
   secrets](../README.md#configuration-file-and-secrets).
 
 ## Uptime Kuma
+Uptime Kuma has no plugin system, but its **Push** monitor is a URL that
+expects to be called regularly - which is exactly what the webhook does. The
+check becomes a monitor in three steps.
 
-Covered in full in [Uptime Kuma](../README.md#uptime-kuma), because its Push
-monitor is the one receiver that takes the payload as-is *and* treats silence
-as a failure - which makes a check that stopped running visible.
+**1. Create the monitor.** In Uptime Kuma choose *Add New Monitor*, monitor
+type **Push**, and name it after the instance. Uptime Kuma shows a *Push URL*
+of the form `https://kuma.example.com/api/push/<token>`. Set *Heartbeat
+Interval* a little longer than the interval you will run the check at - 300
+seconds for a check every four minutes - so a single slow scan does not
+already count as down.
+
+**2. Point the webhook at it**, and set `--webhook-on always` so that a
+healthy result also reports in. Without it Uptime Kuma would only ever hear
+from the check when something is wrong, and treat silence as down:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url 'https://kuma.example.com/api/push/<token>' \
+  --webhook-on always
+```
+
+Or in the configuration file, so the token is not in the process list:
+
+```yaml
+host: opencloud.example.com
+webhook:
+  url: secret://kuma_push_url
+  on: always
+```
+
+**3. Run it on a schedule** - see
+[systemd timer](scheduling.md#systemd-timer) or
+[cron](scheduling.md#cron). Uptime Kuma goes red when no push arrives
+within the heartbeat interval, so a plugin that cannot run at all shows up as
+well.
+
+Uptime Kuma stores the JSON body it receives and shows it on the monitor, so
+the rating, the OpenCloud version and the reason for the state are visible in
+the heartbeat detail. To surface the state in the message column too, use the
+push URL's own query parameters alongside the webhook:
+
+| Field in the payload      | What it tells you in Uptime Kuma                         |
+|:--------------------------|:---------------------------------------------------------|
+| `status` / `exit_code`    | `OK`, `WARNING`, `CRITICAL` or `UNKNOWN`                 |
+| `message`                 | The one-line reason, ready to paste into an alert        |
+| `rating`, `rating_label`  | The `0`-`5` score and its `A`-`F` label                  |
+| `product_version`, `eol`  | Which OpenCloud release, and whether it still gets fixes |
+| `update.availableVersion` | What to upgrade to                                       |
+| `duration_seconds`        | How long the scan took                                   |
+
+If you would rather have Uptime Kuma go down on *any* problem, keep
+`--webhook-on always` and add a keyword check on the JSON, or run a second
+Push monitor fed by a wrapper that only pushes when the plugin exits `0`:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  && curl -fsS 'https://kuma.example.com/api/push/<token>?status=up' \
+  || curl -fsS 'https://kuma.example.com/api/push/<token>?status=down&msg=opencloud'
+```
+
+The webhook route is the better one of the two: it pushes on every outcome and
+carries the detail, while the wrapper only carries up or down.
 
 ## Slack, Mattermost, Discord
 

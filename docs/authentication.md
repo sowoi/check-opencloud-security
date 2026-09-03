@@ -8,7 +8,7 @@ publishes about account search and password strength, whether the identity
 provider can be located at all, and four properties of the OpenID Connect
 discovery document that provider publishes. None of them submit a guessed
 credential anywhere - see [What the scan deliberately does not
-answer](../README.md#what-the-scan-deliberately-does-not-answer) for what is
+answer](scanner-checks.md#what-the-scan-deliberately-does-not-answer) for what is
 out of scope on principle, and the demo-account section below for the one
 documented exception.
 
@@ -67,7 +67,7 @@ worse in practice: CalDAV, CardDAV and most WebDAV clients cannot speak
 OpenID Connect and have nothing else to authenticate with. That is why this
 is rated `medium` rather than `critical` - and `low` once an external
 identity provider is confirmed to handle the interactive login (see [Who
-signs users in](../README.md#who-signs-users-in)), since the account
+signs users in](scanner-checks.md#who-signs-users-in)), since the account
 passwords those provider-backed logins protect are not the ones being
 replayed here.
 
@@ -256,7 +256,7 @@ Verified against [libregraph/lico][lico]'s `oidc/provider/provider.go`
 `authentication:<path>` and `demoUsersDisabled` are `extraChecks`, reported
 and rating-capped whenever they run at all, at their own severities above -
 see the extra-checks table in [the main
-README](../README.md#what-the-scanner-checks). `basicAuthDisabled`,
+README](scanner-checks.md#what-the-scanner-checks). `basicAuthDisabled`,
 `userEnumerationRestricted`, `passwordPolicyEnforced`,
 `passwordPolicyComplexity`, `identityProviderDetected` and the four `oidc*`
 flags are hardening flags,

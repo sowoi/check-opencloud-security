@@ -48,7 +48,7 @@ never alerted on** for exactly that reason: it is left out of the "Missing
 hardening" line, the `hardenings_missing` metric and the webhook payload,
 because a warning nobody can ever clear is noise, and noise is how genuine
 findings get ignored - see [Measures that are not
-settings](../README.md#measures-that-are-not-settings). `--debug` still
+settings](hardening.md#measures-that-are-not-settings). `--debug` still
 prints it, with the explanation.
 
 It is kept in the catalogue rather than removed so that a future OpenCloud
@@ -90,6 +90,5 @@ on the web result). `publicLinkPasswordEnforced` behaves like any other
 hardening flag: a failure does not cap the rating on its own, but raises an
 otherwise-`OK` Icinga result to `WARNING` and is listed in the "Missing
 hardening" line. `publicLinkExpirationEnforced` is excluded from that line
-entirely, for the reason above - see [Hardening
-checks](../README.md#hardening-checks) for the full table and the general
-rule.
+entirely, for the reason above - see [Hardening measures, one by
+one](hardening.md) for the full table and the general rule.

@@ -92,6 +92,6 @@ All four are `extraChecks`, reported whenever a cookie is observed -
 `cookieSecure` at `high`, `cookieHttpOnly` at `medium`, `cookieSameSite` and
 `cookiePrefix` at `low` - and each caps the rating on its own the same way any
 other failed extra check does (`high` -> `C`, `medium` -> `A`, `low` -> `A+`; see the
-extra-checks table in [the main README](../README.md#what-the-scanner-checks)).
+extra-checks table in [the main README](scanner-checks.md#what-the-scanner-checks)).
 Set `scanner.extra_checks_rating: false` to report them without touching the
 rating, or `--no-extra-checks` to skip them outright.
