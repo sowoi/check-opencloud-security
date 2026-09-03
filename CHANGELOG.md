@@ -257,6 +257,38 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **A server still offering TLS 1.0 is now caught by a scan of one, not by an
+  inspection written out by hand.** How the rating treats a populated
+  `deprecated_accepted` was covered; whether the probe can populate it was
+  not. `_accepts` - the function that decides whether the server said yes -
+  had never once returned `True` in this suite, so a bug in it would have
+  cleared every server on the internet with every test still passing. The
+  check now stands up a loopback server pinned to those versions and reads the
+  finding back off a real handshake. Because Python's default client starts at
+  TLS 1.2 and will not speak to such a server at all, this is also the first
+  test to exercise the fallback handshake that reaches one; and because a
+  server offering a single version answers every other question with a
+  refusal, one case offers both, which is the only way the probe is ever told
+  yes. A build of OpenSSL that will not serve them skips rather than fails.
+
+- **The two Redis backends are held to the same contract.** The suite runs
+  against `memory://`, the in-process stand-in, because a test that needs a
+  server is a test a contributor cannot run - which left the `redis.asyncio`
+  client every deployment actually uses executing nowhere, and nothing at all
+  checking that the two agree. That is a test double free to drift away from
+  the thing it stands in for: `SET NX` reporting whether it stored, `TTL`
+  answering -2 for a key that is gone and -1 for one that never expires,
+  `LPOS` counting from zero, `LREM` returning how many it removed, `INCR`
+  leaving an existing expiry alone. Any of those diverging passes the whole
+  suite and then loses a scan, or serves one that should have expired, on a
+  real server. `tests/test_redis_contract.py` asks both backends the same
+  questions, and CI now starts a Redis service for the half that needs one;
+  without `TEST_REDIS_URL` that half skips, so nothing new is needed to run
+  the suite locally. The queue is covered the same way - `memory://` must keep
+  selecting the queue that runs nothing, a real URL must produce an ARQ queue
+  a job actually reaches, and the URL a deployment configures must survive the
+  translation into ARQ's own connection settings.
+
 - **Coverage was blind to both entry points, and had been all along.** The
   plugin and the scanner CLI are tested the way a monitoring system runs
   them - as a subprocess with a deliberately scrubbed environment - and
