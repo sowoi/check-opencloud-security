@@ -14,6 +14,7 @@ import socket
 import ssl
 import sys
 import threading
+import warnings
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -75,9 +76,40 @@ def _certificate(
 
 
 @contextmanager
-def _server(certificate_path: Path, key_path: Path):
-    """A loopback TLS endpoint that completes handshakes and says nothing."""
+def _server(
+    certificate_path: Path,
+    key_path: Path,
+    *,
+    legacy_range: tuple[str, str] | None = None,
+):
+    """
+    A loopback TLS endpoint that completes handshakes and says nothing.
+
+    ``legacy_range`` names the oldest and newest `ssl.TLSVersion` the server
+    will speak, and lowers the security level that would otherwise refuse the
+    ciphers those versions come with - the one way to ask what this scanner
+    reports about a server still offering TLS 1.0 without going looking for
+    one on the internet. A range rather than a single version because a server
+    that speaks only one of them can never be asked about the other, and the
+    interesting answer is the second one.
+
+    A build of OpenSSL that will not serve them skips the test rather than
+    failing it: the question needs a server that can answer it, and not every
+    machine can host one.
+    """
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    if legacy_range is not None:
+        oldest, newest = (getattr(ssl.TLSVersion, name) for name in legacy_range)
+        try:
+            with warnings.catch_warnings():
+                # Naming TLS 1.0 is deprecated in Python, which is the whole
+                # reason a server still speaking it is worth reporting.
+                warnings.simplefilter("ignore", DeprecationWarning)
+                context.minimum_version = oldest
+                context.maximum_version = newest
+            context.set_ciphers("ALL:@SECLEVEL=0")
+        except (ValueError, ssl.SSLError, OSError) as exc:
+            pytest.skip(f"this OpenSSL build will not serve {legacy_range}: {exc}")
     context.load_cert_chain(str(certificate_path), str(key_path))
     listener = socket.socket()
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -294,6 +326,45 @@ def test_a_modern_server_refuses_the_deprecated_protocol_versions(tmp_path):
     assert inspection.deprecated_probed, "the probe must actually have run"
     assert inspection.deprecated_accepted == ()
     assert _ids(inspection)["tlsDeprecatedProtocol"] is True
+
+
+@pytest.mark.parametrize(
+    ("legacy_range", "protocol", "accepted"),
+    [
+        (("TLSv1", "TLSv1"), "TLSv1", ("TLSv1",)),
+        (("TLSv1_1", "TLSv1_1"), "TLSv1.1", ("TLSv1.1",)),
+        (("TLSv1", "TLSv1_1"), "TLSv1", ("TLSv1", "TLSv1.1")),
+    ],
+)
+def test_a_server_still_offering_a_deprecated_version_is_caught_offering_it(
+    tmp_path, legacy_range, protocol, accepted
+):
+    """
+    The positive half of the deprecated-protocol check, against a real server.
+
+    Everything else about this finding was covered by a `TlsInspection` built
+    by hand, which proves how the rating treats a populated
+    `deprecated_accepted` and nothing whatever about whether the probe can
+    populate it. A bug in `_accepts` - the code that decides whether the
+    server said yes - would have left every one of those tests passing while
+    the scanner quietly cleared every server on the internet.
+
+    A server pinned this low is also the only thing that exercises the
+    fallback handshake: Python's default client starts at TLS 1.2 and will not
+    talk to it at all, so merely reaching it is `_legacy_handshake`'s work,
+    and starting at TLS 1.1 makes that function step over TLS 1.0 first.
+
+    The third case is the one that reaches the probe loop at all. A server
+    speaking a single version answers everything else with a refusal, so only
+    a server offering both is ever asked a question it says yes to.
+    """
+    with _server(*_certificate(tmp_path), legacy_range=legacy_range) as port:
+        inspection = tls.inspect("localhost", port, TIMEOUT, check_stapling=False)
+
+    assert inspection.reachable, inspection.error
+    assert inspection.protocol == protocol
+    assert inspection.deprecated_accepted == accepted
+    assert _ids(inspection)["tlsDeprecatedProtocol"] is False
 
 
 def test_a_version_that_could_not_be_probed_is_never_reported_as_refused():
