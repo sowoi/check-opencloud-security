@@ -12,6 +12,7 @@
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
 * [Machine-readable output for CI (json/sarif/junit)](#machine-readable-output-for-ci-jsonsarifjunit)
+* [GitHub Action](#github-action)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
@@ -314,6 +315,81 @@ check-opencloud-security --host opencloud.example.com --format sarif \
 value, including `nagios` and `prometheus`, and
 [Running the check from CI](docs/ci.md) has the GitHub Actions and GitLab CI
 steps that upload the file.
+
+# GitHub Action
+
+[`action.yml`](action.yml) runs the same check as a step, so a workflow can
+scan an instance on a schedule without installing anything itself. **The
+runner has to be able to reach the instance** - a hosted runner cannot see
+anything behind your firewall, which is what a self-hosted runner is for, and
+what the scan measures about TLS, enforced HTTPS and reachable debug ports is
+what an outsider on the runner's network sees.
+
+```yaml
+name: OpenCloud security check
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sowoi/check-opencloud-security@v1.18.2
+        with:
+          target: opencloud.example.com
+          # Raises GitHub's anonymous rate limit for the release feed. The
+          # token the job already has is enough; it needs no scopes.
+          releases-token: ${{ github.token }}
+```
+
+**Pin the tag.** The release schedule and the newest known OpenCloud version
+ship *inside* the package, so which version runs is part of the verdict:
+`@v1.18.2` installs 1.18.2, while a branch or a commit SHA installs whatever
+the newest release happens to be on the day the workflow runs, and says so in
+a warning annotation.
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `target` | *required* | The instance to scan, as a hostname or a URL. |
+| `version` | the pinned tag | The release of the check to install. |
+| `format` | `json` | `json`, `sarif`, `junit` or `nagios`. |
+| `output-file` | `opencloud-security.json` | Where the output is written. |
+| `fail-on` | `warning` | `warning`, `critical` or `never`. |
+| `warning` | plugin default | Rating at or below which the result is a WARNING. |
+| `critical` | plugin default | Rating at or below which the result is CRITICAL. |
+| `check-hardening` | `true` | Count hardening measures towards the result. |
+| `ignore-hardening` | none | Hardening identifiers to waive, comma-separated. |
+| `release-track` | `auto` | `auto`, `rolling`, `production` or `lts`. |
+| `releases-token` | none | A token for the release feed's rate limit; needs no scopes. |
+| `summary` | `true` | Write the result to the job summary. |
+| `extra-args` | none | Further plugin flags, passed verbatim. |
+
+The step fails on anything worse than OK by default. `fail-on: critical`
+tolerates a WARNING but still fails on CRITICAL and on UNKNOWN, because a scan
+that did not run is not a pass; `fail-on: never` always succeeds and leaves the
+decision to a later step reading the outputs:
+
+| Output | What it holds |
+| --- | --- |
+| `exit-code` | The Nagios exit code: `0` OK, `1` WARNING, `2` CRITICAL, `3` UNKNOWN. |
+| `status` | `OK`, `WARNING`, `CRITICAL` or `UNKNOWN`. Only for `format: json`. |
+| `rating` | The rating, 0-5. Only for `format: json`. |
+| `rating-label` | The letter grade: `A+`, `A`, `C`, `D`, `E` or `F`. Only for `format: json`. |
+| `message` | The one-line summary. Only for `format: json`. |
+| `result-file` | The file the output was written to. |
+
+Configuration travels to the plugin as `COS_*` environment variables rather
+than on the command line, so a target does not end up in a public log.
+
+[Running the check from CI](docs/ci.md) has the rest: feeding `format: sarif`
+to the code-scanning dashboard, reporting without failing the job, and the
+GitLab CI equivalent.
 
 # Environment variables
 Every option has a `COS_`-prefixed environment variable equivalent (see the

@@ -204,6 +204,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Documentation
 
+- **`README.md` describes the GitHub Action.** `action.yml` has existed since
+  1.16.0 and the README never mentioned it: the only `uses:` line in the
+  project was in [`docs/ci.md`](docs/ci.md), which is one link away from the
+  file people open first and, more to the point, is not the page GitHub
+  renders for a Marketplace listing - that is `README.md` on the default
+  branch. The new section is the whole step in one workflow, both tables
+  (thirteen inputs, six outputs), why the tag has to be pinned - the release
+  schedule and the newest known OpenCloud version ship inside the package, so
+  which version runs is part of the verdict - and what `fail-on` decides.
+  `docs/ci.md` keeps everything that is longer than a paragraph: SARIF into
+  the code-scanning dashboard, reporting without failing the job, GitLab CI.
+
 - **`README.md` is half its length, and the material it lost is now findable.**
   It had reached 2,348 lines, which meant the file people open first answered
   every question at the same volume: how to install the plugin, what each
@@ -232,7 +244,45 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   row in the search index - which is where somebody looking for "shell
   completion" or "demo users" actually starts.
 
+### Removed
+
+- **Two encryption helpers nothing called.** `encrypt_result_dict` and
+  `decrypt_result_dict` read like the path a scan record takes to Redis, and
+  no caller has ever existed: `webapp/store.py` uses `encrypt_value` and
+  `decrypt_value` directly. Thirty lines of untested code around key material
+  that a reader had every reason to believe was load-bearing, and which any
+  future change would have had to keep working for nobody. Deleting them is
+  the whole change - the encryption an operator turns on is exactly what it
+  was, and `tests/test_webapp_encryption.py` still describes it.
+
 ### Fixed
+
+- **Coverage was blind to both entry points, and had been all along.** The
+  plugin and the scanner CLI are tested the way a monitoring system runs
+  them - as a subprocess with a deliberately scrubbed environment - and
+  nothing that happened inside one was ever measured. The plugin reported 78%
+  however thorough the suite got; it is really at
+  92%, and the entire SARIF, JUnit, Prometheus and multi-host surface was
+  being counted as untested while `test_output_formats.py` exercised every
+  line of it.
+
+  That is worse than an inaccurate number. For the largest file in the
+  project, a branch nobody had tested and a branch covered only by a
+  subprocess looked exactly alike, so the floor could not tell them apart -
+  which is the one distinction it exists to draw. It was met by the library
+  while the plugin contributed noise.
+
+  `coverage` already starts itself in any process where
+  `COVERAGE_PROCESS_START` is set, so the fix is to let that variable and an
+  absolute `COVERAGE_FILE` survive the scrub, and to run in parallel mode so
+  each process writes its own data file. `tests/conftest.coverage_environment`
+  hands them over and returns nothing at all unless this process is genuinely
+  measuring, so a plain `pytest` run still spawns the same clean environment
+  and leaves no data files behind. Two settings had to stop being paths
+  relative to a working directory the subprocess does not share: the plugin is
+  named as a module rather than a file, and `wizard.py` is omitted by a
+  wildcard, or it reappears at 29% once the subprocess runs are combined in.
+  The floor moves 85 → 87 against a real 89%.
 
 - **A test compared a countdown against itself and failed once a run crossed a
   second.** `expiresIn` is the scan key's remaining TTL, read at the moment

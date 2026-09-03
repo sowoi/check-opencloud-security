@@ -25,6 +25,7 @@
   <a href="#checking-multiple-hosts" lang="en">Checking multiple hosts</a>
   <a href="#prometheus-kubernetes-integration" lang="en">Prometheus &amp; Kubernetes integration</a>
   <a href="#machine-readable-output-for-ci-jsonsarifjunit" lang="en">Machine-readable output for CI (json/sarif/junit)</a>
+  <a href="#github-action" lang="en">GitHub Action</a>
   <a href="#environment-variables" lang="en">Environment variables</a>
   <a href="#the-built-in-scanner" lang="en">The built-in scanner</a>
   <a href="#update-check" lang="en">Update check</a>
@@ -283,6 +284,158 @@ artifact.</p>
 value, including <code>nagios</code> and <code>prometheus</code>, and
 <a href="/documentation/ci">Running the check from CI</a> has the GitHub Actions and GitLab CI
 steps that upload the file.</p>
+<h2 id="github-action">GitHub Action</h2>
+<p><a href="https://github.com/sowoi/check-opencloud-security/blob/main/action.yml"><code>action.yml</code></a> runs the same check as a step, so a workflow can
+scan an instance on a schedule without installing anything itself. <strong>The
+runner has to be able to reach the instance</strong> - a hosted runner cannot see
+anything behind your firewall, which is what a self-hosted runner is for, and
+what the scan measures about TLS, enforced HTTPS and reachable debug ports is
+what an outsider on the runner's network sees.</p>
+<pre><code class="language-yaml">name: OpenCloud security check
+
+on:
+  schedule:
+    - cron: &quot;0 6 * * *&quot;
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sowoi/check-opencloud-security@v1.18.2
+        with:
+          target: opencloud.example.com
+          # Raises GitHub's anonymous rate limit for the release feed. The
+          # token the job already has is enough; it needs no scopes.
+          releases-token: $&#123;&#123; github.token &#125;&#125;
+</code></pre>
+<p><strong>Pin the tag.</strong> The release schedule and the newest known OpenCloud version
+ship <em>inside</em> the package, so which version runs is part of the verdict:
+<code>@v1.18.2</code> installs 1.18.2, while a branch or a commit SHA installs whatever
+the newest release happens to be on the day the workflow runs, and says so in
+a warning annotation.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target</code></td>
+<td><em>required</em></td>
+<td>The instance to scan, as a hostname or a URL.</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>the pinned tag</td>
+<td>The release of the check to install.</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td><code>json</code></td>
+<td><code>json</code>, <code>sarif</code>, <code>junit</code> or <code>nagios</code>.</td>
+</tr>
+<tr>
+<td><code>output-file</code></td>
+<td><code>opencloud-security.json</code></td>
+<td>Where the output is written.</td>
+</tr>
+<tr>
+<td><code>fail-on</code></td>
+<td><code>warning</code></td>
+<td><code>warning</code>, <code>critical</code> or <code>never</code>.</td>
+</tr>
+<tr>
+<td><code>warning</code></td>
+<td>plugin default</td>
+<td>Rating at or below which the result is a WARNING.</td>
+</tr>
+<tr>
+<td><code>critical</code></td>
+<td>plugin default</td>
+<td>Rating at or below which the result is CRITICAL.</td>
+</tr>
+<tr>
+<td><code>check-hardening</code></td>
+<td><code>true</code></td>
+<td>Count hardening measures towards the result.</td>
+</tr>
+<tr>
+<td><code>ignore-hardening</code></td>
+<td>none</td>
+<td>Hardening identifiers to waive, comma-separated.</td>
+</tr>
+<tr>
+<td><code>release-track</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code>, <code>rolling</code>, <code>production</code> or <code>lts</code>.</td>
+</tr>
+<tr>
+<td><code>releases-token</code></td>
+<td>none</td>
+<td>A token for the release feed's rate limit; needs no scopes.</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td><code>true</code></td>
+<td>Write the result to the job summary.</td>
+</tr>
+<tr>
+<td><code>extra-args</code></td>
+<td>none</td>
+<td>Further plugin flags, passed verbatim.</td>
+</tr>
+</tbody>
+</table>
+<p>The step fails on anything worse than OK by default. <code>fail-on: critical</code>
+tolerates a WARNING but still fails on CRITICAL and on UNKNOWN, because a scan
+that did not run is not a pass; <code>fail-on: never</code> always succeeds and leaves the
+decision to a later step reading the outputs:</p>
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exit-code</code></td>
+<td>The Nagios exit code: <code>0</code> OK, <code>1</code> WARNING, <code>2</code> CRITICAL, <code>3</code> UNKNOWN.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>OK</code>, <code>WARNING</code>, <code>CRITICAL</code> or <code>UNKNOWN</code>. Only for <code>format: json</code>.</td>
+</tr>
+<tr>
+<td><code>rating</code></td>
+<td>The rating, 0-5. Only for <code>format: json</code>.</td>
+</tr>
+<tr>
+<td><code>rating-label</code></td>
+<td>The letter grade: <code>A+</code>, <code>A</code>, <code>C</code>, <code>D</code>, <code>E</code> or <code>F</code>. Only for <code>format: json</code>.</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>The one-line summary. Only for <code>format: json</code>.</td>
+</tr>
+<tr>
+<td><code>result-file</code></td>
+<td>The file the output was written to.</td>
+</tr>
+</tbody>
+</table>
+<p>Configuration travels to the plugin as <code>COS_*</code> environment variables rather
+than on the command line, so a target does not end up in a public log.</p>
+<p><a href="/documentation/ci">Running the check from CI</a> has the rest: feeding <code>format: sarif</code>
+to the code-scanning dashboard, reporting without failing the job, and the
+GitLab CI equivalent.</p>
 <h2 id="environment-variables">Environment variables</h2>
 <p>Every option has a <code>COS_</code>-prefixed environment variable equivalent (see the
 table above). This is especially useful for Docker, systemd, and cron, where
