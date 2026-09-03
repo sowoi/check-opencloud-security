@@ -63,6 +63,7 @@ from .admin import (
     ADMIN_POLL_SECONDS,
     ADMIN_ROBOTS,
     ADMIN_STREAM_MAX_MINUTES,
+    REFERENCE_STALE_SECONDS,
     audit_events,
     audit_surface,
     run_action,
@@ -1630,6 +1631,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "operator": operator,
                 "poll_interval": ADMIN_POLL_SECONDS,
                 "stream_minutes": ADMIN_STREAM_MAX_MINUTES,
+                # Past how long an unrefreshed reference document is worth
+                # pointing at - two daily cycles, decided here rather than
+                # in the browser.
+                "reference_stale": REFERENCE_STALE_SECONDS,
                 # Whether the audit view is reading a file every replica
                 # appends to, or this process's own in-memory ring. ADR 0035
                 # states the limit; without this the page cannot, and a

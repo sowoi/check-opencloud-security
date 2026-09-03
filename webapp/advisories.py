@@ -43,11 +43,13 @@ from opencloud_local_scan.vulndb import (
 
 from .redis_backend import RedisBackend
 from .reference_data import (
+    ADVISORY_ATTEMPT_KEY,
     ADVISORY_CHECKED_KEY,
     ADVISORY_DOCUMENT_KEY,
     REFRESH_TIMEOUT_SECONDS,
     last_checked,
     read_document,
+    record_attempt,
     write_document,
 )
 from .settings import WebSettings
@@ -180,8 +182,18 @@ async def refresh_advisories(backend: RedisBackend, settings: WebSettings) -> st
 
     The outcome is one of ``disabled``, ``failed``, ``rejected``,
     ``unchanged`` or ``updated``, which is also what goes in the log. Every
-    one of them except ``updated`` leaves the database exactly as it was.
+    one of them except ``updated`` leaves the database exactly as it was -
+    and is written down for that reason, exactly as
+    :func:`webapp.schedule.refresh_schedule` writes its own: a stamp that
+    only moves on success cannot say which failure has been stopping it.
     """
+    outcome = await _refresh_advisories(backend, settings)
+    await record_attempt(backend, ADVISORY_ATTEMPT_KEY, outcome)
+    return outcome
+
+
+async def _refresh_advisories(backend: RedisBackend, settings: WebSettings) -> str:
+    """The attempt itself. See :func:`refresh_advisories`."""
     if not settings.advisory_refresh:
         return "disabled"
 

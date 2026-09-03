@@ -162,6 +162,19 @@
 .admin-stat-value[data-state="good"] { color: var(--good); }
 .admin-stat-value[data-state="warn"] { color: var(--admin-accent); }
 
+/* A note that has aged past what it should. The same accent the age stamp
+   below the grid turns, because it is the same fact about the same page:
+   what is on screen is older than it ought to be. */
+.admin-stat-note[data-state="warn"] { color: var(--admin-accent); }
+
+/* The exact stamp is on the element rather than on the page. A dotted rule
+   is the conventional "there is more here on hover", and `help` says it is
+   an explanation rather than a link - there is nowhere for it to go. */
+.admin-stat-note time {
+    border-bottom: 1px dotted currentColor;
+    cursor: help;
+}
+
 /* How old the readings are. Set in the machine face, because it is a
    measurement and not a remark, and quiet until it is not: an age past a few
    polls turns the accent colour, and the sentence under it appears. */

@@ -52,6 +52,11 @@ from . import __version__
 from .advisories import advisory_state, probe_advisories, refresh_advisories
 from .i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, Translator
 from .redis_backend import RedisBackend, RedisUnavailable
+from .reference_data import (
+    ADVISORY_ATTEMPT_KEY,
+    SCHEDULE_ATTEMPT_KEY,
+    last_attempt,
+)
 from .schedule import probe_schedule, refresh_schedule, schedule_state
 from .search import SEARCH_PAGES
 from .settings import WebSettings
@@ -339,6 +344,24 @@ async def statistics(
         "referenceData": {
             "releaseSchedule": await schedule_state(backend, settings),
             "advisories": await advisory_state(backend, settings),
+            # What the last attempt at each made of it, which the checked
+            # stamps beside them cannot say: they move only when a read is
+            # accepted, so a source nobody can reach and a document this
+            # deployment is right to refuse both read as a date that stopped
+            # changing. Reported here rather than from `*_state`, because
+            # those two answer `/healthz` as well and a stranger asking
+            # whether this service is up is not owed an account of why its
+            # reference data is behind.
+            "scheduleAttempt": (
+                await last_attempt(backend, SCHEDULE_ATTEMPT_KEY)
+                if settings.schedule_refresh
+                else None
+            ),
+            "advisoryAttempt": (
+                await last_attempt(backend, ADVISORY_ATTEMPT_KEY)
+                if settings.advisory_refresh
+                else None
+            ),
             "scheduleRefresh": settings.schedule_refresh,
             "advisoryRefresh": settings.advisory_refresh,
             "refreshHour": settings.schedule_refresh_hour,
@@ -445,6 +468,16 @@ ADMIN_PATH = "/admin"
 
 #: How often the page asks for the readings again.
 ADMIN_POLL_SECONDS = 10
+
+#: Past how long a reference document that has not been refreshed is worth
+#: pointing at. Both refreshes are daily cron jobs (``webapp.tasks``), so this
+#: is two cycles: one missed run is a source having a bad morning, two is a
+#: pattern - and by then the schedule and the advisory database are deciding
+#: what visitors are told using a picture of the world nobody has checked
+#: since the day before yesterday. Stated here rather than in the browser, so
+#: the number the page marks on is the same number this project means by "the
+#: refresh is not happening".
+REFERENCE_STALE_SECONDS = 2 * 24 * 60 * 60
 
 #: How long a stream waits between looks before it sends a keep-alive. Long
 #: enough not to be a busy loop, short enough that a record does not sit

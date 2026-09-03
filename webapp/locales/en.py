@@ -63,6 +63,22 @@ MESSAGES: dict[str, str] = {
     "admin.state.schedule": "Release schedule",
     "admin.state.advisories": "Advisories",
     "admin.state.checked": "checked {when}",
+    # The two that say why a stamp has stopped moving. Both refreshes leave
+    # the data exactly as it was when they do not succeed, so the checked
+    # stamp cannot tell these apart - and the difference between a source
+    # nobody can reach and a document this deployment is right to refuse is
+    # the whole of what an operator does next.
+    "admin.state.checked.failed": "checked {when} - the last attempt could not be fetched",
+    "admin.state.checked.rejected": (
+        "checked {when} - the last attempt was refused by the guards"
+    ),
+    "admin.state.refresh.off": "the daily refresh is off",
+    # Relative, because the question is never "what date does this say" but
+    # "how long has this been sitting there". The exact stamp is on the
+    # element, for whoever does want the date.
+    "admin.state.ago.minutes": "{minutes}m ago",
+    "admin.state.ago.hours": "{hours}h ago",
+    "admin.state.ago.days": "{days}d ago",
     "admin.state.never": "never",
     "admin.state.unknown": "unknown",
     "admin.state.age.seconds": "Read {seconds}s ago",

@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -597,6 +598,112 @@ def test_the_tile_says_which_of_the_two_outages_it_is():
     # And the script reaches it from the reading rather than from a guess.
     assert "store.reachable === false" in script
     assert "worker.alive === null" in script
+
+
+def test_the_reference_tiles_age_the_way_the_poll_does():
+    """A stamp the reader has to subtract from today's date is not a reading.
+
+    `checked 2026-09-02 04:17` in flat grey makes a daily refresh that has
+    been failing for a week look exactly like one that ran this morning -
+    which is the failure the age stamp one card up was built to solve, and
+    the reference data had it too.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    from webapp.admin import REFERENCE_STALE_SECONDS
+
+    # How long is too long is the server's number, not the browser's.
+    assert f'data-admin-reference-stale="{REFERENCE_STALE_SECONDS}"' in page
+    assert "referenceStale" in script
+    # Two daily cycles: one missed run is a bad morning, two is a pattern.
+    assert REFERENCE_STALE_SECONDS == 2 * 24 * 60 * 60
+    # The note is relative, and the exact stamp stays on the element.
+    for scale in ("ago-minutes", "ago-hours", "ago-days"):
+        assert f'text("{scale}")' in script
+    assert 'createElement("time")' in script
+    assert 'setAttribute("datetime", iso)' in script
+
+
+def test_a_refresh_that_has_stopped_landing_says_which_failure_it_was(monkeypatch):
+    """`failed` and `rejected` are the difference between a network and a document.
+
+    ADMIN.md calls that the interesting one, and until now the page could not
+    answer it: both outcomes leave the reference data exactly as it was, so
+    both read as a checked stamp that stopped moving. Only pressing *Test the
+    sources* would say which - a button that reaches somebody else's server
+    to answer a question the last refresh already knew the answer to.
+    """
+    from opencloud_local_scan.schedule_source import ExtractionError
+    from webapp import schedule as schedule_module
+
+    def _refresh(client):
+        client.post(
+            "/admin/refresh",
+            data={"action": "schedule"},
+            headers={**FORWARDED, "Accept": "application/json"},
+        )
+        return client.get("/admin/state", headers=FORWARDED).json()["referenceData"]
+
+    def unreachable(*_args):
+        raise ExtractionError("nothing is listening")
+
+    # A page that reads perfectly well and has lost every release line: the
+    # guards refuse it, and nothing about the network is wrong.
+    def refused(*_args):
+        return {"updated": "2026-01-01", "lines": []}
+
+    # No cooldown, because this presses the same button twice on purpose.
+    with TestClient(create_app(_admin_settings(admin_refresh_cooldown=0))) as client:
+        monkeypatch.setattr(
+            schedule_module, "fetch_schedule_document", unreachable
+        )
+        network = _refresh(client)
+        monkeypatch.setattr(schedule_module, "fetch_schedule_document", refused)
+        guards = _refresh(client)
+        page = client.get("/admin", headers=FORWARDED).text
+
+    assert network["scheduleAttempt"]["outcome"] == "failed"
+    assert guards["scheduleAttempt"]["outcome"] == "rejected"
+    assert guards["scheduleAttempt"]["at"].startswith(
+        datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    )
+    # Neither attempt moved the stamp that says when a read was accepted,
+    # which is exactly why the outcome had to be recorded beside it.
+    assert network["releaseSchedule"]["checked"] is None
+    assert guards["releaseSchedule"]["checked"] is None
+
+    # Both sentences are the server's, in the language the page is in. They
+    # are looked up by a name the script builds, so the contract test that
+    # walks the literal lookups cannot see them.
+    from webapp.locales.en import MESSAGES
+
+    assert MESSAGES["admin.state.checked.failed"] in page
+    assert MESSAGES["admin.state.checked.rejected"] in page
+
+
+def test_a_refresh_nobody_asked_for_is_not_reported_as_overdue():
+    """A deployment that turned the daily refresh off has nothing to be late for.
+
+    Marking it would be the area crying wolf about a setting somebody chose,
+    which is the fastest way to teach an operator to ignore the accent.
+    """
+    off = _admin_settings(schedule_refresh=False, advisory_refresh=False)
+    with TestClient(create_app(off)) as client:
+        reference = client.get("/admin/state", headers=FORWARDED).json()[
+            "referenceData"
+        ]
+        page = client.get("/admin", headers=FORWARDED).text
+
+    assert reference["scheduleAttempt"] is None
+    assert reference["advisoryAttempt"] is None
+    from webapp.locales.en import MESSAGES
+
+    assert MESSAGES["admin.state.refresh.off"] in page
+    assert 'text("refresh-off")' in (
+        TestClient(create_app(off)).get("/static/js/admin.js").text
+    )
 
 
 def test_a_reading_that_stopped_arriving_cannot_look_like_one_that_is_not_moving():

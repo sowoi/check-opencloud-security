@@ -28,6 +28,7 @@
   rule the rest of the frontend follows.
 #}
 {% block body_attrs %}data-admin data-admin-poll="{{ poll_interval }}"
+  data-admin-reference-stale="{{ reference_stale }}"
   data-admin-worker-up="{{ t('admin.state.worker.up') }}"
   data-admin-worker-down="{{ t('admin.state.worker.down') }}"
   data-admin-worker-unknown="{{ t('admin.state.worker.unknown') }}"
@@ -36,6 +37,12 @@
   data-admin-ratelimit="{{ t.raw('admin.state.ratelimit.value') }}"
   data-admin-cooldown="{{ t.raw('admin.state.cooldown.value') }}"
   data-admin-checked="{{ t.raw('admin.state.checked') }}"
+  data-admin-checked-failed="{{ t.raw('admin.state.checked.failed') }}"
+  data-admin-checked-rejected="{{ t.raw('admin.state.checked.rejected') }}"
+  data-admin-refresh-off="{{ t('admin.state.refresh.off') }}"
+  data-admin-ago-minutes="{{ t.raw('admin.state.ago.minutes') }}"
+  data-admin-ago-hours="{{ t.raw('admin.state.ago.hours') }}"
+  data-admin-ago-days="{{ t.raw('admin.state.ago.days') }}"
   data-admin-never="{{ t('admin.state.never') }}"
   data-admin-unknown="{{ t('admin.state.unknown') }}"
   data-admin-age-seconds="{{ t.raw('admin.state.age.seconds') }}"

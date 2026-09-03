@@ -58,6 +58,106 @@
         }
     }
 
+    // ------------------------------------------------- when something last ran
+    //
+    // The same idea the poll's own age stamp is built on, applied one card
+    // down. A reference document stamped `2026-09-02T04:17:00+00:00` in flat
+    // grey makes a refresh that has been failing for a week look exactly like
+    // one that ran this morning: the reader has to notice the date and
+    // subtract. So the note says how long ago, marks itself past two daily
+    // cycles, and keeps the exact stamp on the element for whoever wants it.
+
+    var referenceStale = parseInt(
+        body.getAttribute("data-admin-reference-stale"), 10
+    );
+    if (!(referenceStale > 0)) {
+        referenceStale = 0;
+    }
+
+    function seconds(iso) {
+        var moment = Date.parse(iso);
+        return isNaN(moment)
+            ? null
+            : Math.max(0, Math.round((Date.now() - moment) / 1000));
+    }
+
+    function ago(elapsed) {
+        if (elapsed < 5400) {
+            return fill(text("ago-minutes"), { minutes: Math.round(elapsed / 60) });
+        }
+        if (elapsed < 172800) {
+            return fill(text("ago-hours"), { hours: Math.round(elapsed / 3600) });
+        }
+        return fill(text("ago-days"), { days: Math.round(elapsed / 86400) });
+    }
+
+    // The date the relative sentence is standing in for. The browser's own
+    // formatting, because a timestamp is the one thing on this page that is
+    // read in the reader's conventions rather than the page's language.
+    function exactly(iso) {
+        try {
+            return new Date(iso).toLocaleString();
+        } catch (error) {
+            return iso;
+        }
+    }
+
+    // One note, written as the catalogue's sentence with a <time> where its
+    // {when} was. Splitting rather than interpolating is what lets the value
+    // carry the machine-readable stamp and the exact date without this file
+    // owning a word of the sentence around it.
+    function stamped(name, sentence, when, iso, state) {
+        var node = document.querySelector('[data-value="' + name + '"]');
+        if (!node) {
+            return;
+        }
+        var parts = sentence.split("{when}");
+        node.textContent = parts[0];
+        if (parts.length > 1) {
+            var mark = document.createElement("time");
+            if (iso) {
+                mark.setAttribute("datetime", iso);
+                mark.setAttribute("title", exactly(iso));
+            }
+            mark.textContent = when;
+            node.appendChild(mark);
+            node.appendChild(document.createTextNode(parts.slice(1).join("{when}")));
+        }
+        if (state) {
+            node.setAttribute("data-state", state);
+        } else {
+            node.removeAttribute("data-state");
+        }
+    }
+
+    // What a reference tile's note says, given the source's own reading and
+    // what the last attempt at it made of it.
+    function checked(name, source, attempt) {
+        if (source.refresh === false) {
+            // Not stale: nobody asked for it to be refreshed.
+            stamped(name, text("refresh-off"), "", null, null);
+            return;
+        }
+        var elapsed = source.checked ? seconds(source.checked) : null;
+        var stale = elapsed === null || (referenceStale && elapsed > referenceStale);
+        // `failed` and `rejected` are the two outcomes that leave the data
+        // exactly as it was, which is why the stamp beside them has not
+        // moved. Which of the two it was is the difference between a network
+        // to go and look at and a document this deployment is refusing.
+        var outcome = attempt ? attempt.outcome : null;
+        var sentence = text("checked");
+        if (outcome === "failed" || outcome === "rejected") {
+            sentence = text("checked-" + outcome);
+        }
+        stamped(
+            name,
+            sentence,
+            elapsed === null ? text("never") : ago(elapsed),
+            source.checked || null,
+            stale || outcome === "failed" || outcome === "rejected" ? "warn" : null
+        );
+    }
+
     // ------------------------------------------------------- the statistics
 
     // What each tile reads now, so the next paint can tell what moved. A
@@ -132,15 +232,11 @@
         var schedule = reference.releaseSchedule || {};
         var advisories = reference.advisories || {};
         put("schedule", schedule.updated || text("unknown"));
-        put("schedule-checked", fill(text("checked"), {
-            when: schedule.checked || text("never")
-        }));
+        checked("schedule-checked", schedule, reference.scheduleAttempt);
         put("advisories", String(
             advisories.advisories === undefined ? "-" : advisories.advisories
         ));
-        put("advisories-checked", fill(text("checked"), {
-            when: advisories.checked || text("never")
-        }));
+        checked("advisories-checked", advisories, reference.advisoryAttempt);
 
         // An index that does not say which release it was built for cannot be
         // called current: the pages and the languages were compared, the copy

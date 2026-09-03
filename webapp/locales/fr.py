@@ -41,6 +41,16 @@ MESSAGES: dict[str, str] = {
     "admin.state.schedule": "Calendrier des versions",
     "admin.state.advisories": "Avis de sécurité",
     "admin.state.checked": "vérifié {when}",
+    "admin.state.checked.failed": (
+        "vérifié {when} - la dernière tentative n'a pas pu être récupérée"
+    ),
+    "admin.state.checked.rejected": (
+        "vérifié {when} - la dernière tentative a été refusée par les garde-fous"
+    ),
+    "admin.state.refresh.off": "la mise à jour quotidienne est désactivée",
+    "admin.state.ago.minutes": "il y a {minutes} min",
+    "admin.state.ago.hours": "il y a {hours} h",
+    "admin.state.ago.days": "il y a {days} j",
     "admin.state.never": "jamais",
     "admin.state.unknown": "inconnu",
     "admin.state.age.seconds": "Lu il y a {seconds}s",

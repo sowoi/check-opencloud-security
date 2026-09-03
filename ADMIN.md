@@ -409,9 +409,16 @@ picks them up. Nothing is written to disk.
 Redis keys, if you need to look:
 
 ```
-cos:web:schedule:document     cos:web:schedule:checked
-cos:web:advisories:document   cos:web:advisories:checked
+cos:web:schedule:document     cos:web:schedule:checked     cos:web:schedule:attempt
+cos:web:advisories:document   cos:web:advisories:checked   cos:web:advisories:attempt
 ```
+
+`:checked` moves only when a read is **accepted**, which is what makes an old
+one worth noticing and also what it cannot explain: a source nobody can reach
+and a document these guards are right to refuse both leave a date that stopped
+moving. `:attempt` is what the last run made of the source - `updated`,
+`unchanged`, `rejected` or `failed` - written whether or not anything was
+stored, so the difference below is visible without fetching anything again.
 
 The acceptance rules are the whole safety model, and they are asymmetric on
 purpose:
@@ -490,7 +497,7 @@ What the area does:
 
 | Card | What it does |
 |:--|:--|
-| Service state | Worker liveness, queue depth, the configured limits, and when each reference document was last read. The worker tile has three answers, not two: the heartbeat it reads is a key in Redis, so **Cannot tell** means the store did not answer and nothing was learned about the worker either way |
+| Service state | Worker liveness, queue depth, the configured limits, and how long ago each reference document was last read - relative (`checked 6h ago`), with the exact stamp on the element, turning the accent past two daily cycles and naming which failure has been stopping it. The worker tile has three answers, not two: the heartbeat it reads is a key in Redis, so **Cannot tell** means the store did not answer and nothing was learned about the worker either way |
 | What this deployment offers | `/mcp` and whether a token is required, `/docs`, indexing, private-network targets, encryption at rest, and what the audit trail keeps and where. Settings rather than readings, so the card is rendered once and never polled - a value that changed did so in a process the open page is no longer talking to |
 | Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
 | Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job. Three verdicts, not two: an index that does not name the release it was built for is **Cannot tell**, because its pages and languages could be compared and its copy could not |
@@ -519,6 +526,16 @@ watching its own estate. What is worth a second look is *the pair* -
 is a scanner strangers can find, pointed at the network it stands in. If that
 is deliberate, `COS_WEB_ALLOW_INDEXING=false` is almost certainly the setting
 that was meant.
+
+**A refresh that has stopped landing says so, and says which failure it is.**
+The two reference tiles age their own readings the way the card above them
+does: `checked 6h ago` rather than a stamp to subtract from today's date, the
+exact moment on the element for whoever wants it, and the accent past two
+daily cycles. Where the last run did not succeed the note names it - *could
+not be fetched* or *refused by the guards* - so the `*_failed` / `*_rejected`
+distinction is on the page before anybody presses anything. A deployment that
+turned the refresh off is not reported as overdue; it has nothing to be late
+for.
 
 **Test the sources** is the dry run beside those two buttons: it performs the
 same fetch and the same guards and then discards the result, so you can tell

@@ -85,6 +85,28 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   fetch - under a key of its own, so it is available in the moment after a
   refresh has failed, which is the only moment anybody wants it.
 
+  **The reference data ages the way the poll does.** The two tiles printed
+  the stamp they had - `checked 2026-09-02 04:17`, flat grey - so a daily
+  refresh that had been failing for a week looked exactly like one that ran
+  this morning, and the reader had to notice the date and subtract. They now
+  say how long ago, keep the exact moment on a `<time>` where whoever wants
+  it can get at it, and turn the accent past two daily cycles: one missed run
+  is a source having a bad morning, two is a pattern, and by then the
+  schedule and the advisory database are deciding what visitors are told from
+  a picture of the world nobody has checked since the day before yesterday.
+
+  And the note says *which* failure has been stopping it. Both refreshes
+  leave their data exactly as it was whenever they do not succeed, so the
+  checked stamp cannot distinguish a source nobody can reach from a document
+  these guards are right to refuse - the difference `ADMIN.md` calls the
+  interesting one, and the only way to see it was to press *Test the
+  sources*, which fetches from somebody else's server to answer a question
+  the last refresh already knew the answer to. Every attempt now records what
+  it made of the source, beside the stamp rather than instead of it, and the
+  tile reads *the last attempt could not be fetched* or *was refused by the
+  guards*. A refresh that was never run records nothing, and a deployment
+  that turned the refresh off is not reported as overdue.
+
   **"Redis is gone" and "the worker died" are no longer the same picture.**
   The heartbeat the worker tile reads is a key in the store, so a store that
   is unreachable took the answer with it - and the tile said *Not answering*
