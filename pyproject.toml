@@ -138,22 +138,40 @@ markers = [
 # ordinary refactor.
 [tool.coverage.run]
 branch = true
+# Both entry points are tested as a monitoring system runs them - as a
+# subprocess - so measuring only this process reported the plugin at 78% while
+# the suite really reached 92%, and counted the whole SARIF/JUnit/Prometheus
+# surface as untested. Each process now writes its own data file and pytest-cov
+# combines them; `tests/conftest.coverage_environment` is what carries the
+# measurement across the deliberately scrubbed subprocess environment.
+parallel = true
+# The Prometheus exporter is a server a test stops with a signal. Without this
+# its data file is never written and the exporter looks untested again.
+sigterm = true
+# Module names, not file paths. A subprocess started by `run_plugin` inherits
+# the per-test working directory `conftest.clean_config_files` moved into, so a
+# relative `check_opencloud_security.py` resolves against a temporary directory
+# and matches nothing; the importable name resolves the same way in every
+# process, which is the only form that survives the move.
 source = [
-    "check_opencloud_security.py",
+    "check_opencloud_security",
     "opencloud_local_scan",
     "webapp",
 ]
 omit = [
     # Interactive, and driven by its own tests through a scripted stdin rather
     # than by import: measuring it here reports the prompts as uncovered.
-    "opencloud_local_scan/wizard.py",
+    # Wildcard-anchored for the same reason the sources are module names - the
+    # recorded path is absolute, and a bare relative pattern stopped matching
+    # once the subprocess runs were combined in.
+    "*/opencloud_local_scan/wizard.py",
 ]
 
 [tool.coverage.report]
-# The suite sits at 87%. The floor is two points below that so an ordinary
+# The suite sits at 89%. The floor is two points below that so an ordinary
 # refactor does not fail the build, while a module arriving untested does.
 # Raise it when the real number climbs; never lower it to make a branch pass.
-fail_under = 85
+fail_under = 87
 show_missing = true
 skip_covered = true
 exclude_also = [

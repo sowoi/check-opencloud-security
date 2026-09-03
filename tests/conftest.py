@@ -1,9 +1,50 @@
 import os
+import pathlib
 
 import pytest
 
 from opencloud_local_scan import config as config_module
 from opencloud_local_scan import wizard as wizard_module
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def coverage_environment() -> dict[str, str]:
+    """
+    The variables a subprocess needs to join this run's coverage measurement.
+
+    Both entry points are exercised the way a monitoring system runs them - as
+    a subprocess with a deliberately scrubbed environment - so until this
+    existed, nothing they did was measured. `check_opencloud_security.py`
+    reported 78% however thorough the suite got; it is really at 92%, and the
+    whole SARIF, JUnit and Prometheus surface was being counted as untested
+    while `test_output_formats.py` exercised every line of it. That made an
+    untested branch and a subprocess-tested one look identical, which is the
+    one distinction the coverage floor exists to draw.
+
+    `coverage` installs a `.pth` that starts measuring in any process where
+    ``COVERAGE_PROCESS_START`` is set, so the subprocess itself needs no
+    cooperation - only these two variables surviving the scrub.
+
+    Returns nothing unless this process is genuinely measuring, so a plain
+    `pytest` run still spawns the same clean environment it always did and
+    leaves no data files behind.
+    """
+    try:
+        import coverage
+    except ImportError:
+        return {}
+    if coverage.Coverage.current() is None:
+        return {}
+    # Both absolute, because `clean_config_files` below moves every test into
+    # its own working directory: a relative data file would scatter the
+    # subprocess measurements across temporary directories that
+    # `coverage combine` never looks in, and they would be lost exactly as
+    # silently as they were before.
+    return {
+        "COVERAGE_PROCESS_START": str(REPO_ROOT / "pyproject.toml"),
+        "COVERAGE_FILE": str(REPO_ROOT / ".coverage"),
+    }
 
 
 @pytest.fixture(autouse=True)

@@ -16,6 +16,7 @@ import time
 
 import pytest
 
+from tests.conftest import coverage_environment
 from tests.fake_opencloud import DEFAULT_CSP_UNSAFE, FakeOpenCloud, InstanceBehaviour
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -36,6 +37,7 @@ def run_plugin(*args: str, env: dict[str, str] | None = None) -> subprocess.Comp
         "COS_UPDATE_SOURCE": "off",
         "COS_SCANNER_SCHEME": "http",
         "COS_SCANNER_CHECK_DEBUG_PORTS": "false",
+        **coverage_environment(),
         **(env or {}),
     }
     return subprocess.run(
@@ -56,7 +58,11 @@ def run_scanner(*args: str) -> subprocess.CompletedProcess:
         text=True,
         timeout=120,
         cwd=str(REPO_ROOT),
-        env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(REPO_ROOT)},
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(REPO_ROOT),
+            **coverage_environment(),
+        },
         check=False,
     )
 
