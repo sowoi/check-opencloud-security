@@ -337,6 +337,45 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   is for, and the ten fields that actually make up the record are still
   compared whole.
 
+### Security
+
+- **The CAA lookup accepts an answer only from the resolver it asked.** The
+  query went out from an unconnected UDP socket and the reply was read with
+  `recvfrom`, so the kernel handed over a datagram from *any* address: a
+  forged answer had only to reach the ephemeral port before the resolver's and
+  carry the matching request id, rather than also come from the resolver.
+  Anybody able to send UDP to the scanning host could therefore decide the
+  `tlsCaaRecord` finding - assert a restriction on an instance that has none,
+  or hide one that exists. The socket is now connected before the query is
+  sent, which is what every resolver library does and what makes the request
+  id a second check rather than the only one. The reach was one informational
+  finding: nothing else reads the answer, and neither the rating nor any other
+  check moves with it.
+
+- **A token naming a signing key nobody published can no longer order a key
+  fetch per request.** Only deployments with `COS_WEB_MCP_AUTH_ENABLED` were
+  affected. A bearer token is checked against the provider's published keys,
+  looked up by the `kid` in its header, and the client refetches the key set
+  whenever that name is not in the set - which is how a rotated key works
+  without a restart. Nothing bounded how often an unknown name could provoke
+  that. A `kid` needs no signature that verifies, no audience and no issuer,
+  and is read before any of them are checked, so an unauthenticated caller
+  could turn each of its requests into one outbound request to the operator's
+  identity provider, each blocking the event loop while it ran. A miss may now
+  provoke a fetch at most once a minute, and verification runs off the event
+  loop. No token was ever accepted that should not have been: the key name only
+  selects which published key the signature is checked against.
+
+- **The operator area's sign-out address is held to the same shape as every
+  other local path.** `COS_WEB_ADMIN_SIGN_OUT_URL` is rendered into an `href`
+  and checked at startup so it cannot be a scheme this page's content policy
+  exists to forbid. Anything starting with a single `/` counted as local - but
+  a backslash is a slash to a browser, so `/\host` resolves exactly as
+  `//host` does, off-site, while being spelled like a path. It is now held to
+  the character class `webapp.i18n.safe_next_path` holds the language switch
+  to, which has no backslash in it. Never released: the area, the setting and
+  the check were all written in this cycle.
+
 ## [1.18.2] - 2026-09-01
 
 ### Added

@@ -29,7 +29,12 @@ looked up again - which is what `verified:` is for.
 
 `scripts/security_advisories.py --check` fails when a Security entry from
 1.14.0 onwards has no record, and CI runs it on every pull request. Write the
-record in the same pull request as the fix.
+record in the same pull request as the fix - entries under `## [Unreleased]`
+are read under the version in `pyproject.toml`, which is what the release
+workflow renames that heading to, so a record can claim one before the release
+exists. That is deliberate: the record answers a question about the *past*,
+and the person who can answer it cheaply is the one who just wrote the fix and
+has the tags in front of them.
 
 Determine `shipped` from the release *before* the fix, never from memory:
 

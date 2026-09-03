@@ -131,16 +131,47 @@ def test_an_entry_below_the_baseline_is_not_demanded(tmp_path, monkeypatch) -> N
     assert script.check_coverage([]) == []
 
 
-def test_an_unreleased_entry_is_not_demanded(tmp_path, monkeypatch) -> None:
-    """An Unreleased bullet has no release to warn anybody about yet."""
+def test_an_unreleased_entry_is_demanded_under_the_version_it_will_carry(
+    tmp_path, monkeypatch
+) -> None:
+    """A security entry needs its record while the branch it was written on is open.
+
+    It used to be exempt, on the grounds that an Unreleased bullet has no
+    release to warn anybody about yet. But the record answers a question about
+    the *past* - did a released version carry this - and the person who can
+    answer it cheaply is the one who just wrote the fix and has the tags open.
+    Deferring it to release time is how a decision gets made by whoever is
+    cutting the release, from prose, months later. AGENTS.md asks for the
+    record in the same pull request as the fix; this is the check that means
+    it.
+
+    The version is not a guess: `## [Unreleased]` is renamed to whatever
+    `pyproject.toml` says when the bump lands on main.
+    """
     changelog = tmp_path / "CHANGELOG.md"
     changelog.write_text(
         "## [Unreleased]\n\n### Security\n\n- **Not out yet.** Text.\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(script, "CHANGELOG", changelog)
+    monkeypatch.setattr(script, "unreleased_version", lambda: "9.9.9")
 
-    assert script.check_coverage([]) == []
+    assert script.check_coverage([]) != []
+    # And the record that claims it settles the matter, without waiting for
+    # the heading to be renamed.
+    claimed = record(changelog_version="9.9.9", changelog_entry="**Not out yet.**")
+    assert script.check_coverage([claimed]) == []
+
+
+def test_the_unreleased_heading_is_read_under_the_pyproject_version() -> None:
+    """The number the release workflow will rename the heading to, and no other.
+
+    Checked against the project's own version rather than a fixture: a number
+    this check invented would let a record claim a release that never happens.
+    """
+    from opencloud_local_scan import __version__
+
+    assert script.unreleased_version() == __version__
 
 
 def test_an_advisory_for_something_that_never_shipped_is_refused() -> None:

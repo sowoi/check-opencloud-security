@@ -213,6 +213,14 @@ def test_an_exit_that_would_be_script_is_refused_at_startup():
         "JavaScript:alert(1)",
         "data:text/html,<script>alert(1)</script>",
         "//evil.example.net/sign_out",
+        # A backslash is a slash to a browser: for http and https the URL
+        # parser folds `\\` into `/`, so each of these resolves exactly as
+        # `//evil.example.net` does while being spelled like a local path.
+        "/\\evil.example.net/sign_out",
+        "/\\\\evil.example.net/sign_out",
+        # And a local path is a path, not an opportunity to write markup into
+        # the attribute it lands in.
+        "/sign_out\" onmouseover=\"alert(1)",
     ):
         with pytest.raises(ValueError, match="SIGN_OUT_URL"):
             create_app(_admin_settings(admin_sign_out_url=refused))
@@ -226,7 +234,11 @@ def test_an_ordinary_address_is_accepted_as_the_exit():
     """
     for accepted in (
         "/outpost.goauthentik.io/sign_out",
+        # A provider that wants to be told where to come back to.
+        "/outpost.goauthentik.io/sign_out?rd=/admin",
         "https://sso.example.com/if/session-end/opencloud/",
+        # An internal provider on plain HTTP, which is somebody's real stack.
+        "http://sso.internal:9000/logout",
     ):
         with TestClient(
             create_app(_admin_settings(admin_sign_out_url=accepted))

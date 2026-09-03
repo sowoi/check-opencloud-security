@@ -1,0 +1,52 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: admin-sign-out-backslash-path
+state: declined
+changelog_version: "1.19.0"
+changelog_entry: "The operator area's sign-out address is held to the same shape as every other local path."
+shipped: false
+declined_because: |
+  Never shipped. The operator's area, `webapp/admin_auth.py` and the sign-out
+  setting were all written during the 1.19.0 cycle, and the check was tightened
+  before that cycle released. No released version has the file, let alone the
+  weaker check, so an advisory would name affected versions that do not exist.
+summary: >-
+  A sign-out address spelled /\host passed a local-path check and resolves
+  off-site in a browser
+verified: |
+  git grep -c linkable v1.18.2 -- webapp/admin_auth.py finds nothing: the file
+  is absent from v1.18.2 and from every earlier tag. It first appears on
+  release/1.19.0 in 76bdea6, unreleased at the time of writing.
+description: |
+  ### Impact
+
+  `COS_WEB_ADMIN_SIGN_OUT_URL` is rendered into the `href` of the operator
+  area's sign-out link, and is checked at startup so that the value cannot be
+  a scheme the page's own content policy exists to forbid. The check accepted
+  any value beginning with a single `/` as a local path.
+
+  For http and https the URL parser folds `\` into `/`, so `/\host` and
+  `/\\host` resolve exactly as `//host` does - somebody else's origin, wearing
+  a local path's spelling. A deployment configured with such a value would
+  send an operator pressing *Sign out* to that origin while believing the link
+  stayed on the service, and would leave them signed in.
+
+  Reaching it requires the deployment's own environment to carry the hostile
+  value, which is the operator's own configuration rather than anything a
+  request can influence. The check exists to catch exactly that mistake, so a
+  hole in it is worth closing whether or not anybody can force it.
+
+  ### Patches
+
+  Never released. On `release/1.19.0` a local path is now held to the same
+  character class `webapp.i18n.safe_next_path` holds the language switch to,
+  which has no backslash in it, rejects `//`, and rejects `.` and `..`
+  segments.
+
+  ### Workarounds
+
+  Leaving `COS_WEB_ADMIN_SIGN_OUT_URL` unset - the default - renders no link
+  at all.

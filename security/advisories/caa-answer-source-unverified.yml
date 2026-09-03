@@ -1,0 +1,59 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: caa-answer-source-unverified
+state: draft
+changelog_version: "1.19.0"
+changelog_entry: "The CAA lookup accepts an answer only from the resolver it asked."
+shipped: true
+severity: low
+cwe_ids:
+  - CWE-345
+  - CWE-290
+package: plugin
+introduced: "1.14.0"
+fixed: "1.19.0"
+summary: >-
+  A spoofed UDP datagram could stand in for the resolver's CAA answer and
+  decide the tlsCaaRecord finding
+verified: |
+  git grep -c sendto v1.14.0 -- opencloud_local_scan/caa.py shows the
+  unconnected send, and the same line is still there in v1.18.2. caa.py is
+  absent from v1.13.0, so 1.14.0 is the first release that carried it.
+  tests/test_caa.py::test_an_answer_from_somewhere_other_than_the_resolver_is_ignored
+  fails against the old socket handling, and the forged answer arrives as a
+  passing CAA finding.
+description: |
+  ### Impact
+
+  The CAA record check sent its DNS query from an unconnected UDP socket and
+  read the reply with `recvfrom`, discarding the source address. The kernel
+  therefore delivered a datagram from *any* address to that socket, so a
+  forged answer had only to reach the ephemeral port before the resolver's
+  reply and carry the matching 16-bit request id - it did not also have to
+  come from the resolver.
+
+  Somebody able to send UDP to the scanning host - another container on the
+  same network, a neighbour on the same segment, anything on the path - could
+  therefore decide the `tlsCaaRecord` result: assert a CAA record on an
+  instance that has none, or hide one that exists.
+
+  The reach is narrow. It changes one low-severity informational finding and
+  nothing else: no other check consults the answer, no code path is taken from
+  it, nothing is stored, and neither the rating nor any other finding moves
+  with it. Deployments that leave `extra_checks` off, or scan over plain HTTP,
+  never make the query at all.
+
+  ### Patches
+
+  Fixed in **1.19.0**. The socket is connected to the resolver before the
+  query is sent, so the kernel drops every datagram from any other address or
+  port and the request id becomes a second check rather than the only one.
+
+  ### Workarounds
+
+  Disabling the extra checks (`--no-extra-checks`) stops the query being made.
+  A resolver reached over loopback - a local stub such as systemd-resolved or
+  dnsmasq - is not reachable by an off-path sender in the first place.

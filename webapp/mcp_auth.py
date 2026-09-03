@@ -30,7 +30,9 @@ that makes ``ensure_encryption_ready`` refuse to store plaintext.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -53,6 +55,20 @@ OPENID_CONFIGURATION_PATH = ".well-known/openid-configuration"
 #: enough that a busy endpoint is not a load generator against the identity
 #: provider, short enough that a rotated key is picked up without a restart.
 JWKS_CACHE_SECONDS = 300
+
+#: The shortest gap between two key fetches provoked by a token naming a key
+#: this service has not got.
+#:
+#: A published key set is looked up by the ``kid`` in the token, and the client
+#: below refetches whenever that name is not in the set - which is exactly how
+#: a rotated key starts working without a restart, and also how one
+#: unauthenticated request becomes one request to somebody's identity
+#: provider. ``/mcp`` is reachable by anybody the deployment lets near it, a
+#: ``kid`` is two lines of JSON to invent, and neither the signature nor the
+#: audience has been looked at by the time the fetch happens. Without a floor
+#: here, a stream of tokens signed by nobody is a load generator aimed at the
+#: provider and a queue of blocking fetches in front of every other caller.
+JWKS_MISS_REFETCH_SECONDS = 60
 
 #: The signature algorithms accepted. Deliberately asymmetric only: a shared
 #: secret would mean this service holds a key that can *mint* tokens, and it
@@ -257,6 +273,10 @@ class _KeySet:
     fetched_at: float
 
 
+class UnknownSigningKey(LookupError):
+    """The token names a signing key the provider has not published to us."""
+
+
 class OidcTokenVerifier:
     """
     Checks a bearer token against the provider's published signing keys.
@@ -294,6 +314,13 @@ class OidcTokenVerifier:
         self._required = tuple(required_scopes)
         self._cache_seconds = cache_seconds
         self._cached: _KeySet | None = None
+        # When a token naming an unknown key was last allowed to provoke a
+        # fetch. Never, to start with, so the first rotation is picked up at
+        # once. Guarded by a lock because verification runs in a worker
+        # thread and several may be holding a forged token at the same
+        # moment - which is the whole point of the floor.
+        self._last_miss_refetch = float("-inf")
+        self._miss_lock = threading.Lock()
 
     async def verify_token(self, token: str) -> Any:
         """The ``TokenVerifier`` protocol: an access token, or ``None``."""
@@ -322,8 +349,6 @@ class OidcTokenVerifier:
 
     async def _claims(self, token: str) -> dict[str, Any] | None:
         """The verified claims of one token, or ``None`` if it is not valid."""
-        import jwt
-
         if self._audience is None:
             # Startup refuses this configuration, so reaching here means the
             # verifier was built some other way. An audience that is not
@@ -333,7 +358,17 @@ class OidcTokenVerifier:
             LOGGER.debug("mcp_token_rejected reason=no_audience_configured")
             return None
         keys = await self._key_set()
-        signing_key = keys.get_signing_key_from_jwt(token)
+        # Off the event loop. Both halves of this block - fetching a key set
+        # and checking a signature - are work somebody who has authenticated
+        # to nothing can ask for, and neither should be able to stop this
+        # process answering everybody else while it happens.
+        return await asyncio.to_thread(self._verified_claims, keys, token)
+
+    def _verified_claims(self, keys: Any, token: str) -> dict[str, Any]:
+        """Check one token against the published keys. Raises if it is not one."""
+        import jwt
+
+        signing_key = self._signing_key(keys, token)
         options: Any = {
             "verify_aud": True,
             "require": ["exp", "iss", "aud"],
@@ -347,6 +382,44 @@ class OidcTokenVerifier:
             options=options,
         )
         return dict(claims)
+
+    def _signing_key(self, keys: Any, token: str) -> Any:
+        """The published key this token names, without letting it order a fetch.
+
+        The client refetches the key set whenever a token names a key it has
+        not got. That is how a rotated key works without a restart, and it is
+        also how a token signed by nobody turns into a request to somebody's
+        identity provider - so a miss may provoke one at most every
+        :data:`JWKS_MISS_REFETCH_SECONDS`. The rest are simply not tokens,
+        which is what they were anyway.
+
+        The header is read without verifying it, which is safe for exactly one
+        use: choosing which *published* key to check the signature against. A
+        forged ``kid`` selects a key the token was not signed with, and the
+        signature check that follows is what refuses it.
+        """
+        import jwt
+
+        kid = jwt.get_unverified_header(token).get("kid")
+        for key in keys.get_signing_keys():
+            if key.key_id == kid:
+                return key
+        if not self._may_refetch():
+            LOGGER.debug("mcp_token_rejected reason=unknown_key_id")
+            raise UnknownSigningKey(str(kid))
+        for key in keys.get_signing_keys(refresh=True):
+            if key.key_id == kid:
+                return key
+        raise UnknownSigningKey(str(kid))
+
+    def _may_refetch(self) -> bool:
+        """Whether an unknown key name may cost a fetch right now."""
+        now = time.monotonic()
+        with self._miss_lock:
+            if now - self._last_miss_refetch < JWKS_MISS_REFETCH_SECONDS:
+                return False
+            self._last_miss_refetch = now
+            return True
 
     async def _key_set(self) -> Any:
         """

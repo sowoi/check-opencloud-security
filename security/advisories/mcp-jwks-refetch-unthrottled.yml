@@ -1,0 +1,62 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: mcp-jwks-refetch-unthrottled
+state: draft
+changelog_version: "1.19.0"
+changelog_entry: "A token naming a signing key nobody published can no longer order a key fetch per request."
+shipped: true
+severity: medium
+cwe_ids:
+  - CWE-770
+  - CWE-406
+package: web
+introduced: "1.9.0"
+fixed: "1.19.0"
+summary: >-
+  An unauthenticated request to /mcp naming an unknown key id caused a
+  blocking key-set fetch from the identity provider, once per request
+verified: |
+  git grep -c PyJWKClient v1.9.0 -- webapp/mcp_auth.py matches, and
+  webapp/mcp_auth.py is absent from v1.8.0, so 1.9.0 is the first release
+  that carried it. v1.18.2 still calls keys.get_signing_key_from_jwt(token)
+  with no floor in front of it; PyJWT 2.13.0's PyJWKClient.get_signing_key
+  calls get_signing_keys(refresh=True) whenever the kid does not match.
+description: |
+  ### Impact
+
+  Only deployments that set `COS_WEB_MCP_AUTH_ENABLED` are affected.
+
+  A bearer token is checked against the provider's published signing keys,
+  which are looked up by the `kid` in the token's header. PyJWKClient refetches
+  the key set whenever that name is not in the set it holds - which is how a
+  rotated key starts working without a restart. Nothing limited how often an
+  unknown name could provoke that fetch.
+
+  A `kid` is two lines of JSON to invent, needs no signature that verifies, no
+  audience and no issuer, and is read before any of them are checked. So an
+  unauthenticated caller able to reach `/mcp` could turn each of its requests
+  into one outbound HTTPS request to the operator's identity provider - an
+  amplifier aimed at a component the whole deployment signs in through. The
+  fetch also ran on the event loop, so each one stalled every other request
+  this process was serving for as long as the provider took to answer.
+
+  This costs availability. No token was accepted that should not have been:
+  the key name only selects which published key the signature is checked
+  against, and an unknown name was refused then as it is now.
+
+  ### Patches
+
+  Fixed in **1.19.0**. A key name the service has not got may provoke a fetch
+  at most once every 60 seconds; the rest are refused without one. Verification
+  also moved off the event loop, so neither fetching a key set nor checking a
+  signature blocks the process while it happens. A genuinely rotated key is
+  still picked up on the first token that names it.
+
+  ### Workarounds
+
+  Leaving the sign-in off (the default) is not affected: no token is read at
+  all. A rate limit in front of `/mcp` at the reverse proxy bounds the fetches
+  to whatever it allows.

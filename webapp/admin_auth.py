@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import re
 from dataclasses import dataclass
 
 from starlette.requests import Request
@@ -67,6 +68,11 @@ from .settings import (
 )
 
 LOGGER = logging.getLogger("check_opencloud.web.admin.auth")
+
+#: What a local sign-out path may be spelled with - the same class
+#: :data:`webapp.i18n._SAFE_PATH` holds the language switch to. It has no
+#: backslash in it on purpose: see :func:`_linkable`.
+_LOCAL_PATH = re.compile(r"^/[A-Za-z0-9/_.~-]*$")
 
 
 @dataclass(frozen=True)
@@ -135,12 +141,25 @@ def _linkable(url: str) -> bool:
 
     A local path, or an ordinary web address, and nothing else. Refusing by
     naming what is allowed rather than listing what is not is what makes this
-    hold for the next scheme somebody thinks of. ``//host/path`` is refused
-    with them: it reads as a path and is not one, it is whatever scheme the
-    page happens to be on pointed at somebody else's host.
+    hold for the next scheme somebody thinks of.
+
+    "Local path" is held to the shape :func:`webapp.i18n.safe_next_path` holds
+    the language switch to, and for the same reason. ``//host/path`` reads as
+    a path and is not one - it is whatever scheme the page is on, pointed at
+    somebody else's host - and **a backslash is a slash to a browser**: for
+    http and https the URL parser folds ``\\`` into ``/``, so ``/\\host`` and
+    ``/\\\\host`` resolve exactly as ``//host`` does. Letting the character
+    class decide is what stops that reappearing as some other spelling.
     """
     if url.startswith("/"):
-        return not url.startswith("//")
+        if url.startswith("//"):
+            return False
+        # A query or fragment belongs to the provider's exit, not to this
+        # check: only the path decides where the link goes.
+        path = url.split("?", 1)[0].split("#", 1)[0]
+        return _LOCAL_PATH.fullmatch(path) is not None and not any(
+            segment in {".", ".."} for segment in path.split("/")
+        )
     return url.lower().startswith(("http://", "https://"))
 
 
