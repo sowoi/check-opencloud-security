@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-03
+
 ### Added
 
 - **An optional operator's area at `/admin`, off unless a deployment asks for
