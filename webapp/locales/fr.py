@@ -138,9 +138,17 @@ MESSAGES: dict[str, str] = {
     ),
     "admin.search.fresh": "À jour",
     "admin.search.stale": "Périmé",
+    "admin.search.unknown": "Impossible à déterminer",
     "admin.search.detail.ok": "Chaque page et chaque langue est indexée pour cette version.",
     "admin.search.detail.release": "Généré pour {built}, version en service {running}.",
     "admin.search.detail.missing": "Non indexé : {list}.",
+    "admin.search.detail.extra": (
+        "Indexé mais plus servi : {list}."
+    ),
+    "admin.search.detail.unstamped": (
+        "L'index n'indique pas pour quelle version il a été généré ; seules "
+        "ses pages et ses langues ont pu être comparées."
+    ),
     "admin.search.detail.changed": "{count} titres ou résumés ont changé depuis sa génération.",
     "admin.search.detail.unreadable": "L'index n'a pas pu être lu.",
     "admin.search.fix": (

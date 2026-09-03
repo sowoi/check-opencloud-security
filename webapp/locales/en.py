@@ -158,9 +158,20 @@ MESSAGES: dict[str, str] = {
     ),
     "admin.search.fresh": "Current",
     "admin.search.stale": "Out of date",
+    # The third verdict, for an index that does not say which release it was
+    # built for. The pages and the languages were compared; the copy could
+    # not be, because only the stamp says what the copy was extracted from.
+    "admin.search.unknown": "Cannot tell",
     "admin.search.detail.ok": "Every page and language is indexed for this release.",
+    "admin.search.detail.unstamped": (
+        "The index does not say which release it was built for, so only its "
+        "pages and languages could be compared."
+    ),
     "admin.search.detail.release": "Built for {built}, running {running}.",
     "admin.search.detail.missing": "Not indexed: {list}.",
+    # A page the index holds and this build does not serve: a search result
+    # leading to a page that is not there.
+    "admin.search.detail.extra": "Indexed but no longer served: {list}.",
     "admin.search.detail.changed": "{count} page titles or summaries have changed since it was built.",
     "admin.search.detail.unreadable": "The index could not be read.",
     "admin.search.fix": (

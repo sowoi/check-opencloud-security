@@ -142,19 +142,35 @@
             when: advisories.checked || text("never")
         }));
 
+        // An index that does not say which release it was built for cannot be
+        // called current: the pages and the languages were compared, the copy
+        // could not be. The colour said so already and the word did not, which
+        // left "Current" printed in the colour for "no idea" - so the third
+        // verdict has a word of its own.
         var index = stats.searchIndex || {};
         var state = index.unreadable ? "stale" : (index.fresh ? "fresh" : "stale");
         if (!index.builtFor && !index.unreadable && index.fresh) {
             state = "unknown";
         }
-        put("index-state", index.fresh ? text("index-fresh") : text("index-stale"), state);
-        put("index-detail", describeIndex(index));
+        var verdict = text("index-stale");
+        if (state === "unknown") {
+            verdict = text("index-unknown");
+        } else if (index.fresh) {
+            verdict = text("index-fresh");
+        }
+        put("index-state", verdict, state);
+        put("index-detail", describeIndex(index, state));
 
         flash(before);
         painted = true;
     }
 
-    function describeIndex(index) {
+    // The sentence under the verdict, and it has to be able to account for
+    // every reason the verdict was reached - a detail line that says
+    // everything is indexed under a heading that says the index is out of
+    // date is worse than no detail line, because one of the two is being
+    // read and there is no telling which.
+    function describeIndex(index, state) {
         if (index.unreadable) {
             return text("index-unreadable");
         }
@@ -168,10 +184,22 @@
         if (missing.length) {
             return fill(text("index-missing"), { list: missing.join(", ") });
         }
+        // A page the index holds and this build does not serve. It is a
+        // reason the index is not current, it is reported in the document,
+        // and until now nothing here read it - so an index stale for this
+        // reason alone said "out of date" over "everything is indexed".
+        if ((index.extraPaths || []).length) {
+            return fill(text("index-extra"), {
+                list: index.extraPaths.join(", ")
+            });
+        }
         if ((index.changedPaths || []).length) {
             return fill(text("index-changed"), {
                 count: index.changedPaths.length
             });
+        }
+        if (state === "unknown") {
+            return text("index-unstamped");
         }
         return text("index-ok");
     }

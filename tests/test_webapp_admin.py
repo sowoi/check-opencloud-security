@@ -675,6 +675,122 @@ def test_the_search_index_is_reported_and_never_rebuilt():
     assert offered == {"schedule", "advisories"}
 
 
+def _shipped_index(root, *, built_for, extra=()):
+    """An index this build would call current, plus whatever is added to it.
+
+    Derived from the pages and the catalogues rather than written out here,
+    because a fixture listing them by hand goes stale the first time a page
+    is added and then tests nothing.
+    """
+    from webapp.i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, Translator
+    from webapp.search import SEARCH_PAGES
+
+    static = root / "static"
+    static.mkdir(parents=True, exist_ok=True)
+    for locale in SUPPORTED_LOCALES:
+        translate = Translator(locale)
+        pages = [
+            {
+                "path": page.path,
+                "title": translate(page.title_key) if page.title_key else page.title,
+                "summary": (
+                    translate(page.summary_key) if page.summary_key else page.summary
+                ),
+            }
+            for page in SEARCH_PAGES
+        ]
+        document = {"pages": pages}
+        if locale == DEFAULT_LOCALE:
+            pages.extend(
+                {"path": path, "title": "", "summary": ""} for path in extra
+            )
+            if built_for is not None:
+                document["builtFor"] = built_for
+        name = (
+            "search-index.json"
+            if locale == DEFAULT_LOCALE
+            else f"search-index.{locale}.json"
+        )
+        (static / name).write_text(json.dumps(document), encoding="utf-8")
+    return root
+
+
+def test_an_index_holding_a_page_that_is_no_longer_served_is_not_current(tmp_path):
+    """A search result leading to a page that is not there.
+
+    The reading exists and has always been in the document; what it needs is
+    to be a reason the card can state, because a verdict of "out of date"
+    with no reason under it is a verdict nobody can act on.
+    """
+    from webapp import __version__
+    from webapp.admin import index_freshness
+
+    stale = index_freshness(
+        _shipped_index(tmp_path / "gone", built_for=__version__, extra=("/removed",))
+    )
+    current = index_freshness(_shipped_index(tmp_path / "ok", built_for=__version__))
+
+    assert stale.fresh is False
+    assert stale.extra_paths == ("/removed",)
+    # And the same index without the extra page is current, so the reason
+    # above is the reason.
+    assert current.fresh is True
+    assert current.extra_paths == ()
+
+
+def test_the_verdict_and_the_sentence_under_it_cannot_contradict_each_other():
+    """Every reason the index is not current has a sentence, and every
+    sentence the script asks for is one the server rendered.
+
+    The card is a heading and one line, and they are written in two different
+    places: a reason counted in the freshness test but never described leaves
+    "Out of date" standing over "everything is indexed", and one of the two
+    is being read with no way to tell which.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    # Every reading that makes an index stale is one the script consults.
+    for reason in ("missingPaths", "missingLocales", "extraPaths", "changedPaths"):
+        assert reason in script, f"{reason} makes an index stale and is never read"
+
+    # And every sentence it looks up by name is one the page carries. The
+    # dynamic lookups are concatenations and deliberately not matched here.
+    for name in set(re.findall(r'text\("([a-z0-9-]+)"\)', script)):
+        assert f'data-admin-{name}="' in page, f"admin.js reads {name}, page has none"
+
+
+def test_an_index_that_does_not_say_which_release_it_was_built_for_says_so(tmp_path):
+    """The colour honoured this and the word did not.
+
+    An unstamped index was reported "Current" in the grey that means "no
+    idea": the pages and the languages were compared, the copy could not be,
+    because only the stamp says which release the copy was extracted from.
+    """
+    from webapp.admin import index_freshness
+
+    unstamped = index_freshness(_shipped_index(tmp_path, built_for=None))
+
+    # The backend asserts neither answer: nothing it compared was wrong.
+    assert unstamped.built_for is None
+    assert unstamped.fresh is True
+
+    with TestClient(create_app(_admin_settings())) as client:
+        page = client.get("/admin", headers=FORWARDED).text
+        script = client.get("/static/js/admin.js").text
+
+    from webapp.locales.en import MESSAGES
+
+    # The verdict has a word of its own rather than borrowing "Current"...
+    assert MESSAGES["admin.search.unknown"] in page
+    assert MESSAGES["admin.search.unknown"] != MESSAGES["admin.search.fresh"]
+    assert 'text("index-unknown")' in script
+    # ...and the line under it does not claim the release it cannot know.
+    assert _sentence("admin.search.detail.unstamped") in page
+    assert 'text("index-unstamped")' in script
+
+
 # ----------------------------------------------------------------- the dry run
 
 

@@ -63,6 +63,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   tab left open overnight was asking for the state every ten seconds until
   morning.
 
+  The search-index card answers with three verdicts rather than two, and its
+  sentence can account for all of them. An index that does not say which
+  release it was built for reads *Cannot tell* rather than *Current*: its
+  pages and its languages were compared, its copy could not be, and only the
+  stamp says what the copy was extracted from. A page the index holds that
+  this build no longer serves is named under the verdict instead of leaving
+  "out of date" standing over "every page and language is indexed" - two
+  lines written in two places, one of which was being read with no way to
+  tell which.
+
   **Three controls that change nothing were added, and one that reaches
   upstream.** The readings can be re-read on demand and copied as the
   service's own JSON for an issue report, the audit list on screen can be
@@ -2822,7 +2832,7 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   be worth not typing. Install it with the new `completion` extra
   (`pipx install 'check-opencloud-security[completion]'`); without it nothing
   is registered and the plugin behaves as before. See
-  [Shell completion](README.md#shell-completion).
+  [Shell completion](docs/installation.md#shell-completion).
 - **A `HEALTHCHECK` in the Dockerfile** that verifies the image rather than an
   instance: the package imports and the two data files it rates against - the
   release schedule and the bundled advisory database - parse. It needs no
