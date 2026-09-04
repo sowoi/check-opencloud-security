@@ -1,0 +1,142 @@
+# nfpm recipe for the .deb and the .rpm. See adr/0039.
+#
+# One recipe produces both. Everything that genuinely differs between Debian
+# and RPM conventions is an `overrides:` block or a `packager:` key on a single
+# content entry, so the two packages cannot drift apart by being maintained
+# separately.
+#
+# Do not run nfpm against this file by hand. Every `build/distro-stage/` path
+# below points into a staging tree that `scripts/build_distro_packages.py`
+# assembles from the already-built wheel, and nfpm must be run from the
+# repository root, which is where those relative paths resolve. The version
+# arrives in COS_PACKAGE_VERSION, which the same script exports; nfpm expands
+# environment variables in scalar fields such as this one, but not inside a
+# content `src`, which is why the staging path is fixed rather than passed in.
+
+name: check-opencloud-security
+arch: all # nfpm writes "all" into the .deb and "noarch" into the .rpm
+platform: linux
+version: ${COS_PACKAGE_VERSION}
+version_schema: semver
+release: "1"
+section: net
+priority: optional
+# Both ecosystems want a "Name <address>" here. This is the GitHub noreply
+# address that already authors every commit in this repository; report a
+# problem with a package through the issue tracker, not to it.
+maintainer: sowoi <10256263+sowoi@users.noreply.github.com>
+vendor: check-opencloud-security
+homepage: https://github.com/sowoi/check-opencloud-security
+license: GPL-3.0-or-later
+description: |
+  Rate the security of an OpenCloud instance from a monitoring host.
+  A Nagios/Icinga plugin with a scanner built in: it probes the instance
+  itself over HTTP(S) and decides the rating locally, so no third party is
+  asked for a verdict and instances that never face the internet can be
+  checked the same way as the ones that do. Installs the check as
+  check-opencloud-security and the same scanner as a one-shot JSON tool,
+  check-opencloud-scanner.
+
+# The runtime imports are requests, yaml and certifi. `types-requests` is in
+# the wheel's metadata but is a stub package with nothing to import, and no
+# distribution packages it - it is deliberately absent here.
+depends:
+  - python3
+  - python3-requests
+  - python3-yaml
+  - python3-certifi
+recommends:
+  # Shell completion. Optional for the same reason it is an extra on PyPI: a
+  # host running this from cron has no use for it.
+  - python3-argcomplete
+
+overrides:
+  deb:
+    depends:
+      # Debian 12 and Ubuntu 22.04 onwards satisfy this from the base python3.
+      - python3 (>= 3.10)
+      - python3-requests
+      - python3-yaml
+      - python3-certifi
+  rpm:
+    depends:
+      # Deliberately unversioned. RHEL 9's python3 is 3.9 but it packages 3.11
+      # and 3.12 beside it under their own names, and the launcher finds them.
+      # A `python3 >= 3.10` here would refuse to install on a host that can
+      # run this perfectly well.
+      - python3
+      - python3-requests
+      - python3-pyyaml
+      - python3-certifi
+
+contents:
+  # The wheel, unpacked. The .dist-info goes with it on purpose: it is what
+  # importlib.metadata reads for `--version`, and dropping it would leave the
+  # package reporting 0.0.0.
+  - src: build/distro-stage/payload
+    dst: /usr/lib/check-opencloud-security
+    type: tree
+
+  - src: build/distro-stage/bin/check-opencloud-security
+    dst: /usr/bin/check-opencloud-security
+    file_info:
+      mode: 0755
+  - src: build/distro-stage/bin/check-opencloud-scanner
+    dst: /usr/bin/check-opencloud-scanner
+    file_info:
+      mode: 0755
+
+  # Where the plugin already looks for /etc/check-opencloud-security/config.yml.
+  # The directory is created and left empty: an example configuration installed
+  # as a live one would silently give every invocation on the host a default
+  # target, and the example names a host that is not yours.
+  - dst: /etc/check-opencloud-security
+    type: dir
+    file_info:
+      mode: 0755
+
+  # Not enabled and not started - `systemctl enable --now` is the operator's
+  # decision, and the unit needs /etc/check-opencloud-security/env first.
+  - src: build/distro-stage/systemd/check-opencloud-security.service
+    dst: /usr/lib/systemd/system/check-opencloud-security.service
+  - src: build/distro-stage/systemd/check-opencloud-security.timer
+    dst: /usr/lib/systemd/system/check-opencloud-security.timer
+  - src: build/distro-stage/systemd/check-opencloud-security-refresh.service
+    dst: /usr/lib/systemd/system/check-opencloud-security-refresh.service
+  - src: build/distro-stage/systemd/check-opencloud-security-refresh.timer
+    dst: /usr/lib/systemd/system/check-opencloud-security-refresh.timer
+
+  - src: config/check-opencloud-security.example.yml
+    dst: /usr/share/doc/check-opencloud-security/config.example.yml
+  - src: contrib/systemd/check-opencloud-security.env.example
+    dst: /usr/share/doc/check-opencloud-security/env.example
+  - src: contrib/cron/check-opencloud-security.cron
+    dst: /usr/share/doc/check-opencloud-security/check-opencloud-security.cron
+  - src: build/distro-stage/doc/README.md
+    dst: /usr/share/doc/check-opencloud-security/README.md
+  - src: CHANGELOG.md
+    dst: /usr/share/doc/check-opencloud-security/CHANGELOG.md
+
+  # Each ecosystem looks for the licence somewhere else.
+  - src: LICENSE
+    dst: /usr/share/doc/check-opencloud-security/copyright
+    packager: deb
+  - src: LICENSE
+    dst: /usr/share/licenses/check-opencloud-security/LICENSE
+    packager: rpm
+
+  # The plugin directory the monitoring daemon reads. Debian's
+  # monitoring-plugins put theirs under /usr/lib; the RPM ecosystem's under
+  # %{_libdir}, which is /usr/lib64 on every 64-bit build.
+  - src: /usr/bin/check-opencloud-security
+    dst: /usr/lib/nagios/plugins/check_opencloud_security
+    type: symlink
+    packager: deb
+  - src: /usr/bin/check-opencloud-security
+    dst: /usr/lib64/nagios/plugins/check_opencloud_security
+    type: symlink
+    packager: rpm
+
+scripts:
+  postinstall: packaging/scripts/postinstall.sh
+  postremove: packaging/scripts/postremove.sh

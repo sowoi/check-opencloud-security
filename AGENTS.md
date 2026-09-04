@@ -32,7 +32,7 @@ for a remote scan service.
 | `opencloud_local_scan/snippets.py` | The catalogue's fixes rendered as Compose, .env, nginx, Caddy or Traefik |
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
 | `opencloud_local_scan/wizard.py` | The interactive setup behind `--configure` |
-| `opencloud_local_scan/selfupdate.py` | `--upgrade-self`, via pipx, uv or pip |
+| `opencloud_local_scan/selfupdate.py` | `--upgrade-self`, via pipx, uv or pip - and refused for a distribution package |
 | `opencloud_local_scan/schedule_source.py` | Reading the published lifecycle page: one parser, used by CI and by the web application |
 | `opencloud_local_scan/data/release_schedule.json` | Bundled release schedule |
 | `scripts/update_release_schedule.py` | Regenerates that file and the README block from the published documentation |
@@ -55,6 +55,8 @@ for a remote scan service.
 | `frontend/static/llms.txt`, `frontend/static/js/webmcp.js` | Agent discovery and page-scoped browser tools |
 | `frontend/` | Everything the browser sees: templates, CSS, JavaScript, SVG |
 | `scripts/build_web_bundle.py` | Builds the GitHub release tarball of the web application |
+| `packaging/` | The nfpm recipe and the launchers behind the `.deb` and the `.rpm` |
+| `scripts/build_distro_packages.py` | Builds both of those from the already-built wheel |
 | `tests/` | Test suite, including `tests/fake_opencloud.py` |
 | `docker/` | Every Dockerfile and compose file; the build context is the repository root |
 | `authentik/blueprints/` | The provider the signed-in stack provisions for itself |

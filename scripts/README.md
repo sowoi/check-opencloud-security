@@ -7,6 +7,7 @@ published material. Run them from the repository root.
 |:--|:--|
 | `build_frontend_documentation.py` | Generates `frontend/templates/docs/` from operator Markdown. Use `--check` in CI. |
 | `build_search_index.py` | Generates the localized public search indexes. It only reads the public-page manifest. |
+| `build_distro_packages.py` | Builds the `.deb` and the `.rpm` from the already-built wheel, using `packaging/nfpm.yaml`. Needs `nfpm` on `PATH`. See [ADR 0039](../adr/0039-the-plugin-ships-as-a-distribution-package-built-from-the-wheel.md). |
 | `build_web_bundle.py` | Builds `dist/check_opencloud_security_web.tar.gz` and its checksum for a web-service release. |
 | `check_documentation_links.py` | Checks documented OpenCloud links after merges and on a schedule. |
 | `release_notes.py` | Prepares release notes from the Unreleased changelog section. It rewrites release files, so use it on a scratch copy when previewing. |

@@ -31,6 +31,7 @@ uv run mypy --config-file mypy.ini                  # type checking
 cd ansible && ansible-lint                          # must be run from ansible/
 uv run nox                                          # full suite on Python 3.10-3.14
 python scripts/build_web_bundle.py                  # builds the web release tarball
+uv build && python scripts/build_distro_packages.py # builds the .deb and .rpm (needs nfpm)
 python scripts/check_documentation_links.py         # re-checks documented OpenCloud links
 python scripts/security_advisories.py --check       # every ### Security entry is decided
 cd docker && docker compose up --build              # web + worker + redis, locally

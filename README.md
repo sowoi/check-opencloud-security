@@ -161,6 +161,19 @@ pipx install check-opencloud-security          # or: uv tool install / pip insta
 check-opencloud-security --host opencloud.example.com
 ```
 
+On a monitoring host, where software is expected to arrive through the package
+manager and show up in the inventory, every release also carries a `.deb` and
+an `.rpm`:
+
+```shell
+sudo apt install ./check-opencloud-security_<version>_all.deb       # Debian, Ubuntu
+sudo dnf install ./check-opencloud-security-<version>-1.noarch.rpm  # RHEL, Fedora
+```
+
+Both put the check in `/usr/lib/nagios/plugins/` and configure nothing until
+you say so - the details are in
+[Installing the plugin](docs/installation.md#debian-ubuntu-rhel-fedora-deb-and-rpm).
+
 Prefer not to put Python on the host? The published image carries both entry
 points:
 
@@ -177,6 +190,7 @@ selected with `--entrypoint`.
 | Route | Where it is written up |
 |:------|:-----------------------|
 | pipx / uv / pip, and `--upgrade-self` | [Installing the plugin](docs/installation.md#using-pipx--uv--pip-recommended) |
+| `.deb` and `.rpm`, for a monitoring host | [Installing the plugin](docs/installation.md#debian-ubuntu-rhel-fedora-deb-and-rpm) |
 | Shell completion | [Installing the plugin](docs/installation.md#shell-completion) |
 | Docker, and building the image | [Installing the plugin](docs/installation.md#docker) |
 | Icinga2 and Nagios objects | [Installing the plugin](docs/installation.md#icinga2--nagios) |

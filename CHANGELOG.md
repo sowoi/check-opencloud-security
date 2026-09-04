@@ -82,6 +82,40 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   monitoring host. See
   [ADR 0037](adr/0037-preload-eligibility-is-measured-list-membership-is-not.md).
 
+- **The plugin now ships as a `.deb` and an `.rpm`, built from the same wheel
+  and attached to every release.** Its audience is monitoring hosts, and on
+  those `apt install` and `dnf install` are how software arrives - a pip
+  install has no entry in the package database, so it is absent from the
+  inventory, missed by the unattended-upgrade job that patches everything else
+  and unanswerable to whoever inherits the host. Both packages are
+  architecture-independent, so one file fits every release of a distribution.
+
+  The check lands on `PATH` and in the monitoring plugin directory
+  (`/usr/lib/nagios/plugins` on Debian, `/usr/lib64/...` on RPM systems), so an
+  Icinga2 `CheckCommand` built on `PluginDir` needs no path configuration.
+
+  **The package configures nothing and enables nothing.** It creates
+  `/etc/check-opencloud-security/` and leaves it empty, and the example
+  configuration ships as documentation: that example names a host that is not
+  yours, and the path it would occupy is one the plugin genuinely reads, so
+  installing it would give every invocation on that host a default target
+  nobody chose. The four systemd units install disabled for the same reason.
+
+  The payload is the wheel unpacked into one private directory rather than
+  files in the system's `site-packages`, which cannot then collide with a pip
+  install of the same name on the same host. The two commands are small
+  launchers that find a Python 3.10 or newer for themselves - RHEL 9 answers
+  3.9 to `python3` and carries 3.11 and 3.12 beside it under their own names -
+  and exit **3 (UNKNOWN)** rather than a verdict when none is usable, because
+  a check that could not run has measured nothing.
+
+  `--upgrade-self` now refuses on such an installation and names `apt` or
+  `dnf`. That is not politeness: pip would appear to succeed, installing into
+  a `site-packages` the launcher never reads, leaving two versions on the host
+  and the old one still running. See
+  [ADR 0039](adr/0039-the-plugin-ships-as-a-distribution-package-built-from-the-wheel.md)
+  and [Installing the plugin](docs/installation.md#debian-ubuntu-rhel-fedora-deb-and-rpm).
+
 ### Changed
 
 - The DNS wire format the CAA lookup speaks now lives in

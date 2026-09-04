@@ -29,6 +29,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# The .deb and .rpm built by scripts/build_distro_packages.py. Kept out of
+# dist/ because `uv publish` uploads everything it finds there.
+distro-packages/
+
 # PyInstaller
 #   Usually these files are written by a python script from a template
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
