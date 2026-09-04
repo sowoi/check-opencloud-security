@@ -466,14 +466,25 @@ The `files.app_providers` capability is a hardcoded constant and is ignored.
 `setup.advisoryChecks` is the other block that cannot move the rating, and for
 a different reason: not that the observation is neutral, but that OpenCloud
 satisfies it on no instance, so counting it would report the shipped state of
-the software as a fault in this deployment. It currently holds one entry,
-`securityTxtPublished` - whether `/.well-known/security.txt` carries the
-`Contact` field RFC 9116 requires, so that somebody who finds a flaw knows
-where to send it. The body is what is read, not the status code: an instance
-whose frontend answers every unknown path with its own shell returns 200 for
-that path too. The block is `{}` rather than a dictionary of `false` when the
-extra checks are off, because an observation nobody made is not one that
-failed. See
+the software as a fault in this deployment. It holds two entries:
+
+- `securityTxtPublished` - whether `/.well-known/security.txt` carries the
+  `Contact` field RFC 9116 requires, so that somebody who finds a flaw knows
+  where to send it. The body is what is read, not the status code: an
+  instance whose frontend answers every unknown path with its own shell
+  returns 200 for that path too.
+- `hstsPreloadEligible` - whether the `Strict-Transport-Security` header
+  would actually be accepted for browser preloading, which needs a max-age of
+  at least a year, `includeSubDomains` and `preload` together. `hstsPreload`
+  in the `hardenings` block answers the narrower question of whether the
+  directive is present at all; OpenCloud's proxy sends it alongside ten years
+  and no `includeSubDomains`, so the header on every stock instance asks for
+  something the preload list refuses. Whether the domain is *on* the list is
+  deliberately not measured - see
+  [ADR 0037](../adr/0037-preload-eligibility-is-measured-list-membership-is-not.md).
+
+The block is `{}` rather than a dictionary of `false` when the extra checks
+are off, because an observation nobody made is not one that failed. See
 [ADR 0034](../adr/0034-an-advisory-observation-need-not-be-a-header.md).
 
 The `identityProvider` observation names an external provider when its OIDC
@@ -674,6 +685,7 @@ nothing about ratings. Beyond the handshake and trust it reports:
 | `tlsCertificatePolicy` | Does the certificate use an adequately sized key and a modern signature? |
 | `tlsAddressParity` | Do the published IPv4 and IPv6 endpoints present the same usable TLS identity? |
 | `tlsCaaRecord` | Does the name have a DNS CAA record naming at least one authorized issuer? |
+| `tlsDnssec` | Is the zone signed, so that the address every check above rests on can be trusted? Absent rather than failed when the resolver in use does not speak DNSSEC |
 | `cookieSecure`, `cookieHttpOnly`, `cookieSameSite` | Do cookies actually observed on the public response carry these attributes? |
 | `tlsOcspStapling` | Is a revocation response stapled to the handshake? |
 

@@ -17,28 +17,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from opencloud_local_scan import caa, hardening
+from opencloud_local_scan import caa, dns, hardening
 
 TIMEOUT = 2.0
 
 
 # --------------------------------------------------------------------------
-# Wire format, tested directly against synthetic bytes - no networking.
+# Wire format, tested directly against synthetic bytes - no networking. The
+# query building and the resolver discovery underneath these belong to
+# `opencloud_local_scan.dns` and are tested in `test_dns.py`.
 # --------------------------------------------------------------------------
-
-
-def test_build_query_encodes_labels_and_type():
-    message = caa._build_query("example.com", query_id=0x1234)
-    assert message[0:2] == b"\x12\x34"
-    assert message[2:4] == b"\x01\x00"  # standard query, recursion desired
-    assert message[4:6] == b"\x00\x01"  # QDCOUNT = 1
-    question = message[12:]
-    assert question == b"\x07example\x03com\x00" + (257).to_bytes(2, "big") + b"\x00\x01"
-
-
-def test_build_query_rejects_a_label_that_is_too_long():
-    with pytest.raises(ValueError):
-        caa._build_query("a" * 64 + ".example.com", query_id=1)
 
 
 def _header(query_id: int, *, ancount: int, rcode: int = 0, truncated: bool = False) -> bytes:
@@ -71,7 +59,7 @@ def _response(query_id: int, question: bytes, *, ancount: int, answers: bytes = 
 
 
 def test_parse_caa_response_reads_authorizing_records():
-    query = caa._build_query("example.com", query_id=42)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 42)
     question = query[12:]
     answer = _caa_answer("issue", b"letsencrypt.org")
     data = _response(42, question, ancount=1, answers=answer)
@@ -88,7 +76,7 @@ def test_parse_caa_response_folds_the_tag_to_lower_case():
     it as having no CAA record at all - a finding against a domain that had
     done the right thing.
     """
-    query = caa._build_query("example.com", query_id=42)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 42)
     question = query[12:]
 
     for spelling, folded in (
@@ -112,27 +100,27 @@ def test_parse_caa_response_folds_the_tag_to_lower_case():
 
 
 def test_parse_caa_response_no_answers_is_a_clean_empty_result():
-    query = caa._build_query("example.com", query_id=7)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 7)
     data = _response(7, query[12:], ancount=0)
     assert caa._parse_caa_response(data) == []
 
 
 def test_parse_caa_response_rejects_truncated_flag():
-    query = caa._build_query("example.com", query_id=7)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 7)
     data = _response(7, query[12:], ancount=0, truncated=True)
     with pytest.raises(ValueError):
         caa._parse_caa_response(data)
 
 
 def test_parse_caa_response_rejects_error_rcode():
-    query = caa._build_query("example.com", query_id=7)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 7)
     data = _response(7, query[12:], ancount=0, rcode=2)
     with pytest.raises(ValueError):
         caa._parse_caa_response(data)
 
 
 def test_parse_caa_response_ignores_non_caa_records():
-    query = caa._build_query("example.com", query_id=9)
+    query = dns.build_query("example.com", dns.TYPE_CAA, 9)
     question = query[12:]
     # A CNAME-shaped record ahead of the CAA one, to prove the walk keeps going.
     cname_rdata = b"\x03www\x07example\x03com\x00"
@@ -198,13 +186,13 @@ def test_check_caa_record_ip_literal_is_never_queried():
         raise AssertionError("an IP literal must never reach the resolver")
 
     with pytest.MonkeyPatch.context() as monkeypatch:
-        monkeypatch.setattr(caa, "_system_nameservers", _fail)
+        monkeypatch.setattr(caa, "system_nameservers", _fail)
         assert caa.check_caa_record("203.0.113.5", TIMEOUT) is None
         assert caa.check_caa_record("[::1]", TIMEOUT) is None
 
 
 def test_check_caa_record_no_resolver_is_unknown(monkeypatch):
-    monkeypatch.setattr(caa, "_system_nameservers", list)
+    monkeypatch.setattr(caa, "system_nameservers", list)
     assert caa.check_caa_record("example.com", TIMEOUT) is None
 
 
@@ -215,7 +203,7 @@ def test_check_caa_record_passes_with_an_issue_record(monkeypatch):
         return _response(query_id, question, ancount=1, answers=answer)
 
     with _fake_resolver(_build) as port:
-        monkeypatch.setattr(caa, "_system_nameservers", lambda: ["127.0.0.1"])
+        monkeypatch.setattr(caa, "system_nameservers", lambda: ["127.0.0.1"])
         result = caa.check_caa_record("example.com", TIMEOUT, port=port)
 
     assert result is not None
@@ -229,7 +217,7 @@ def test_check_caa_record_fails_with_no_records(monkeypatch):
         return _response(query_id, request[12:], ancount=0)
 
     with _fake_resolver(_build) as port:
-        monkeypatch.setattr(caa, "_system_nameservers", lambda: ["127.0.0.1"])
+        monkeypatch.setattr(caa, "system_nameservers", lambda: ["127.0.0.1"])
         result = caa.check_caa_record("example.com", TIMEOUT, port=port)
 
     assert result is not None
@@ -239,7 +227,7 @@ def test_check_caa_record_fails_with_no_records(monkeypatch):
 
 def test_check_caa_record_times_out_to_unknown(monkeypatch):
     with _fake_resolver(lambda *_: None) as port:
-        monkeypatch.setattr(caa, "_system_nameservers", lambda: ["127.0.0.1"])
+        monkeypatch.setattr(caa, "system_nameservers", lambda: ["127.0.0.1"])
         result = caa.check_caa_record("example.com", 0.3, port=port)
 
     assert result is None
@@ -251,7 +239,7 @@ def test_check_caa_record_falls_through_to_the_next_resolver(monkeypatch):
 
     with _fake_resolver(_build) as port:
         monkeypatch.setattr(
-            caa, "_system_nameservers", lambda: ["203.0.113.1", "127.0.0.1"]
+            caa, "system_nameservers", lambda: ["203.0.113.1", "127.0.0.1"]
         )
         # The first resolver (a non-routable TEST-NET-3 address) never
         # answers within the timeout; the second one does.
@@ -259,18 +247,6 @@ def test_check_caa_record_falls_through_to_the_next_resolver(monkeypatch):
 
     assert result is not None
     assert result.passed is False
-
-
-def test_system_nameservers_reads_resolv_conf(tmp_path, monkeypatch):
-    resolv_conf = tmp_path / "resolv.conf"
-    resolv_conf.write_text("# comment\nnameserver 127.0.0.53\nnameserver 8.8.8.8\n")
-    monkeypatch.setattr(caa, "_RESOLV_CONF", resolv_conf)
-    assert caa._system_nameservers() == ["127.0.0.53", "8.8.8.8"]
-
-
-def test_system_nameservers_missing_file_returns_empty(tmp_path, monkeypatch):
-    monkeypatch.setattr(caa, "_RESOLV_CONF", tmp_path / "does-not-exist")
-    assert caa._system_nameservers() == []
 
 
 def test_tls_ca_record_is_registered_in_hardening_descriptions():
@@ -315,7 +291,7 @@ def test_an_answer_from_somewhere_other_than_the_resolver_is_ignored(monkeypatch
 
     thread = threading.Thread(target=_serve, daemon=True)
     thread.start()
-    monkeypatch.setattr(caa, "_system_nameservers", lambda: ["127.0.0.1"])
+    monkeypatch.setattr(caa, "system_nameservers", lambda: ["127.0.0.1"])
     try:
         result = caa.check_caa_record("example.com", 0.5, port=port)
     finally:

@@ -12,6 +12,83 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **The collaboration backend beside an instance is now looked at, not just
+  counted.** The scanner has always reported *that* an office integration
+  exists, because the instance names its own app providers. It never asked
+  what that second service publishes - and a document editor is a second HTTP
+  server, with an administration console listing every open document session
+  and a transport of its own. Where a reverse proxy serves that backend on the
+  instance's own origin, two findings now follow: `companionAdminConsole`
+  (high) when the editor's console answers from the internet, and
+  `companionEditorHttps` (high) when the WOPI discovery document advertises
+  editor addresses over plain HTTP, which sends the document and the token
+  authorising the session unencrypted.
+
+  The backend is detected by the `wopi-discovery` root element the WOPI
+  protocol specifies rather than by a status code, because OpenCloud answers
+  unknown paths with its own HTML shell and a check that trusted the code
+  would find an editor on every instance in existence.
+
+  **The scan asks the origin it was pointed at and nothing else.** It
+  deliberately does not follow the editor host named inside the discovery
+  document: that would let a scanned instance choose the next address the
+  scanner connects to, walking straight past the SSRF pinning the public
+  service depends on. A deployment serving its editor from a host of its own
+  therefore gets neither finding rather than a pass, because nothing was
+  measured - point a second scan at that host. See
+  [ADR 0036](adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md).
+
+- **`tlsDnssec`: whether the zone answering for this name is signed.**
+  Everything else the scan concludes about the transport starts from an
+  address a resolver handed over. In an unsigned zone that answer carries no
+  signature, so one forged on the way to the resolver cannot be told apart
+  from the real one - and the CAA record restricting who may issue a
+  certificate for the name arrives over the same channel and can be forged
+  along with the address it protects.
+
+  The check queries the resolver this machine already uses, read from
+  `/etc/resolv.conf` and never a public one, for the same reason the CAA
+  lookup does: asking 1.1.1.1 would hand a third party the hostname being
+  scanned. It is a low finding, and a zone that is signed but read through a
+  non-validating resolver passes - whether the operator signed their zone is
+  the part this scan is entitled to judge.
+
+  **A resolver that does not speak DNSSEC leaves the finding out of the result
+  entirely**, rather than reporting the zone as unsigned. The two produce
+  identical silence, and treating the second as the first would fail every
+  scan run from behind such a resolver for a reason that has nothing to do
+  with the instance being scanned. See
+  [ADR 0038](adr/0038-a-dnssec-answer-nobody-could-have-given-is-not-a-finding.md).
+
+- **`hstsPreloadEligible`: whether the `preload` directive would actually be
+  honoured**, under `setup.advisoryChecks`. `hstsPreload` reports whether the
+  header *asks* to be preloaded, which is an intention rather than a state - a
+  host is protected before its first request only if it is really in the
+  browser preload list, and the list only accepts a header carrying a max-age
+  of at least a year, `includeSubDomains` and `preload` together.
+
+  OpenCloud's own proxy sends ten years and `preload` but no
+  `includeSubDomains`, so the header on every stock instance asks for
+  something the list refuses. That makes the shortfall a fact about OpenCloud
+  rather than about any one deployment, which is why it is an advisory
+  observation - measured, explained by `--debug` and catalogued, never
+  counted, never alerted on and never offered as a waiver.
+
+  Membership of the list itself is deliberately not measured: the only ways to
+  know are to ask a third party, which would leak the scanned hostname, or to
+  ship tens of megabytes of the list in a plugin meant to stay small on a
+  monitoring host. See
+  [ADR 0037](adr/0037-preload-eligibility-is-measured-list-membership-is-not.md).
+
+### Changed
+
+- The DNS wire format the CAA lookup speaks now lives in
+  `opencloud_local_scan/dns.py`, where the DNSSEC lookup shares it rather than
+  carrying a second copy of it. `caa.py` keeps its behaviour, its identifier
+  and its refusal to query any resolver the operator did not already choose.
+
 ### Fixed
 
 - **An advisory patched on two release lines is now matched on both of them,

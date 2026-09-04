@@ -768,6 +768,67 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_TLS,
     ),
+    "tlsDnssec": Hardening(
+        id="tlsDnssec",
+        category="transport",
+        title="The zone answering for this name is not signed",
+        meaning=(
+            "Everything else measured about the transport starts from an "
+            "address a resolver handed over. Without DNSSEC that answer "
+            "carries no signature, so one forged on the way to the resolver "
+            "cannot be told apart from the real one - and the CAA record "
+            "restricting who may issue a certificate for this name can be "
+            "forged along with the address it protects. Reported only when "
+            "the resolver used demonstrably understands DNSSEC; when it does "
+            "not, the finding is left out rather than guessed at."
+        ),
+        remediation=(
+            "Sign the zone at the DNS provider and publish the resulting DS "
+            "record at the parent zone - an unsigned delegation leaves a "
+            "signed zone unprotected. This is a change at the domain's own "
+            "zone, not an OpenCloud setting."
+        ),
+        reference="https://www.rfc-editor.org/rfc/rfc9364.html",
+    ),
+    "companionAdminConsole": Hardening(
+        id="companionAdminConsole",
+        category="exposure",
+        title="The collaboration backend's admin console is publicly reachable",
+        meaning=(
+            "A document collaboration backend is published on this instance's "
+            "own origin, and its administration console answers from the "
+            "internet. That console lists every open document session and the "
+            "users in them, reports the server's own configuration, and can "
+            "terminate sessions - and it is guarded by nothing but a single "
+            "shared password that has no rate limiting in front of it."
+        ),
+        remediation=(
+            "Block the console's path at the reverse proxy that publishes the "
+            "collaboration backend, so only the editor's own paths are served "
+            "to the internet. Leaving it reachable and setting a password is "
+            "the weaker of the two fixes, because the password is one "
+            "credential protecting every document session on the server."
+        ),
+        reference=DOCS_REVERSE_PROXY,
+    ),
+    "companionEditorHttps": Hardening(
+        id="companionEditorHttps",
+        category="transport",
+        title="The collaboration backend loads its editor over plain HTTP",
+        meaning=(
+            "The WOPI discovery document published on this origin advertises "
+            "editor addresses that are not HTTPS. Documents opened through "
+            "them travel unencrypted, along with the access token that "
+            "authorises the session - and a browser on an HTTPS page blocks "
+            "the frame as mixed content, so the editor does not load at all."
+        ),
+        remediation=(
+            "Serve the collaboration backend over HTTPS and configure it with "
+            "its public HTTPS address, so the addresses it advertises in "
+            "/hosting/discovery match how a browser actually reaches it."
+        ),
+        reference=DOCS_TLS,
+    ),
     "tlsAddressParity": Hardening(
         id="tlsAddressParity",
         category="transport",
@@ -1114,6 +1175,32 @@ ADVISORY_CHECKS: dict[str, Hardening] = {
             "this is a deployment decision rather than a setting to switch on."
         ),
         reference=DOCS_SECURITY_TXT,
+    ),
+    "hstsPreloadEligible": Hardening(
+        id="hstsPreloadEligible",
+        category="transport",
+        title="The preload directive would be rejected by the preload list",
+        meaning=(
+            "'preload' is a request, not a state: it asks to be added to the "
+            "list of hosts browsers force onto HTTPS before ever contacting "
+            "them, and the list only accepts a header carrying a max-age of "
+            "at least one year, 'includeSubDomains' and 'preload' together. "
+            "OpenCloud's own proxy sends a ten-year max-age and 'preload' but "
+            "no 'includeSubDomains', so the header on a stock instance asks "
+            "for something the list refuses - which is a fact about "
+            "OpenCloud rather than about this deployment, and why it is "
+            "reported here and never counted. The instance is no less secure "
+            "for it; it is simply not preloaded, however the header reads."
+        ),
+        remediation=(
+            "Add 'includeSubDomains' in the reverse proxy in front of "
+            "OpenCloud, so the header reads "
+            "'max-age=63072000; includeSubDomains; preload', and then submit "
+            "the domain at hstspreload.org - being accepted takes both. "
+            "Confirm every subdomain is HTTPS-only first: 'includeSubDomains' "
+            "commits all of them, and the list is slow to leave."
+        ),
+        reference="https://hstspreload.org/",
     ),
 }
 

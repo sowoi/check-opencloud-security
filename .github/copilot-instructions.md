@@ -152,14 +152,24 @@ before adding a check for it.
 **Some findings are reported but never alerted on.** `setup.advisoryHeaders`
 (`Permissions-Policy`, the two Cross-Origin policies,
 `Cross-Origin-Embedder-Policy`) grades headers *no* OpenCloud sends, and
-`setup.advisoryChecks` (`securityTxtPublished`) does the same for what is not
-a header - in both cases the absence describes the software rather than the
-deployment. They are measured, explained by `--debug` and catalogued, but
-never reach the alert line, the `hardenings_missing` metric, the webhook, an
-exit code or the waiver list. See ADR 0028 and ADR 0034.
+`setup.advisoryChecks` (`securityTxtPublished`, `hstsPreloadEligible`) does
+the same for what is not a header - in both cases the absence describes the
+software rather than the deployment. They are measured, explained by
+`--debug` and catalogued, but never reach the alert line, the
+`hardenings_missing` metric, the webhook, an exit code or the waiver list. See
+ADR 0028, ADR 0034 and ADR 0037.
 
 **The scanner only ever uses safe methods** - `GET`, `HEAD`, `PROPFIND`,
 `TRACE`. A test asserts that set; nothing may widen it.
+
+**The scan probes only the origin it was pointed at**, which is what makes the
+web application's SSRF pinning meaningful. The collaboration-backend findings
+(`companionAdminConsole`, `companionEditorHttps`) are measured only where a
+proxy publishes that backend on the instance's own origin, and are absent -
+never passing - otherwise; never follow the editor host named inside the
+discovery document. The DNS lookups (`caa.py`, `dnssec.py`) query only the
+resolver in `/etc/resolv.conf`, never a public one. See ADR 0024, ADR 0036 and
+ADR 0038.
 
 **Never write a real hostname, IP address or token** into code, tests, fixtures,
 documentation or a commit message. `opencloud.example.com` is the placeholder

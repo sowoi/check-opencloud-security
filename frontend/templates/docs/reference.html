@@ -468,10 +468,12 @@ below describes what the built-in scanner does and how to tune it.</p>
 the security headers, the OpenID Connect discovery document, and the paths and
 ports that ought not to answer at all. On top of that come the additional
 checks (<code>extraChecks</code> in the JSON, disabled with <code>--no-extra-checks</code>): TLS and
-certificates, cookie attributes, CORS and <code>TRACE</code>, unauthenticated Graph,
-WebDAV and OCS endpoints, exposed deployment files, directory listings, the
-documented demo accounts, debug endpoints and ports, iframe embedding, basic
-auth and version disclosure.</p>
+certificates, whether the zone is signed and who may issue it a certificate,
+cookie attributes, CORS and <code>TRACE</code>, unauthenticated Graph, WebDAV and OCS
+endpoints, exposed deployment files, a collaboration backend's admin console
+where one is published beside the instance, directory listings, the documented
+demo accounts, debug endpoints and ports, iframe embedding, basic auth and
+version disclosure.</p>
 <p>A failed additional check caps the rating (critical -&gt; <code>D</code>, high -&gt; <code>C</code>, medium
 -&gt; <code>A</code>, low -&gt; <code>A+</code>); set <code>scanner.extra_checks_rating: false</code> to report them
 without touching the rating.</p>

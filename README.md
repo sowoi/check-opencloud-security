@@ -432,10 +432,12 @@ Everything is read from what the instance publishes without authentication:
 the security headers, the OpenID Connect discovery document, and the paths and
 ports that ought not to answer at all. On top of that come the additional
 checks (`extraChecks` in the JSON, disabled with `--no-extra-checks`): TLS and
-certificates, cookie attributes, CORS and `TRACE`, unauthenticated Graph,
-WebDAV and OCS endpoints, exposed deployment files, directory listings, the
-documented demo accounts, debug endpoints and ports, iframe embedding, basic
-auth and version disclosure.
+certificates, whether the zone is signed and who may issue it a certificate,
+cookie attributes, CORS and `TRACE`, unauthenticated Graph, WebDAV and OCS
+endpoints, exposed deployment files, a collaboration backend's admin console
+where one is published beside the instance, directory listings, the documented
+demo accounts, debug endpoints and ports, iframe embedding, basic auth and
+version disclosure.
 
 A failed additional check caps the rating (critical -> `D`, high -> `C`, medium
 -> `A`, low -> `A+`); set `scanner.extra_checks_rating: false` to report them

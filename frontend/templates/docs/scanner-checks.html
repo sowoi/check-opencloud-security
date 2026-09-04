@@ -78,6 +78,18 @@ paragraph; the individual checks are explained one group at a time in
   carry the <code>Contact</code> field RFC 9116 requires - a 200 alone means nothing on
   an instance whose frontend answers every unknown path with its own shell.
   See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0034-an-advisory-observation-need-not-be-a-header.md">ADR 0034</a></li>
+<li>whether the <code>Strict-Transport-Security</code> header would actually be accepted
+  for browser preloading, as <code>hstsPreloadEligible</code> under the same
+  <code>setup.advisoryChecks</code>. <code>hstsPreload</code> already reports whether the header
+  <em>asks</em> to be preloaded; this reports whether asking could work, which needs
+  a max-age of at least a year, <code>includeSubDomains</code> and <code>preload</code> together.
+  OpenCloud's own proxy sends ten years and <code>preload</code> but no
+  <code>includeSubDomains</code>, so every stock instance asks for something the list
+  refuses - a fact about OpenCloud rather than about the deployment, which is
+  why it is explained and never counted. Membership of the list itself is
+  deliberately not measured: the only ways to know are to ask a third party
+  for it or to ship tens of megabytes of it. See
+  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0037-preload-eligibility-is-measured-list-membership-is-not.md">ADR 0037</a></li>
 <li><code>hardenings</code> derived from those headers and capabilities</li>
 <li>known vulnerabilities from the <a href="/documentation/reference#advisory-database">advisory database</a> and
   the resulting rating (<code>0</code>-<code>5</code>)</li>
@@ -142,6 +154,21 @@ paragraph; the individual checks are explained one group at a time in
 <td><code>tlsCaaRecord</code></td>
 <td>low</td>
 <td>No DNS CAA record restricts which certificate authorities may issue for this name</td>
+</tr>
+<tr>
+<td><code>tlsDnssec</code></td>
+<td>low</td>
+<td>The zone answering for this name is not signed, so a forged address cannot be detected - absent, never failed, when the resolver used does not speak DNSSEC</td>
+</tr>
+<tr>
+<td><code>companionAdminConsole</code></td>
+<td>high</td>
+<td>A collaboration backend published on this origin answers on its administration console path</td>
+</tr>
+<tr>
+<td><code>companionEditorHttps</code></td>
+<td>high</td>
+<td>That backend advertises editor addresses over plain HTTP in its WOPI discovery document</td>
 </tr>
 <tr>
 <td><code>cookieSecure</code>, <code>cookieHttpOnly</code>, <code>cookieSameSite</code></td>
@@ -361,6 +388,19 @@ observations rather than verdicts:</p>
                   &quot;calendar&quot;: {&quot;detected&quot;: true, &quot;advertised&quot;: true&#125;&#125;}
 </code></pre>
 <p>Neither becomes a check and neither can move the rating.</p>
+<p>What the deployment <em>publishes</em> is a separate question, and it does become a
+check. Where a reverse proxy serves the collaboration backend on the
+instance's own origin, <code>/hosting/discovery</code> answers with the document the WOPI
+protocol specifies, and two findings follow from it: whether the editor's
+administration console is reachable (<code>companionAdminConsole</code>), and whether
+the editor addresses it advertises use HTTPS (<code>companionEditorHttps</code>).</p>
+<p>The scan asks the origin it was pointed at and nothing else. It deliberately
+does <strong>not</strong> follow the editor host named inside the discovery document -
+that would let a scanned instance choose the next address the scanner
+connects to. A deployment serving its editor from a host of its own therefore
+gets neither finding rather than a pass, because nothing was measured; point
+a second scan at that host instead. See
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md">ADR 0036</a>.</p>
 <h3 id="what-the-scan-deliberately-does-not-answer">What the scan deliberately does not answer</h3>
 <ul>
 <li><strong>Audit logging.</strong> OpenCloud's audit service only consumes the internal

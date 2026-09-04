@@ -26,6 +26,7 @@
   <a href="#7-is-the-negotiated-cipher-suite-and-certificate-policy-sound" lang="en">7. Is the negotiated cipher suite and certificate policy sound</a>
   <a href="#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity" lang="en">8. Do IPv4 and IPv6 present the same service: <code>tlsAddressParity</code></a>
   <a href="#9-is-certificate-issuance-restricted-tlscaarecord" lang="en">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></a>
+  <a href="#9a-can-the-address-itself-be-trusted-tlsdnssec" lang="en">9a. Can the address itself be trusted: <code>tlsDnssec</code></a>
   <a href="#10-is-revocation-actually-checkable-tlsocspstapling" lang="en">10. Is revocation actually checkable: <code>tlsOcspStapling</code></a>
   <a href="#11-was-the-certificate-published-to-a-log-tlscertificatetransparency" lang="en">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></a>
   <a href="#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata" lang="en">12. Is a replayable 0-RTT flight invited: <code>tlsEarlyData</code></a>
@@ -53,6 +54,7 @@ way a browser or a sync client would, without any special access.</p>
 <li><a href="#7-is-the-negotiated-cipher-suite-and-certificate-policy-sound">7. Is the negotiated cipher suite and certificate policy sound</a></li>
 <li><a href="#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity">8. Do IPv4 and IPv6 present the same service: <code>tlsAddressParity</code></a></li>
 <li><a href="#9-is-certificate-issuance-restricted-tlscaarecord">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></a></li>
+<li><a href="#9a-can-the-address-itself-be-trusted-tlsdnssec">9a. Can the address itself be trusted: <code>tlsDnssec</code></a></li>
 <li><a href="#10-is-revocation-actually-checkable-tlsocspstapling">10. Is revocation actually checkable: <code>tlsOcspStapling</code></a></li>
 <li><a href="#11-was-the-certificate-published-to-a-log-tlscertificatetransparency">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></a></li>
 <li><a href="#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata">12. Is a replayable 0-RTT flight invited: <code>tlsEarlyData</code></a></li>
@@ -157,6 +159,52 @@ exact name scanned (not the RFC 8659 parent-domain fallback chain), and it
 is a DNS change at the zone, never an OpenCloud setting:</p>
 <pre><code>example.com. CAA 0 issue &quot;letsencrypt.org&quot;
 </code></pre>
+<h2 id="9a-can-the-address-itself-be-trusted-tlsdnssec">9a. Can the address itself be trusted: <code>tlsDnssec</code></h2>
+<p>Everything above starts from an address a resolver handed over. Without
+<strong>DNSSEC</strong> that answer carries no signature, so one forged on the way to the
+resolver cannot be told apart from the real one - and the CAA record above,
+which restricts who may issue a certificate for the name, arrives over the
+same unauthenticated channel and can be forged along with it.</p>
+<p>The check asks the resolver this machine already uses - the one in
+<code>/etc/resolv.conf</code>, never a public one - for the scanned name with the DNSSEC
+bit set, and reads whether the resolver validated the answer, whether the
+answer carried signatures, and whether the resolver understood the question
+at all.</p>
+<p>That last part is why the finding is sometimes simply absent. A resolver that
+does not speak DNSSEC produces exactly the same silence an unsigned zone
+does, and reporting it would fail every scan run from behind such a resolver
+for a reason that has nothing to do with the instance. So:</p>
+<table>
+<thead>
+<tr>
+<th>What the resolver answered</th>
+<th><code>tlsDnssec</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>It validated the answer itself</td>
+<td>passes</td>
+</tr>
+<tr>
+<td>It forwarded signatures without validating</td>
+<td>passes - the zone is signed, which is the part the operator controls</td>
+</tr>
+<tr>
+<td>Neither, but it understood the question</td>
+<td><strong>fails</strong> - the zone is not signed</td>
+</tr>
+<tr>
+<td>It does not speak DNSSEC, or never answered</td>
+<td>absent from the result entirely</td>
+</tr>
+</tbody>
+</table>
+<p>This is a low finding, and the fix is at the domain's own zone rather than in
+OpenCloud: sign the zone at the DNS provider, then publish the resulting DS
+record at the <em>parent</em> zone - an unsigned delegation leaves a signed zone
+unprotected. See
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0038-a-dnssec-answer-nobody-could-have-given-is-not-a-finding.md">ADR 0038</a>.</p>
 <h2 id="10-is-revocation-actually-checkable-tlsocspstapling">10. Is revocation actually checkable: <code>tlsOcspStapling</code></h2>
 <p>The certificate names an OCSP responder, but the server does not attach the
 revocation answer to the handshake - so every client has to ask the

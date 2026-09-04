@@ -25,6 +25,9 @@ for a remote scan service.
 | `opencloud_local_scan/versions.py` | The release lifecycle model (tracks, lines, end of life) |
 | `opencloud_local_scan/releases.py` | The update check and its track-aware recommendation |
 | `opencloud_local_scan/tls.py` | Transport security: protocol, certificate, chain, stapling |
+| `opencloud_local_scan/dns.py` | The DNS wire format both lookups below share, over the system resolver only |
+| `opencloud_local_scan/caa.py` | Who may be issued a certificate for the scanned name |
+| `opencloud_local_scan/dnssec.py` | Whether the zone is signed, and when that cannot be established at all |
 | `opencloud_local_scan/hardening.py` | Catalogue explaining every hardening identifier |
 | `opencloud_local_scan/snippets.py` | The catalogue's fixes rendered as Compose, .env, nginx, Caddy or Traefik |
 | `opencloud_local_scan/config.py`, `factory.py` | Configuration, secrets, settings construction |
@@ -280,8 +283,11 @@ missing one is a fact about *this* deployment. `setup.advisoryHeaders` -
 `Permissions-Policy`, `Cross-Origin-Opener-Policy`,
 `Cross-Origin-Resource-Policy`, `Cross-Origin-Embedder-Policy` - grades
 headers **no** OpenCloud sends, so a missing one is a fact about OpenCloud.
-`setup.advisoryChecks` carries the same bargain for what is not a header,
-currently `securityTxtPublished`. All of them are measured, explained by
+`setup.advisoryChecks` carries the same bargain for what is not a header:
+`securityTxtPublished`, and `hstsPreloadEligible` - the header OpenCloud's own
+proxy sends asks to be preloaded and omits the `includeSubDomains` the preload
+list requires, so the shortfall describes OpenCloud rather than any one
+deployment (ADR 0037). All of them are measured, explained by
 `--debug` and listed in the web catalogue, and they never reach
 `_collect_missing_hardenings`, the alert line, the `hardenings_missing`
 metric, the webhook or an exit code, and are never offered as waivers. Do not
@@ -299,6 +305,30 @@ Every request the scan makes is `GET`, `HEAD`, `PROPFIND` or `TRACE` - all
 safe by RFC 9110, none of them able to change the instance. A test asserts the
 set. Nothing may widen it, and no probe may send a credential except the
 documented demo passwords, to the instance's own identity provider.
+
+## The scan probes only the origin it was pointed at
+
+Every HTTP request goes to the base URL the caller gave, and no other. This is
+what makes the web application's SSRF guard meaningful: it resolves and pins
+that one target, and a probe aimed anywhere else walks past it.
+
+The rule bites hardest where a second service is genuinely involved. A
+collaboration backend's WOPI discovery document names the host its editor is
+served from, and following that name would let a scanned instance choose the
+next address the scanner connects to. So `companionAdminConsole` and
+`companionEditorHttps` are measured only where a reverse proxy publishes the
+backend on the instance's *own* origin, and are absent - never passing -
+otherwise. Do not add a probe that takes its address from the target's
+response, and do not "fix" the coverage gap that leaves. See
+[ADR 0036](adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md).
+
+The same reasoning bounds the DNS lookups: `caa.py` and `dnssec.py` query only
+the resolver in `/etc/resolv.conf`, never a public one, because a scan that
+asked 1.1.1.1 would hand a third party the hostname being scanned. When no
+resolver can be found, or the one found cannot answer the question, the
+finding is left out of the result rather than guessed at. See
+[ADR 0024](adr/0024-caa-record-uses-the-systems-own-resolver.md) and
+[ADR 0038](adr/0038-a-dnssec-answer-nobody-could-have-given-is-not-a-finding.md).
 
 ## Working on the web application
 

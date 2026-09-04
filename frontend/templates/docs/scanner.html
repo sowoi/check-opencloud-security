@@ -591,14 +591,25 @@ move the rating:</p>
 <p><code>setup.advisoryChecks</code> is the other block that cannot move the rating, and for
 a different reason: not that the observation is neutral, but that OpenCloud
 satisfies it on no instance, so counting it would report the shipped state of
-the software as a fault in this deployment. It currently holds one entry,
-<code>securityTxtPublished</code> - whether <code>/.well-known/security.txt</code> carries the
-<code>Contact</code> field RFC 9116 requires, so that somebody who finds a flaw knows
-where to send it. The body is what is read, not the status code: an instance
-whose frontend answers every unknown path with its own shell returns 200 for
-that path too. The block is <code>{}</code> rather than a dictionary of <code>false</code> when the
-extra checks are off, because an observation nobody made is not one that
-failed. See
+the software as a fault in this deployment. It holds two entries:</p>
+<ul>
+<li><code>securityTxtPublished</code> - whether <code>/.well-known/security.txt</code> carries the
+  <code>Contact</code> field RFC 9116 requires, so that somebody who finds a flaw knows
+  where to send it. The body is what is read, not the status code: an
+  instance whose frontend answers every unknown path with its own shell
+  returns 200 for that path too.</li>
+<li><code>hstsPreloadEligible</code> - whether the <code>Strict-Transport-Security</code> header
+  would actually be accepted for browser preloading, which needs a max-age of
+  at least a year, <code>includeSubDomains</code> and <code>preload</code> together. <code>hstsPreload</code>
+  in the <code>hardenings</code> block answers the narrower question of whether the
+  directive is present at all; OpenCloud's proxy sends it alongside ten years
+  and no <code>includeSubDomains</code>, so the header on every stock instance asks for
+  something the preload list refuses. Whether the domain is <em>on</em> the list is
+  deliberately not measured - see
+  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0037-preload-eligibility-is-measured-list-membership-is-not.md">ADR 0037</a>.</li>
+</ul>
+<p>The block is <code>{}</code> rather than a dictionary of <code>false</code> when the extra checks
+are off, because an observation nobody made is not one that failed. See
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0034-an-advisory-observation-need-not-be-a-header.md">ADR 0034</a>.</p>
 <p>The <code>identityProvider</code> observation names an external provider when its OIDC
 issuer identifies one. For Keycloak, Authelia and Authentik it also includes
@@ -817,6 +828,10 @@ nothing about ratings. Beyond the handshake and trust it reports:</p>
 <tr>
 <td><code>tlsCaaRecord</code></td>
 <td>Does the name have a DNS CAA record naming at least one authorized issuer?</td>
+</tr>
+<tr>
+<td><code>tlsDnssec</code></td>
+<td>Is the zone signed, so that the address every check above rests on can be trusted? Absent rather than failed when the resolver in use does not speak DNSSEC</td>
 </tr>
 <tr>
 <td><code>cookieSecure</code>, <code>cookieHttpOnly</code>, <code>cookieSameSite</code></td>
