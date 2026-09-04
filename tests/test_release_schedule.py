@@ -350,6 +350,51 @@ def test_being_newer_than_the_schedule_never_costs_anything_on_any_track():
         assert verdict.upgrade_to is None, track
 
 
+def test_an_unrecorded_line_is_never_told_to_downgrade():
+    """
+    An upgrade arrow must only ever point forwards, on every track.
+
+    A line missing from the schedule - dropped from the lifecycle page as it
+    aged, or never published there - is judged end of life, and the release to
+    move to was taken from the declared track alone. The newest release
+    recorded for a track can be *older* than a version the schedule has no
+    line for, and "upgrade to 4.0.8" told to a 5.0.0 instance is advice that
+    removes fixes instead of adding them.
+    """
+    schedule = versions.ReleaseSchedule(
+        [
+            versions.ReleaseLine((7, 4), ("rolling",), date(2026, 8, 3), "7.4.0"),
+            versions.ReleaseLine((4, 0), ("lts", "production"), date(2025, 12, 1), "4.0.8"),
+        ],
+        # The LTS track is named here, so nothing falls back to a newer track.
+        latest_release={"rolling": "7.4.0", "lts": "4.0.8"},
+    )
+
+    verdict = schedule.status_for("5.0.0", TODAY, track="lts")
+
+    assert verdict.state == "endOfLife"
+    assert verdict.upgrade_to != "4.0.8"
+    # Forwards or not at all: 7.4.0 is the only release ahead of 5.0.0.
+    assert verdict.upgrade_to == "7.4.0"
+    # And a version nothing on record is ahead of gets no arrow rather than a
+    # backwards one.
+    assert schedule.status_for("8.5.0", TODAY, track="lts").upgrade_to is None
+
+
+def test_an_unrecorded_line_behind_the_schedule_is_still_sent_forwards():
+    """
+    The ordinary case the guard above must not break.
+
+    A gap in the middle of the schedule is still an unsupported release, and
+    an operator on one needs to be told where to go.
+    """
+    verdict = status("6.0.0")
+
+    assert verdict.state == "endOfLife"
+    assert verdict.upgrade_to == "7.4.0"
+    assert SCHEDULE.status_for("6.0.0", TODAY, track="production").upgrade_to == "7.2.3"
+
+
 def test_a_stale_schedule_does_not_rescue_a_line_that_really_expired():
     """
     The other side of the same coin, and the invariant it must not break.

@@ -125,8 +125,14 @@ def _parse_range(expression: str | None) -> tuple[str | None, str | None]:
     introduced: str | None = None
     fixed: str | None = None
     for operator, version in _RANGE_PART.findall(expression):
-        if operator in {">=", ">"}:
+        if operator == ">=":
             introduced = version
+        elif operator == ">":
+            # Exclusive lower bound: '> 7.0.0' says 7.0.0 itself is not
+            # affected. Treating it as '>=' reports the one release the
+            # advisory went out of its way to exclude, so an extra component
+            # moves the bound just past it - above 7.0.0, still below 7.0.1.
+            introduced = f"{version}.1"
         elif operator == "<":
             fixed = version
         elif operator == "<=":
@@ -146,28 +152,35 @@ def _from_github(entry: dict[str, Any]) -> Advisory | None:
     if not identifier:
         return None
 
-    introduced: str | None = None
-    fixed: str | None = None
+    # GitHub lists one `vulnerabilities` entry per affected range, so an
+    # advisory patched separately on two release lines carries two of them for
+    # the same package. Reading only the first one leaves every instance on the
+    # other line unreported - the false negative _from_osv already collects
+    # every range to avoid.
+    ranges: list[tuple[str | None, str | None]] = []
+    matched = False
     for affected in entry.get("vulnerabilities") or []:
         if not isinstance(affected, dict):
             continue
         package = affected.get("package") or {}
         if not _is_opencloud_package(str(package.get("name", ""))):
             continue
+        matched = True
         introduced, fixed = _parse_range(affected.get("vulnerable_version_range"))
         if not fixed:
             fixed = normalise_version(affected.get("first_patched_version")) or fixed
-        break
-    else:
+        if (introduced or fixed) and (introduced, fixed) not in ranges:
+            ranges.append((introduced, fixed))
+
+    if not matched:
         return None
 
-    if not introduced and not fixed:
+    if not ranges:
         # A package matched but said nothing about which releases it affects -
         # an unparseable `vulnerable_version_range` with no patched version.
-        # Reaching the `break` above only proves the advisory is about
-        # OpenCloud, not that it is bounded, and an unbounded advisory matches
-        # every version there has ever been. Same refusal as _from_osv and
-        # _from_native.
+        # Matching the package only proves the advisory is about OpenCloud, not
+        # that it is bounded, and an unbounded advisory matches every version
+        # there has ever been. Same refusal as _from_osv and _from_native.
         LOGGER.warning(
             "Ignoring advisory %s: its OpenCloud entry names no affected "
             "version range, so it would match every release.",
@@ -186,8 +199,9 @@ def _from_github(entry: dict[str, Any]) -> Advisory | None:
             for item in (entry.get("cwes") or [])
             if isinstance(item, dict) and item.get("cwe_id")
         ),
-        introduced=introduced,
-        fixed=fixed,
+        introduced=ranges[0][0],
+        fixed=ranges[0][1],
+        ranges=tuple(ranges),
     )
 
 

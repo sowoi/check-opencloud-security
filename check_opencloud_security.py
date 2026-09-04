@@ -1029,8 +1029,16 @@ def _redact_url(url: str) -> str:
     A webhook URL is routinely the credential itself - the token sits in the
     path or the query of a chat provider's endpoint - so the whole of it must
     never reach a log file that is read by more people than the secret is.
+
+    A URL this cannot parse redacts to nothing rather than raising. Every
+    caller is a log call explaining what the plugin decided, and an unclosed
+    IPv6 literal in an operator's ``--webhook-url`` must not turn the refusal
+    to deliver a notification into a traceback in place of the check result.
     """
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "<redacted>"
     if not parts.hostname:
         return "<redacted>"
     host = parts.hostname

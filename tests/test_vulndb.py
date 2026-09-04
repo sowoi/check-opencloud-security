@@ -253,10 +253,10 @@ def test_a_github_advisory_whose_range_cannot_be_parsed_is_refused(tmp_path):
     """
     Matching the package is not the same as knowing the versions.
 
-    The converter stops at the first OpenCloud entry, which proves the
-    advisory is about OpenCloud and nothing about which releases it affects.
-    An unparseable `vulnerable_version_range` with no patched version left it
-    unbounded, and unbounded means every instance.
+    Matching the package proves the advisory is about OpenCloud and nothing
+    about which releases it affects. An unparseable
+    `vulnerable_version_range` with no patched version left it unbounded, and
+    unbounded means every instance.
     """
     payload = {
         "advisories": [
@@ -281,6 +281,92 @@ def test_a_github_advisory_whose_range_cannot_be_parsed_is_refused(tmp_path):
 
     assert database.advisories == []
     assert database.matches("99.99.99") == []
+
+
+def test_a_github_advisory_patched_on_two_lines_keeps_both_ranges(tmp_path):
+    """
+    One advisory, two release lines, two separately patched ranges.
+
+    GitHub writes one ``vulnerabilities`` entry per affected range, so an issue
+    fixed in both 4.0.3 and 5.0.2 arrives as two entries for the same package.
+    Keeping only the first silently clears every instance on the other line -
+    a false pass, which is the one direction this must not fail in - and it
+    also reports the wrong fix to the instances it does flag.
+    """
+    payload = {
+        "advisories": [
+            {
+                "ghsa_id": "GHSA-dddd-eeee-ffff",
+                "summary": "Public link exploit",
+                "severity": "high",
+                "vulnerabilities": [
+                    {
+                        "package": {"name": "github.com/opencloud-eu/opencloud"},
+                        "vulnerable_version_range": ">= 4.0.0, < 4.0.3",
+                        "first_patched_version": "4.0.3",
+                    },
+                    {
+                        "package": {"name": "github.com/opencloud-eu/opencloud"},
+                        "vulnerable_version_range": ">= 5.0.0, < 5.0.2",
+                        "first_patched_version": "5.0.2",
+                    },
+                ],
+            }
+        ]
+    }
+
+    database = vulndb.load_database(
+        extra_files=(_write(tmp_path, "ghsa-two-lines.json", payload),),
+        include_bundled=False,
+    )
+    (advisory,) = database.advisories
+
+    assert advisory.all_ranges() == (("4.0.0", "4.0.3"), ("5.0.0", "5.0.2"))
+    # Both lines are reported, each with the fix that belongs to it.
+    assert advisory.affects("4.0.1") and advisory.affects("5.0.1")
+    assert advisory.for_version("5.0.1").fixed == "5.0.2"
+    assert advisory.for_version("4.0.1").fixed == "4.0.3"
+    # And neither patched release, nor the gap between the lines, is flagged.
+    assert not advisory.affects("4.0.3")
+    assert not advisory.affects("5.0.2")
+    assert not advisory.affects("4.5.0")
+
+
+def test_an_exclusive_lower_bound_leaves_the_named_release_alone(tmp_path):
+    """
+    ``> 7.0.0`` says 7.0.0 is not affected, and must not report it.
+
+    An advisory that spells its lower bound exclusively has gone out of its way
+    to exclude one release; reading it as ``>=`` turns that release into a
+    finding no upgrade can clear, because it is already the version the
+    advisory considers safe.
+    """
+    payload = {
+        "advisories": [
+            {
+                "ghsa_id": "GHSA-gggg-hhhh-iiii",
+                "summary": "Exclusive lower bound",
+                "vulnerabilities": [
+                    {
+                        "package": {"name": "github.com/opencloud-eu/opencloud"},
+                        "vulnerable_version_range": "> 7.0.0, < 7.0.5",
+                    }
+                ],
+            }
+        ]
+    }
+
+    database = vulndb.load_database(
+        extra_files=(_write(tmp_path, "ghsa-exclusive.json", payload),),
+        include_bundled=False,
+    )
+    (advisory,) = database.advisories
+
+    assert not advisory.affects("7.0.0")
+    # Everything the advisory really does cover is still covered.
+    assert advisory.affects("7.0.1")
+    assert advisory.affects("7.0.4")
+    assert not advisory.affects("7.0.5")
 
 
 def test_no_bundled_advisory_can_match_every_version():

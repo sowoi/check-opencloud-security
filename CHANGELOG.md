@@ -12,6 +12,55 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An advisory patched on two release lines is now matched on both of them,
+  whichever format it arrives in.** The GitHub Advisory API writes one
+  `vulnerabilities` entry per affected range, so an issue fixed in *both*
+  `4.0.3` and `5.0.2` arrives as two entries for the same package. The
+  converter stopped at the first one, which cleared every instance on the other
+  line: a `5.0.1` server was told no advisory matched it, and the instances
+  that *were* flagged were pointed at the fix for a line they are not on. Every
+  bounded range is now kept, exactly as the OSV converter beside it already
+  did, and `for_version` reports the fix belonging to the installed line. The
+  bundled database is generated from OSV and is unaffected; this is the path an
+  operator takes with `--vulnerability-db` or `--vulnerability-feed` pointed at
+  a GitHub-format document.
+
+- **An advisory whose lower bound is exclusive no longer reports the one release
+  it excludes.** `>= 7.0.0` and `> 7.0.0` were read alike, so an advisory that
+  went out of its way to say `7.0.0` is not affected produced a finding on
+  exactly that release - one no upgrade can clear, because the installed
+  version is already the one the advisory considers safe. The bound now moves
+  just past the named release, the way an inclusive upper bound already moved
+  just past its own.
+
+- **An upgrade recommendation cannot point backwards.** A release line the
+  schedule has no record of - dropped from the lifecycle page as it aged, or
+  never published there - is judged end of life, and the release to move to was
+  read off the declared track alone. The newest release recorded for a track can
+  be *older* than a version that is not in the schedule at all, so an LTS
+  instance on `5.0.0` was told to "upgrade" to `4.0.8`: advice that removes
+  fixes rather than adding them. The verdict now names the newest release that
+  is genuinely ahead of the installed one, and no arrow at all when there is
+  none. Where the arrow already pointed forwards nothing changes.
+
+- **A `q=nan` in `Accept-Language` no longer decides which language a page is
+  written in.** It parses as a float and then compares false against every
+  other weight, so the sort that orders a browser's language list - and with it
+  the language served - followed whichever comparisons Python happened to make
+  rather than the header. A weight that is not a weight is now dropped like an
+  unparsable one, while a client that overshoots the range with `q=1.5` is
+  still understood as meaning "this one first".
+
+- **A `--webhook-url` the plugin cannot parse is refused instead of raising.**
+  An unclosed IPv6 literal is a URL `urlsplit` rejects, and the rejection
+  happened inside the log call that was explaining why the webhook had been
+  blocked - so a typo in the flag replaced the check's own result with a
+  traceback, which for a monitoring plugin is the one output that says nothing.
+  Redaction now answers `<redacted>` for a URL it cannot read, the delivery
+  fails as a delivery failure, and the scan result is still reported.
+
 ## [1.19.0] - 2026-09-03
 
 ### Added
