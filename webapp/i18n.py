@@ -29,6 +29,7 @@ the same catalogues to write the static search index.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -213,9 +214,17 @@ def parse_accept_language(header: str | None) -> tuple[tuple[str, float], ...]:
             if name.strip().lower() != "q":
                 continue
             try:
-                quality = float(raw.strip())
+                parsed = float(raw.strip())
             except ValueError:
-                quality = 0.0
+                parsed = 0.0
+            # ``q=nan`` parses as a float and then compares false against every
+            # other weight, which would leave the sort below - and with it the
+            # language a visitor is served - depending on the order Python
+            # happened to compare the entries in. A weight that is not a
+            # weight is not a preference, so it is dropped like an unparsable
+            # one; an out-of-range one is still clamped, because a client
+            # writing ``q=1.5`` plainly means "this one first".
+            quality = 0.0 if math.isnan(parsed) else parsed
         if quality <= 0.0:
             continue
         entries.append((position, tag, min(quality, 1.0)))

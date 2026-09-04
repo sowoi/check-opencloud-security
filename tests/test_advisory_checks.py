@@ -98,6 +98,67 @@ def test_a_policy_served_as_markup_is_not_credited():
     assert checks["securityTxtPublished"] is False
 
 
+def test_a_stock_instance_would_not_be_accepted_for_preloading():
+    """
+    'preload' is a request, not a state. OpenCloud's proxy sends a ten-year
+    max-age and 'preload' but no 'includeSubDomains', and the browser preload
+    list requires all three - so the header on every stock instance asks for
+    something that would be refused, while `hstsPreload` goes on reporting
+    True because the directive is there.
+    """
+    result = run_scan(InstanceBehaviour())
+
+    assert result["hardenings"]["hstsPreload"] is True
+    assert result["setup"]["advisoryChecks"]["hstsPreloadEligible"] is False
+
+
+def test_a_complete_preload_header_is_credited():
+    """The negative case: without it the check would pass by only ever being
+    able to report a shortfall."""
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains; preload"
+    )
+
+    checks = run_scan(behaviour)["setup"]["advisoryChecks"]
+
+    assert checks["hstsPreloadEligible"] is True
+
+
+def test_every_requirement_of_the_preload_list_is_actually_checked():
+    """
+    Each of the three requirements has to be able to fail on its own.
+    Checking only the directive - or only the max-age - would credit a header
+    the list refuses, which is the exact mistake `hstsPreload` already makes
+    and this check exists to correct.
+    """
+    for header in (
+        "max-age=63072000; includeSubDomains",  # never asked to be preloaded
+        "max-age=63072000; preload",  # OpenCloud's own shape
+        "max-age=300; includeSubDomains; preload",  # under the required year
+        "includeSubDomains; preload",  # no max-age at all
+    ):
+        behaviour = InstanceBehaviour()
+        behaviour.headers["Strict-Transport-Security"] = header
+
+        checks = run_scan(behaviour)["setup"]["advisoryChecks"]
+
+        assert checks["hstsPreloadEligible"] is False, header
+
+
+def test_the_directives_are_read_case_insensitively():
+    """RFC 6797 makes them case insensitive, and a proxy that spells them
+    differently has hardened the instance exactly as much."""
+    behaviour = InstanceBehaviour()
+    behaviour.headers["Strict-Transport-Security"] = (
+        "MAX-AGE=63072000; IncludeSubDomains; PRELOAD"
+    )
+
+    checks = run_scan(behaviour)["setup"]["advisoryChecks"]
+
+    assert checks["hstsPreloadEligible"] is True
+
+
 def test_an_absent_security_txt_is_never_a_missing_hardening():
     """
     The invariant the separate block exists for. If this ever joins the
@@ -124,7 +185,10 @@ def test_the_explanation_still_names_it():
     """
     result = run_scan(InstanceBehaviour())
 
-    assert _absent_advisory_checks(result) == ["securityTxtPublished"]
+    assert set(_absent_advisory_checks(result)) == {
+        "securityTxtPublished",
+        "hstsPreloadEligible",
+    }
 
 
 def test_a_scan_without_extra_checks_reports_nothing_rather_than_a_failure():

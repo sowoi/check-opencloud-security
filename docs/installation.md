@@ -10,6 +10,7 @@ and the Icinga2 and Nagios object definitions.
 <!-- TOC -->
 * [Installing the plugin](#installing-the-plugin)
   * [Using pipx / uv / pip (recommended)](#using-pipx--uv--pip-recommended)
+  * [Debian, Ubuntu, RHEL, Fedora (.deb and .rpm)](#debian-ubuntu-rhel-fedora-deb-and-rpm)
   * [Docker](#docker)
   * [Icinga2 / Nagios](#icinga2--nagios)
 <!-- TOC -->
@@ -154,6 +155,123 @@ and - the one that saves real typing - the hardening identifiers accepted by
 
 Without `argcomplete` installed, nothing is registered and the plugin behaves
 exactly as before; it is never a hard dependency of a monitoring plugin.
+
+## Debian, Ubuntu, RHEL, Fedora (.deb and .rpm)
+
+Use this on a monitoring host, where the point is that the check appears in the
+package database like everything else on the machine: in the inventory, in the
+unattended-upgrade job, and answerable to `apt list --installed`. Every release
+carries both packages as assets. They are architecture-independent (`all` /
+`noarch`), so one file fits every host.
+
+```shell
+VERSION=$(curl -fsSL https://api.github.com/repos/sowoi/check-opencloud-security/releases/latest \
+          | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+BASE=https://github.com/sowoi/check-opencloud-security/releases/download/v$VERSION
+
+# Debian, Ubuntu
+curl -fsSLO "$BASE/check-opencloud-security_${VERSION}_all.deb"
+sudo apt install "./check-opencloud-security_${VERSION}_all.deb"
+
+# RHEL, Rocky, Alma, Fedora, openSUSE
+curl -fsSLO "$BASE/check-opencloud-security-${VERSION}-1.noarch.rpm"
+sudo dnf install "./check-opencloud-security-${VERSION}-1.noarch.rpm"
+```
+
+Each package has a `.sha256` beside it, and both are covered by the same
+Sigstore provenance attestation as the wheel - see
+[Verifying what you downloaded](../SECURITY.md#verifying-what-you-downloaded).
+
+### What it installs
+
+| Path | |
+|:--|:--|
+| `/usr/bin/check-opencloud-security` | the check |
+| `/usr/bin/check-opencloud-scanner` | the same scanner as a JSON tool |
+| `/usr/lib/nagios/plugins/check_opencloud_security` | symlink to the check (`/usr/lib64/...` on RPM systems) |
+| `/usr/lib/check-opencloud-security/` | the code |
+| `/etc/check-opencloud-security/` | created empty, and searched for `config.yml` |
+| `/usr/lib/systemd/system/` | four units, none of them enabled |
+| `/usr/share/doc/check-opencloud-security/` | the example configuration, env file and cron entry |
+
+Because the plugin directory is already populated, an Icinga2 or Nagios
+`CheckCommand` using `PluginDir + "/check_opencloud_security"` works with no
+further path configuration - see [Icinga2 / Nagios](#icinga2--nagios) below.
+
+### Configuring it
+
+**The package configures nothing on purpose.** The example configuration names
+a host that is not yours, and `/etc/check-opencloud-security/config.yml` is a
+path the plugin genuinely reads, so installing the example there would give
+every invocation on the host a default target nobody chose. Copy what you want:
+
+```shell
+sudo cp /usr/share/doc/check-opencloud-security/config.example.yml \
+        /etc/check-opencloud-security/config.yml
+
+sudo cp /usr/share/doc/check-opencloud-security/env.example \
+        /etc/check-opencloud-security/env      # for the systemd units
+```
+
+`check-opencloud-security --configure` asks the same questions interactively.
+
+The units ship disabled and need that `env` file first:
+
+```shell
+sudo systemctl enable --now check-opencloud-security.timer
+sudo systemctl enable --now check-opencloud-security-refresh.timer
+```
+
+The second one keeps the bundled release schedule and advisory database
+current, which matters more here than it looks: both ship *inside* the package
+(see [End-of-life detection](../README.md#end-of-life-detection)).
+
+### Updating and removing it
+
+Through `apt` and `dnf`, like anything else on the host. `--upgrade-self`
+detects a distribution package and refuses rather than letting pip install a
+second copy beside it - a copy the installed commands would never run.
+
+```shell
+sudo apt install --only-upgrade check-opencloud-security   # or: dnf upgrade
+sudo apt remove check-opencloud-security                   # or: dnf remove
+```
+
+Removal leaves `/etc/check-opencloud-security/` alone: whatever you put there
+is yours.
+
+### The interpreter it uses
+
+The installed commands are small shell launchers that find a Python 3.10 or
+newer for themselves - `$COS_PYTHON` first, then `python3`, then `python3.14`
+down to `python3.10`, checking the version of each rather than trusting the
+name. This is why the RPM does not demand `python3 >= 3.10`: RHEL 9 answers 3.9
+to `python3` and packages 3.11 and 3.12 beside it, and a versioned dependency
+would refuse to install on a host that runs this perfectly well.
+
+If nothing suitable is found, the check exits **3 (UNKNOWN)** rather than
+reporting a verdict it never measured. Point `COS_PYTHON` at an interpreter to
+settle it:
+
+```shell
+sudo dnf install python3.12
+COS_PYTHON=/usr/bin/python3.12 check-opencloud-security --host opencloud.example.com
+```
+
+### Building the packages yourself
+
+They are built from the wheel, so a checkout produces the same thing a release
+does. It needs [nfpm](https://nfpm.goreleaser.com/install/) on `PATH`:
+
+```shell
+uv build                                        # the wheel first
+python scripts/build_distro_packages.py         # both, into distro-packages/
+python scripts/build_distro_packages.py --packager deb
+```
+
+The layout, the dependencies and everything else the packages declare live in
+[`packaging/nfpm.yaml`](../packaging/nfpm.yaml). Why they are built this way is
+[ADR 0039](../adr/0039-the-plugin-ships-as-a-distribution-package-built-from-the-wheel.md).
 
 ## Docker
 Use this if you would rather not install anything on the host. The image also

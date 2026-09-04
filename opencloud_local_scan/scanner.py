@@ -60,6 +60,7 @@ from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
 
 from .caa import check_caa_record
+from .dnssec import check_dnssec
 from .releases import ReleaseSettings, UpdateInfo, fetch_update_info
 from .remediation import SEVERITY_RATING_CAP as _SEVERITY_RATING_CAP
 from .remediation import plan as remediation_plan
@@ -130,10 +131,18 @@ ADVISORY_HEADER_REJECTED: dict[str, frozenset[str]] = {
 # 0028 set for the advisory headers - explained, published, never counted -
 # and are listed here rather than derived so that the catalogue entry and the
 # measurement cannot drift apart. See ADR 0034.
-ADVISORY_CHECK_IDS: tuple[str, ...] = ("securityTxtPublished",)
+ADVISORY_CHECK_IDS: tuple[str, ...] = (
+    "securityTxtPublished",
+    "hstsPreloadEligible",
+)
 
 # HSTS max-age considered long enough (one year). OpenCloud itself sends ten.
 HSTS_MIN_MAX_AGE = 31_536_000
+
+# The minimum max-age the browser preload list accepts on a submission. It is
+# the same year, but it is the list's requirement rather than this project's
+# opinion, and the two are free to move apart.
+HSTS_PRELOAD_MIN_MAX_AGE = 31_536_000
 
 # Endpoints that must not answer an unauthenticated request with content.
 PROTECTED_ENDPOINTS: tuple[tuple[str, str], ...] = (
@@ -180,6 +189,23 @@ OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration"
 SECURITY_TXT_PATH = "/.well-known/security.txt"
 APP_LIST_PATH = "/app/list"
 CALDAV_PATH = "/.well-known/caldav"
+
+# The collaboration backend, where a reverse proxy publishes it on the
+# instance's own origin. `/hosting/discovery` is the WOPI protocol's own
+# entry point and is the only thing probed unconditionally: the console below
+# is asked for only once that document has proved a backend is there.
+WOPI_DISCOVERY_PATH = "/hosting/discovery"
+COMPANION_ADMIN_PATH = "/browser/dist/admin/admin.html"
+
+# Enough of the discovery document to find the root element and the editor
+# addresses. It is served by a host this scan does not trust, so it is read
+# in bounded form rather than in full.
+WOPI_DISCOVERY_LIMIT = 200_000
+
+# `urlsrc` is named by the WOPI specification, and the scheme is all that is
+# read out of it. Deliberately a regular expression and not an XML parser:
+# see `_companion_editor_https_finding`.
+_WOPI_URLSRC = re.compile(r'urlsrc\s*=\s*"([^"]*)"', re.IGNORECASE)
 WEB_CONFIG_PATH = "/config.json"
 BACKEND_PORT = 9200
 
@@ -1058,12 +1084,45 @@ def _security_txt_published(response: requests.Response | None) -> bool:
     )
 
 
-def _check_advisory_checks(probe: _Probe) -> dict[str, bool]:
+def _hsts_preload_eligible(hsts: str | None) -> bool:
+    """
+    Whether this Strict-Transport-Security header would be accepted for preloading.
+
+    ``hstsPreload`` already answers "does the header ask?". This answers
+    whether the request would be granted, which is a different question with a
+    different answer on every stock instance: OpenCloud's proxy sends
+    ``preload`` and a ten-year max-age but no ``includeSubDomains``, and the
+    list requires all three.
+
+    That is why this is an advisory observation rather than a hardening flag.
+    The shortfall is in what OpenCloud ships, not in what the operator did,
+    and a finding every instance in existence fails is the kind that teaches
+    people to stop reading the hardening line. See ADR 0037.
+    """
+    if not hsts:
+        return False
+    directives = hsts.lower()
+    max_age = _hsts_max_age(hsts)
+    return bool(
+        "preload" in directives
+        and "includesubdomains" in directives
+        and max_age
+        and max_age >= HSTS_PRELOAD_MIN_MAX_AGE
+    )
+
+
+def _check_advisory_checks(
+    probe: _Probe, root_response: requests.Response | None = None
+) -> dict[str, bool]:
     """Measure the advisory observations that are not response headers."""
+    headers = root_response.headers if root_response is not None else {}
     return {
         "securityTxtPublished": _security_txt_published(
             probe.get(SECURITY_TXT_PATH, allow_redirects=True)
-        )
+        ),
+        "hstsPreloadEligible": _hsts_preload_eligible(
+            headers.get("Strict-Transport-Security")
+        ),
     }
 
 
@@ -1765,6 +1824,125 @@ def _exposed_path_findings(probe: _Probe) -> list[Finding]:
 
         findings.append(Finding(f"exposed:{path}", severity, not exposed, detail))
     return findings
+
+
+def _wopi_discovery_document(response: requests.Response | None) -> str | None:
+    """
+    The WOPI discovery document served on this origin, if that is what answered.
+
+    A 200 is not the question, for the same reason it is not for security.txt:
+    OpenCloud's frontend answers unknown paths with its own single-page shell,
+    so a scan that trusted the status code would find a collaboration backend
+    on every instance in existence. What is asked instead is whether the body
+    is the document the WOPI protocol specifies - an XML root element named
+    ``wopi-discovery`` - which an application shell is not.
+    """
+    if response is None or response.status_code != 200:
+        return None
+    body = response.text[:WOPI_DISCOVERY_LIMIT]
+    return body if "<wopi-discovery" in body.lower() else None
+
+
+def _companion_editor_https_finding(document: str) -> Finding:
+    """
+    Whether every editor address the backend advertises is HTTPS.
+
+    Read with a regular expression rather than an XML parser on purpose. The
+    document comes from a host this scan has no reason to trust, the
+    attribute name is fixed by the WOPI specification, and all that is wanted
+    from it is a scheme - none of which justifies handing an untrusted
+    document to a parser that has to be talked out of resolving what it finds
+    inside.
+    """
+    insecure = sorted(
+        {
+            urlsplit(address).netloc or address
+            for address in (value.strip() for value in _WOPI_URLSRC.findall(document))
+            if address.lower().startswith("http://")
+        }
+    )
+    if insecure:
+        return Finding(
+            "companionEditorHttps",
+            "high",
+            False,
+            "Editor addresses advertised over plain HTTP: " + ", ".join(insecure),
+        )
+    return Finding(
+        "companionEditorHttps",
+        "high",
+        True,
+        "Every editor address the discovery document advertises uses HTTPS",
+    )
+
+
+def _companion_admin_console_finding(
+    response: requests.Response | None, control: requests.Response | None
+) -> Finding:
+    """
+    Whether the collaboration backend's administration console answers.
+
+    The catch-all comparison here is length alone, deliberately. The second
+    rule :func:`_looks_like_catch_all` applies - that an HTML answer is the
+    frontend rather than the file asked for - is right for the deployment
+    files it guards and wrong here, where the console *is* an HTML document.
+    """
+    if response is None:
+        return Finding(
+            "companionAdminConsole", "high", True, "Console path not reachable"
+        )
+    detail = f"HTTP {response.status_code}"
+    if response.status_code != 200 or not response.content.strip():
+        return Finding("companionAdminConsole", "high", True, detail)
+    if control is not None and len(response.content) == len(control.content):
+        return Finding(
+            "companionAdminConsole",
+            "high",
+            True,
+            f"{detail} - catch-all response, console not served",
+        )
+    return Finding(
+        "companionAdminConsole", "high", False, f"{detail} - publicly readable"
+    )
+
+
+def _companion_findings(probe: _Probe) -> list[Finding]:
+    """
+    Probe the collaboration backend, where one is published on this origin.
+
+    :func:`_integrations` already reports *that* an office integration exists,
+    because the instance says so in its own capabilities. What it cannot say
+    is what that second service publishes, and a document editor is a second
+    HTTP server with an administration console and a transport of its own.
+
+    This asks the instance's own origin and nothing else. An address read out
+    of the target's answers - the editor host the discovery document names,
+    say - would have the scanner follow wherever a scanned host pointed it,
+    which is the one thing the web application's guard exists to prevent. See
+    ADR 0036.
+
+    A backend that is not published here is left unmeasured rather than
+    passed: an observation nobody made is not an observation that succeeded.
+    The discovery document is fetched on its own first, so the common case -
+    no collaboration backend on this origin - costs one request rather than
+    three.
+    """
+    document = _wopi_discovery_document(
+        probe.get(WOPI_DISCOVERY_PATH, allow_redirects=True)
+    )
+    if document is None:
+        return []
+    control, admin = _run_all(
+        probe.settings,
+        [
+            partial(_catch_all_probe, probe),
+            partial(probe.get, COMPANION_ADMIN_PATH, allow_redirects=False),
+        ],
+    )
+    return [
+        _companion_editor_https_finding(document),
+        _companion_admin_console_finding(admin, control),
+    ]
 
 
 def _authentication_findings(probe: _Probe) -> list[Finding]:
@@ -2618,7 +2796,7 @@ def _collect_extra_findings(
     reverse_proxy: Mapping[str, Any] | None = None,
     tls_inspection: TlsInspection | None = None,
     address_parity: Finding | None = None,
-    caa_finding: Finding | None = None,
+    dns_findings: Sequence[Finding] = (),
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -2632,8 +2810,7 @@ def _collect_extra_findings(
                 verification_required=verification_required,
             )
         )
-    if caa_finding is not None:
-        findings.append(caa_finding)
+    findings.extend(dns_findings)
     if address_parity is not None:
         findings.append(address_parity)
     findings.extend(_cookie_findings(root_response))
@@ -2649,6 +2826,7 @@ def _collect_extra_findings(
         )
     )
     findings.extend(_exposed_path_findings(probe))
+    findings.extend(_companion_findings(probe))
     findings.append(_directory_listing_finding(probe, root_response))
     findings.extend(_debug_endpoint_findings(probe))
     findings.extend(_web_embed_findings(probe))
@@ -2792,7 +2970,9 @@ def scan(
         # Left empty rather than false when the extra checks are off: an
         # observation nobody made is not an observation that failed, and a
         # reader of the document cannot tell the two apart from a bool.
-        advisory_checks = _check_advisory_checks(probe) if settings.extra_checks else {}
+        advisory_checks = (
+            _check_advisory_checks(probe, root_response) if settings.extra_checks else {}
+        )
 
         schedule = settings.release_schedule
         if schedule is None:
@@ -2854,15 +3034,20 @@ def scan(
             and _address_parity_may_run(settings, addresses)
             else {}
         )
-        # CAA is a DNS record, not a TLS handshake property, but it answers the
-        # same "who may issue this instance a certificate" question the TLS
-        # findings above do, so it is gated and reported alongside them.
-        caa_check = (
-            check_caa_record(hostname, settings.timeout)
-            if settings.extra_checks and probe.base_url.startswith("https://")
-            else None
-        )
-        caa_finding = Finding(*caa_check) if caa_check is not None else None
+        # Neither of these is a TLS handshake property, but both answer
+        # questions the findings above rest on - who may issue this instance a
+        # certificate, and whether the address the certificate was checked
+        # against can be trusted at all - so they are gated and reported
+        # alongside them. Two UDP queries, sequential rather than pooled: a
+        # pool started here would nest inside the one the findings open later.
+        dns_findings: list[Finding] = []
+        if settings.extra_checks and probe.base_url.startswith("https://"):
+            for dns_check in (
+                check_caa_record(hostname, settings.timeout),
+                check_dnssec(hostname, settings.timeout),
+            ):
+                if dns_check is not None:
+                    dns_findings.append(Finding(*dns_check))
         findings = (
             _collect_extra_findings(
                 probe,
@@ -2877,7 +3062,7 @@ def scan(
                 reverse_proxy,
                 tls_inspection,
                 _address_parity_finding(address_tls),
-                caa_finding,
+                dns_findings,
                 verification_required=verification_required,
             )
             if settings.extra_checks

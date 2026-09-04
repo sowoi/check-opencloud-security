@@ -282,6 +282,36 @@ def test_invalid_or_unresolvable_webhook_urls_are_blocked(monkeypatch, url):
     assert plugin._is_safe_webhook_url(url) is False
 
 
+def test_an_unparsable_webhook_url_is_refused_rather_than_raising(posts, caplog):
+    """
+    A monitoring plugin answers with a state, never with a traceback.
+
+    An unclosed IPv6 literal is a URL `urlsplit` refuses, and the refusal used
+    to happen inside the log call that was explaining why the webhook was
+    blocked - so a typo in `--webhook-url` replaced the check result with a
+    stack trace. The delivery must fail, the URL must stay out of the log, and
+    the check must still say what it found.
+    """
+    caplog.set_level("DEBUG")
+    context = ScanContext(
+        host="cloud.example.com",
+        webhook_url="http://[::1/hook?token=secret",
+    )
+
+    assert plugin._send_webhook(context, {"status": "CRITICAL"}) is False
+    assert posts == []
+    assert "secret" not in caplog.text
+    # Redaction is total: every caller is a log call, so there is no URL it may
+    # answer with an exception.
+    assert plugin._redact_url("http://[::1/hook?token=secret") == "<redacted>"
+    # The negative half - a URL it can parse still names the host it went to,
+    # which is the whole point of logging it at all.
+    assert (
+        plugin._redact_url("https://hooks.example.com/x?token=secret")
+        == "https://hooks.example.com/<redacted>"
+    )
+
+
 def test_ipv6_private_address_is_blocked(monkeypatch):
     """An IPv6 loopback/private/link-local address must be blocked too."""
     for address in ("::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "64:ff9b::7f00:1"):

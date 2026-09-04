@@ -78,6 +78,11 @@ the output and the metrics.</p>
 <td>None in OpenCloud - again a reverse proxy rewriting the header. Only add <code>preload</code> once every subdomain is HTTPS-only.</td>
 </tr>
 <tr>
+<td><code>hstsPreloadEligible</code></td>
+<td>The header would not be accepted for browser preloading: the list requires a <code>max-age</code> of at least a year, <code>includeSubDomains</code> <em>and</em> <code>preload</code> together, and OpenCloud's proxy omits <code>includeSubDomains</code>. <code>hstsPreload</code> above says the directive is there; this says asking would be refused. Reported under <code>setup.advisoryChecks</code> and <strong>never alerted on</strong>, because the shortfall is in what OpenCloud ships. Being on the list is not measured - see <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0037-preload-eligibility-is-measured-list-membership-is-not.md">ADR 0037</a>.</td>
+<td>Add <code>includeSubDomains</code> at the reverse proxy, then submit the domain at <a href="https://hstspreload.org/">hstspreload.org</a> - acceptance needs both. Confirm every subdomain is HTTPS-only first.</td>
+</tr>
+<tr>
 <td><code>publicLinkExpirationEnforced</code></td>
 <td>Nothing about your instance: OpenCloud hardcodes this capability to <code>false</code>. <strong>Never alerted on</strong> - see below.</td>
 <td>None exists.</td>

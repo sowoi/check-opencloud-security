@@ -24,6 +24,7 @@
   <a href="#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed" lang="en">5. Is the backend reachable directly, bypassing the proxy: <code>backendPortClosed</code></a>
   <a href="#6-who-may-read-a-response-cross-origin-corsoriginrestricted" lang="en">6. Who may read a response cross-origin: <code>corsOriginRestricted</code></a>
   <a href="#7-is-the-request-echoed-back-tracemethoddisabled" lang="en">7. Is the request echoed back: <code>traceMethodDisabled</code></a>
+  <a href="#8-is-a-second-services-console-published-beside-the-instance-companionadminconsole" lang="en">8. Is a second service's console published beside the instance: <code>companionAdminConsole</code></a>
   <a href="#severity-and-rating-impact" lang="en">Severity and rating impact</a>
 </nav>
 
@@ -50,6 +51,7 @@ that catch-all baseline counts as a hit, on every check below.</p>
 <li><a href="#5-is-the-backend-reachable-directly-bypassing-the-proxy-backendportclosed">5. Is the backend reachable directly, bypassing the proxy: <code>backendPortClosed</code></a></li>
 <li><a href="#6-who-may-read-a-response-cross-origin-corsoriginrestricted">6. Who may read a response cross-origin: <code>corsOriginRestricted</code></a></li>
 <li><a href="#7-is-the-request-echoed-back-tracemethoddisabled">7. Is the request echoed back: <code>traceMethodDisabled</code></a></li>
+<li><a href="#8-is-a-second-services-console-published-beside-the-instance-companionadminconsole">8. Is a second service's console published beside the instance: <code>companionAdminConsole</code></a></li>
 <li><a href="#severity-and-rating-impact">Severity and rating impact</a></li>
 </ul>
 <!-- TOC -->
@@ -231,6 +233,33 @@ plugin that may run every minute can ask.</p>
 <code>TraceEnable off</code>; nginx already returns <code>405</code> unless a location was written
 to pass every method upstream; Traefik and Caddy need a rule limiting the
 methods forwarded.</p>
+<h2 id="8-is-a-second-services-console-published-beside-the-instance-companionadminconsole">8. Is a second service's console published beside the instance: <code>companionAdminConsole</code></h2>
+<p>A document editor speaking WOPI - Collabora Online, OnlyOffice - is the usual
+second service in an OpenCloud deployment, and a reverse proxy that forwards
+<code>/hosting</code> and <code>/browser</code> to it publishes that editor on the instance's own
+origin. It is a second HTTP server, and its administration console lists every
+open document session and the users in them, reports the server's own
+configuration, and can terminate sessions. It is guarded by one shared
+password with no rate limiting in front of it.</p>
+<p>The scan detects the backend by asking for <code>/hosting/discovery</code> and requiring
+the <code>wopi-discovery</code> root element the WOPI protocol specifies - a status code
+alone would find an editor on every instance, since OpenCloud answers unknown
+paths with its own HTML shell. Only once that document has answered does it
+ask for the console path, and only then can the finding be reported. A second
+finding, <code>companionEditorHttps</code>, reads the editor addresses that document
+advertises: an <code>http://</code> one means the document and the token authorising the
+session travel unencrypted, and a browser on an HTTPS page blocks the frame
+outright.</p>
+<p><strong>Where no backend is published on this origin, neither finding appears at
+all</strong> - not as a pass. Most deployments serve the editor from a host of its
+own, and the scan deliberately does not follow the host named inside the
+discovery document, because that would let a scanned instance choose the next
+address the scanner connects to. Point a second scan at that host instead. See
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md">ADR 0036</a>.</p>
+<p><strong>Fix:</strong> block the console path at the reverse proxy that publishes the
+backend, so only the editor's own paths reach the internet. Setting a console
+password instead is the weaker of the two, because that one credential
+protects every document session on the server.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>
 <p>Every check in this group is an <code>extraChecks</code> entry, reported and
 rating-capped whenever the scan runs at all - critical findings cap the

@@ -64,6 +64,18 @@ Read from the instance itself:
   carry the `Contact` field RFC 9116 requires - a 200 alone means nothing on
   an instance whose frontend answers every unknown path with its own shell.
   See [ADR 0034](../adr/0034-an-advisory-observation-need-not-be-a-header.md)
+- whether the `Strict-Transport-Security` header would actually be accepted
+  for browser preloading, as `hstsPreloadEligible` under the same
+  `setup.advisoryChecks`. `hstsPreload` already reports whether the header
+  *asks* to be preloaded; this reports whether asking could work, which needs
+  a max-age of at least a year, `includeSubDomains` and `preload` together.
+  OpenCloud's own proxy sends ten years and `preload` but no
+  `includeSubDomains`, so every stock instance asks for something the list
+  refuses - a fact about OpenCloud rather than about the deployment, which is
+  why it is explained and never counted. Membership of the list itself is
+  deliberately not measured: the only ways to know are to ask a third party
+  for it or to ship tens of megabytes of it. See
+  [ADR 0037](../adr/0037-preload-eligibility-is-measured-list-membership-is-not.md)
 - `hardenings` derived from those headers and capabilities
 - known vulnerabilities from the [advisory database](../README.md#advisory-database) and
   the resulting rating (`0`-`5`)
@@ -83,6 +95,9 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `tlsCertificatePolicy`                                                                                                                     | medium        | The certificate has a weak key or an MD5/SHA-1 signature                                                    |
 | `tlsAddressParity`                                                                                                                          | medium        | IPv4 and IPv6 present different TLS services, or one is unreachable                                          |
 | `tlsCaaRecord`                                                                                                                             | low           | No DNS CAA record restricts which certificate authorities may issue for this name                            |
+| `tlsDnssec`                                                                                                                                | low           | The zone answering for this name is not signed, so a forged address cannot be detected - absent, never failed, when the resolver used does not speak DNSSEC |
+| `companionAdminConsole`                                                                                                                    | high          | A collaboration backend published on this origin answers on its administration console path                  |
+| `companionEditorHttps`                                                                                                                     | high          | That backend advertises editor addresses over plain HTTP in its WOPI discovery document                      |
 | `cookieSecure`, `cookieHttpOnly`, `cookieSameSite`                                                                                        | high - low    | An observed cookie lacks Secure, HttpOnly or SameSite                                                        |
 | `cookiePrefix`                                                                                                                             | low           | No observed cookie uses the `__Host-`/`__Secure-` name prefix, or one claims a prefix it does not honour     |
 | `tlsOcspStapling`                                                                                                                          | low           | No OCSP response stapled to the handshake, although the certificate names a responder                       |
@@ -237,6 +252,21 @@ observations rather than verdicts:
 ```
 
 Neither becomes a check and neither can move the rating.
+
+What the deployment *publishes* is a separate question, and it does become a
+check. Where a reverse proxy serves the collaboration backend on the
+instance's own origin, `/hosting/discovery` answers with the document the WOPI
+protocol specifies, and two findings follow from it: whether the editor's
+administration console is reachable (`companionAdminConsole`), and whether
+the editor addresses it advertises use HTTPS (`companionEditorHttps`).
+
+The scan asks the origin it was pointed at and nothing else. It deliberately
+does **not** follow the editor host named inside the discovery document -
+that would let a scanned instance choose the next address the scanner
+connects to. A deployment serving its editor from a host of its own therefore
+gets neither finding rather than a pass, because nothing was measured; point
+a second scan at that host instead. See
+[ADR 0036](../adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md).
 
 ### What the scan deliberately does not answer
 

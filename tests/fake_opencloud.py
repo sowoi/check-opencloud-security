@@ -173,6 +173,14 @@ class InstanceBehaviour:
     security_txt: tuple[str, str] | None = None
     # Something answers /.well-known/caldav, the way a proxied Radicale does.
     caldav: bool = False
+    # A document collaboration backend published on this instance's own
+    # origin, as a reverse proxy that forwards /hosting and /browser to it
+    # does. None serves nothing there, which is the common deployment: the
+    # editor lives on a host of its own.
+    wopi_urlsrc: str | None = None
+    # The editor's administration console answers instead of being blocked at
+    # the proxy. Only reachable when a backend is published at all.
+    wopi_admin_console: bool = False
     # What the CORS middleware grants a request that carries an Origin.
     # 'reflect' echoes it back the way a middleware configured with '*' and
     # credentials does; 'wildcard' answers a literal '*'; None sends no
@@ -351,6 +359,33 @@ def _make_handler(behaviour: InstanceBehaviour):
             if path == "/.well-known/security.txt" and behaviour.security_txt is not None:
                 body, content_type = behaviour.security_txt
                 self._respond(200, body.encode("utf-8"), {"Content-Type": content_type})
+                return
+
+            # The WOPI discovery document, in the shape the protocol
+            # specifies. Falls through to `catch_all` when no backend is
+            # configured, which is what the scanner must not read as one.
+            if path == "/hosting/discovery" and behaviour.wopi_urlsrc is not None:
+                document = (
+                    '<?xml version="1.0" encoding="utf-8"?>\n'
+                    "<wopi-discovery><net-zone name=\"external-https\">"
+                    '<app name="writer">'
+                    f'<action ext="odt" name="edit" urlsrc="{behaviour.wopi_urlsrc}"/>'
+                    "</app></net-zone></wopi-discovery>"
+                )
+                self._respond(
+                    200, document.encode("utf-8"), {"Content-Type": "text/xml"}
+                )
+                return
+
+            # Falls through when the console is not published, so that
+            # `catch_all` answers it with the SPA shell - the response the
+            # scanner must not read as a reachable console.
+            if path == "/browser/dist/admin/admin.html" and behaviour.wopi_admin_console:
+                self._respond(
+                    200,
+                    b"<html><body><div id='admin-console'>sessions</div></body></html>",
+                    {"Content-Type": "text/html"},
+                )
                 return
 
             if path in ("/.well-known/caldav", "/.well-known/carddav"):

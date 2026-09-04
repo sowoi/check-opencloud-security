@@ -9,6 +9,7 @@ all.
 
 Detection order, most specific first:
 
+* a ``distro-package`` marker beside the payload -> refuse, apt or dnf owns it
 * a path under ``pipx/venvs/``           -> ``pipx upgrade``
 * a path under ``uv/tools/``             -> ``uv tool upgrade``
 * an editable checkout or a source tree  -> refuse, this is a git working copy
@@ -41,6 +42,18 @@ PACKAGE_NAME = "check-opencloud-security"
 # Markers that identify the installer from the installation path.
 PIPX_MARKERS = ("/pipx/venvs/", "\\pipx\\venvs\\")
 UV_MARKERS = ("/uv/tools/", "\\uv\\tools\\")
+
+#: Written beside the payload by the .deb and the .rpm, holding the packager
+#: that built them. A file rather than a path prefix, because a package can be
+#: relocated and because this is the packaging *declaring* what it is instead
+#: of this module inferring it from where it happens to sit.
+DISTRO_MARKER_NAME = "distro-package"
+
+#: How each ecosystem upgrades one package, for the refusal message.
+DISTRO_COMMANDS = {
+    "deb": "apt install --only-upgrade check-opencloud-security",
+    "rpm": "dnf upgrade check-opencloud-security",
+}
 
 
 class UpgradeError(RuntimeError):
@@ -79,6 +92,26 @@ def _is_source_checkout(path: Path) -> bool:
     return False
 
 
+def _distro_package(path: Path) -> str | None:
+    """
+    The packager that installed this copy, or ``None`` if pip-style tooling did.
+
+    Returns the marker's contents - ``deb`` or ``rpm`` - so the refusal can
+    name the right command. An unreadable or empty marker still counts as a
+    distribution package: the file being there is the claim, and its contents
+    only decide the wording.
+    """
+    for parent in path.parents:
+        marker = parent / DISTRO_MARKER_NAME
+        if not marker.is_file():
+            continue
+        try:
+            return marker.read_text(encoding="utf-8").strip() or "unknown"
+        except OSError:  # pragma: no cover - marker present but unreadable
+            return "unknown"
+    return None
+
+
 def _pipx_available() -> str | None:
     return shutil.which("pipx")
 
@@ -107,6 +140,22 @@ def plan_upgrade(package: str = PACKAGE_NAME) -> UpgradePlan:
     """
     path = _module_path()
     text = str(path)
+
+    # Before every other case: pip would appear to succeed here. It installs
+    # into the user's site-packages, which the launcher this package puts on
+    # PATH never consults, so the operator is left with two versions, told the
+    # upgrade worked, and still running the old one.
+    packager = _distro_package(path)
+    if packager is not None:
+        manager = DISTRO_COMMANDS.get(
+            packager, "your distribution's package manager"
+        )
+        raise UpgradeError(
+            f"{package} was installed from a distribution package "
+            f"({packager}). Upgrade it with '{manager}' instead - installing "
+            "over it with pip leaves a second copy that this command would "
+            "never run."
+        )
 
     if _is_source_checkout(path):
         raise UpgradeError(

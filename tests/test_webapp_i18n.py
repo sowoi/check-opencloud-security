@@ -17,6 +17,7 @@ from webapp.i18n import (
     LANGUAGE_COOKIE,
     Translator,
     negotiate_locale,
+    parse_accept_language,
     safe_next_path,
 )
 from webapp.locales import CATALOGUES
@@ -51,6 +52,25 @@ def test_browser_language_negotiation_honours_regions_and_quality(
 ):
     """A browser's weighted language list must select the best supported locale."""
     assert negotiate_locale(header) == expected
+
+
+def test_a_quality_that_is_not_a_number_is_not_a_preference():
+    """
+    ``q=nan`` parses as a float and then compares false against everything.
+
+    Left in, it decides the order of the weighted list by whichever
+    comparisons Python happened to make, so the language a visitor is served
+    stops following the header they sent. A weight that is not a weight is
+    dropped like an unparsable one, while a client that overshoots the range
+    is still understood.
+    """
+    assert parse_accept_language("de;q=nan") == ()
+    assert negotiate_locale("de;q=nan,fr;q=0.5") == "fr"
+    # The negative half: a real weight in the same header still counts, and an
+    # out-of-range one is clamped rather than discarded.
+    assert parse_accept_language("de;q=nan,fr;q=0.5") == (("fr", 0.5),)
+    assert parse_accept_language("de;q=1.5") == (("de", 1.0),)
+    assert negotiate_locale("de;q=1.5,fr;q=0.9") == "de"
 
 
 def test_a_chosen_language_persists_and_overrides_the_browser():

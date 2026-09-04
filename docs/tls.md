@@ -17,6 +17,7 @@ way a browser or a sync client would, without any special access.
   * [7. Is the negotiated cipher suite and certificate policy sound](#7-is-the-negotiated-cipher-suite-and-certificate-policy-sound)
   * [8. Do IPv4 and IPv6 present the same service: `tlsAddressParity`](#8-do-ipv4-and-ipv6-present-the-same-service-tlsaddressparity)
   * [9. Is certificate issuance restricted: `tlsCaaRecord`](#9-is-certificate-issuance-restricted-tlscaarecord)
+  * [9a. Can the address itself be trusted: `tlsDnssec`](#9a-can-the-address-itself-be-trusted-tlsdnssec)
   * [10. Is revocation actually checkable: `tlsOcspStapling`](#10-is-revocation-actually-checkable-tlsocspstapling)
   * [11. Was the certificate published to a log: `tlsCertificateTransparency`](#11-was-the-certificate-published-to-a-log-tlscertificatetransparency)
   * [12. Is a replayable 0-RTT flight invited: `tlsEarlyData`](#12-is-a-replayable-0-rtt-flight-invited-tlsearlydata)
@@ -136,6 +137,38 @@ is a DNS change at the zone, never an OpenCloud setting:
 ```
 example.com. CAA 0 issue "letsencrypt.org"
 ```
+
+## 9a. Can the address itself be trusted: `tlsDnssec`
+
+Everything above starts from an address a resolver handed over. Without
+**DNSSEC** that answer carries no signature, so one forged on the way to the
+resolver cannot be told apart from the real one - and the CAA record above,
+which restricts who may issue a certificate for the name, arrives over the
+same unauthenticated channel and can be forged along with it.
+
+The check asks the resolver this machine already uses - the one in
+`/etc/resolv.conf`, never a public one - for the scanned name with the DNSSEC
+bit set, and reads whether the resolver validated the answer, whether the
+answer carried signatures, and whether the resolver understood the question
+at all.
+
+That last part is why the finding is sometimes simply absent. A resolver that
+does not speak DNSSEC produces exactly the same silence an unsigned zone
+does, and reporting it would fail every scan run from behind such a resolver
+for a reason that has nothing to do with the instance. So:
+
+| What the resolver answered | `tlsDnssec` |
+|:---------------------------|:------------|
+| It validated the answer itself | passes |
+| It forwarded signatures without validating | passes - the zone is signed, which is the part the operator controls |
+| Neither, but it understood the question | **fails** - the zone is not signed |
+| It does not speak DNSSEC, or never answered | absent from the result entirely |
+
+This is a low finding, and the fix is at the domain's own zone rather than in
+OpenCloud: sign the zone at the DNS provider, then publish the resulting DS
+record at the *parent* zone - an unsigned delegation leaves a signed zone
+unprotected. See
+[ADR 0038](../adr/0038-a-dnssec-answer-nobody-could-have-given-is-not-a-finding.md).
 
 ## 10. Is revocation actually checkable: `tlsOcspStapling`
 

@@ -377,6 +377,25 @@ class ReleaseSchedule:
                     return found
         return self.latest_for()
 
+    def forward_target(self, track: str | None, version: str | None) -> str | None:
+        """The newest release worth moving ``version`` to, or nothing at all.
+
+        An upgrade recommendation must only ever point forwards, and a track on
+        its own cannot promise that: the newest release recorded for a track can
+        be *older* than a version the schedule has no line for at all. Telling
+        the operator of a ``5.0.0`` instance to "upgrade" to the ``4.0.5`` LTS
+        release would be advice that removes fixes rather than adding them, so
+        an arrow that does not point forwards is not drawn.
+        """
+        candidates = (
+            self.upgrade_target(track) if track else None,
+            self.latest_for(),
+        )
+        for candidate in candidates:
+            if candidate and compare_versions(candidate, version) > 0:
+                return candidate
+        return None
+
     def line_for(self, version: str | None) -> ReleaseLine | None:
         """The scheduled line a version belongs to, if it is a known one."""
         line = release_line(version)
@@ -578,7 +597,7 @@ class ReleaseSchedule:
                 release_type=declared,
                 state=STATE_END_OF_LIFE,
                 declared_track=requested,
-                upgrade_to=self.upgrade_target(declared) if declared else self.latest_for(),
+                upgrade_to=self.forward_target(declared, normalised),
                 reason="not part of the published release schedule",
             )
 

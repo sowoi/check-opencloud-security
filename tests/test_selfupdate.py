@@ -109,6 +109,70 @@ def test_an_installed_copy_is_not_mistaken_for_a_checkout(monkeypatch):
     assert selfupdate.plan_upgrade().installer == "pip"
 
 
+def _pretend_distro_install(monkeypatch, tmp_path: Path, packager: str) -> Path:
+    """Lay out a payload the way the .deb and the .rpm install one."""
+    payload = tmp_path / "usr" / "lib" / "check-opencloud-security"
+    (payload / "opencloud_local_scan").mkdir(parents=True)
+    (payload / selfupdate.DISTRO_MARKER_NAME).write_text(
+        f"{packager}\n", encoding="utf-8"
+    )
+    module = payload / "opencloud_local_scan" / "selfupdate.py"
+    module.touch()
+    monkeypatch.setattr(selfupdate, "_module_path", lambda: module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("packager", "command"),
+    [("deb", "apt install --only-upgrade"), ("rpm", "dnf upgrade")],
+)
+def test_a_distribution_package_sends_the_operator_to_its_package_manager(
+    monkeypatch, tmp_path, packager, command
+):
+    """
+    pip would appear to succeed here and change nothing that runs.
+
+    The .deb and the .rpm put the payload in one private directory and a
+    launcher on PATH that only ever reads it. A pip upgrade installs into the
+    user's site-packages, which that launcher never consults - so the operator
+    is told the upgrade worked, has two versions on the host, and is still
+    running the old one.
+    """
+    _pretend_distro_install(monkeypatch, tmp_path, packager)
+
+    with pytest.raises(UpgradeError, match="distribution package") as raised:
+        selfupdate.plan_upgrade()
+
+    assert command in str(raised.value)
+    assert "pip install" not in str(raised.value).split("instead")[0]
+
+
+def test_a_marker_nobody_wrote_does_not_make_every_install_a_distro_one(
+    monkeypatch, tmp_path
+):
+    """The negative case: without the marker, detection carries on as before."""
+    payload = tmp_path / "opt" / "venv" / "lib" / "site-packages"
+    payload.mkdir(parents=True)
+    module = payload / "x.py"
+    module.touch()
+    monkeypatch.setattr(selfupdate, "_module_path", lambda: module)
+    monkeypatch.setattr(selfupdate, "_in_virtualenv", lambda: True)
+
+    assert selfupdate._distro_package(module) is None
+    assert selfupdate.plan_upgrade().installer == "pip"
+
+
+def test_an_unreadable_marker_still_counts_as_a_distribution_package(
+    monkeypatch, tmp_path
+):
+    """The file being there is the claim; its contents only pick the wording."""
+    module = _pretend_distro_install(monkeypatch, tmp_path, packager="")
+
+    assert selfupdate._distro_package(module) == "unknown"
+    with pytest.raises(UpgradeError, match="package manager"):
+        selfupdate.plan_upgrade()
+
+
 def test_a_dry_run_changes_nothing_but_still_names_the_command(monkeypatch):
     """--upgrade-self=check shows the command without a host changing itself."""
     pretend_installed_at(

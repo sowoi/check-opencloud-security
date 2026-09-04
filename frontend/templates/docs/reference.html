@@ -104,6 +104,15 @@ yourself and the Icinga2/Nagios object definitions - is in
 <pre><code class="language-shell">pipx install check-opencloud-security          # or: uv tool install / pip install
 check-opencloud-security --host opencloud.example.com
 </code></pre>
+<p>On a monitoring host, where software is expected to arrive through the package
+manager and show up in the inventory, every release also carries a <code>.deb</code> and
+an <code>.rpm</code>:</p>
+<pre><code class="language-shell">sudo apt install ./check-opencloud-security_&lt;version&gt;_all.deb       # Debian, Ubuntu
+sudo dnf install ./check-opencloud-security-&lt;version&gt;-1.noarch.rpm  # RHEL, Fedora
+</code></pre>
+<p>Both put the check in <code>/usr/lib/nagios/plugins/</code> and configure nothing until
+you say so - the details are in
+<a href="/documentation/installation#debian-ubuntu-rhel-fedora-deb-and-rpm">Installing the plugin</a>.</p>
 <p>Prefer not to put Python on the host? The published image carries both entry
 points:</p>
 <pre><code class="language-shell">docker run --rm --entrypoint check-opencloud-security \
@@ -124,6 +133,10 @@ selected with <code>--entrypoint</code>.</p>
 <tr>
 <td>pipx / uv / pip, and <code>--upgrade-self</code></td>
 <td><a href="/documentation/installation#using-pipx--uv--pip-recommended">Installing the plugin</a></td>
+</tr>
+<tr>
+<td><code>.deb</code> and <code>.rpm</code>, for a monitoring host</td>
+<td><a href="/documentation/installation#debian-ubuntu-rhel-fedora-deb-and-rpm">Installing the plugin</a></td>
 </tr>
 <tr>
 <td>Shell completion</td>
@@ -468,10 +481,12 @@ below describes what the built-in scanner does and how to tune it.</p>
 the security headers, the OpenID Connect discovery document, and the paths and
 ports that ought not to answer at all. On top of that come the additional
 checks (<code>extraChecks</code> in the JSON, disabled with <code>--no-extra-checks</code>): TLS and
-certificates, cookie attributes, CORS and <code>TRACE</code>, unauthenticated Graph,
-WebDAV and OCS endpoints, exposed deployment files, directory listings, the
-documented demo accounts, debug endpoints and ports, iframe embedding, basic
-auth and version disclosure.</p>
+certificates, whether the zone is signed and who may issue it a certificate,
+cookie attributes, CORS and <code>TRACE</code>, unauthenticated Graph, WebDAV and OCS
+endpoints, exposed deployment files, a collaboration backend's admin console
+where one is published beside the instance, directory listings, the documented
+demo accounts, debug endpoints and ports, iframe embedding, basic auth and
+version disclosure.</p>
 <p>A failed additional check caps the rating (critical -&gt; <code>D</code>, high -&gt; <code>C</code>, medium
 -&gt; <code>A</code>, low -&gt; <code>A+</code>); set <code>scanner.extra_checks_rating: false</code> to report them
 without touching the rating.</p>
