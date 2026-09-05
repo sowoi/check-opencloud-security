@@ -54,8 +54,10 @@ frontend/
     ├── js/theme-toggle.js  the header switch between the two schemes
     ├── js/findings-filter.js  the severity counters, used to filter findings
     ├── js/waivers.js  narrows the list of checks that can be waived
-    ├── img/         logo.svg, hero.svg, expired.svg, og-image.svg and the
-    │                og-image.png rendered from it
+    ├── img/         logo.svg, expired.svg, og-image.svg and the
+    │                og-image.png rendered from it. The hero instrument is
+    │                inline in index.html, so that it follows a chosen scheme
+    │                and not only the operating system's
     ├── fonts/       Space Grotesk, Inter and JetBrains Mono, self-hosted,
     │                each under the SIL OFL 1.1 shipped beside it
     └── vendor/      Swagger UI and ReDoc, for the optional API docs pages

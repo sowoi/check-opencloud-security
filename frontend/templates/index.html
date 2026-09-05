@@ -18,8 +18,79 @@
       <p class="lede">{{ t.html('index.lede') }}</p>
     </div>
 
-    <img class="hero-art" src="/static/img/hero.svg" alt="Hero logo Opencloud Security Scanner"
-         width="480" height="300">
+    {#
+      Inline rather than <img src="hero.svg">, because the scheme is
+      something a visitor can choose. An <img> is a separate document: it
+      cannot see the `data-theme` this page writes on the root element, so
+      the drawing followed the operating system while everything around it
+      followed the toggle, and pressing the switch left a daylight
+      instrument on a midnight page. Inlined, it reads the same tokens as
+      the rest of the page - see "the instrument" in app.css, where its
+      styles live, because `style-src 'self'` admits no <style> here.
+
+      Decorative, and now explicitly so: an <img> never exposed the SVG's
+      own <title>, but an inline one would announce it, and what it would
+      announce is the headline directly above it said a second time. Hence
+      aria-hidden and no title, and hence no width/height either - there is
+      no separate file left to reserve a box for, and the attributes would
+      fight the CSS that sizes it.
+    #}
+    <svg class="hero-art" viewBox="0 0 480 300" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="hero-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="ha-brand"/>
+          <stop offset="1" class="ha-accent"/>
+        </linearGradient>
+        <linearGradient id="hero-shield" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" class="ha-shield-top"/>
+          <stop offset="1" class="ha-shield-bottom"/>
+        </linearGradient>
+        <linearGradient id="hero-sweep" gradientUnits="userSpaceOnUse"
+                        x1="240" y1="150" x2="358" y2="91">
+          <stop offset="0" class="ha-sweep-stop" stop-opacity=".3"/>
+          <stop offset="1" class="ha-sweep-stop" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+
+      {# the crosshair the instrument is aligned on #}
+      <g class="ha-hair" stroke-opacity=".16" stroke-width="1">
+        <path d="M60 150h360"/>
+        <path d="M240 34v232"/>
+      </g>
+
+      {# the instrument: a minute ring, two circles and a sweep that never
+         stops looking #}
+      <circle cx="240" cy="150" r="118" fill="none" class="ha-faint" stroke-opacity=".5"
+              stroke-width="7" stroke-dasharray="1.5 4.678"/>
+      <circle cx="240" cy="150" r="118" fill="none" class="ha-hair" stroke-opacity=".55"
+              stroke-width="11" stroke-dasharray="2 59.8"/>
+      <circle cx="240" cy="150" r="88" fill="none" stroke="url(#hero-ring)"
+              stroke-width="1.5" opacity=".4"/>
+      <circle cx="240" cy="150" r="60" class="ha-core" stroke="url(#hero-ring)"
+              stroke-width="1.5"/>
+      <circle cx="240" cy="150" r="64" class="ha-pulse-ring" fill="none" stroke-width="2"/>
+      <path class="ha-sweep" fill="url(#hero-sweep)" d="M240 150 L240 32 A118 118 0 0 1 342 91 Z"/>
+
+      {# the shield at the centre #}
+      <g transform="translate(182.4 96) scale(1.8)">
+        <path fill="url(#hero-shield)"
+              d="M32 13l13 4.9v10.6c0 8.8-5.5 15.4-13 18.5-7.5-3.1-13-9.7-13-18.5V17.9L32 13z"/>
+      </g>
+
+      {# findings riding the minute ring #}
+      <g class="ha-markers" stroke-width="2.5">
+        <circle cx="342" cy="91" r="5" class="ha-good"/>
+        <circle cx="299" cy="252" r="5" class="ha-info"/>
+        <circle cx="138" cy="209" r="5" class="ha-fair"/>
+        <circle cx="181" cy="48" r="5" class="ha-bad"/>
+      </g>
+
+      {# a little static in the air #}
+      <path class="ha-spark" transform="translate(150 96)"
+            d="M0-6 1.6-1.6 6 0 1.6 1.6 0 6 -1.6 1.6 -6 0 -1.6-1.6Z"/>
+      <path class="ha-spark ha-spark-2" transform="translate(352 210) scale(.75)"
+            d="M0-6 1.6-1.6 6 0 1.6 1.6 0 6 -1.6 1.6 -6 0 -1.6-1.6Z"/>
+    </svg>
   </div>
 
   <form class="scan-form card brackets" method="post" action="/"

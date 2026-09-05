@@ -247,6 +247,39 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   Redaction now answers `<redacted>` for a URL it cannot read, the delivery
   fails as a delivery failure, and the scan result is still reported.
 
+- **The hero instrument follows the scheme a visitor chose, not only the one
+  their operating system reports.** It was `<img src="hero.svg">`, and an
+  `<img>` is a separate document: it can read `prefers-color-scheme` but never
+  the `data-theme` this page writes on the root element when somebody presses
+  the header switch. So the drawing answered the system while everything
+  around it answered the toggle, and pressing the switch left a daylight
+  instrument on a midnight page - or a midnight one on a daylight page, which
+  is the same bug from the other side.
+
+  It is now inline in `index.html`, with its styles in `app.css` under all
+  three of the states the rest of the page already handles. That ends the
+  second palette it was carrying: the markers are the page's own `--good`,
+  `--fair`, `--info` and `--bad` rather than a hand-copy that had already
+  drifted in the light scheme, and only the three colours genuinely its own -
+  the sweep's magenta, the lit top of the shield, the static - are still
+  written down. `hero.svg` is gone rather than left unreferenced beside it.
+
+  The `<style>` block could not come along: `style-src 'self'` carries no
+  `unsafe-inline`, so a `<style>` element in the markup is dropped by the
+  browser and caught by `tests/test_webapp_api.py`. The drawing is also
+  explicitly decorative now - inline, its `<title>` *would* be announced, and
+  what it would announce is the headline directly above it, a second time.
+
+- **On a phone the hero puts the field before the picture.** Stacked into one
+  column, a full-width 480×300 illustration sat between the headline and the
+  one field this service exists for, so the first gesture on a small screen
+  was a scroll looking for something the page had just promised. The column is
+  reordered rather than the artwork dropped: the wrapper dissolves with
+  `display: contents` so copy, form and instrument become siblings in one
+  flex column, and the drawing keeps its place underneath at a size that looks
+  deliberate. The markup is untouched, so a reader without CSS still meets
+  them in the order it states.
+
 ### Security
 
 - **`--configure` no longer writes the configuration world-readable before

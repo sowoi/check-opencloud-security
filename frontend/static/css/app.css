@@ -1195,10 +1195,93 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 
 .hero-art {
     display: block; width: min(100%, 440px); margin: 0 0 0 auto;
+    /* Inline SVG, so the box comes from the viewBox rather than from
+       width/height attributes - which would have fought the width above. */
+    height: auto; aspect-ratio: 480 / 300;
     animation: rise .6s var(--ease-out) .28s backwards;
 }
 @media (max-width: 999px) {
     .hero-art { margin-inline: 0; width: min(100%, 380px); }
+}
+
+/*
+ * -------------------------------------------------------- the instrument
+ *
+ * The hero drawing, which used to be `<img src="hero.svg">` with its own
+ * palette and its own `prefers-color-scheme` block inside the file. That
+ * held until the scheme became something a visitor can *choose*: an <img>
+ * is a separate document and cannot see the `data-theme` written on this
+ * page's root element, so the drawing answered the operating system while
+ * everything around it answered the toggle. Pressing the switch left a
+ * daylight instrument on a midnight page, and the other way round.
+ *
+ * Inlined into the markup it is part of this document, so it reads these
+ * tokens and follows all three states the rest of the page follows. That
+ * also ends the second palette it was carrying: the statuses below are the
+ * page's own `--good`/`--fair`/`--info`/`--bad`, the ink is `--ink`, the
+ * centre is `--card-solid`. They were duplicated by hand before and had
+ * already drifted apart in the light scheme.
+ *
+ * Three colours are genuinely the instrument's own - the magenta it sweeps
+ * in, the lit top of the shield, and the static - so those are the only
+ * ones declared here, in the same two-block shape the tokens at the top of
+ * this file use, and edited together for the same reason.
+ *
+ * The animations need no reduced-motion branch of their own: the reset near
+ * the top of this file already stops every animation in it.
+ */
+.hero-art {
+    --ha-accent: #b13ad4;
+    --ha-shield-top: #7a6bff;
+    --ha-spark: #5b4bff;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .hero-art {
+        --ha-accent: #e58ff0;
+        --ha-shield-top: #cfc7ff;
+        --ha-spark: #cfc7ff;
+    }
+}
+:root[data-theme="dark"] .hero-art {
+    --ha-accent: #e58ff0;
+    --ha-shield-top: #cfc7ff;
+    --ha-spark: #cfc7ff;
+}
+
+.ha-brand { stop-color: var(--brand); }
+.ha-accent { stop-color: var(--ha-accent); }
+.ha-shield-top { stop-color: var(--ha-shield-top); }
+.ha-shield-bottom { stop-color: var(--brand); }
+.ha-hair { stroke: var(--ink); }
+.ha-faint { stroke: var(--ink-faint); }
+.ha-core { fill: var(--card-solid); }
+.ha-good { fill: var(--good); }
+.ha-fair { fill: var(--fair); }
+.ha-info { fill: var(--info); }
+.ha-bad { fill: var(--bad); }
+.ha-spark { fill: var(--ha-spark); }
+.ha-sweep-stop { stop-color: var(--ha-accent); }
+/* The findings are punched out of the centre disc rather than outlined. */
+.ha-markers { stroke: var(--card-solid); }
+.ha-pulse-ring { stroke: var(--ha-accent); opacity: .5; }
+
+.ha-sweep {
+    animation: ha-spin 8s linear infinite;
+    transform-origin: 240px 150px;
+}
+@keyframes ha-spin { to { transform: rotate(360deg); } }
+
+.ha-pulse-ring { animation: ha-ring-out 3.4s ease-out infinite; }
+@keyframes ha-ring-out {
+    from { r: 64; opacity: .5; }
+    to { r: 112; opacity: 0; }
+}
+
+.ha-spark { animation: ha-twinkle 4.6s ease-in-out infinite; }
+.ha-spark-2 { animation-duration: 5.8s; animation-delay: 1.4s; }
+@keyframes ha-twinkle {
+    0%, 100% { opacity: .2; }
+    50% { opacity: .8; }
 }
 
 /* The form is the third beat of the hero and arrives after the artwork. */
@@ -2466,8 +2549,38 @@ pre.config code { font-family: var(--mono); }
 @media (max-width: 640px) {
     .shell { width: min(100% - 1.6rem, var(--page)); }
 
-    .hero { padding: 1.6rem 0 .5rem; }
-    .hero-art { margin-top: 1.25rem; }
+    /*
+     * On a phone the instrument goes last.
+     *
+     * The hero reads copy, artwork, field - which is the right order on a
+     * wide screen, where the first two sit side by side and the field is
+     * still the first thing under them. Stacked into one column it stops
+     * being that order: the artwork is as wide as the page and 300/480 of
+     * that tall, so it alone puts the one field this service exists for
+     * below the fold, and the visitor's first gesture has to be a scroll
+     * looking for something they were already promised.
+     *
+     * So the column is reordered rather than the artwork shrunk to nothing:
+     * `display: contents` dissolves the two-column wrapper so that the copy,
+     * the form and the artwork are all children of the same flex column, and
+     * the artwork keeps its place in the page - underneath, at a size that
+     * looks deliberate rather than stretched. Nothing is hidden, and the DOM
+     * is untouched, so a reader without CSS still meets them in the order
+     * the markup states.
+     */
+    .hero { display: flex; flex-direction: column; padding: 1.6rem 0 .5rem; }
+    .hero-grid { display: contents; }
+    .hero-copy { order: 1; }
+    /* The delays swap with the order: the picture would otherwise rise into
+       place before the field it now sits under. */
+    .hero .scan-form { order: 2; margin-top: 1.75rem; animation-delay: .28s; }
+    .hero-art {
+        order: 3;
+        width: min(100%, 300px);
+        margin: 2rem auto 0;
+        animation-delay: .35s;
+    }
+
     .card { padding: 1.15rem; }
     main { padding-bottom: 2.5rem; }
 

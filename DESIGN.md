@@ -259,9 +259,18 @@ Several things in the system look like taste and are not:
 - **Nothing comes from a third party**, and Twitter/X, Google and Meta are
   excluded by name, as requests *and* as metadata. Platform-neutral OpenGraph
   tags stay: nothing fetches them.
-- **The artwork is hand-drawn.** `logo.svg`, `hero.svg`, `expired.svg` and
-  `og-image.svg` are small hand-written SVGs carrying their own light and dark
-  variants. No stock photography, no icon pack, no generic illustration.
+- **The artwork is hand-drawn.** `logo.svg`, `expired.svg` and `og-image.svg`
+  are small hand-written SVGs carrying their own light and dark variants, and
+  the hero instrument is hand-written too - inline in `index.html`, with its
+  styles in `app.css`. No stock photography, no icon pack, no generic
+  illustration.
+- **Artwork that has to follow the scheme is inlined, not linked.** An `<img>`
+  is a separate document: it can read `prefers-color-scheme` but never the
+  `data-theme` this page writes when a visitor picks a scheme, so a linked
+  drawing answers the operating system while the page around it answers the
+  toggle. The hero instrument is therefore part of the markup and reads the
+  same tokens as everything else. A drawing whose colours do not change -
+  `og-image.svg`, which nothing on the page renders - stays a file.
 - **`opencloud.example.com` is the only address that may appear** in a
   placeholder, an example or a screenshot.
 
