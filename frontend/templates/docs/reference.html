@@ -1007,26 +1007,32 @@ it activates only once <code>--webhook-url</code> (or <code>COS_WEBHOOK_URL</cod
   CRITICAL) and <code>always</code>.</li>
 <li><code>--webhook-format</code> / <code>COS_WEBHOOK_FORMAT</code> (default <code>generic</code>) posts the
   body as a Slack Block Kit attachment (<code>slack</code>, also accepted by Mattermost
-  and the common Matrix webhook bridges) or a Discord embed (<code>discord</code>)
-  instead of the plugin's own flat document. The default is unchanged, so
-  this is entirely opt-in:
-  <code>shell
+  and the common Matrix webhook bridges), a Discord embed (<code>discord</code>), or a
+  push notification for an <a href="https://ntfy.sh">ntfy</a> (<code>ntfy</code>) or
+  <a href="https://gotify.net">Gotify</a> (<code>gotify</code>) server, instead of the plugin's own
+  flat document. The default is unchanged, so this is entirely opt-in:
+  ```shell
   check-opencloud-security --host opencloud.example.com \
     --webhook-url https://hooks.slack.com/services/... \
-    --webhook-format slack</code>
-  Anything else - ntfy, Alertmanager, a custom receiver - still wants the
-  <code>generic</code> document; <a href="/documentation/webhooks">Webhook recipes</a> has one for
-  each.</li>
-<li><code>--webhook-header</code> / <code>COS_WEBHOOK_HEADERS</code> adds request headers, e.g. for
-  authentication. Repeat the flag, or separate entries with <code>;</code> in the
-  environment variable: <code>COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"</code>.</li>
-<li><code>--webhook-timeout</code> / <code>COS_WEBHOOK_TIMEOUT</code> (default <code>10</code>) limits the
-  webhook call; it is independent of the scan <code>--timeout</code>.</li>
-<li>Webhook destinations that resolve to private, loopback, or link-local
-  addresses are blocked to prevent server-side request forgery. Set
-  <code>--allow-private-webhooks</code> or <code>COS_ALLOW_PRIVATE_WEBHOOKS=true</code> only for an
-  intentional internal receiver.</li>
+    --webhook-format slack</li>
 </ul>
+<p>check-opencloud-security --host opencloud.example.com \
+    --webhook-url https://ntfy.example.com/opencloud \
+    --webhook-format ntfy
+  <code>``
+  With</code>ntfy<code>, point</code>--webhook-url<code>at the **topic** URL: the topic is read
+  from it and the publication itself goes to the server root, which is the
+  only place ntfy reads JSON. A URL naming no topic is refused at startup
+  rather than failing on every notification.
+  Anything else - Alertmanager, a custom receiver - still wants the</code>generic<code>document; [Webhook recipes](docs/webhook-recipes.md) has one for each.
+-</code>--webhook-header<code>/</code>COS_WEBHOOK_HEADERS<code>adds request headers, e.g. for
+  authentication. Repeat the flag, or separate entries with</code>;<code>in the
+  environment variable:</code>COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"<code>.
+-</code>--webhook-timeout<code>/</code>COS_WEBHOOK_TIMEOUT<code>(default</code>10<code>) limits the
+  webhook call; it is independent of the scan</code>--timeout<code>.
+- Webhook destinations that resolve to private, loopback, or link-local
+  addresses are blocked to prevent server-side request forgery. Set</code>--allow-private-webhooks<code>or</code>COS_ALLOW_PRIVATE_WEBHOOKS=true` only for an
+  intentional internal receiver.</p>
 <p>Delivery reuses <code>--retries</code> / <code>--backoff-factor</code>. <strong>A failing webhook never
 changes the check result</strong> - the plugin appends <code>Webhook delivery failed</code> to
 its output and still exits with the state it measured, so a broken
@@ -1136,8 +1142,18 @@ the graph without extra configuration.</p>
 <td><code>support_days_left</code></td>
 <td>Days until the release line loses support (negative when overdue)</td>
 </tr>
+<tr>
+<td><code>cert_days_left</code></td>
+<td>Days until the TLS certificate expires (negative once expired)</td>
+</tr>
 </tbody>
 </table>
+<p><code>cert_days_left</code> is absent rather than zero when nothing was measured - a scan
+over plain HTTP, a host that refused the handshake, or a certificate whose
+dates would not parse. It carries the scan's own thresholds rather than a
+second opinion invented for the graph: warning at or below
+<code>scanner.tls_min_days</code>, the same margin the <code>tlsCertificate</code> finding fires at,
+and critical once the certificate has actually expired.</p>
 <p>Outside Icinga2, the same numbers reach Prometheus through the node_exporter
 textfile collector or a Pushgateway - see
 <a href="/documentation/prometheus">Prometheus and Grafana</a>.</p>

@@ -15,6 +15,15 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#using-pipx-uv-pip-recommended" lang="en">Using pipx / uv / pip (recommended)</a>
+  <a href="#debian-ubuntu-rhel-fedora-deb-and-rpm" lang="en">Debian, Ubuntu, RHEL, Fedora (.deb and .rpm)</a>
+  <a href="#macos-and-linux-workstations-homebrew" lang="en">macOS and Linux workstations (Homebrew)</a>
+  <a href="#docker" lang="en">Docker</a>
+  <a href="#icinga2-nagios" lang="en">Icinga2 / Nagios</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>Every way of getting <code>check-opencloud-security</code> onto a host, and the
 monitoring objects that call it once it is there. The
@@ -246,6 +255,24 @@ python scripts/build_distro_packages.py --packager deb
 <p>The layout, the dependencies and everything else the packages declare live in
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/packaging/nfpm.yaml"><code>packaging/nfpm.yaml</code></a>. Why they are built this way is
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0039-the-plugin-ships-as-a-distribution-package-built-from-the-wheel.md">ADR 0039</a>.</p>
+<h2 id="macos-and-linux-workstations-homebrew">macOS and Linux workstations (Homebrew)</h2>
+<p>Use this on a laptop rather than on a monitoring host - somebody trying an
+instance by hand before wiring the check into Icinga. The argument is the one
+the <code>.deb</code> and the <code>.rpm</code> make one platform over: <code>brew</code> is the package
+database on these machines, and a <code>pip install --user</code> is absent from it and
+invisible to <code>brew outdated</code>.</p>
+<pre><code class="language-shell">brew install sowoi/tap/check-opencloud-security
+check-opencloud-security --host opencloud.example.com
+</code></pre>
+<p>The formula lives in a tap rather than in Homebrew core, which has notability
+requirements this project does not claim to meet. <code>brew upgrade</code> keeps it
+current; <code>--upgrade-self</code> deliberately refuses on a Homebrew installation and
+says so, because pip would write into the Cellar and the next <code>brew</code>
+operation would quietly undo it.</p>
+<p>The formula itself is generated from what PyPI published, by
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/scripts/build_homebrew_formula.py"><code>scripts/build_homebrew_formula.py</code></a> -
+see <a href="https://github.com/sowoi/check-opencloud-security/blob/main/packaging/README.md#homebrew"><code>packaging/README.md</code></a> if you are
+maintaining the tap rather than installing from it.</p>
 <h2 id="docker">Docker</h2>
 <p>Use this if you would rather not install anything on the host. The image also
 ships the scan service (see

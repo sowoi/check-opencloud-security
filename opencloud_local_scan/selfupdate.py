@@ -10,6 +10,7 @@ all.
 Detection order, most specific first:
 
 * a ``distro-package`` marker beside the payload -> refuse, apt or dnf owns it
+* a path under a Homebrew ``Cellar/``    -> refuse, ``brew`` owns it
 * a path under ``pipx/venvs/``           -> ``pipx upgrade``
 * a path under ``uv/tools/``             -> ``uv tool upgrade``
 * an editable checkout or a source tree  -> refuse, this is a git working copy
@@ -42,6 +43,12 @@ PACKAGE_NAME = "check-opencloud-security"
 # Markers that identify the installer from the installation path.
 PIPX_MARKERS = ("/pipx/venvs/", "\\pipx\\venvs\\")
 UV_MARKERS = ("/uv/tools/", "\\uv\\tools\\")
+
+#: Homebrew installs every formula under `<prefix>/Cellar/<name>/<version>/`,
+#: on macOS and on Linux alike, and the prefix moves between the two - so the
+#: Cellar directory is the part that identifies it. No Windows spelling: brew
+#: does not run there, and inventing one would only widen what this matches.
+HOMEBREW_MARKERS = ("/Cellar/",)
 
 #: Written beside the payload by the .deb and the .rpm, holding the packager
 #: that built them. A file rather than a path prefix, because a package can be
@@ -155,6 +162,18 @@ def plan_upgrade(package: str = PACKAGE_NAME) -> UpgradePlan:
             f"({packager}). Upgrade it with '{manager}' instead - installing "
             "over it with pip leaves a second copy that this command would "
             "never run."
+        )
+
+    # Same failure as the distro package, by a different route. Homebrew's
+    # formula is a virtualenv under the Cellar, so pip finds it writable and
+    # upgrades it - and the next `brew upgrade` of anything relinks the Cellar
+    # and puts the old version back, silently, with no record that pip was
+    # ever there.
+    if any(marker in text for marker in HOMEBREW_MARKERS):
+        raise UpgradeError(
+            f"{package} was installed with Homebrew. Upgrade it with "
+            f"'brew upgrade {package}' instead - pip would write into the "
+            "Cellar, and the next brew operation would undo it."
         )
 
     if _is_source_checkout(path):
