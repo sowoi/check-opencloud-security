@@ -1,0 +1,75 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: wizard-config-world-readable-window
+state: draft
+changelog_version: "1.21.0"
+changelog_entry: "`--configure` no longer writes the configuration world-readable before narrowing it."
+shipped: true
+severity: low
+cwe_ids:
+  - CWE-378
+  - CWE-732
+package: plugin
+introduced: "1.1.0"
+fixed: "1.21.0"
+summary: >-
+  The --configure wizard wrote the configuration file - which may hold a
+  release token, a service token or a webhook URL carrying a credential - at
+  the umask or the existing mode, narrowing it to 0600 only afterwards
+verified: |
+  git show v1.1.0:opencloud_local_scan/wizard.py | grep -A6 '^def save'
+  git show v1.19.0:opencloud_local_scan/wizard.py | grep -A6 '^def save'
+  Both show `path.write_text(...)` followed by `os.chmod(path, FILE_MODE)`:
+  the content reaches disk before the mode is narrowed. v1.1.0 is the first
+  tag carrying opencloud_local_scan/wizard.py at all (checked by walking
+  `git tag --sort=v:refname`), and v1.19.0 is the newest tag, so every
+  released version that has the wizard has this shape.
+
+  Reproduced on the released code path: with the destination pre-created at
+  0644, the file is observed at 0644 with the token already in it at the
+  moment `os.chmod` is called.
+description: |
+  ### Impact
+
+  `check_opencloud_security.py --configure` (and `check-opencloud-scanner
+  configure`) writes the configuration it builds with `Path.write_text` and
+  narrows the mode to `0600` only after the bytes are on disk. That file is
+  documented as holding secrets - a `releases.token`, a `service.token`, or a
+  `--webhook-url` with a credential embedded in it.
+
+  Two exposures follow, and the second is the one that matters:
+
+  * **A new file** is created at the process umask, commonly `0644`, and is
+    world-readable until the `chmod`. A local user who opens it in that window
+    keeps a working descriptor afterwards - the later `chmod` does not revoke
+    an open file.
+  * **An existing file** is truncated and rewritten through the same inode, so
+    it keeps whatever mode it already had for the *entire* write, not for an
+    instant. Re-running the wizard to rotate a token is exactly this path.
+
+  The attacker is a local user on the monitoring host - or any process running
+  as one, such as a compromised low-privilege service account. Remote
+  exploitation is not possible, which is why this is rated low despite being a
+  credential disclosure.
+
+  Deployments that keep secrets out of the file entirely by answering the
+  wizard with a `secret://`, `file://` or `env://` reference (see
+  `opencloud_local_scan.secrets`) never wrote a credential here and are not
+  affected.
+
+  ### Patches
+
+  Fixed in **1.21.0**. The configuration is written to a `tempfile.mkstemp`
+  file - owner-only from the moment it exists - and moved into place with
+  `os.replace`. The secret is never on disk under a wider mode, in either
+  case. The move is atomic, so a failed save now also leaves the previous
+  configuration intact rather than truncated.
+
+  ### Workarounds
+
+  Keep credentials out of the file with a `secret://`, `file://` or `env://`
+  reference, or create the destination at `0600` before running the wizard and
+  ensure no other account can read the directory it is written to.

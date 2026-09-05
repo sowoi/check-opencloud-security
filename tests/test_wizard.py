@@ -120,6 +120,48 @@ def test_the_saved_file_is_json_and_readable_only_by_its_owner(tmp_path):
     assert mode == 0o600
 
 
+def test_the_secret_is_never_on_disk_under_a_wider_mode_than_the_final_one(tmp_path):
+    """A token that was world-readable for a moment was world-readable.
+
+    Narrowing the mode *after* writing leaves the secret exposed for the whole
+    write - and for the whole of it, not merely a moment, when the destination
+    already exists at 0644, which is what rotating a token by re-running the
+    wizard does. So the content is written somewhere owner-only and moved into
+    place, which shows up here as the destination being *replaced* rather than
+    rewritten through.
+    """
+    target = tmp_path / ".env.json"
+    target.touch(mode=0o644)
+    before = os.stat(target).st_ino
+
+    wizard.save({"releases": {"token": "s3cret"}}, target)
+
+    after = os.stat(target)
+    assert "s3cret" in target.read_text()
+    # A new inode: the bytes became visible under this name only once they
+    # were already owner-only. Rewriting in place would keep the old one, and
+    # would have held the token at 0644 for the length of the write.
+    assert after.st_ino != before
+    assert stat.S_IMODE(after.st_mode) == 0o600
+    # And nothing was left lying about beside it at whatever mode.
+    assert [entry.name for entry in tmp_path.iterdir()] == [".env.json"]
+
+
+def test_a_failed_save_leaves_the_previous_configuration_intact(tmp_path):
+    """A wizard that cannot finish must not destroy the config that was working."""
+    target = tmp_path / ".env.json"
+    target.write_text('{"host": "opencloud.example.com"}\n', encoding="utf-8")
+
+    class Unserialisable:
+        pass
+
+    with pytest.raises(TypeError):
+        wizard.save({"host": Unserialisable()}, target)
+
+    assert json.loads(target.read_text()) == {"host": "opencloud.example.com"}
+    assert [entry.name for entry in tmp_path.iterdir()] == [".env.json"]
+
+
 def test_aborting_the_wizard_writes_nothing(tmp_path):
     """Ctrl-C during setup must not leave a half-written configuration behind."""
     target = tmp_path / ".env.json"

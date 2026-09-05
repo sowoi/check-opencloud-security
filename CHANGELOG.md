@@ -247,6 +247,30 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   Redaction now answers `<redacted>` for a URL it cannot read, the delivery
   fails as a delivery failure, and the scan result is still reported.
 
+### Security
+
+- **`--configure` no longer writes the configuration world-readable before
+  narrowing it.** The file it saves may hold a release token, a service token
+  or a webhook URL with a credential in it - the wizard says so - and it was
+  written with `write_text` and only then `chmod`ed to `0600`. On a monitoring
+  host with more than one account, any local user could read the token in the
+  window between the two, and a descriptor opened in that window stays
+  readable after the `chmod`.
+
+  The window was not the whole of it. Where the destination **already existed**
+  at `0644` - an earlier run, an editor, `touch` - the write went through that
+  same inode, so the token sat world-readable for the entire write rather than
+  for an instant. Re-running `--configure` to *rotate* a token is exactly that
+  path.
+
+  The configuration is now written to a `mkstemp` file, which is owner-only
+  from the moment it exists, and moved into place. The secret is therefore
+  never on disk under a wider mode, and the move being atomic means a save
+  that fails leaves the previous configuration intact instead of a truncated
+  one. This is the rule `docker/setup-wizard.py` already held its `.env` to and
+  `baseline.py` already held its state file to; the plugin's own wizard was the
+  one place that did not.
+
 ## [1.19.0] - 2026-09-03
 
 ### Added
