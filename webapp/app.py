@@ -110,7 +110,12 @@ from .discovery import (
     OPENAPI_PATH,
     discovery_document,
 )
-from .documentation import DOCUMENTATION_BY_SLUG, DOCUMENTATION_PAGES
+from .documentation import (
+    DOCUMENTATION_BY_SLUG,
+    DOCUMENTATION_PAGES,
+    OPERATOR_DOCUMENTATION_BY_SLUG,
+    OPERATOR_DOCUMENTATION_PAGES,
+)
 from .encryption import ensure_encryption_ready
 from .export_signing import SIGNATURE_HEADER, sign_bytes
 from .i18n import (
@@ -1672,6 +1677,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 # it out of a list of things to go looking for.
                 "robots": ADMIN_ROBOTS,
                 "canonical_url": None,
+                # The tab strip, rendered from the same manifest the pages
+                # are generated from, so a document added there appears in
+                # the navigation without a second list to keep in step.
+                "admin_path": ADMIN_PATH,
+                "admin_tab": "overview",
+                "admin_doc_tabs": OPERATOR_DOCUMENTATION_PAGES,
             }
 
         @app.get(ADMIN_PATH, response_class=HTMLResponse, include_in_schema=False)
@@ -1680,6 +1691,37 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             if operator is None:
                 return not_found(request)
             return page(request, "admin.html", admin_context(operator, None))
+
+        @app.get(f"{ADMIN_PATH}/docs/{{slug}}", response_class=HTMLResponse,
+                 include_in_schema=False)
+        async def admin_documentation(request: Request, slug: str) -> Response:
+            """
+            One of the repository's own documents, for whoever runs this.
+
+            Authorised exactly like every other page in the area, and 404 for
+            an unknown slug for the same reason the area itself is 404 to a
+            stranger: an operator has a tab strip and does not need to guess
+            addresses, and anybody guessing gets the answer the rest of the
+            area gives.
+
+            The pages are generated at build time by
+            `scripts/build_frontend_documentation.py` (ADR 0018), so nothing
+            here reads Markdown at runtime and the web application keeps no
+            Markdown dependency.
+            """
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            document = OPERATOR_DOCUMENTATION_BY_SLUG.get(slug)
+            if document is None:
+                return not_found(request)
+            context = admin_context(operator, None)
+            context["admin_tab"] = slug
+            # Named so the page can say which repository file it is showing,
+            # rather than leaving a reader to guess which document they are
+            # reading and where to edit it.
+            context["page_source"] = document.source
+            return page(request, f"admin-docs/{slug}.html", context)
 
         @app.get(f"{ADMIN_PATH}/state", include_in_schema=False)
         async def admin_state(request: Request) -> Response:

@@ -8,6 +8,10 @@ MESSAGES: dict[str, str] = {
     "admin.title": "Betriebsbereich",
     "admin.description": "Dienstzustand, Referenzdaten und das Audit-Protokoll.",
     "admin.kicker": "Betrieb",
+    "admin.tabs.aria": "Betreiberbereich",
+    "admin.tabs.overview": "Überblick",
+    "admin.docs.kicker": "Betreiberdokumentation",
+    "admin.docs.source": "Aus <code>{file}</code> im Repository, auf Englisch.",
     "admin.band": "Betriebsbereich - angemeldet als {user}",
     "admin.band.signout": "Abmelden",
     "admin.lede": (

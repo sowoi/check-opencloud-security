@@ -44,6 +44,11 @@
       "summary": "Put OpenCloud behind Keycloak, Authentik or Authelia, enable and ship the audit log, firewall the debug ports, and monitor it continuously."
     },
     {
+      "path": "/documentation/identity-providers",
+      "title": "Putting an identity provider in front of OpenCloud, step by step",
+      "summary": "Three complete tutorials - Keycloak, Authentik and Authelia - from nothing to a working OpenID Connect sign-in, with the four OpenCloud clients they all need."
+    },
+    {
       "path": "/documentation/cli-reference",
       "title": "OpenCloud Security Scanner CLI option reference",
       "summary": "Every command-line flag, its default, and the environment variable that sets the same thing."

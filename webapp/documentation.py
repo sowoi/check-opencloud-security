@@ -32,6 +32,12 @@ DOCUMENTATION_PAGES: tuple[DocumentationPage, ...] = (
         "Put OpenCloud behind Keycloak, Authentik or Authelia, enable and ship the audit log, firewall the debug ports, and monitor it continuously.",
     ),
     DocumentationPage(
+        "identity-providers",
+        "docs/identity-providers.md",
+        "Putting an identity provider in front of OpenCloud, step by step",
+        "Three complete tutorials - Keycloak, Authentik and Authelia - from nothing to a working OpenID Connect sign-in, with the four OpenCloud clients they all need.",
+    ),
+    DocumentationPage(
         "cli-reference",
         "docs/cli-reference.md",
         "OpenCloud Security Scanner CLI option reference",
@@ -253,3 +259,38 @@ DOCUMENTATION_PAGES: tuple[DocumentationPage, ...] = (
 )
 
 DOCUMENTATION_BY_SLUG = {page.slug: page for page in DOCUMENTATION_PAGES}
+
+
+#: The two repository documents the operator's area renders, and the only
+#: documents outside :data:`DOCUMENTATION_PAGES` that are turned into pages at
+#: all.
+#:
+#: They are deliberately *not* in the manifest above. That one feeds
+#: ``/documentation``, the sitemap, the search index and the public page
+#: navigation; these two are reachable only from ``/admin``, which authorises
+#: every request and answers 404 to everybody else. An operator reading how
+#: this service is put together, and what to do when it misbehaves, should not
+#: have to leave the area to find it - and a reader of ``/documentation``
+#: should not meet internal operations notes filed among the guides.
+#:
+#: English only, and no catalogue keys: these are the repository's own
+#: documents, and a half-translated operations note is worse than an English
+#: one that says so.
+OPERATOR_DOCUMENTATION_PAGES: tuple[DocumentationPage, ...] = (
+    DocumentationPage(
+        "architecture",
+        "ARCHITECTURE.md",
+        "Architecture",
+        "How this repository is put together, and why the seams are where they are.",
+    ),
+    DocumentationPage(
+        "operations",
+        "ADMIN.md",
+        "Operations",
+        "Keeping the data current, rebuilding what is generated, and where to look when the service misbehaves.",
+    ),
+)
+
+OPERATOR_DOCUMENTATION_BY_SLUG = {
+    page.slug: page for page in OPERATOR_DOCUMENTATION_PAGES
+}

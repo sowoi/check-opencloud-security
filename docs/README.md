@@ -49,6 +49,7 @@ internet; the page below is the rest of the job.
 | Page | What it covers |
 |:-----|:---------------|
 | [Running OpenCloud in a secure infrastructure](secure-deployment.md) | Putting Keycloak, Authentik or Authelia in front of it; turning the audit log on and getting it off the host; firewalling the ports Docker publishes behind your back; what the people using the instance should know; and where continuous monitoring with this check fits |
+| [Putting an identity provider in front of OpenCloud, step by step](identity-providers.md) | The long version of the section above: three complete tutorials - Keycloak, Authentik, Authelia - the four OpenCloud clients all of them need, verifying it worked, and moving an instance that already has accounts |
 
 ## Deploying it
 

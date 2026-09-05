@@ -12,6 +12,62 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **Three step-by-step identity-provider tutorials, in
+  [`docs/identity-providers.md`](docs/identity-providers.md).** Putting
+  Keycloak, Authentik or Authelia in front of an instance was one section of
+  [Running OpenCloud in a secure
+  infrastructure](docs/secure-deployment.md#1-put-a-real-identity-provider-in-front),
+  which argued the case and then summarised each provider in a screenful.
+  This is the other half: installing each one, the provider configuration in
+  full, verifying it worked, and moving an instance that already has accounts
+  without stranding anybody's files in an account they can no longer reach.
+
+  The part worth having is the section none of the three vendors can write,
+  because it is not about them: **the four clients, their redirect URIs and
+  their scopes are properties of OpenCloud's own applications** and are
+  identical whichever provider you pick. The web client needs
+  `oidc-silent-redirect.html` registered or sessions start dying at an
+  interval nobody can reproduce; only the non-browser clients get
+  `offline_access`, because a refresh token in a browser tab is a credential
+  in a place that cannot protect it; and all four are public clients with
+  PKCE, because everything OpenCloud ships runs on somebody else's machine
+  and cannot keep a secret. Each provider tutorial is then only what that
+  provider calls those things.
+
+  The troubleshooting table is the failures in order of how often they are
+  the answer, and the verification section ends where this repository begins:
+  a scan, and the four OpenID Connect properties it reads from the discovery
+  document - plus a note on the two things it deliberately cannot tell you,
+  which are your group mapping and whether your second factor is enforced.
+
+- **The operator's area has a Documentation tab.** `/admin` gained a tab
+  strip, and beside the overview it now renders the two repository documents
+  somebody running this service actually needs while running it:
+  `ARCHITECTURE.md` at `/admin/docs/architecture`, and the operations notes in
+  `ADMIN.md` at `/admin/docs/operations`. Reaching for either used to mean
+  leaving the service and finding the repository.
+
+  They are generated at build time into `frontend/templates/admin-docs/` by
+  the same pipeline the public guides use ([ADR
+  0018](adr/0018-cli-documentation-is-generated-at-build-time.md)), so nothing
+  parses Markdown at runtime and the web application still has no Markdown
+  dependency. English only, with a line above each saying which repository
+  file it came from - a half-translated operations note is worse than an
+  English one that says so.
+
+  **They come from a manifest of their own**, `OPERATOR_DOCUMENTATION_PAGES`,
+  deliberately separate from the one that feeds `/documentation`. That is what
+  keeps `ADMIN.md`'s own promise about itself intact: the pages are absent
+  from the public documentation index, the sitemap, `robots.txt` and the
+  search index, they answer **404** to anybody the outpost did not authorise,
+  and `tests/test_webapp_admin.py` holds them to every one of those. The one
+  thing that did change is recorded in `ADMIN.md` itself: the rendered page
+  travels inside the web bundle and the container image, which is acceptable
+  only because that file is already world-readable in the public repository
+  and contains operations notes rather than credentials.
+
 ### Fixed
 
 - **The hero instrument follows the scheme a visitor chose, not only the one

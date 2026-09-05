@@ -3,18 +3,35 @@
 Internal operations notes for system administrators who run or maintain this
 repository and its deployments.
 
-This document is **not** published. It is deliberately absent from every
-manifest that ships something outward:
+This document is **not** published to anybody who has not been let in. It is
+deliberately absent from every manifest that puts something in front of a
+stranger:
 
 | Artefact | Why ADMIN.md stays out |
 |:--|:--|
 | PyPI wheel | `[tool.hatch.build.targets.wheel] only-include` names only `check_opencloud_security.py` and `opencloud_local_scan` |
 | PyPI sdist | `[tool.hatch.build.targets.sdist] include` is an explicit file list |
-| Web bundle | `scripts/build_web_bundle.py` copies a named list of files |
-| `/documentation` | Generated only from the pages in `webapp/documentation.py` |
+| `/documentation` | Generated only from `DOCUMENTATION_PAGES` in `webapp/documentation.py` |
 | Site search | `webapp/search.py` lists the public templates explicitly |
+| Sitemap and `robots.txt` | Built from the same public manifest; the operator area is in neither |
 
 Adding this file to any of those lists would publish it, so don't.
+
+**The one place it is rendered** is the operator's area, at
+`/admin/docs/operations` — see [The operator's area at
+/admin](#the-operators-area-at-admin). That is not an exception to the rule
+above but an application of it: the area authorises every request through the
+outpost and answers **404** to everybody else, and it reads from a manifest of
+its own, `OPERATOR_DOCUMENTATION_PAGES`, which deliberately feeds none of the
+surfaces in that table. `tests/test_webapp_admin.py` holds it to all of that.
+
+What this does change: the *rendered* page is generated at build time into
+`frontend/templates/admin-docs/`, so its text travels inside the web bundle
+and the container image even though no unauthorised request can reach it.
+That is acceptable only because this file is already world-readable in the
+public repository — it is operations notes, not credentials. **Keep it that
+way: nothing that would not survive being read by a stranger belongs in this
+file.**
 
 For *developer* rules — architecture, layer boundaries, ADR policy, the
 release process — read `AGENTS.md`. For diagnosing a *scan* that reports
@@ -502,6 +519,22 @@ What the area does:
 | Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
 | Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job. Three verdicts, not two: an index that does not name the release it was built for is **Cannot tell**, because its pages and languages could be compared and its copy could not |
 | Audit | Streams the audit records as they are written, from the log file when one is configured and otherwise from a bounded in-memory ring |
+
+Beside the overview there are two more places, reached from the tab strip at
+the top of every page in the area:
+
+| Tab | What it shows |
+|:--|:--|
+| Architecture | `ARCHITECTURE.md` — how the repository is put together and why the seams are where they are |
+| Operations | This file — the data to keep current, what to rebuild, and where to look when something breaks |
+
+Both are generated into `frontend/templates/admin-docs/` at build time by
+`scripts/build_frontend_documentation.py`, from
+`OPERATOR_DOCUMENTATION_PAGES` rather than the public manifest, so no
+Markdown is parsed at runtime and neither document reaches `/documentation`,
+the sitemap or the search index. They are English only: a half-translated
+operations note is worse than an English one that says which file it came
+from, which the line above each of them does.
 
 What it deliberately cannot do: name a target, a uuid, a result or a client
 address. The statistics are counts and settings, and the audit view shows the

@@ -134,6 +134,13 @@ have nothing to do with their quality:</p>
 softens the HTTP Basic authentication finding from medium to low when an
 external one is detected - see
 <a href="/documentation/authentication#6-can-the-identity-provider-be-found-at-all-identityproviderdetected">Authentication</a>.</p>
+<blockquote>
+<p><strong>Step by step, for each of the three:</strong> this section is the summary and the
+reasoning. <a href="/documentation/identity-providers">Putting an identity provider in front of OpenCloud, step by
+step</a> is the tutorial - installing each provider,
+the four OpenCloud clients every one of them needs, verifying it worked, and
+moving an instance that already has accounts.</p>
+</blockquote>
 <h3 id="what-opencloud-needs-whichever-provider-you-pick">What OpenCloud needs, whichever provider you pick</h3>
 <p>The variables are the same for all three; only the issuer URL and the way you
 create the client differ. From
@@ -200,6 +207,10 @@ side, not by leaving autoprovisioning off and creating accounts by hand.</p>
 <code>GRAPH_ASSIGN_DEFAULT_USER_ROLE=true</code> is the misconfiguration that gives
 everyone a role you did not intend.</p>
 <h3 id="keycloak">Keycloak</h3>
+<blockquote>
+<p><a href="/documentation/identity-providers#tutorial-a-keycloak">The step-by-step Keycloak tutorial</a> is the whole job;
+what follows is the shape of it.</p>
+</blockquote>
 <p>The most common choice where an organisation already runs one. Create a realm
 (or reuse yours), then a client:</p>
 <ul>
@@ -215,6 +226,10 @@ everyone a role you did not intend.</p>
 <code>roles</code> claim, then set <code>PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM=roles</code>. Give the
 realm a password policy and require OTP for the administrator role at minimum.</p>
 <h3 id="authentik">Authentik</h3>
+<blockquote>
+<p><a href="/documentation/identity-providers#tutorial-b-authentik">The step-by-step Authentik tutorial</a> is the whole job;
+what follows is the shape of it.</p>
+</blockquote>
 <p>This repository already ships an Authentik stack, though for a different
 purpose - it protects <a href="/documentation/authentik">the scan service's own MCP endpoint</a>, not
 OpenCloud. The provider configuration is the same shape:</p>
@@ -232,6 +247,10 @@ OpenCloud. The provider configuration is the same shape:</p>
 worked example of provisioning a provider from a file rather than by clicking,
 which is worth copying whatever you are configuring.</p>
 <h3 id="authelia">Authelia</h3>
+<blockquote>
+<p><a href="/documentation/identity-providers#tutorial-c-authelia">The step-by-step Authelia tutorial</a> is the whole job;
+what follows is the shape of it.</p>
+</blockquote>
 <p>The lightest of the three, and a good fit where the reverse proxy is already
 doing forward authentication. Authelia's OpenID Connect provider is configured
 in <code>configuration.yml</code> rather than a UI:</p>
