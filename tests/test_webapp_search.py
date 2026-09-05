@@ -65,3 +65,43 @@ def test_only_the_release_workflow_refreshes_the_index():
     for workflow in (ROOT / ".github/workflows").glob("*.yml"):
         if workflow.name != "publish-pypi.yml":
             assert "build_search_index.py" not in workflow.read_text(encoding="utf-8")
+
+
+def test_every_generated_index_resolves_its_own_merge_conflicts():
+    """A checked-in generated file conflicts on every merge, and nobody can settle it.
+
+    The index is a pure function of the templates, the catalogues and the
+    version, so two branches touching any of those differ on the same lines
+    with nothing for a person to decide. `.gitattributes` points each one at
+    the `search-index` driver, which rebuilds instead of merging. A fifth
+    locale added later has to be pointed at it too, or it quietly goes back to
+    being a file somebody resolves by guessing.
+    """
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    for locale in SUPPORTED_LOCALES:
+        suffix = "" if locale == "en" else f".{locale}"
+        name = f"frontend/static/search-index{suffix}.json"
+        assert f"{name} merge=search-index" in attributes, f"{name} has no merge driver"
+
+    # The driver has to be registerable, and the registration has to name the
+    # script that actually exists - a driver pointing at a missing command
+    # fails the merge outright rather than falling back.
+    setup = (ROOT / "scripts/setup_git_merge_drivers.py").read_text(encoding="utf-8")
+    assert "merge_search_index.py" in setup
+    assert (ROOT / "scripts/merge_search_index.py").exists()
+
+    # And it must stay a per-clone step: shipping the command itself would
+    # mean a clone of this repository could run code on merge.
+    assert not (ROOT / ".gitconfig").exists()
+
+
+def test_the_network_built_data_files_are_left_to_a_person():
+    """Which of two fetches is newer is a real question, so it stays a conflict.
+
+    The schedule and the vulnerability database are generated too, but from
+    the network rather than from this tree, and they ship in the wheel.
+    Rebuilding them mid-merge would answer a question the merge is asking.
+    """
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    for name in ("release_schedule.json", "vulnerabilities.json"):
+        assert f"{name} merge=" not in attributes
