@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-06
+
 ### Added
 
 - **Three step-by-step identity-provider tutorials, in
