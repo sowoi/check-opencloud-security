@@ -103,6 +103,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   deliberate. The markup is untouched, so a reader without CSS still meets
   them in the order it states.
 
+- **The lock file no longer pins a package its own maintainers withdrew.**
+  `securesystemslib` 1.5.0 was yanked from PyPI as incompatible with sigstore,
+  which is the only reason it is here at all: the `signing` extra pulls
+  sigstore, sigstore pulls tuf, and tuf pulls securesystemslib. A resolve from
+  scratch would have skipped a yanked release, but the version was already
+  written down, so every `uv lock` re-pinned it and said so in a warning. The
+  pin moves to 1.5.1, the release that restores the compatibility, and no
+  constraint is left behind to remove later.
+
 ### Security
 
 - **`--configure` no longer writes the configuration world-readable before
