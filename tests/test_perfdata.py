@@ -6,6 +6,7 @@ import pytest
 
 import check_opencloud_security as plugin
 from check_opencloud_security import NagiosExitCode, ScanContext, ScanResult
+from opencloud_local_scan.scanner import ScannerSettings
 
 RESULT = {
     "domain": "cloud.example.com",
@@ -429,3 +430,72 @@ def test_an_unknown_lifecycle_reports_why(capsys):
     )
 
     assert "Release lifecycle: unknown (no release schedule available)" in capsys.readouterr().out
+
+
+# --- certificate expiry ---
+def tls_result(certificate):
+    """A scan result carrying a tls section with the given certificate block."""
+    return {**RESULT, "tls": {"host": "cloud.example.com", "certificate": certificate}}
+
+
+def test_the_certificate_expiry_is_graphable(capsys):
+    """
+    The scan has always measured this; until now it only ever reached an
+    operator as a finding, on the day the margin had already run out.
+    """
+    run(tls_result({"daysRemaining": 45}))
+
+    assert "cert_days_left=45;" in capsys.readouterr().out
+
+
+def test_an_expired_certificate_is_negative_perfdata(capsys):
+    """Like support_days_left, the value keeps counting past zero."""
+    run(tls_result({"daysRemaining": -3}))
+
+    assert "cert_days_left=-3;" in capsys.readouterr().out
+
+
+def test_the_certificate_thresholds_restate_the_scans_own_margin():
+    """
+    A second opinion invented for the graph would disagree with the alert
+    printed beside it. '~' is the Nagios spelling of negative infinity.
+    """
+    context = ScanContext(host="h", scanner_settings=ScannerSettings(tls_min_days=21))
+
+    perfdata = plugin._build_perfdata(
+        5, plugin.RATE_MAP, 0, None, context=context, certificate_days_left=45
+    )
+
+    assert "cert_days_left=45;@~:21;@~:0;;" in perfdata
+
+
+def test_a_certificate_metric_without_settings_carries_no_thresholds():
+    """
+    Better no threshold than a wrong one: without the settings the scan ran
+    with there is nothing to say what margin it judged the certificate by.
+    """
+    perfdata = plugin._build_perfdata(
+        5, plugin.RATE_MAP, 0, None, certificate_days_left=45
+    )
+
+    assert "cert_days_left=45;;@~:0;;" in perfdata
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        RESULT,
+        {**RESULT, "tls": None},
+        {**RESULT, "tls": {"reachable": False, "certificate": None}},
+        {**RESULT, "tls": {"certificate": {"daysRemaining": None}}},
+    ],
+    ids=["no tls block", "null tls", "no certificate", "unparsable dates"],
+)
+def test_an_unmeasured_certificate_is_absent_rather_than_zero(result, capsys):
+    """
+    A scan over plain HTTP measured no certificate. Reporting that as zero
+    would page somebody about an expiry that was never observed.
+    """
+    run(result)
+
+    assert "cert_days_left" not in capsys.readouterr().out

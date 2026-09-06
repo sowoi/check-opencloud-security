@@ -743,3 +743,140 @@ def test_discord_digest_reports_ok_count_as_a_field():
     fields = {field["name"]: field["value"] for field in rendered["embeds"][0]["fields"]}
     assert fields["OK"] == "1 host(s)"
     assert "bad.example.com - CRITICAL" in fields
+
+
+# --- ntfy and Gotify ---
+def test_ntfy_format_publishes_to_the_server_root_with_the_topic_from_the_url(posts):
+    """
+    ntfy reads a JSON publication only at its root, taking the topic from the
+    document. The operator still configures the topic URL they already have.
+    """
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://ntfy.example.com/opencloud",
+        webhook_format="ntfy",
+    )
+
+    url, kwargs = posts[0]
+    assert url == "https://ntfy.example.com/"
+    body = kwargs["json"]
+    assert body["topic"] == "opencloud"
+    assert body["title"] == "cloud.example.com - CRITICAL"
+    assert body["priority"] == 5
+    assert body["tags"] == ["rotating_light"]
+
+
+def test_ntfy_topic_survives_a_reverse_proxy_prefix(posts):
+    """A topic never contains a slash, so the last segment is the topic."""
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://example.com/ntfy/opencloud",
+        webhook_format="ntfy",
+    )
+
+    url, kwargs = posts[0]
+    assert url == "https://example.com/"
+    assert kwargs["json"]["topic"] == "opencloud"
+
+
+def test_ntfy_priority_falls_with_the_severity(posts):
+    """An OK only --webhook-on always ever sends must not buzz like a CRITICAL."""
+    run(OK_RESULT, webhook_url="https://n/t", webhook_on="always", webhook_format="ntfy")
+
+    body = posts[0][1]["json"]
+    assert body["priority"] == 2
+    assert body["tags"] == ["white_check_mark"]
+
+
+def test_a_push_title_does_not_repeat_the_host_in_the_body(posts):
+    """
+    A phone shows the title above the body; the chat formats have no title
+    field and must carry the host inside the text instead.
+    """
+    run(CRITICAL_RESULT, webhook_url="https://n/t", webhook_format="ntfy")
+
+    body = posts[0][1]["json"]
+    assert body["title"].startswith("cloud.example.com")
+    assert not body["message"].startswith("cloud.example.com")
+    assert not body["message"].startswith("*cloud.example.com*")
+
+
+def test_gotify_format_posts_to_the_url_it_was_given(posts):
+    """Gotify takes the token from the URL or a header, so nothing is rewritten."""
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://gotify.example.com/message?token=abc",
+        webhook_format="gotify",
+    )
+
+    url, kwargs = posts[0]
+    assert url == "https://gotify.example.com/message?token=abc"
+    body = kwargs["json"]
+    assert set(body) == {"title", "message", "priority"}
+    assert body["title"] == "cloud.example.com - CRITICAL"
+    assert body["priority"] == 8
+
+
+def test_gotify_carries_no_credential_in_the_body(posts):
+    """The token belongs in the URL or the header, never in what is published."""
+    run(
+        CRITICAL_RESULT,
+        webhook_url="https://gotify.example.com/message?token=s3cret",
+        webhook_format="gotify",
+    )
+
+    assert "s3cret" not in json.dumps(posts[0][1]["json"])
+
+
+@pytest.mark.parametrize("fmt", ["ntfy", "gotify"])
+def test_a_push_digest_is_rendered_rather_than_falling_back_to_the_flat_document(fmt):
+    """
+    A digest with no formatter of its own would post the generic document,
+    which neither service can read - ntfy would reject it for having no topic.
+    """
+    payload = plugin._build_digest_webhook_payload(
+        [_host_payload("bad.example.com", "CRITICAL"), _host_payload("ok.example.com", "OK")]
+    )
+
+    rendered = plugin._WEBHOOK_DIGEST_FORMATTERS[fmt](payload)
+
+    assert rendered["title"] == "2 host(s) checked - CRITICAL"
+    assert "bad.example.com" in rendered["message"]
+    assert "ok.example.com" not in rendered["message"]
+    assert "1 host(s) OK, not shown" in rendered["message"]
+
+
+def test_a_push_digest_truncates_a_large_fleet():
+    """The same cap the chat digests use, for the same reason."""
+    payloads = [_host_payload(f"host{i}.example.com", "CRITICAL") for i in range(30)]
+    payload = plugin._build_digest_webhook_payload(payloads)
+
+    message = plugin._ntfy_digest_webhook_payload(payload)["message"]
+
+    assert "...and 10 more" in message
+    assert "host25.example.com" not in message
+
+
+def test_only_ntfy_has_its_url_rewritten(posts):
+    """Every other format posts exactly where the operator pointed it."""
+    for fmt in ("generic", "slack", "discord", "gotify"):
+        posts.clear()
+        run(CRITICAL_RESULT, webhook_url="https://hooks.example.com/x/y", webhook_format=fmt)
+        assert posts[0][0] == "https://hooks.example.com/x/y"
+
+
+def test_ntfy_without_a_topic_is_refused_before_the_first_scan(capsys):
+    """
+    A root URL names no destination, so ntfy would answer 400 on every
+    notification for the life of the configuration.
+    """
+    parser = plugin.build_arg_parser()
+    args = parser.parse_args(
+        ["--host", "cloud.example.com", "--webhook-url", "https://ntfy.example.com/",
+         "--webhook-format", "ntfy"]
+    )
+
+    with pytest.raises(SystemExit):
+        plugin._validate_thresholds(parser, args)
+
+    assert "needs --webhook-url to name a topic" in capsys.readouterr().err

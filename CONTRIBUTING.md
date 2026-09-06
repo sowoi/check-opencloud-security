@@ -3,6 +3,8 @@
   * [Guidelines](#guidelines)
   * [Local setup](#local-setup)
     * [1. Install `uv`](#1-install-uv)
+    * [2. Register the merge drivers](#2-register-the-merge-drivers)
+  * [Generated files and merge conflicts](#generated-files-and-merge-conflicts)
   * [Install Dependencies](#install-dependencies)
     * [Exporting a requirements.txt](#exporting-a-requirementstxt)
   * [Running Tests](#running-tests)
@@ -46,6 +48,59 @@ If you haven't already, install the `uv` package manager (or your preferred inst
 ```
 pipx install uv
 ```
+
+### 2. Register the merge drivers
+
+Once per clone:
+
+```
+python scripts/setup_git_merge_drivers.py
+```
+
+See below for what it prevents. Skipping it costs you nothing but the
+occasional conflict you would have had anyway.
+
+## Generated files and merge conflicts
+
+`frontend/static/search-index.json` and its three locale overlays are
+**generated** — a pure function of the templates, the catalogues and the
+version — and they are also checked in, because the frontend serves them and
+`tests/test_webapp_search.py` reads them. That combination conflicts on merge
+for a reason no person can settle: two branches that touch a template, a
+string or `pyproject.toml` produce different bytes on the same lines, and
+neither side was written by hand. Resolving one by picking a side means
+choosing between two stale answers.
+
+So the resolution is always the same — rebuild — and
+`scripts/setup_git_merge_drivers.py` teaches git to do it for you.
+`.gitattributes` points those four files at a `search-index` merge driver, and
+the setup script registers what that driver *is* in your `.git/config`. Git
+splits it that way on purpose: a driver is an arbitrary command, and a
+repository able to hand one to everyone who clones it would be a repository
+that runs code on clone. That is why this cannot be automatic.
+
+Rebuilding is the correct resolution and not merely the convenient one: the
+index is authoritative exactly once, in the release workflow, and
+`test_only_the_release_workflow_refreshes_the_index` forbids any other
+workflow from touching it — so a rebuild produces what the next release would
+produce anyway.
+
+Without the setup step you get the ordinary conflict, exactly as before.
+Resolve it by hand with:
+
+```
+python scripts/build_search_index.py && git add frontend/static/search-index*.json
+```
+
+If git says `fatal: custom merge driver search-index lacks command line`, the
+config is half-written — re-run the setup script.
+
+**The data files are not covered, deliberately.**
+`opencloud_local_scan/data/release_schedule.json` and `vulnerabilities.json`
+are generated too, but from the network rather than from this tree, and they
+ship in the wheel. A conflict there is a real question about which fetch is
+newer, so it stays a conflict for a person to answer — re-run
+`scripts/update_release_schedule.py` or `scripts/update_vulnerability_db.py`.
 
 ## Install Dependencies
 

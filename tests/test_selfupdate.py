@@ -361,3 +361,45 @@ def test_check_only_is_the_same_request_as_upgrade_self_check(monkeypatch):
     check._run_early_commands(["--upgrade-self"])
 
     assert seen == [True, True, False]
+
+
+def test_a_homebrew_installation_is_refused_and_sent_to_brew(monkeypatch):
+    """
+    Homebrew's formula is a virtualenv under the Cellar, so pip finds it
+    writable and appears to succeed - and the next brew operation relinks the
+    Cellar and puts the old version back, with no record that pip was there.
+    """
+    pretend_installed_at(
+        monkeypatch,
+        "/opt/homebrew/Cellar/check-opencloud-security/1.20.0/libexec/lib/"
+        "python3.13/site-packages/check_opencloud_security.py",
+    )
+
+    with pytest.raises(UpgradeError, match="Homebrew") as raised:
+        selfupdate.plan_upgrade()
+
+    assert "brew upgrade check-opencloud-security" in str(raised.value)
+
+
+def test_a_linuxbrew_prefix_is_recognised_too(monkeypatch):
+    """The prefix differs between macOS and Linux; the Cellar does not."""
+    pretend_installed_at(
+        monkeypatch,
+        "/home/linuxbrew/.linuxbrew/Cellar/check-opencloud-security/1.20.0/"
+        "libexec/lib/python3.13/site-packages/check_opencloud_security.py",
+    )
+
+    with pytest.raises(UpgradeError, match="Homebrew"):
+        selfupdate.plan_upgrade()
+
+
+def test_an_ordinary_pip_path_is_not_mistaken_for_homebrew(monkeypatch):
+    """
+    The negative case: 'Cellar' identifies Homebrew only as a path segment,
+    and a pip install must still get a pip plan.
+    """
+    pretend_installed_at(monkeypatch, "/usr/lib/python3/site-packages/x.py")
+
+    plan = selfupdate.plan_upgrade()
+
+    assert plan.installer == "pip"

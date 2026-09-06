@@ -946,17 +946,25 @@ check-opencloud-security --host opencloud.example.com \
   CRITICAL) and `always`.
 - `--webhook-format` / `COS_WEBHOOK_FORMAT` (default `generic`) posts the
   body as a Slack Block Kit attachment (`slack`, also accepted by Mattermost
-  and the common Matrix webhook bridges) or a Discord embed (`discord`)
-  instead of the plugin's own flat document. The default is unchanged, so
-  this is entirely opt-in:
+  and the common Matrix webhook bridges), a Discord embed (`discord`), or a
+  push notification for an [ntfy](https://ntfy.sh) (`ntfy`) or
+  [Gotify](https://gotify.net) (`gotify`) server, instead of the plugin's own
+  flat document. The default is unchanged, so this is entirely opt-in:
   ```shell
   check-opencloud-security --host opencloud.example.com \
     --webhook-url https://hooks.slack.com/services/... \
     --webhook-format slack
+
+  check-opencloud-security --host opencloud.example.com \
+    --webhook-url https://ntfy.example.com/opencloud \
+    --webhook-format ntfy
   ```
-  Anything else - ntfy, Alertmanager, a custom receiver - still wants the
-  `generic` document; [Webhook recipes](docs/webhook-recipes.md) has one for
-  each.
+  With `ntfy`, point `--webhook-url` at the **topic** URL: the topic is read
+  from it and the publication itself goes to the server root, which is the
+  only place ntfy reads JSON. A URL naming no topic is refused at startup
+  rather than failing on every notification.
+  Anything else - Alertmanager, a custom receiver - still wants the `generic`
+  document; [Webhook recipes](docs/webhook-recipes.md) has one for each.
 - `--webhook-header` / `COS_WEBHOOK_HEADERS` adds request headers, e.g. for
   authentication. Repeat the flag, or separate entries with `;` in the
   environment variable: `COS_WEBHOOK_HEADERS="X-Auth-Token: abc; X-Env: prod"`.
@@ -1066,6 +1074,14 @@ the graph without extra configuration.
 | `extra_checks_failed` | Number of failed additional checks                                |
 | `update_available`    | `1` when a newer OpenCloud release exists                         |
 | `support_days_left`   | Days until the release line loses support (negative when overdue) |
+| `cert_days_left`      | Days until the TLS certificate expires (negative once expired)    |
+
+`cert_days_left` is absent rather than zero when nothing was measured - a scan
+over plain HTTP, a host that refused the handshake, or a certificate whose
+dates would not parse. It carries the scan's own thresholds rather than a
+second opinion invented for the graph: warning at or below
+`scanner.tls_min_days`, the same margin the `tlsCertificate` finding fires at,
+and critical once the certificate has actually expired.
 
 Outside Icinga2, the same numbers reach Prometheus through the node_exporter
 textfile collector or a Pushgateway - see

@@ -1135,3 +1135,124 @@ def test_the_live_window_is_bounded_and_keeps_what_the_log_wrote():
     assert '"n": 9' in pending[-1]
     # Asking again with the cursor it just gave returns nothing new.
     assert window.since(cursor)[1] == []
+
+
+# ------------------------------------------------- the operator documentation
+
+
+def test_both_repository_documents_are_readable_from_the_area():
+    """
+    An operator working out why the service misbehaves should not have to
+    leave the area to find the document that explains it.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        architecture = client.get("/admin/docs/architecture", headers=FORWARDED)
+        operations = client.get("/admin/docs/operations", headers=FORWARDED)
+
+    assert architecture.status_code == 200
+    assert "Architecture" in architecture.text
+    assert "ARCHITECTURE.md" in architecture.text
+
+    assert operations.status_code == 200
+    assert "Operations" in operations.text
+    assert "ADMIN.md" in operations.text
+
+
+def test_the_documents_are_gated_exactly_like_the_rest_of_the_area():
+    """
+    The negative case, and the one that matters: a document reachable without
+    the outpost's secret would be the whole area's guard undone by a page
+    that forgot to ask.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        for slug in ("architecture", "operations"):
+            assert client.get(f"/admin/docs/{slug}").status_code == 404
+            assert client.get(
+                f"/admin/docs/{slug}",
+                headers={**FORWARDED, "x-cos-admin-proxy": "wrong"},
+            ).status_code == 404
+
+
+def test_the_documents_do_not_exist_when_the_area_is_off():
+    """Off means absent here too, or the area's absence is a lie."""
+    with TestClient(create_app(settings())) as client:
+        assert client.get("/admin/docs/architecture").status_code == 404
+        assert client.get("/admin/docs/operations").status_code == 404
+
+
+def test_an_unknown_document_is_a_404_rather_than_a_guess():
+    """A slug is not a path into the templates directory."""
+    with TestClient(create_app(_admin_settings())) as client:
+        for slug in ("nonsense", "../base", "index"):
+            assert client.get(f"/admin/docs/{slug}", headers=FORWARDED).status_code == 404
+
+
+def test_every_page_in_the_area_carries_the_same_tab_strip():
+    """One strip, or the area reads as a page with two attachments."""
+    with TestClient(create_app(_admin_settings())) as client:
+        pages = [
+            client.get("/admin", headers=FORWARDED),
+            client.get("/admin/docs/architecture", headers=FORWARDED),
+            client.get("/admin/docs/operations", headers=FORWARDED),
+        ]
+
+    for response in pages:
+        assert response.status_code == 200
+        assert 'class="admin-tabs"' in response.text
+        assert '/admin/docs/architecture' in response.text
+        assert '/admin/docs/operations' in response.text
+        # Exactly one tab is the current one, on every page.
+        assert response.text.count('aria-current="page"') == 1
+
+
+def test_the_operator_documents_are_never_indexed():
+    """
+    They are inside the area, so they inherit its refusal - but this is the
+    page where a future edit to the public page list must not be able to turn
+    indexing on by accident.
+    """
+    with TestClient(create_app(_admin_settings())) as client:
+        for slug in ("architecture", "operations"):
+            response = client.get(f"/admin/docs/{slug}", headers=FORWARDED)
+            assert "noindex" in response.headers.get("x-robots-tag", "")
+            assert 'content="noindex, nofollow, noarchive"' in response.text
+
+
+def test_the_operator_documents_stay_out_of_every_public_surface():
+    """
+    ADMIN.md says it is absent from `/documentation` and the site search, and
+    that has to stay true now that it is rendered somewhere.
+
+    The area authorises its own pages; this is about the four places that
+    list pages *without* authorising anybody. A guide added to the public
+    manifest appears in all of them, which is exactly why these two are in a
+    manifest of their own.
+    """
+    from webapp.documentation import DOCUMENTATION_PAGES, OPERATOR_DOCUMENTATION_PAGES
+    from webapp.search import SEARCH_PAGES
+    from webapp.seo import PUBLIC_PAGES
+
+    operator_slugs = {page.slug for page in OPERATOR_DOCUMENTATION_PAGES}
+    assert operator_slugs == {"architecture", "operations"}
+
+    # Not in the manifest that feeds /documentation, the sitemap and the nav.
+    assert operator_slugs.isdisjoint({page.slug for page in DOCUMENTATION_PAGES})
+
+    # Not in the search index, and not in the list of indexable public paths.
+    indexed = {page.path for page in SEARCH_PAGES}
+    for slug in operator_slugs:
+        assert f"/documentation/{slug}" not in indexed
+        assert f"/admin/docs/{slug}" not in indexed
+        assert f"/admin/docs/{slug}" not in set(PUBLIC_PAGES)
+
+    with TestClient(create_app(_admin_settings())) as client:
+        listing = client.get("/documentation")
+        sitemap = client.get("/sitemap.xml")
+        robots = client.get("/robots.txt")
+
+    for slug in operator_slugs:
+        assert f"/admin/docs/{slug}" not in listing.text
+        assert f"/admin/docs/{slug}" not in sitemap.text
+        # Not in robots either: a Disallow line is a public file naming the
+        # path, which advertises that this deployment has an operator's area.
+        assert slug not in robots.text

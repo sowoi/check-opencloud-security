@@ -445,7 +445,7 @@ wheels = [
 
 [[package]]
 name = "check-opencloud-security"
-version = "1.20.0"
+version = "1.21.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
@@ -2398,11 +2398,11 @@ wheels = [
 
 [[package]]
 name = "securesystemslib"
-version = "1.5.0"
+version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/82/9c/6a7bac8eef1012d100f601beecb0ffa676efe52e5785e6f71b9842075275/securesystemslib-1.5.0.tar.gz", hash = "sha256:3701219c8149a0b1b45f4298d672efc78cd15c0d7d83d5a18bf585e1fce1320d", size = 945978, upload-time = "2026-08-24T08:22:40.311Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/d4/f9323507144693d869f30f13694035438ab6642153b94e3057945cf0584f/securesystemslib-1.5.1.tar.gz", hash = "sha256:4b8d00abd93707ead10b69eb2b8582376a1364de3b0a71077de534c2ef4985e0", size = 947087, upload-time = "2026-09-04T06:55:32.066Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/01/f0636f9d14bd86974ca242d24005edb81f52092d20a03da9ad7a54de804f/securesystemslib-1.5.0-py3-none-any.whl", hash = "sha256:66d2ea40ae150fb938767935a67252f5cfe37ec7cc2ec6e1d28c2509377014f6", size = 876061, upload-time = "2026-08-24T08:22:38.813Z" },
+    { url = "https://files.pythonhosted.org/packages/38/fc/c71335a5046d46bf3b761a8c7fa092b40a7721429a5613538f0a28ae80a6/securesystemslib-1.5.1-py3-none-any.whl", hash = "sha256:ada8bdf817da29ece4ba91654f6a162ce7cfbadbc3ae3f840f7313f9d22675de", size = 876390, upload-time = "2026-09-04T06:55:30.393Z" },
 ]
 
 [[package]]

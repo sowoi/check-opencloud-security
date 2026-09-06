@@ -273,6 +273,30 @@ The layout, the dependencies and everything else the packages declare live in
 [`packaging/nfpm.yaml`](../packaging/nfpm.yaml). Why they are built this way is
 [ADR 0039](../adr/0039-the-plugin-ships-as-a-distribution-package-built-from-the-wheel.md).
 
+## macOS and Linux workstations (Homebrew)
+
+Use this on a laptop rather than on a monitoring host - somebody trying an
+instance by hand before wiring the check into Icinga. The argument is the one
+the `.deb` and the `.rpm` make one platform over: `brew` is the package
+database on these machines, and a `pip install --user` is absent from it and
+invisible to `brew outdated`.
+
+```shell
+brew install sowoi/tap/check-opencloud-security
+check-opencloud-security --host opencloud.example.com
+```
+
+The formula lives in a tap rather than in Homebrew core, which has notability
+requirements this project does not claim to meet. `brew upgrade` keeps it
+current; `--upgrade-self` deliberately refuses on a Homebrew installation and
+says so, because pip would write into the Cellar and the next `brew`
+operation would quietly undo it.
+
+The formula itself is generated from what PyPI published, by
+[`scripts/build_homebrew_formula.py`](../scripts/build_homebrew_formula.py) -
+see [`packaging/README.md`](../packaging/README.md#homebrew) if you are
+maintaining the tap rather than installing from it.
+
 ## Docker
 Use this if you would rather not install anything on the host. The image also
 ships the scan service (see

@@ -102,6 +102,12 @@ softens the HTTP Basic authentication finding from medium to low when an
 external one is detected - see
 [Authentication](authentication.md#6-can-the-identity-provider-be-found-at-all-identityproviderdetected).
 
+> **Step by step, for each of the three:** this section is the summary and the
+> reasoning. [Putting an identity provider in front of OpenCloud, step by
+> step](identity-providers.md) is the tutorial - installing each provider,
+> the four OpenCloud clients every one of them needs, verifying it worked, and
+> moving an instance that already has accounts.
+
 ### What OpenCloud needs, whichever provider you pick
 
 The variables are the same for all three; only the issuer URL and the way you
@@ -137,6 +143,9 @@ everyone a role you did not intend.
 
 ### Keycloak
 
+> [The step-by-step Keycloak tutorial](identity-providers.md#tutorial-a-keycloak) is the whole job;
+> what follows is the shape of it.
+
 The most common choice where an organisation already runs one. Create a realm
 (or reuse yours), then a client:
 
@@ -153,6 +162,9 @@ For roles, add a *User Client Role* mapper putting the client roles into a
 realm a password policy and require OTP for the administrator role at minimum.
 
 ### Authentik
+
+> [The step-by-step Authentik tutorial](identity-providers.md#tutorial-b-authentik) is the whole job;
+> what follows is the shape of it.
 
 This repository already ships an Authentik stack, though for a different
 purpose - it protects [the scan service's own MCP endpoint](authentik.md), not
@@ -172,6 +184,9 @@ worked example of provisioning a provider from a file rather than by clicking,
 which is worth copying whatever you are configuring.
 
 ### Authelia
+
+> [The step-by-step Authelia tutorial](identity-providers.md#tutorial-c-authelia) is the whole job;
+> what follows is the shape of it.
 
 The lightest of the three, and a good fit where the reverse proxy is already
 doing forward authentication. Authelia's OpenID Connect provider is configured

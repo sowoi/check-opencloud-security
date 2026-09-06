@@ -474,3 +474,57 @@
     .admin-actions .btn { width: 100%; }
     .admin-band { font-size: .7rem; }
 }
+
+/* -------------------------------------------------------------- the tabs */
+/*
+ * Three places, one strip: the overview and the two repository documents an
+ * operator reads while working on this service.
+ *
+ * It sits under the band rather than in the site header, because these are
+ * places *inside* the area and the header navigates the public site. The
+ * current one is named by `aria-current="page"` first - the tint under it
+ * repeats that rather than carrying it alone, so the strip still says where
+ * you are with colour unavailable.
+ */
+.admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.admin-tabs a {
+    padding: .4rem .85rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-family: var(--mono);
+    font-size: .76rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-decoration: none;
+    transition: background .2s var(--ease), color .2s var(--ease),
+        border-color .2s var(--ease);
+}
+
+.admin-tabs a:hover {
+    background: var(--card);
+    border-color: var(--line);
+    color: var(--ink);
+}
+
+.admin-tabs a[aria-current="page"] {
+    background: var(--admin-accent-soft);
+    border-color: var(--admin-accent-line);
+    color: var(--admin-accent);
+}
+
+/* On a phone the strip is the widest thing on the page if it stays one row,
+   so it wraps - and the labels stay short enough that two rows is the worst
+   case rather than a column of three. */
+@media (max-width: 480px) {
+    .admin-tabs { gap: .3rem; }
+    .admin-tabs a { padding: .35rem .7rem; font-size: .72rem; }
+}

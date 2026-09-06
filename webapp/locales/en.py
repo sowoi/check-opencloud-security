@@ -28,6 +28,10 @@ MESSAGES: dict[str, str] = {
     "admin.title": "Operator area",
     "admin.description": "Service state, reference data and the audit trail.",
     "admin.kicker": "Operations",
+    "admin.tabs.aria": "Operator area",
+    "admin.tabs.overview": "Overview",
+    "admin.docs.kicker": "Operator documentation",
+    "admin.docs.source": "Shown from <code>{file}</code> in the repository, in English.",
     "admin.band": "Operator area - signed in as {user}",
     # Shown only where COS_WEB_ADMIN_SIGN_OUT_URL named where the provider in
     # front ends its session. This service has none of its own to end.

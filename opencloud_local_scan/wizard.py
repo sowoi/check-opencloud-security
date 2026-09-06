@@ -33,7 +33,9 @@ from __future__ import annotations
 import json
 import os
 import stat
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -861,14 +863,34 @@ def _diagnose(error: str) -> str:
 
 
 def save(data: dict[str, Any], path: Path) -> Path:
-    """Write the configuration as JSON, readable only by its owner."""
+    """Write the configuration as JSON, readable only by its owner.
+
+    Written to a temporary file and moved into place rather than written
+    where it belongs and narrowed afterwards: a secret that was
+    world-readable for a moment was world-readable. ``mkstemp`` creates at
+    owner-only, so the token is never on disk under a wider mode - not in the
+    window before a ``chmod``, and not for the whole write when the
+    destination already existed at 0644, which is what re-running
+    ``--configure`` to rotate a token does.
+
+    The move is atomic as well, so a write that fails leaves the previous
+    configuration intact instead of a truncated one.
+    """
     path = path.expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    descriptor, temporary = tempfile.mkstemp(dir=str(path.parent), prefix=path.name, suffix=".tmp")
     try:
-        os.chmod(path, FILE_MODE)
-    except OSError:  # pragma: no cover - filesystem without permission bits
-        pass
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(data, indent=2, sort_keys=False) + "\n")
+        try:
+            os.chmod(temporary, FILE_MODE)
+        except OSError:  # pragma: no cover - filesystem without permission bits
+            pass
+        os.replace(temporary, path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(temporary)
+        raise
     return path
 
 

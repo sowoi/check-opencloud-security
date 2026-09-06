@@ -23,7 +23,7 @@
   <a href="#verifying-the-signature" lang="en">Verifying the signature</a>
   <a href="#uptime-kuma" lang="en">Uptime Kuma</a>
   <a href="#slack-mattermost-discord" lang="en">Slack, Mattermost, Discord</a>
-  <a href="#ntfy" lang="en">ntfy</a>
+  <a href="#ntfy-and-gotify" lang="en">ntfy and Gotify</a>
   <a href="#alertmanager" lang="en">Alertmanager</a>
   <a href="#testing-a-receiver-without-an-instance" lang="en">Testing a receiver without an instance</a>
 </nav>
@@ -32,8 +32,9 @@
 <p>The <a href="/documentation/reference#webhook-notifications">webhook</a> posts the plugin's own JSON
 document by default. That is deliberate: it carries the whole verdict, not a
 rendered sentence. <code>--webhook-format</code> can render it as Slack or Discord's own
-shape directly (see <a href="#slack-mattermost-discord">below</a>); anything else still
-wants the generic document, and needs a few lines of translation in between.</p>
+shape directly (see <a href="#slack-mattermost-discord">below</a>), or as a push
+notification for <a href="#ntfy-and-gotify">ntfy or Gotify</a>; anything else still wants
+the generic document, and needs a few lines of translation in between.</p>
 <p>Two rules apply to every recipe here:</p>
 <ul>
 <li><strong>A failing webhook never changes the check result.</strong> The plugin appends
@@ -194,9 +195,10 @@ Frameworks that only hand you a parsed object cannot verify this signature at
 all, and the honest fix is to read the body yourself before parsing.</p>
 <p>Three things worth knowing:</p>
 <ul>
-<li><strong>The signature covers whatever was sent</strong>, including the chat-native
-  documents <code>--webhook-format slack</code> and <code>discord</code> produce. Slack and Discord
-  ignore the header; it is there for receivers that check it.</li>
+<li><strong>The signature covers whatever was sent</strong>, including the chat-native and
+  push documents <code>--webhook-format slack</code>, <code>discord</code>, <code>ntfy</code> and <code>gotify</code>
+  produce. Those services ignore the header; it is there for receivers that
+  check it.</li>
 <li><strong>No signature header is sent when no secret is set.</strong> A receiver that
   requires one should reject the request rather than treat a missing header
   as valid.</li>
@@ -335,10 +337,39 @@ HTTPServer((&quot;127.0.0.1&quot;, 8099), Handler).serve_forever()
 reachable from elsewhere is an open relay into your chat system.</p>
 <p>Discord accepts a compatible payload at <code>&lt;webhook-url&gt;/slack</code>. Mattermost
 accepts Slack's format directly.</p>
-<h2 id="ntfy">ntfy</h2>
-<p>ntfy takes a plain body plus headers, so <code>curl</code> in a wrapper is simpler than a
-webhook receiver. This shape also works for any "notify me if it fails"
-service:</p>
+<h2 id="ntfy-and-gotify">ntfy and Gotify</h2>
+<p>Both are built in, and neither needs an adapter:</p>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://ntfy.example.com/opencloud \
+  --webhook-format ntfy
+
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://gotify.example.com/message \
+  --webhook-header 'X-Gotify-Key: ...' \
+  --webhook-format gotify
+</code></pre>
+<p><strong>For ntfy, give the topic URL.</strong> ntfy reads a JSON publication only at its
+server root, taking the topic from the document rather than from the path, so
+the plugin reads the topic off the URL you configured and posts to the root of
+that same server. Scheme, host and port are untouched, so the address checked
+by the SSRF guard is the address posted to. A URL naming no topic is refused
+when the check starts, rather than 400-ing on every notification for the life
+of the configuration. This is the only format whose URL is rewritten, and only
+ever its path - see
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0040-a-push-format-may-rewrite-the-path-never-the-host.md">ADR 0040</a>.</p>
+<p><strong>For Gotify, keep the token out of the URL if you can.</strong> <code>?token=...</code> works
+and is redacted in the plugin's own logs, but <code>--webhook-header 'X-Gotify-Key:
+...'</code> keeps it out of the URL entirely - and out of any proxy log between the
+two hosts. Either way, <code>--webhook-secret</code> still signs the body, so a receiver
+that verifies <code>X-COS-Signature</code> can do so here as it does everywhere else.</p>
+<p>Priorities follow the state: CRITICAL arrives at ntfy's <code>urgent</code> and Gotify's
+8, WARNING at <code>default</code> and 5, UNKNOWN at <code>high</code> and 5, and an OK - which only
+<code>--webhook-on always</code> ever sends - at the quietest value each service has, so
+a dead-man's switch does not buzz anybody nightly to say nothing is wrong.</p>
+<h3 id="doing-it-in-a-wrapper-instead">Doing it in a wrapper instead</h3>
+<p>Worth keeping if you want the plugin's full text rather than its summary, or a
+priority scheme of your own. This shape also works for any other "notify me if
+it fails" service:</p>
 <pre><code class="language-shell">#!/bin/sh
 set -eu
 output=&quot;$(check-opencloud-security --host opencloud.example.com --check-hardening)&quot; || state=$?

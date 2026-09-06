@@ -12,9 +12,208 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **Three step-by-step identity-provider tutorials, in
+  [`docs/identity-providers.md`](docs/identity-providers.md).** Putting
+  Keycloak, Authentik or Authelia in front of an instance was one section of
+  [Running OpenCloud in a secure
+  infrastructure](docs/secure-deployment.md#1-put-a-real-identity-provider-in-front),
+  which argued the case and then summarised each provider in a screenful.
+  This is the other half: installing each one, the provider configuration in
+  full, verifying it worked, and moving an instance that already has accounts
+  without stranding anybody's files in an account they can no longer reach.
+
+  The part worth having is the section none of the three vendors can write,
+  because it is not about them: **the four clients, their redirect URIs and
+  their scopes are properties of OpenCloud's own applications** and are
+  identical whichever provider you pick. The web client needs
+  `oidc-silent-redirect.html` registered or sessions start dying at an
+  interval nobody can reproduce; only the non-browser clients get
+  `offline_access`, because a refresh token in a browser tab is a credential
+  in a place that cannot protect it; and all four are public clients with
+  PKCE, because everything OpenCloud ships runs on somebody else's machine
+  and cannot keep a secret. Each provider tutorial is then only what that
+  provider calls those things.
+
+  The troubleshooting table is the failures in order of how often they are
+  the answer, and the verification section ends where this repository begins:
+  a scan, and the four OpenID Connect properties it reads from the discovery
+  document - plus a note on the two things it deliberately cannot tell you,
+  which are your group mapping and whether your second factor is enforced.
+
+- **The operator's area has a Documentation tab.** `/admin` gained a tab
+  strip, and beside the overview it now renders the two repository documents
+  somebody running this service actually needs while running it:
+  `ARCHITECTURE.md` at `/admin/docs/architecture`, and the operations notes in
+  `ADMIN.md` at `/admin/docs/operations`. Reaching for either used to mean
+  leaving the service and finding the repository.
+
+  They are generated at build time into `frontend/templates/admin-docs/` by
+  the same pipeline the public guides use ([ADR
+  0018](adr/0018-cli-documentation-is-generated-at-build-time.md)), so nothing
+  parses Markdown at runtime and the web application still has no Markdown
+  dependency. English only, with a line above each saying which repository
+  file it came from - a half-translated operations note is worse than an
+  English one that says so.
+
+  **They come from a manifest of their own**, `OPERATOR_DOCUMENTATION_PAGES`,
+  deliberately separate from the one that feeds `/documentation`. That is what
+  keeps `ADMIN.md`'s own promise about itself intact: the pages are absent
+  from the public documentation index, the sitemap, `robots.txt` and the
+  search index, they answer **404** to anybody the outpost did not authorise,
+  and `tests/test_webapp_admin.py` holds them to every one of those. The one
+  thing that did change is recorded in `ADMIN.md` itself: the rendered page
+  travels inside the web bundle and the container image, which is acceptable
+  only because that file is already world-readable in the public repository
+  and contains operations notes rather than credentials.
+
+### Fixed
+
+- **The hero instrument follows the scheme a visitor chose, not only the one
+  their operating system reports.** It was `<img src="hero.svg">`, and an
+  `<img>` is a separate document: it can read `prefers-color-scheme` but never
+  the `data-theme` this page writes on the root element when somebody presses
+  the header switch. So the drawing answered the system while everything
+  around it answered the toggle, and pressing the switch left a daylight
+  instrument on a midnight page - or a midnight one on a daylight page, which
+  is the same bug from the other side.
+
+  It is now inline in `index.html`, with its styles in `app.css` under all
+  three of the states the rest of the page already handles. That ends the
+  second palette it was carrying: the markers are the page's own `--good`,
+  `--fair`, `--info` and `--bad` rather than a hand-copy that had already
+  drifted in the light scheme, and only the three colours genuinely its own -
+  the sweep's magenta, the lit top of the shield, the static - are still
+  written down. `hero.svg` is gone rather than left unreferenced beside it.
+
+  The `<style>` block could not come along: `style-src 'self'` carries no
+  `unsafe-inline`, so a `<style>` element in the markup is dropped by the
+  browser and caught by `tests/test_webapp_api.py`. The drawing is also
+  explicitly decorative now - inline, its `<title>` *would* be announced, and
+  what it would announce is the headline directly above it, a second time.
+
+- **On a phone the hero puts the field before the picture.** Stacked into one
+  column, a full-width 480×300 illustration sat between the headline and the
+  one field this service exists for, so the first gesture on a small screen
+  was a scroll looking for something the page had just promised. The column is
+  reordered rather than the artwork dropped: the wrapper dissolves with
+  `display: contents` so copy, form and instrument become siblings in one
+  flex column, and the drawing keeps its place underneath at a size that looks
+  deliberate. The markup is untouched, so a reader without CSS still meets
+  them in the order it states.
+
+- **The lock file no longer pins a package its own maintainers withdrew.**
+  `securesystemslib` 1.5.0 was yanked from PyPI as incompatible with sigstore,
+  which is the only reason it is here at all: the `signing` extra pulls
+  sigstore, sigstore pulls tuf, and tuf pulls securesystemslib. A resolve from
+  scratch would have skipped a yanked release, but the version was already
+  written down, so every `uv lock` re-pinned it and said so in a warning. The
+  pin moves to 1.5.1, the release that restores the compatibility, and no
+  constraint is left behind to remove later.
+
+### Security
+
+- **`--configure` no longer writes the configuration world-readable before
+  narrowing it.** The file it saves may hold a release token, a service token
+  or a webhook URL with a credential in it - the wizard says so - and it was
+  written with `write_text` and only then `chmod`ed to `0600`. On a monitoring
+  host with more than one account, any local user could read the token in the
+  window between the two, and a descriptor opened in that window stays
+  readable after the `chmod`.
+
+  The window was not the whole of it. Where the destination **already existed**
+  at `0644` - an earlier run, an editor, `touch` - the write went through that
+  same inode, so the token sat world-readable for the entire write rather than
+  for an instant. Re-running `--configure` to *rotate* a token is exactly that
+  path.
+
+  The configuration is now written to a `mkstemp` file, which is owner-only
+  from the moment it exists, and moved into place. The secret is therefore
+  never on disk under a wider mode, and the move being atomic means a save
+  that fails leaves the previous configuration intact instead of a truncated
+  one. This is the rule `docker/setup-wizard.py` already held its `.env` to and
+  `baseline.py` already held its state file to; the plugin's own wizard was the
+  one place that did not.
+
 ## [1.20.0] - 2026-09-04
 
 ### Added
+
+- **`cert_days_left`: the certificate's remaining life is now a metric, not
+  only a finding.** The scan has always measured it and the rating has always
+  judged it, but the number reached an operator only as `tlsCertificate` - a
+  state, on the day the margin had already run out. A monitoring system wants
+  the number *before* that day, to graph and to alert on, which is exactly
+  what `support_days_left` already does for the release line beside it.
+
+  It carries the scan's own thresholds rather than a second opinion invented
+  for the graph: warning at or below `scanner.tls_min_days`, the margin the
+  finding itself fires at, and critical once the certificate has expired. Both
+  are open at the bottom (`@~:30`), and the value keeps counting past zero
+  into negative days, because "expired nine days ago" is the reading somebody
+  needs to see.
+
+  **An unmeasured certificate is absent rather than zero.** A scan over plain
+  HTTP, a host that refused the handshake and a certificate whose dates would
+  not parse all measured nothing, and reporting nothing as `0` would page
+  somebody about an expiry that was never observed.
+
+- **The webhook can post to ntfy and Gotify directly**, with
+  `--webhook-format ntfy` and `--webhook-format gotify`. Both were previously
+  a shell wrapper around `curl` - the one in
+  [Webhook recipes](docs/webhook-recipes.md) is still there for anyone who
+  wants the plugin's full text or a priority scheme of their own. Priorities
+  follow the state, matching what that wrapper did: CRITICAL arrives at ntfy's
+  `urgent` and Gotify's 8, WARNING at `default` and 5, UNKNOWN at `high` and
+  5. An OK - which only `--webhook-on always` ever sends - arrives at the
+  quietest value each service has, so a dead man's switch does not buzz
+  somebody nightly to say nothing is wrong.
+
+  `--webhook-digest` renders too, rather than falling back to the flat
+  document neither service can read. Same selection as the chat digests: only
+  the hosts that are not OK, capped, with the healthy ones counted.
+
+  **With `ntfy`, point `--webhook-url` at the topic URL.** ntfy reads a JSON
+  publication only at its server root, taking the topic from the document
+  rather than the path, so the plugin reads the topic off the configured URL
+  and posts to the root of that same server. Scheme, host and port are
+  untouched, so the address the SSRF guard checked is the address posted to. A
+  URL naming no topic is refused when the check starts, rather than answering
+  400 on every notification for the life of the configuration. See
+  [ADR 0040](adr/0040-a-push-format-may-rewrite-the-path-never-the-host.md).
+
+  There is still no `matrix` format, for the reason there was not one before:
+  matrix-hookshot's outbound webhook connector accepts the `slack` shape, and
+  a second name for the same document would only suggest they differ.
+
+- **The plugin installs with Homebrew**, as
+  `brew install sowoi/tap/check-opencloud-security`. This is the workstation
+  half of the argument the `.deb` and the `.rpm` make for monitoring hosts: on
+  macOS and on the Linux laptops that use it, `brew` is the package database,
+  and a `pip install --user` is absent from it, invisible to `brew outdated`
+  and unanswerable to whoever inherits the machine.
+
+  The formula is generated by `scripts/build_homebrew_formula.py` from what
+  PyPI published, so every URL and `sha256` in it names an artifact the index
+  already serves. It therefore describes a *released* version and defaults to
+  the newest one published rather than the one in `pyproject.toml` - a formula
+  for a version that has not gone out yet would pin a URL answering 404.
+  `--check` asks only whether a release was missed, deliberately not whether a
+  regeneration would reproduce the file byte for byte: that second question
+  answers no whenever an unrelated dependency publishes.
+
+  It lives in a tap rather than in Homebrew core, which has notability
+  requirements this project does not claim to meet. Nothing here pushes to
+  that tap; a release workflow writing to a second repository is a decision
+  about credentials rather than about packaging.
+
+  **`--upgrade-self` refuses on a Homebrew installation** and names
+  `brew upgrade`, exactly as it already does for `apt` and `dnf`. The failure
+  it avoids is quieter than the distribution one: Homebrew's formula is a
+  virtualenv under the Cellar, so pip finds it writable and appears to
+  succeed - and the next `brew` operation relinks the Cellar and puts the old
+  version back, leaving no record that pip was ever there.
 
 - **The collaboration backend beside an instance is now looked at, not just
   counted.** The scanner has always reported *that* an office integration

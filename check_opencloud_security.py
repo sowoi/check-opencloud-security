@@ -33,7 +33,7 @@ from enum import IntEnum
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, NoReturn, TypeVar
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 import requests
@@ -509,6 +509,7 @@ def check_vulnerabilities(
         failed_extra_checks_count=len(extra_failures) if response_scan.get("extraChecks") else None,
         update_available=update_info.available if update_info is not None else None,
         support_days_left=_support_days_left(response_scan),
+        certificate_days_left=_certificate_days_left(response_scan),
     )
 
     # Built unconditionally: it is the same document whether it goes out over
@@ -748,15 +749,34 @@ _WEBHOOK_STATUS_COLORS = {
 }
 
 
-def _webhook_status_line(payload: dict[str, Any]) -> str:
-    """One human-readable line, shared by every chat-native webhook format."""
-    text = f"*{payload.get('host', '?')}* - {payload.get('status', 'UNKNOWN')}\n{payload.get('message', '')}"
+def _webhook_body_text(payload: dict[str, Any]) -> str:
+    """
+    What was measured, without naming the host again.
+
+    The formats split here: a chat message is one block of text and has to
+    carry the host inside it, while a push notification has a title field of
+    its own and would otherwise say the host twice on a phone screen.
+    """
+    text = str(payload.get("message", ""))
     if payload.get("rating_label"):
         text += (
             f"\nRating {payload['rating_label']}, "
             f"OpenCloud {payload.get('product_version') or '?'}"
         )
     return text
+
+
+def _webhook_title(payload: dict[str, Any]) -> str:
+    """The one-line heading a push notification shows, host first."""
+    return f"{payload.get('host', '?')} - {payload.get('status', 'UNKNOWN')}"
+
+
+def _webhook_status_line(payload: dict[str, Any]) -> str:
+    """One human-readable line, shared by every chat-native webhook format."""
+    return (
+        f"*{payload.get('host', '?')}* - {payload.get('status', 'UNKNOWN')}\n"
+        + _webhook_body_text(payload)
+    )
 
 
 def _slack_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -800,9 +820,65 @@ def _discord_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# The two push services' priority scales, which are not the same scale and do
+# not run in the same direction as each other. Both mirror the wrapper scripts
+# in docs/webhook-recipes.md for the states those cover, so an operator moving
+# off a wrapper onto a built-in format does not find their phone behaving
+# differently. OK is the one state no wrapper sends, and it is deliberately
+# the quietest value each service has: --webhook-on always exists to feed a
+# dead-man's switch, not to buzz somebody nightly to say nothing is wrong.
+_NTFY_PRIORITIES = {"OK": 2, "WARNING": 3, "UNKNOWN": 4, "CRITICAL": 5}
+_NTFY_TAGS = {
+    "OK": ["white_check_mark"],
+    "WARNING": ["warning"],
+    "UNKNOWN": ["question"],
+    "CRITICAL": ["rotating_light"],
+}
+# Gotify's range is 0-10, where 8 and above is what raises a notification on
+# its Android client rather than filing the message quietly.
+_GOTIFY_PRIORITIES = {"OK": 2, "WARNING": 5, "UNKNOWN": 5, "CRITICAL": 8}
+
+
+def _ntfy_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Render the result as an ntfy publication.
+
+    The topic is deliberately absent here: it comes from the path of
+    --webhook-url and is attached by _format_webhook_body, because ntfy reads
+    a JSON publication only at its server root and takes the topic from the
+    document. See _webhook_post_url.
+    """
+    status = str(payload.get("status", "UNKNOWN"))
+    return {
+        "title": _webhook_title(payload),
+        "message": _webhook_body_text(payload),
+        "priority": _NTFY_PRIORITIES.get(status, 4),
+        "tags": _NTFY_TAGS.get(status, ["question"]),
+    }
+
+
+def _gotify_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Render the result as a Gotify message.
+
+    Gotify reads the application token from the URL or the X-Gotify-Key
+    header, so nothing about the credential belongs in the body - a token in
+    --webhook-url is redacted in the log like any other, and
+    `--webhook-header 'X-Gotify-Key: ...'` keeps it out of the URL entirely.
+    """
+    status = str(payload.get("status", "UNKNOWN"))
+    return {
+        "title": _webhook_title(payload),
+        "message": _webhook_body_text(payload),
+        "priority": _GOTIFY_PRIORITIES.get(status, 5),
+    }
+
+
 _WEBHOOK_FORMATTERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "slack": _slack_webhook_payload,
     "discord": _discord_webhook_payload,
+    "ntfy": _ntfy_webhook_payload,
+    "gotify": _gotify_webhook_payload,
 }
 
 # Reserve headroom under Discord's 25-field-per-embed cap for the "+more"
@@ -862,9 +938,62 @@ def _discord_digest_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _push_digest_text(payload: dict[str, Any]) -> str:
+    """
+    A --webhook-digest result as plain lines, for the formats with no markup.
+
+    Same selection as the chat digests above - only the hosts that are not OK,
+    capped, with the healthy ones counted rather than listed - because the
+    reason is the same one and it is stronger on a phone than in a chat
+    window.
+    """
+    hosts = payload.get("hosts") or []
+    non_ok = [host for host in hosts if host.get("status") != "OK"]
+    ok_count = len(hosts) - len(non_ok)
+    lines = [
+        f"{host.get('host', '?')} - {host.get('status', 'UNKNOWN')}: "
+        f"{host.get('message') or '(no message)'}"
+        for host in non_ok[:_DIGEST_HOST_LIMIT]
+    ]
+    if len(non_ok) > _DIGEST_HOST_LIMIT:
+        lines.append(f"...and {len(non_ok) - _DIGEST_HOST_LIMIT} more")
+    if ok_count:
+        lines.append(f"{ok_count} host(s) OK, not shown")
+    return "\n".join(lines)
+
+
+def _push_digest_title(payload: dict[str, Any]) -> str:
+    """The heading a digest push notification shows."""
+    hosts = payload.get("hosts") or []
+    return f"{len(hosts)} host(s) checked - {payload.get('status', 'UNKNOWN')}"
+
+
+def _ntfy_digest_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Render a --webhook-digest result as one ntfy publication."""
+    status = str(payload.get("status", "UNKNOWN"))
+    return {
+        "title": _push_digest_title(payload),
+        "message": _push_digest_text(payload),
+        "priority": _NTFY_PRIORITIES.get(status, 4),
+        "tags": _NTFY_TAGS.get(status, ["question"]),
+    }
+
+
+def _gotify_digest_webhook_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Render a --webhook-digest result as one Gotify message."""
+    status = str(payload.get("status", "UNKNOWN"))
+    return {
+        "title": _push_digest_title(payload),
+        "message": _push_digest_text(payload),
+        "priority": _GOTIFY_PRIORITIES.get(status, 5),
+    }
+
+
 _WEBHOOK_DIGEST_FORMATTERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "slack": _slack_digest_webhook_payload,
     "discord": _discord_digest_webhook_payload,
+    "ntfy": _ntfy_digest_webhook_payload,
+    "gotify": _gotify_digest_webhook_payload,
 }
 
 
@@ -878,7 +1007,58 @@ def _format_webhook_body(context: ScanContext, payload: dict[str, Any]) -> dict[
     """
     formatters = _WEBHOOK_DIGEST_FORMATTERS if payload.get("digest") else _WEBHOOK_FORMATTERS
     formatter = formatters.get(context.webhook_format)
-    return formatter(payload) if formatter is not None else payload
+    if formatter is None:
+        return payload
+    body = formatter(payload)
+    if context.webhook_format == "ntfy":
+        # The one field that comes from the configuration rather than the
+        # result, and the only reason ntfy needs a step the others do not.
+        body["topic"] = _ntfy_topic(context.webhook_url)
+    return body
+
+
+def _ntfy_topic(url: str | None) -> str:
+    """
+    The topic named by the path of an ntfy publish URL.
+
+    A topic never contains a slash, so the last segment is the topic and
+    anything in front of it is a reverse proxy's prefix. Refusing at parse
+    time (see _validate_thresholds) means this is never reached with a URL
+    that has no path to read.
+    """
+    try:
+        path = urlsplit(url or "").path
+    except ValueError:
+        return ""
+    return path.strip("/").rsplit("/", 1)[-1]
+
+
+def _webhook_post_url(context: ScanContext) -> str | None:
+    """
+    The URL the body is actually POSTed to.
+
+    Every format posts to the URL the operator configured. 'ntfy' is the
+    exception, and only because ntfy says so: it reads a JSON publication at
+    its server root alone, taking the topic from the document rather than the
+    path. So the operator still configures the topic URL they already have
+    and the path is dropped here.
+
+    Scheme, host and port are untouched, which is what keeps this safe: the
+    address the URL resolves to is the same one either way, so the SSRF guard
+    and the rebinding check below are validating exactly what is posted. See
+    ADR 0040.
+    """
+    url = context.webhook_url
+    if not url or context.webhook_format != "ntfy":
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        # A URL that will not parse cannot be rewritten; hand back what was
+        # configured and let delivery fail as a delivery failure, the way any
+        # other unusable webhook URL does.
+        return url
+    return urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
 
 
 def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
@@ -889,10 +1069,10 @@ def _send_webhook(context: ScanContext, payload: dict[str, Any]) -> bool:
     check's own state, because the monitoring result must stay truthful about
     the OpenCloud instance rather than about the notification channel.
     """
-    url = context.webhook_url
+    url = _webhook_post_url(context)
     if not url:
         return True
-    
+
     validated_addresses: tuple[str, ...] | None = None
     if not context.allow_private_webhooks:
         is_safe, validated_addresses = _resolve_and_validate_webhook_url(url)
@@ -1269,6 +1449,30 @@ def _support_days_left(response_scan: dict[str, Any]) -> int | None:
     return remaining if isinstance(remaining, int) else None
 
 
+def _certificate_days_left(response_scan: dict[str, Any]) -> int | None:
+    """
+    Days until the certificate the instance presented expires.
+
+    The scan has always measured this and the rating has always judged it, but
+    it reached an operator only as a finding - a state, on the day the margin
+    ran out. The number itself is what a monitoring system graphs and alerts
+    on ahead of that day, so it belongs in the performance data next to
+    support_days_left, which answers the same question about the release.
+
+    ``None`` whenever nothing was measured: a scan over plain HTTP, a host
+    that refused the handshake, or a certificate whose dates would not parse.
+    An unmeasured certificate must not arrive as a number.
+    """
+    tls = response_scan.get("tls")
+    if not isinstance(tls, dict):
+        return None
+    certificate = tls.get("certificate")
+    if not isinstance(certificate, dict):
+        return None
+    remaining = certificate.get("daysRemaining")
+    return remaining if isinstance(remaining, int) else None
+
+
 def _schedule_note(response_scan: dict[str, Any]) -> str | None:
     """
     Say so when the bundled release schedule is older than the instance.
@@ -1583,6 +1787,7 @@ def _build_perfdata(
     failed_extra_checks_count: int | None = None,
     update_available: bool | None = None,
     support_days_left: int | None = None,
+    certificate_days_left: int | None = None,
 ) -> str:
     """
     Build a Nagios/Icinga performance data string.
@@ -1614,7 +1819,30 @@ def _build_perfdata(
         # No min: the value goes negative once the release line is out of
         # support, which is exactly what an operator wants to see on a graph.
         parts.append(f"support_days_left={support_days_left};;;;")
+    if certificate_days_left is not None:
+        # The thresholds are the scan's own opinion restated in Nagios range
+        # syntax rather than a second one invented here: warning at or below
+        # the same margin tls_min_days makes the finding fire at, critical
+        # once the certificate has actually expired. '~' is negative
+        # infinity, so both ranges are open at the bottom - and the value
+        # goes negative after expiry, so like support_days_left it has no min.
+        margin = _certificate_margin_days(context)
+        warn_range = f"@~:{margin}" if margin is not None else ""
+        parts.append(f"cert_days_left={certificate_days_left};{warn_range};@~:0;;")
     return " ".join(parts)
+
+
+def _certificate_margin_days(context: ScanContext | None) -> int | None:
+    """
+    The number of days below which the scan calls a certificate a finding.
+
+    Read from the settings the scan actually ran with rather than the default,
+    so a deployment that moved the margin gets perfdata thresholds that agree
+    with the alert beside them.
+    """
+    settings = context.scanner_settings if context is not None else None
+    margin = getattr(settings, "tls_min_days", None)
+    return margin if isinstance(margin, int) else None
 
 
 # --- Main ---
@@ -2057,13 +2285,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     webhook.add_argument(
         "--webhook-format",
-        choices=("generic", "slack", "discord"),
+        choices=("generic", "slack", "discord", "ntfy", "gotify"),
         default=_env("WEBHOOK_FORMAT") or DEFAULT_WEBHOOK_FORMAT,
         help=(
             "Shape of the webhook body: the plugin's own flat JSON document "
-            "('generic'), or a payload a Slack or Discord incoming webhook "
-            "accepts directly. Mattermost and the common Matrix webhook "
-            "bridges also accept 'slack'. "
+            "('generic'), a payload a Slack or Discord incoming webhook "
+            "accepts directly, or a push notification for an ntfy or Gotify "
+            "server. Mattermost and the common Matrix webhook bridges also "
+            "accept 'slack'. With 'ntfy', point --webhook-url at the topic "
+            "URL: the topic is read from it and the publication goes to the "
+            "server root, which is the only place ntfy reads JSON. "
             f"Default: {DEFAULT_WEBHOOK_FORMAT} (env: {ENV_PREFIX}WEBHOOK_FORMAT)."
         ),
     )
@@ -2189,6 +2420,15 @@ def _validate_thresholds(parser: argparse.ArgumentParser, args: argparse.Namespa
         parser.error(f"--scrape-interval must not be negative, got {args.scrape_interval}.")
     if args.webhook_url and not args.webhook_url.lower().startswith(("http://", "https://")):
         parser.error(f"--webhook-url must be an http(s) URL, got {args.webhook_url!r}.")
+    # ntfy publishes to a topic, and with this format the topic comes from the
+    # URL's path. A root URL therefore names no destination, and ntfy would
+    # answer 400 on every notification for the life of the configuration -
+    # worth one sentence now rather than a silent channel discovered later.
+    if args.webhook_format == "ntfy" and args.webhook_url and not _ntfy_topic(args.webhook_url):
+        parser.error(
+            "--webhook-format ntfy needs --webhook-url to name a topic, "
+            "e.g. https://ntfy.example.com/opencloud."
+        )
     # A --warn-on-new with nowhere to remember the last run would report
     # "nothing new" forever without ever having compared anything.
     if args.warn_on_new and not args.baseline:

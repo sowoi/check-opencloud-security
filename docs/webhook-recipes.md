@@ -3,8 +3,9 @@
 The [webhook](../README.md#webhook-notifications) posts the plugin's own JSON
 document by default. That is deliberate: it carries the whole verdict, not a
 rendered sentence. `--webhook-format` can render it as Slack or Discord's own
-shape directly (see [below](#slack-mattermost-discord)); anything else still
-wants the generic document, and needs a few lines of translation in between.
+shape directly (see [below](#slack-mattermost-discord)), or as a push
+notification for [ntfy or Gotify](#ntfy-and-gotify); anything else still wants
+the generic document, and needs a few lines of translation in between.
 
 Two rules apply to every recipe here:
 
@@ -163,9 +164,10 @@ all, and the honest fix is to read the body yourself before parsing.
 
 Three things worth knowing:
 
-- **The signature covers whatever was sent**, including the chat-native
-  documents `--webhook-format slack` and `discord` produce. Slack and Discord
-  ignore the header; it is there for receivers that check it.
+- **The signature covers whatever was sent**, including the chat-native and
+  push documents `--webhook-format slack`, `discord`, `ntfy` and `gotify`
+  produce. Those services ignore the header; it is there for receivers that
+  check it.
 - **No signature header is sent when no secret is set.** A receiver that
   requires one should reject the request rather than treat a missing header
   as valid.
@@ -303,11 +305,47 @@ reachable from elsewhere is an open relay into your chat system.
 Discord accepts a compatible payload at `<webhook-url>/slack`. Mattermost
 accepts Slack's format directly.
 
-## ntfy
+## ntfy and Gotify
 
-ntfy takes a plain body plus headers, so `curl` in a wrapper is simpler than a
-webhook receiver. This shape also works for any "notify me if it fails"
-service:
+Both are built in, and neither needs an adapter:
+
+```shell
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://ntfy.example.com/opencloud \
+  --webhook-format ntfy
+
+check-opencloud-security --host opencloud.example.com \
+  --webhook-url https://gotify.example.com/message \
+  --webhook-header 'X-Gotify-Key: ...' \
+  --webhook-format gotify
+```
+
+**For ntfy, give the topic URL.** ntfy reads a JSON publication only at its
+server root, taking the topic from the document rather than from the path, so
+the plugin reads the topic off the URL you configured and posts to the root of
+that same server. Scheme, host and port are untouched, so the address checked
+by the SSRF guard is the address posted to. A URL naming no topic is refused
+when the check starts, rather than 400-ing on every notification for the life
+of the configuration. This is the only format whose URL is rewritten, and only
+ever its path - see
+[ADR 0040](../adr/0040-a-push-format-may-rewrite-the-path-never-the-host.md).
+
+**For Gotify, keep the token out of the URL if you can.** `?token=...` works
+and is redacted in the plugin's own logs, but `--webhook-header 'X-Gotify-Key:
+...'` keeps it out of the URL entirely - and out of any proxy log between the
+two hosts. Either way, `--webhook-secret` still signs the body, so a receiver
+that verifies `X-COS-Signature` can do so here as it does everywhere else.
+
+Priorities follow the state: CRITICAL arrives at ntfy's `urgent` and Gotify's
+8, WARNING at `default` and 5, UNKNOWN at `high` and 5, and an OK - which only
+`--webhook-on always` ever sends - at the quietest value each service has, so
+a dead-man's switch does not buzz anybody nightly to say nothing is wrong.
+
+### Doing it in a wrapper instead
+
+Worth keeping if you want the plugin's full text rather than its summary, or a
+priority scheme of your own. This shape also works for any other "notify me if
+it fails" service:
 
 ```shell
 #!/bin/sh

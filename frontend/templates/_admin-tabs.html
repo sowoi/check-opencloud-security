@@ -1,0 +1,25 @@
+{#
+  The operator area's own navigation.
+
+  Three places, one strip, included by the overview and by both generated
+  operator documents so that the area reads as one thing rather than a page
+  with two attachments. `aria-current="page"` is what names the one you are
+  on; the tint under it repeats that visually rather than carrying it alone.
+
+  Every href here is inside the area, and the area answers 404 to anybody the
+  proxy did not authorise - so this strip is never rendered for a stranger,
+  and none of these paths appears in robots.txt, the sitemap or the search
+  index.
+#}
+<nav class="admin-tabs" aria-label="{{ t('admin.tabs.aria') }}">
+  <a href="{{ admin_path }}"
+     {% if admin_tab == 'overview' %}aria-current="page"{% endif %}>
+    {{ t('admin.tabs.overview') }}
+  </a>
+  {% for tab in admin_doc_tabs %}
+  <a href="{{ admin_path }}/docs/{{ tab.slug }}"
+     {% if admin_tab == tab.slug %}aria-current="page"{% endif %}>
+    {{ tab.title }}
+  </a>
+  {% endfor %}
+</nav>
