@@ -79,8 +79,13 @@ python scripts/security_advisories.py --publish <slug>  # make one public
 ```
 
 `--sync` runs automatically after a release
-([`security-advisories.yml`](../../.github/workflows/security-advisories.yml)).
-Publishing does not, and never will: a published advisory enters the GitHub
+([`security-advisories.yml`](../../.github/workflows/security-advisories.yml)),
+where a `SECURITY_ADVISORY_TOKEN` secret is configured — a fine-grained token
+with *Security advisories: Read and write*. The workflow's built-in token
+cannot write advisories at any permission level, so without that secret the
+step is skipped rather than failed and the drafts are made by hand.
+
+Publishing does not run automatically, and never will: a published advisory enters the GitHub
 Advisory Database and raises Dependabot alerts for everyone on the affected
 range, which cannot be undone. That is a maintainer's decision, in the same
 class as the version bump.

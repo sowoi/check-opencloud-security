@@ -54,8 +54,13 @@ jobs:
       # --sync writes the new GHSA id back into the record, and that has to
       # land on main or the next run drafts a duplicate.
       contents: write
-      # Creating a repository security advisory is a write to the Security tab.
-      security-events: write
+      # Note what is deliberately absent: nothing here grants the Security tab.
+      # Creating a repository advisory is not a permission the built-in
+      # GITHUB_TOKEN can be given - `security-events` covers code scanning
+      # alerts, a different resource - so the API answers 403 "Resource not
+      # accessible by integration" however this block is written. Drafting
+      # therefore runs on SECURITY_ADVISORY_TOKEN, and skips when there is
+      # none rather than failing a release that otherwise succeeded.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -64,15 +69,47 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
+      # A secret cannot be read in an `if:` expression, so its presence becomes
+      # an output here and gates the step below.
+      - name: Is there a token that may write advisories?
+        id: token
+        env:
+          ADVISORY_TOKEN: ${{ secrets.SECURITY_ADVISORY_TOKEN }}
+        run: |
+          if [ -n "$ADVISORY_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # A record only reaches this job by saying `state: draft`, which is a
       # maintainer's decision written down in the pull request that fixed the
       # defect. Nothing here reads the prose and guesses.
       - name: Create any missing draft advisories
+        if: steps.token.outputs.available == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SECURITY_ADVISORY_TOKEN }}
         run: uv run python scripts/security_advisories.py --sync
 
+      - name: Say why drafting was skipped
+        if: steps.token.outputs.available != 'true'
+        run: |
+          {
+            echo "### Draft advisories were not created"
+            echo
+            echo "No \`SECURITY_ADVISORY_TOKEN\` secret is configured, and the"
+            echo "built-in \`GITHUB_TOKEN\` cannot write repository security"
+            echo "advisories - the API has no permission a workflow can request"
+            echo "for it. Any record below shown as \`draft\` with no GHSA id is"
+            echo "waiting for a maintainer to run:"
+            echo
+            echo '```'
+            echo "python scripts/security_advisories.py --sync"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Commit the advisory ids
+        if: steps.token.outputs.available == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,10 +121,10 @@ jobs:
             git push origin HEAD:main
           fi
 
+      # `--list` reads the record files and calls no API, so it needs no token
+      # and still reports after a skipped or failed drafting step.
       - name: Report what is waiting to be published
         if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           {
             echo "### Security advisory records"
@@ -96,7 +133,8 @@ jobs:
             uv run python scripts/security_advisories.py --list
             echo '```'
             echo
-            echo "A record shown as \`draft\` has an unpublished GitHub advisory."
+            echo "A \`draft\` record with a GHSA id has an unpublished GitHub advisory;"
+            echo "one without has not been drafted yet."
             echo "Publish it with \`python scripts/security_advisories.py --publish <slug>\`,"
             echo "or from the Security tab."
           } >> "$GITHUB_STEP_SUMMARY"
