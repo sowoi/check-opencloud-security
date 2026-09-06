@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-09-06
+
 ### Fixed
 
 - **Drafting advisories after a release no longer fails the workflow asking
