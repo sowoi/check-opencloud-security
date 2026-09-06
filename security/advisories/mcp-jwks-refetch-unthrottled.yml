@@ -5,6 +5,7 @@
 
 slug: mcp-jwks-refetch-unthrottled
 state: draft
+ghsa: GHSA-45qg-q6pm-vgwq
 changelog_version: "1.19.0"
 changelog_entry: "A token naming a signing key nobody published can no longer order a key fetch per request."
 shipped: true

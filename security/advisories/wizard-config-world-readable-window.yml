@@ -5,6 +5,7 @@
 
 slug: wizard-config-world-readable-window
 state: draft
+ghsa: GHSA-37g8-56gf-2m8h
 changelog_version: "1.21.0"
 changelog_entry: "`--configure` no longer writes the configuration world-readable before narrowing it."
 shipped: true

@@ -5,6 +5,7 @@
 
 slug: caa-answer-source-unverified
 state: draft
+ghsa: GHSA-mrq3-47r6-49xw
 changelog_version: "1.19.0"
 changelog_entry: "The CAA lookup accepts an answer only from the resolver it asked."
 shipped: true
