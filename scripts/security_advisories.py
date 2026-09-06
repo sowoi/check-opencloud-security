@@ -239,6 +239,33 @@ def check_coverage(records: list[dict[str, Any]]) -> list[str]:
     return problems
 
 
+#: What a token that cannot touch the Security tab says, verbatim. GitHub gives
+#: the same sentence for "this permission was never granted" and for "this
+#: resource does not exist", so the text alone is not the diagnosis - but on the
+#: advisories endpoints, with a repository that plainly exists, it is always the
+#: former.
+FORBIDDEN = "Resource not accessible by integration"
+
+PERMISSION_HELP = """\
+The token used here cannot write repository security advisories.
+
+This is not a `permissions:` block that needs another line: the advisories API
+is not among the scopes a workflow's built-in GITHUB_TOKEN can be granted at
+all, and `security-events: write` covers code scanning, not the Security tab.
+Drafting therefore needs a personal access token whose owner can administer
+this repository:
+
+  fine-grained token -> Repository permissions -> Security advisories: Read
+  and write, stored as the SECURITY_ADVISORY_TOKEN secret.
+
+Locally, `gh auth login` as such a person is enough - `gh auth status` shows
+which account is in use."""
+
+
+class AdvisoryPermissionError(RecordError):
+    """The call was well formed; this token is not allowed to make it."""
+
+
 def gh_api(args: list[str], payload: dict[str, Any] | None = None) -> dict[str, Any]:
     command = ["gh", "api", "-H", "Accept: application/vnd.github+json", *args]
     if payload is not None:
@@ -251,7 +278,10 @@ def gh_api(args: list[str], payload: dict[str, Any] | None = None) -> dict[str, 
         check=False,
     )
     if result.returncode != 0:
-        raise RecordError(f"gh api failed: {result.stderr.strip()}")
+        stderr = result.stderr.strip()
+        if FORBIDDEN in stderr:
+            raise AdvisoryPermissionError(f"{stderr}\n\n{PERMISSION_HELP}")
+        raise RecordError(f"gh api failed: {stderr}")
     return dict(json.loads(result.stdout))
 
 

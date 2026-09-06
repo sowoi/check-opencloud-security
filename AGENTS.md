@@ -195,7 +195,11 @@ python scripts/security_advisories.py --publish <slug>   # publish one
 `--sync` also runs automatically after `Publish to PyPI` succeeds
 ([`security-advisories.yml`](.github/workflows/security-advisories.yml)), so a
 record marked `draft` becomes a GitHub draft advisory without anyone
-remembering to. **Publishing is never automatic and an agent must never do
+remembering to — but only where a `SECURITY_ADVISORY_TOKEN` secret exists.
+Writing a repository advisory is not a permission a workflow's built-in
+`GITHUB_TOKEN` can be granted, so without that secret the job skips drafting,
+says so in its step summary, and the drafts wait for a maintainer to run
+`--sync` locally. **Publishing is never automatic and an agent must never do
 it.** A published advisory enters the GitHub Advisory Database and raises
 Dependabot alerts for everyone on the affected range; like the version bump,
 that is the user's call. Do not request a CVE either.

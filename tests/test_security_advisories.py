@@ -317,3 +317,71 @@ def test_every_record_file_is_valid_yaml_with_a_comment_header() -> None:
         text = path.read_text(encoding="utf-8")
         assert text.startswith("#"), f"{path.name} has no explanatory header"
         assert isinstance(yaml.safe_load(text), dict)
+
+
+# --------------------------------------------------------- talking to GitHub
+
+
+def test_a_forbidden_advisory_call_explains_which_token_is_needed(monkeypatch) -> None:
+    """The 403 that broke CI said nothing about why; a maintainer needs the reason.
+
+    `Resource not accessible by integration` is what GitHub answers when a
+    workflow's built-in token reaches the advisories API - a permission it
+    cannot be granted at all - and the bare sentence sends the reader looking
+    for a missing line in `permissions:` that does not exist.
+    """
+
+    class Refused:
+        returncode = 1
+        stdout = ""
+        stderr = "gh: Resource not accessible by integration (HTTP 403)"
+
+    monkeypatch.setattr(script.subprocess, "run", lambda *a, **k: Refused())
+
+    with pytest.raises(script.AdvisoryPermissionError) as raised:
+        script.gh_api(["--method", "POST", "/repos/x/y/security-advisories"], {})
+
+    message = str(raised.value)
+    assert "Resource not accessible by integration" in message
+    assert "SECURITY_ADVISORY_TOKEN" in message
+    assert "security-events" in message, "the near-miss permission is worth naming"
+
+
+def test_an_ordinary_api_failure_is_not_reported_as_a_permission_problem(monkeypatch) -> None:
+    """The negative case: a network or payload error must not send the reader after a token."""
+
+    class Failed:
+        returncode = 1
+        stdout = ""
+        stderr = "gh: Validation Failed (HTTP 422)"
+
+    monkeypatch.setattr(script.subprocess, "run", lambda *a, **k: Failed())
+
+    with pytest.raises(script.RecordError) as raised:
+        script.gh_api(["--method", "POST", "/repos/x/y/security-advisories"], {})
+
+    assert not isinstance(raised.value, script.AdvisoryPermissionError)
+    assert "SECURITY_ADVISORY_TOKEN" not in str(raised.value)
+
+
+def test_the_drafting_step_runs_only_with_a_token_that_may_draft() -> None:
+    """The workflow must not fail a release over a permission it cannot be given.
+
+    Guards the shape of the fix rather than its wording: drafting and the
+    commit that follows are both gated on the secret, and the built-in
+    GITHUB_TOKEN is no longer handed to the step that creates advisories.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "security-advisories.yml").read_text(
+        encoding="utf-8"
+    )
+    draft = workflow.split("draft:", 1)[1]
+
+    assert "secrets.SECURITY_ADVISORY_TOKEN" in draft
+    assert draft.count("if: steps.token.outputs.available == 'true'") == 2, (
+        "both drafting and the id-recording commit must be gated"
+    )
+    create = draft.split("Create any missing draft advisories", 1)[1].split("- name:", 1)[0]
+    assert "secrets.GITHUB_TOKEN" not in create
+    assert "security-events: write" not in draft, (
+        "it grants code scanning, not the Security tab, and reads as if it helped"
+    )
