@@ -431,10 +431,17 @@ client-side adapter, not another workflow implementation:</p>
 </code></pre>
 <p>Jinja builds each JSON Schema from the options used by the rendered page.
 Release tracks, output formats, waiver identifiers, and export formats
-therefore cannot drift into a second browser-side catalogue. The external
+therefore cannot drift into a second browser-side catalogue. The same applies
+to the retry policy: which statuses may be repeated, and how long to wait,
+are rendered into each tool from <code>webapp/workflows.py</code>, so the script compares
+against no status number of its own. The external
 script registers tools after <code>DOMContentLoaded</code> and checks for WebMCP before
 using it. It accepts the earlier <code>navigator.modelContext</code> implementation and
-the current <code>document.modelContext</code> draft.</p>
+the current <code>document.modelContext</code> draft, preferring the declarative
+<code>provideContext</code> where a browser offers it.</p>
+<p>Failures are returned, not thrown: <code>ok: false</code> with <code>status</code>, <code>error</code>,
+<code>retryable</code> and <code>retryAfter</code>, which is the contract the <code>/mcp</code> tools already
+had (<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0041-a-browser-tool-answers-a-failure-rather-than-throwing.md">ADR 0041</a>).</p>
 <p>The landing page offers <code>scan_opencloud_security</code>. A result page offers
 <code>get_scan_result</code> and <code>export_scan_report</code>, bound to the UUID already in that
 page. Other views have no useful page-specific action and register nothing.

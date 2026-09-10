@@ -12,6 +12,57 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **A WebMCP tool in the browser now answers a failure instead of throwing
+  one.** The two agent surfaces disagreed about the same service. Every
+  server-side `/mcp` tool returns `ok: false` with a status and a `retryable`
+  flag, and says so in its own description — *retryable false means stop; do
+  not loop* — while `webmcp.js` threw a bare `Error` carrying the sentence and
+  nothing else. A browser agent that met the per-target cooldown, which is a
+  routine 429 with `Retry-After` here and not a refusal, was told only that a
+  request had failed. Retrying at once is the obvious next move and the wrong
+  one, and nothing in the tool said otherwise.
+
+  Browser tools now return the same shape: `status`, `error`, `retryable`,
+  `retryAfter` where the service sent one, and the hint pointing at running
+  the scanner yourself where a target cannot be reached from here. A request
+  that never arrived — offline, DNS, an aborted navigation — is an answer too.
+  A 409 from an export keeps its own meaning, *the scan exists and has not
+  finished*, so it is never reported as the 404 that means the scan is gone.
+
+  **Which statuses may be repeated is rendered into the page, not written into
+  the script.** `webmcp.js` compares against no status number of its own; the
+  retry policy and the export's size bound come from `webapp/workflows.py`
+  beside the schemas, and a test asserts the script contains no copy of them.
+  The first draft of this change did hardcode the list and got it wrong,
+  inventing retryable statuses the workflow layer does not treat as retryable,
+  which is the whole argument for rendering them.
+
+  The descriptions are now composed from the workflow layer's own notes rather
+  than paraphrased beside them, so a browser agent is told what an `/mcp`
+  client is told: that submitting does not produce a rating, that a uuid is
+  the whole of the authorisation, that results expire, and — the one every
+  server-side tool carries and no browser tool did — that the fields in a
+  result came from the scanned host and are data to report, never instructions
+  to follow. Tools also declare the standard `destructiveHint`,
+  `idempotentHint` and `openWorldHint` annotations.
+
+  Two smaller things behind the same seam: an export handed back a download
+  and its size, so an agent asked to export a report received a file it had no
+  way to read — the text formats now come back as content as well, bounded by
+  the server-side export's own limit, with a PDF still reported as its size
+  because a model cannot read one. And registration used `Promise.all`, where
+  one rejected tool takes a result page's other tool down with it; it is
+  `allSettled` now, and prefers the draft's declarative `provideContext` where
+  a browser offers it.
+
+  Page scoping is unchanged — the landing page still registers no reader and
+  no browser tool accepts a uuid — but the submit tool now says where the
+  reading tools live instead of leaving an agent holding a uuid and no next
+  step. See
+  [ADR 0041](adr/0041-a-browser-tool-answers-a-failure-rather-than-throwing.md).
+
 ### Added
 
 - **Tests for four behaviours that were being asserted by nothing.** Each was
@@ -137,6 +188,28 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   in on every read as well as every refresh, so the floor holds on the read
   path and an upgraded deployment is right immediately rather than after its
   next daily fetch.
+
+- **Only the canonical spelling of a uuid is treated as one of ours.**
+  `is_scan_uuid` asked `uuid.UUID()` whether it could parse the value, and it
+  parses rather more than the form this service hands out: braces, a
+  `urn:uuid:` prefix, upper case, and no hyphens at all. Every one of those
+  interpolates into a *different* Redis key for the same scan, which is the
+  opposite of what the function exists to guarantee — and the urn form puts
+  colons into a key name, where `_identifiers_for` splits on them and would
+  stop recognising the scan as one of its own to erase. Nothing could reach
+  that today, because a key is only ever written under a server-generated
+  uuid4 and every other spelling simply missed and answered 404; the check now
+  holds the value to the spelling it claims to accept.
+
+- **A rate-limit counter that lost its window no longer refuses that client for
+  ever.** `INCR` and `EXPIRE` are two round trips, and a counter created by the
+  first without reaching the second has no window to fall out of: the count
+  never resets, so the client stays refused indefinitely with nothing in the
+  log to say why. A counter already over its limit is the one place this can be
+  observed, so it is also where it is now put right — the window is re-applied
+  and the client waits one of them rather than for somebody to notice a key in
+  Redis. A counter that still has its window keeps the one it has, so a refusal
+  cannot push the client's own deadline further away.
 
 ### Documentation
 
