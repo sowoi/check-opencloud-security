@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.21.2] - 2026-09-10
+
 ### Changed
 
 - **A WebMCP tool in the browser now answers a failure instead of throwing
