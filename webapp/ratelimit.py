@@ -100,11 +100,25 @@ class RateLimiter:
         if count == 1:
             await self.backend.expire(key, self.client_window)
         if count > self.client_limit:
-            retry_after = await self.backend.ttl(key)
-            return LimitDecision(
-                False, max(1, retry_after if retry_after > 0 else self.client_window), "client"
-            )
+            return LimitDecision(False, await self._window_left(key, self.client_window), "client")
         return LimitDecision(True)
+
+    async def _window_left(self, key: str, window: int) -> int:
+        """How long a counter's window still has to run, repairing a lost one.
+
+        ``INCR`` and ``EXPIRE`` are two round trips, and a counter created by
+        the first without reaching the second has no window at all: it can
+        never fall back below the limit, so the client it belongs to would be
+        refused for ever with nothing in the log to say why. A counter already
+        over the limit is the only place that can be observed, so it is also
+        where it is put right - the client waits one window rather than for
+        somebody to notice and delete a key.
+        """
+        remaining = await self.backend.ttl(key)
+        if remaining > 0:
+            return max(1, remaining)
+        await self.backend.expire(key, window)
+        return max(1, window)
 
     async def check_target(self, host: str) -> LimitDecision:
         """
@@ -183,15 +197,9 @@ class RateLimiter:
             count = 0
         if count < CREDENTIAL_ATTEMPT_LIMIT:
             return LimitDecision(True)
-        retry_after = await self.backend.ttl(key)
         return LimitDecision(
             False,
-            max(
-                1,
-                retry_after
-                if retry_after > 0
-                else CREDENTIAL_ATTEMPT_WINDOW_SECONDS,
-            ),
+            await self._window_left(key, CREDENTIAL_ATTEMPT_WINDOW_SECONDS),
             "credential",
         )
 

@@ -1040,6 +1040,32 @@ def test_a_path_that_is_not_a_uuid_is_a_404_and_never_a_redis_lookup():
     assert test_client.get(f"/api/scans/{real}").status_code == 200
 
 
+def test_only_the_canonical_spelling_of_an_uuid_is_one_of_ours():
+    """
+    ``UUID()`` also parses braces, ``urn:uuid:``, upper case and no hyphens.
+
+    Each spelling would interpolate into a *different* Redis key for the same
+    scan, and the urn form puts colons into a key name ``_identifiers_for``
+    splits on - so an erasure request would no longer recognise the scan as
+    one of its own to delete.
+    """
+    test_client = client()
+    real = test_client.post(
+        "/api/scans", json={"target_url": "opencloud.example.com"}
+    ).json()["uuid"]
+    assert is_scan_uuid(real) is True
+
+    for spelling in (
+        real.replace("-", ""),
+        f"{{{real}}}",
+        f"urn:uuid:{real}",
+        real.upper(),
+    ):
+        assert spelling != real
+        assert is_scan_uuid(spelling) is False
+        assert test_client.get(f"/api/scans/{spelling}").status_code == 404
+
+
 def test_an_unparseable_address_is_an_answer_rather_than_a_crash():
     """
     A malformed IPv6 literal used to raise out of the handler.

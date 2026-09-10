@@ -46,14 +46,22 @@ TERMINAL_STATES = frozenset({STATE_COMPLETED, STATE_FAILED})
 def is_scan_uuid(candidate: str) -> bool:
     """Whether a path segment is one of our identifiers.
 
-    Nothing this service issues is anything but a uuid4, so a lookup for
-    something else is a probe. Refusing it before it reaches Redis keeps
-    caller-controlled text out of a key name entirely.
+    Nothing this service issues is anything but a uuid4 in its canonical
+    spelling, so a lookup for something else is a probe. Refusing it before it
+    reaches Redis keeps caller-controlled text out of a key name entirely.
+
+    The canonical form is checked, not merely that ``UUID`` accepts the string:
+    it also takes braces, a ``urn:uuid:`` prefix, upper case and no hyphens at
+    all. Each of those is a *different* key for the same scan - and the urn
+    form would put colons into a key name this module promises to keep clean,
+    where :meth:`ScanStore._identifiers_for` splits on them and would no
+    longer recognise the scan as one of its own to erase.
     """
     try:
-        return uuid_module.UUID(candidate).version == 4
+        parsed = uuid_module.UUID(candidate)
     except (ValueError, AttributeError, TypeError):
         return False
+    return parsed.version == 4 and str(parsed) == candidate
 
 
 def status_key(uuid: str) -> str:
