@@ -326,3 +326,137 @@ def test_the_dashboard_shows_the_plan_with_the_grade_each_step_reaches(
     from check_opencloud_security import RATE_MAP
 
     assert f"{RATE_MAP[first['ratingAfter']]}" in page
+
+
+# ------------------------------------------- the transport block in a report
+
+
+def _tls_document(inspection) -> dict:
+    """A result document carrying one real inspection, as the scanner writes it."""
+    return {
+        "domain": "localhost",
+        "product": "OpenCloud",
+        "rating": 3,
+        "tls": inspection.as_dict(),
+        "extraChecks": [],
+    }
+
+
+def _tls_scan(tmp_path, **certificate):
+    """One real handshake against a loopback endpoint, inspected."""
+    from opencloud_local_scan import tls
+    from tests.test_tls import TIMEOUT, _certificate, _server
+
+    paths = _certificate(tmp_path, **certificate)
+    with _server(*paths) as port:
+        return tls.inspect(
+            "localhost", port, TIMEOUT, probe_deprecated=False, check_stapling=False
+        )
+
+
+def test_the_flat_reports_carry_the_numbers_behind_the_transport_findings(tmp_path):
+    """
+    A finding says a check failed; these say what was actually measured.
+
+    Somebody reading the report a month later needs the negotiated version,
+    the chain and the dates in order to tell whether anything changed - the
+    pass/fail alone cannot answer that, and it is the only thing the rest of
+    the export carries.
+    """
+    inspection = _tls_scan(tmp_path)
+    document = _tls_document(inspection)
+    observed = inspection.as_dict()
+
+    csv_text = csv_report(document)
+
+    assert observed["protocol"] in csv_text
+    assert observed["certificate"]["notAfter"] in csv_text
+    assert observed["certificate"]["issuer"] in csv_text
+    assert "Certificate chain" in csv_text
+
+    pdf = pdf_report(document)
+    assert b"Transport security" in pdf
+
+
+def test_a_certificate_that_has_expired_says_so_rather_than_printing_a_date(tmp_path):
+    """
+    "Expires 3 March" reads as fine to somebody skimming; "expired 40 days ago" does not.
+
+    The remaining days are already negative in the measurement, so the report
+    has the fact - the only question is whether a reader has to subtract two
+    dates to notice it.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    inspection = _tls_scan(
+        tmp_path, not_before=now - timedelta(days=60), not_after=now - timedelta(days=30)
+    )
+    days = inspection.as_dict()["certificate"]["daysRemaining"]
+    assert days < 0, "the certificate was generated already expired"
+
+    csv_text = csv_report(_tls_document(inspection))
+
+    assert f"expired {abs(days)} day(s) ago" in csv_text
+    assert "day(s) left" not in csv_text
+
+
+def test_a_live_certificate_reports_the_days_it_has_left(tmp_path):
+    """The negative half of the expiry wording: a valid certificate is never called expired."""
+    inspection = _tls_scan(tmp_path)
+    days = inspection.as_dict()["certificate"]["daysRemaining"]
+    assert days > 0
+
+    csv_text = csv_report(_tls_document(inspection))
+
+    assert f"{days} day(s) left" in csv_text
+    assert "expired" not in csv_text
+
+
+def test_a_chain_that_reaches_no_public_root_is_not_reported_as_merely_untrusted(tmp_path):
+    """
+    Two different problems that a single word would flatten into one.
+
+    A self-signed certificate and a server that forgot to send its
+    intermediate both fail to verify, but only one of them is fixed by
+    installing the missing certificate - the report has to keep them apart.
+    """
+    document = _tls_document(_tls_scan(tmp_path))
+    document["tls"]["trusted"] = False
+    document["tls"]["chainComplete"] = False
+
+    csv_text = csv_report(document)
+    assert "not trusted, no path to a public root" in csv_text
+
+    document["tls"]["chainComplete"] = True
+    assert "no path to a public root" not in csv_report(document)
+
+
+def test_a_deprecated_version_still_accepted_is_told_apart_from_one_refused(tmp_path):
+    """A probe that found nothing and a probe that found TLS 1.0 must not read alike."""
+    document = _tls_document(_tls_scan(tmp_path))
+    document["tls"]["deprecatedProtocolsProbed"] = ["TLSv1", "TLSv1.1"]
+
+    document["tls"]["deprecatedProtocolsAccepted"] = ["TLSv1"]
+    accepted = csv_report(document)
+    assert "still accepted: TLSv1" in accepted
+
+    document["tls"]["deprecatedProtocolsAccepted"] = []
+    refused = csv_report(document)
+    assert "refused: TLSv1, TLSv1.1" in refused
+    assert "still accepted" not in refused
+
+
+def test_an_instance_that_was_never_reached_over_tls_claims_nothing_about_it(finished_scan):
+    """
+    The fake instance is plain HTTP, so there is no transport to describe.
+
+    An export that printed "unknown" rows here would be inventing a
+    measurement that no handshake produced.
+    """
+    csv_text = csv_report(finished_scan)
+
+    assert "Certificate chain" not in csv_text
+    assert "Transport security" not in pdf_report(finished_scan).decode(
+        "latin-1", errors="replace"
+    )

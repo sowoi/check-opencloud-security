@@ -187,6 +187,21 @@ from .store import (
     ScanStore,
     target_hostname,
 )
+from .workflows import (
+    ASYNC_NOTE,
+    CONFLICT_NOTE,
+    EXPIRY_NOTE,
+    EXPORT_CONTENT_LIMIT,
+    EXPORT_NOTE,
+    EXPORT_RETRY_SECONDS,
+    INPUT_NOTE,
+    NOT_FINISHED_STATUS,
+    RATE_LIMIT_FALLBACK_SECONDS,
+    RATE_LIMIT_NOTE,
+    REMOTE_NOTE,
+    RETRYABLE_STATUSES,
+    UUID_NOTE,
+)
 
 LOGGER = logging.getLogger("check_opencloud.web")
 
@@ -194,6 +209,225 @@ LOGGER = logging.getLogger("check_opencloud.web")
 def mcp_available() -> bool:
     """Whether the optional ``mcp`` extra is installed in this environment."""
     return importlib.util.find_spec("mcp") is not None
+
+
+#: What every browser tool says about how it fails.
+#:
+#: The server-side tools answer ``ok: false`` with a status and a retryable
+#: flag rather than raising, so that an agent meeting a cooldown waits instead
+#: of looping. A browser tool that threw a bare error would hand the agent the
+#: same situation with none of that information, so ``webmcp.js`` normalises
+#: failures into the same shape and this sentence is how the agent learns to
+#: expect it.
+_FAILURE_NOTE = (
+    "This tool does not throw. A failure comes back as ok: false with status, "
+    "error and retryable, plus retryAfter in seconds where the server sent "
+    "one. retryable false means stop and report the error; do not call the "
+    "tool again."
+)
+
+
+def _webmcp_retry() -> dict[str, Any]:
+    """
+    Which answers a browser tool may repeat, decided here rather than in JavaScript.
+
+    ``webmcp.js`` is transport and holds no policy: a copy of these numbers in
+    a script is a copy that drifts from ``workflows.py``, and the two would
+    disagree about whether to wait exactly where it matters - a 429 an agent
+    reads as fatal is a scan nobody runs, and a 404 it reads as retryable is a
+    loop against a scan that no longer exists.
+    """
+    return {
+        "retryableStatuses": list(RETRYABLE_STATUSES),
+        "fallbackRetrySeconds": RATE_LIMIT_FALLBACK_SECONDS,
+    }
+
+
+def _webmcp_scan_tool(tracks: Any, waivers: Any) -> dict[str, Any]:
+    """
+    The landing page's one tool: submit a scan.
+
+    The schema's enums are the same catalogue objects the form renders from,
+    so a track or a waiver added to the catalogue reaches the agent and the
+    visitor in the same deployment.
+    """
+    return {
+        "action": "scan",
+        "endpoint": "/api/scans",
+        "name": "scan_opencloud_security",
+        "title": "Scan OpenCloud security",
+        "description": (
+            "Queue a security scan for a publicly reachable OpenCloud "
+            "instance. Submitting is all this does: it answers with a uuid, "
+            "the state 'queued' and the url of the result page. The rating "
+            "does not exist yet.\n\n"
+            f"{ASYNC_NOTE}\n\n"
+            "This page registers no tool that reads a result - browser tools "
+            "belong to the page they are on. Open the returned url; the "
+            "result page registers get_scan_result and export_scan_report "
+            "for that scan.\n\n"
+            f"{INPUT_NOTE}\n\n"
+            f"{RATE_LIMIT_NOTE}\n\n"
+            f"{UUID_NOTE}\n\n"
+            f"{_FAILURE_NOTE}"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["target_url"],
+            "properties": {
+                "target_url": {
+                    "type": "string",
+                    "description": (
+                        "Public OpenCloud base URL or hostname. It must "
+                        "resolve publicly; a private, loopback or link-local "
+                        "address is refused and retrying will not help."
+                    ),
+                },
+                "release_track": {
+                    "type": "string",
+                    "description": (
+                        "How the version is judged. Changes the rating's "
+                        "reasoning and nothing about the scan itself."
+                    ),
+                    "enum": [track.id for track in tracks],
+                    "default": DEFAULT_RELEASE_TRACK,
+                },
+                "output_format": {
+                    "type": "string",
+                    "description": "What the result page renders for the visitor.",
+                    "enum": list(OUTPUT_FORMATS),
+                    "default": "dashboard",
+                },
+                "ignore_hardenings": {
+                    "type": "array",
+                    "description": (
+                        "Hardening identifiers to waive. A waived finding is "
+                        "still reported; it just stops capping the rating."
+                    ),
+                    "items": {
+                        "type": "string",
+                        "enum": [option.id for option in waivers],
+                    },
+                    "uniqueItems": True,
+                    "default": [],
+                },
+            },
+        },
+        "retry": _webmcp_retry(),
+        "annotations": {
+            # Nothing on the scanned instance is modified - the scan only
+            # reads what it serves publicly - but a scan is created here, and
+            # submitting the same target twice is two scans and a cooldown.
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            # It reaches a host the caller names, which is the whole point.
+            "openWorldHint": True,
+            "untrustedContentHint": True,
+        },
+    }
+
+
+def _webmcp_result_tools(identifier: str) -> tuple[dict[str, Any], ...]:
+    """
+    A result page's tools, bound to the scan that page is showing.
+
+    Neither takes a uuid: the capability is the page, and a tool that accepted
+    one would be a way to reach scans this visitor was never given.
+    """
+    return (
+        {
+            "action": "status",
+            "endpoint": f"/scan/{identifier}?output_format=json",
+            "name": "get_scan_result",
+            "title": "Get scan result",
+            "description": (
+                "Read the scan shown on this page: its current state and, "
+                "once it is complete, the structured result - the rating and "
+                "its letter, the version and whether it is end of life, the "
+                "findings, and the remediation plan in the order the scanner "
+                "worked out.\n\n"
+                "Input: none. Which scan this reads is fixed by the page.\n\n"
+                f"{ASYNC_NOTE}\n\n"
+                f"{REMOTE_NOTE}\n\n"
+                f"{EXPIRY_NOTE}\n\n"
+                f"{_FAILURE_NOTE}"
+            ),
+            "inputSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+            },
+            "retry": _webmcp_retry(),
+            "annotations": {
+                "readOnlyHint": True,
+                "destructiveHint": False,
+                "idempotentHint": True,
+                "openWorldHint": False,
+                "untrustedContentHint": True,
+            },
+        },
+        {
+            "action": "export",
+            "endpoint": f"/api/scans/{identifier}/export/",
+            "name": "export_scan_report",
+            "title": "Export scan report",
+            "description": (
+                "Render the completed scan shown on this page as a file and "
+                "save it through the browser. json and sarif are the useful "
+                "ones for further processing; sarif is what a code-scanning "
+                "pipeline ingests.\n\n"
+                "Output: the download starts for the visitor, and the text "
+                "formats are also returned as content so that they can be "
+                "read here. pdf comes back as its size alone, because a model "
+                "cannot read one - report the download rather than the "
+                "bytes. An export too large to return inline arrives with "
+                "truncated: true and the url to fetch instead.\n\n"
+                f"{EXPORT_NOTE}\n\n"
+                f"{CONFLICT_NOTE}\n\n"
+                f"{_FAILURE_NOTE}"
+            ),
+            "inputSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["format"],
+                "properties": {
+                    "format": {
+                        "type": "string",
+                        "description": "The file format to render.",
+                        "enum": list(EXPORT_FORMATS),
+                        "default": "json",
+                    }
+                },
+            },
+            "retry": {
+                **_webmcp_retry(),
+                # An export answers 409 while the scan is still running. That
+                # is the one status worth repeating that is *not* a failure of
+                # the service, and it must never be read as the 404 that means
+                # the scan is gone.
+                "notFinishedStatus": NOT_FINISHED_STATUS,
+                "notFinishedRetrySeconds": EXPORT_RETRY_SECONDS,
+            },
+            # How much of a rendered export comes back inline, past which the
+            # agent is pointed at the url. The same bound the server-side
+            # export applies, so neither surface returns more of a scanned
+            # host's own words into a reader's context than the other.
+            "contentLimit": EXPORT_CONTENT_LIMIT,
+            "annotations": {
+                # The server-side export_scan is read-only; this one is not.
+                # It writes a file into the visitor's downloads, which is a
+                # change to their machine even though the service is only
+                # read.
+                "readOnlyHint": False,
+                "destructiveHint": False,
+                "idempotentHint": True,
+                "openWorldHint": False,
+                "untrustedContentHint": True,
+            },
+        },
+    )
 
 OUTPUT_FORMATS = ("dashboard", "json", "csv", "sarif", "pdf")
 
@@ -909,54 +1143,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "target_url": target_url,
             "index_meta_tags": settings.index_meta_tags,
             "webmcp_tools": (
-                {
-                    "action": "scan",
-                    "endpoint": "/api/scans",
-                    "name": "scan_opencloud_security",
-                    "title": "Scan OpenCloud security",
-                    "description": (
-                        "Queue a security scan for a public OpenCloud instance. "
-                        "Returns a capability UUID and result-page URL; the scan "
-                        "continues asynchronously."
-                    ),
-                    "inputSchema": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["target_url"],
-                        "properties": {
-                            "target_url": {
-                                "type": "string",
-                                "description": "Public OpenCloud base URL or hostname.",
-                            },
-                            "release_track": {
-                                "type": "string",
-                                "enum": [track.id for track in tracks],
-                                "default": DEFAULT_RELEASE_TRACK,
-                            },
-                            "output_format": {
-                                "type": "string",
-                                "enum": list(OUTPUT_FORMATS),
-                                "default": "dashboard",
-                            },
-                            "ignore_hardenings": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string",
-                                    "enum": [option.id for option in waivers],
-                                },
-                                "uniqueItems": True,
-                                "default": [],
-                            },
-                        },
-                    },
-                    "annotations": {
-                        "readOnlyHint": False,
-                        "untrustedContentHint": True,
-                    },
-                },
-            )
-            if mcp_enabled
-            else (),
+                (_webmcp_scan_tool(tracks, waivers),) if mcp_enabled else ()
+            ),
         }
 
     @app.get("/", response_class=HTMLResponse)
@@ -1504,54 +1692,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                     _configuration_fragments(summary) if summary else ()
                 ),
                 "webmcp_tools": (
-                    {
-                        "action": "status",
-                        "endpoint": f"/scan/{identifier}?output_format=json",
-                        "name": "get_scan_result",
-                        "title": "Get scan result",
-                        "description": (
-                            "Read the current state and, when complete, the "
-                            "structured result for the scan shown on this page."
-                        ),
-                        "inputSchema": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {},
-                        },
-                        "annotations": {
-                            "readOnlyHint": True,
-                            "untrustedContentHint": True,
-                        },
-                    },
-                    {
-                        "action": "export",
-                        "endpoint": f"/api/scans/{identifier}/export/",
-                        "name": "export_scan_report",
-                        "title": "Export scan report",
-                        "description": (
-                            "Download the completed scan shown on this page in "
-                            "JSON, CSV, SARIF, or PDF format."
-                        ),
-                        "inputSchema": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["format"],
-                            "properties": {
-                                "format": {
-                                    "type": "string",
-                                    "enum": list(EXPORT_FORMATS),
-                                    "default": "json",
-                                }
-                            },
-                        },
-                        "annotations": {
-                            "readOnlyHint": False,
-                            "untrustedContentHint": True,
-                        },
-                    },
-                )
-                if mcp_enabled
-                else (),
+                    _webmcp_result_tools(identifier) if mcp_enabled else ()
+                ),
             },
         )
 

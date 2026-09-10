@@ -337,10 +337,18 @@ Jinja context -> _webmcp.html -> /static/js/webmcp.js
 
 Jinja builds each JSON Schema from the options used by the rendered page.
 Release tracks, output formats, waiver identifiers, and export formats
-therefore cannot drift into a second browser-side catalogue. The external
+therefore cannot drift into a second browser-side catalogue. The same applies
+to the retry policy: which statuses may be repeated, and how long to wait,
+are rendered into each tool from `webapp/workflows.py`, so the script compares
+against no status number of its own. The external
 script registers tools after `DOMContentLoaded` and checks for WebMCP before
 using it. It accepts the earlier `navigator.modelContext` implementation and
-the current `document.modelContext` draft.
+the current `document.modelContext` draft, preferring the declarative
+`provideContext` where a browser offers it.
+
+Failures are returned, not thrown: `ok: false` with `status`, `error`,
+`retryable` and `retryAfter`, which is the contract the `/mcp` tools already
+had ([ADR 0041](adr/0041-a-browser-tool-answers-a-failure-rather-than-throwing.md)).
 
 The landing page offers `scan_opencloud_security`. A result page offers
 `get_scan_result` and `export_scan_report`, bound to the UUID already in that

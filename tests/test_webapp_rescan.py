@@ -83,6 +83,42 @@ def test_reading_the_client_allowance_does_not_spend_any_of_it():
     asyncio.run(scenario())
 
 
+def test_a_counter_that_lost_its_window_stops_refusing_instead_of_never_expiring():
+    """
+    ``INCR`` and ``EXPIRE`` are two round trips, and a counter created by the
+    first without reaching the second has no window to fall out of - so the
+    client it belongs to would be refused for ever, with nothing in the log.
+    """
+    store = backend()
+    limiter = _limiter(client_limit=2, client_window=60, target_cooldown=0)
+    key = client_key(A_CLIENT, "a-fixed-salt")
+
+    async def scenario() -> None:
+        # What is left behind when EXPIRE never ran: over the limit, no window.
+        for _ in range(5):
+            await store.incr(key)
+        assert await store.ttl(key) == -1
+
+        refused = await limiter.check_client(A_CLIENT)
+        assert not refused.allowed
+        assert refused.retry_after == 60
+        # Repaired, so the lockout now ends on its own rather than on somebody
+        # noticing a key in Redis.
+        assert await store.ttl(key) > 0
+        store.advance(61)
+        assert (await limiter.check_client(A_CLIENT)).allowed
+
+        # The negative half: a counter that still has its window keeps the one
+        # it has. Re-arming on every refusal would push the client's own
+        # deadline away each time they asked, which is a rolling lockout.
+        for _ in range(5):
+            await limiter.check_client(A_CLIENT)
+        store.advance(30)
+        assert (await limiter.check_client(A_CLIENT)).retry_after <= 30
+
+    asyncio.run(scenario())
+
+
 def test_reading_a_targets_cooldown_does_not_claim_the_slot():
     """
     ``check_target`` answers by taking the slot, which would make the answer

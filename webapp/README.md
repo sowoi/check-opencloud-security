@@ -550,8 +550,21 @@ export catalogues as the page controls.
 ordinary API with `Accept: application/json`, so it meets the same SSRF guard,
 rate limits, cooldown, queue, and capability checks. The script supports both
 the earlier `navigator.modelContext` implementation and the current
-`document.modelContext` draft. Browsers without either API ignore the
+`document.modelContext` draft, preferring the declarative `provideContext`
+where a browser offers it. Browsers without either API ignore the
 integration. Turning MCP off removes these registrations along with `/mcp`.
+
+A browser tool does not throw. A failure comes back as `ok: false` with
+`status`, `error` and `retryable`, plus `retryAfter` in seconds where the
+service sent one — the same contract the `/mcp` tools use, so an agent meeting
+a per-target cooldown in a browser waits rather than retrying immediately.
+Which statuses may be repeated is rendered into the page from
+`webapp/workflows.py`, not written into the script, and the tool descriptions
+are composed from the same notes the `/mcp` tools carry — including the
+warning that a scan result contains the scanned host's own words. An export
+returns its content for the formats a model can read, bounded by the same
+limit the server-side export applies; a PDF is reported as its size. See
+[ADR 0041](../adr/0041-a-browser-tool-answers-a-failure-rather-than-throwing.md).
 
 ### Discovery, for an agent that knows only the origin
 

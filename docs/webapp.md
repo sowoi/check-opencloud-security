@@ -931,6 +931,13 @@ schemas are rendered from the same catalogues as the page controls. Execution
 uses the public API with `Accept: application/json`, so WebMCP does not bypass
 the SSRF guard, rate limits, cooldown, queue, or capability checks.
 
+A browser tool answers a failure rather than throwing one: `ok: false` with
+`status`, `error` and `retryable`, plus `retryAfter` in seconds where the
+service sent one. This is the contract the `/mcp` tools already used, and the
+statuses behind it are rendered into the page from `webapp/workflows.py`
+rather than written into the script. See
+[ADR 0041](../adr/0041-a-browser-tool-answers-a-failure-rather-than-throwing.md).
+
 `POST /` and `GET /scan/{uuid}` negotiate JSON for browser-side tools and
 other clients. `Accept: application/json` requests a structured response, and
 `output_format=json` does the same. HTML remains the default for ordinary
