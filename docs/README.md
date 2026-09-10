@@ -106,6 +106,11 @@ internet; the page below is the rest of the job.
   the three layers, how settings reach the scanner, how OpenAPI, Arazzo and
   MCP describe one workflow layer between them, what ships where, and where a
   new check, setting, endpoint or MCP tool belongs.
+- [`specs.md`](../specs.md) - the normative contract: numbered MUST/MUST NOT
+  clauses for the rating, the lifecycle, exit codes, waivers, configuration,
+  how a scan behaves towards the instance it is pointed at, and the web
+  application. The one file written to be checked clause by clause rather
+  than read for explanation.
 - [`adr/README.md`](../adr/README.md) - the architectural decision records,
   and the format a new one follows.
 - [`opencloud_local_scan/README.md`](../opencloud_local_scan/README.md) - the

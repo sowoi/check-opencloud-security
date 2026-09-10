@@ -80,6 +80,31 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   near-miss permission that would not, so the next person to meet it does not
   go looking for a missing line in `permissions:`.
 
+### Documentation
+
+- **`specs.md`: the normative contract, stated clause by clause.** Everything
+  this project promises was already written down somewhere - the rating
+  invariants in `AGENTS.md`, the layer boundaries in `ARCHITECTURE.md`, the
+  thresholds in `README.md`, the reasoning in forty ADRs - but all of it in
+  prose written to explain rather than to be checked. Asking "is this
+  behaviour a promise or an accident?" meant reading the code and guessing at
+  the intent behind it.
+
+  The new file answers that question directly: numbered MUST/MUST NOT clauses
+  grouped by subject - layers, the result document, findings, waivers, the
+  rating, the lifecycle, exit codes, output, the webhook, configuration, how a
+  scan is allowed to behave towards somebody else's machine, the web
+  application, and the prohibitions - each one small enough that a test can be
+  pointed at it and a commit message can cite it. Clause numbers are stable,
+  and a withdrawn one keeps its number rather than being reused, so a citation
+  cannot quietly come to mean something else.
+
+  It is deliberately not a fourth explanation of the same material. Where a
+  clause needs a reason, it links the ADR that argues it; where it needs a
+  mechanism, it names the symbol that enforces it. And it says what to do when
+  it is wrong: the code and its tests win, and the clause gets corrected in the
+  same pull request.
+
 ## [1.21.0] - 2026-09-06
 
 ### Added
