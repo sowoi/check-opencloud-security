@@ -80,6 +80,64 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   near-miss permission that would not, so the next person to meet it does not
   go looking for a missing line in `permissions:`.
 
+- **A certificate that expired today no longer passes the expiry check.**
+  `days_remaining` truncates towards zero, so the first day of expiry counts
+  as `0` rather than `-1` - and both the wording and the verdict were read
+  from the sign of that number. A certificate that had gone out of date hours
+  earlier was therefore reported as expiring "in 0 day(s)" and *passed*
+  `--tls-min-days 0`, on precisely the day the distinction matters most.
+  `Certificate` now carries an `expired` flag read from `notAfter` against
+  the clock, and the check consults that instead of the sign. The flag is
+  deliberately kept out of `as_dict()`: `notAfter` and `daysRemaining` are
+  both already in the result document, and its shape is a contract.
+
+- **A zone that publishes only an `iodef` CAA record is no longer told it has
+  none.** `iodef` names where a CA should report a violation; it authorizes
+  nobody, so the issuance risk is real and the finding was right to fail. The
+  wording was not: an operator who had published a CAA record was sent looking
+  for one they already had. The detail now names the tags actually present and
+  says that they authorize no issuer, which is a different thing to fix.
+
+- **A rating cap is reported as applied even when the base rating had already
+  reached it.** A cap counted only when it *lowered* the rating, so a critical
+  finding capping at `2` on an instance the advisories had already put at `2`
+  was rendered as "would cap at 2/5, already lower" - which says something
+  untrue about the only critical finding in the report. A cap is now applied
+  when it equals the final rating, which is what makes the explanation
+  independent of the order the checks ran in.
+
+- **A clean instance is no longer told its failed extra checks are being
+  disregarded.** With `extra_checks_affect_rating` off, the explanation
+  appended "failed extra checks are reported but do not affect the rating"
+  whenever `findings` was non-empty - and `findings` holds the passes too, so
+  an instance with nothing wrong got the note as well. It is now added only
+  when a finding actually counts.
+
+- **`derive()` no longer discards the redirect pins on the session it shares.**
+  It re-runs `__post_init__` on a probe holding an existing session, and
+  mounting unconditionally replaced a pinning adapter already in use: the pins
+  added to it were silently dropped, and the pool holding its open connections
+  was no longer reachable from `session.adapters` for `close()` to shut down.
+  Mounting is now skipped where a pinning adapter is already mounted.
+
+- **Probes abandoned while opening an instance are closed.** Only the probe
+  `_open_instance` returns was ever closed by its caller, while each fallback
+  attempt - HTTPS without verification, then plain HTTP - opened another. An
+  abandoned probe still owns the sockets its session pooled, which is the
+  whole reason `_Probe.close` exists; all three paths now close what they
+  are not returning.
+
+- **An advisory that only the running image knows about is no longer missing
+  from every scan.** The stored advisory document carries no TTL - reference
+  data is superseded, never expired - and the bundled file was folded in only
+  when nothing was stored yet. A deployment upgraded to an image whose wheel
+  ships a hand-curated advisory therefore merged into whatever an older image
+  had left in Redis, and unless the feed happened to mention that advisory it
+  stayed absent for the life of the deployment. The bundled file is now folded
+  in on every read as well as every refresh, so the floor holds on the read
+  path and an upgraded deployment is right immediately rather than after its
+  next daily fetch.
+
 ### Documentation
 
 - **`specs.md`: the normative contract, stated clause by clause.** Everything

@@ -122,6 +122,18 @@ def check_caa_record(hostname: str, timeout: float, *, port: int = 53) -> TlsChe
                 f"CAA record restricts certificate issuance "
                 f"({len(authorizing)} entr{plural})"
             )
+        elif records:
+            # A zone publishing only `iodef` - where a CA should report a
+            # violation - has a CAA record and restricts nothing, which is a
+            # different thing to fix than having no record at all. Telling that
+            # operator there is "no CAA record" sends them looking for one they
+            # already published.
+            present = ", ".join(sorted({record.tag for record in records if record.tag}))
+            detail = (
+                f"The CAA records for this name ({present}) authorize no "
+                "issuer, so any publicly trusted CA can issue a certificate "
+                "for it"
+            )
         else:
             detail = (
                 "No CAA record for this name: any publicly trusted CA can "

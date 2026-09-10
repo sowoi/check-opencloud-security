@@ -638,11 +638,20 @@ class _Probe:
             session.close()
 
     def _mount(self, session: requests.Session) -> None:
+        """Give a session the pinning adapter, unless it already has one.
+
+        :meth:`derive` re-runs ``__post_init__`` on a probe that *shares* this
+        session, so mounting unconditionally would replace an adapter already
+        in use: the redirect pins added to it would be silently discarded, and
+        the pool still holding its open connections would no longer be
+        reachable from ``session.adapters`` for :meth:`close` to shut down.
+        """
         pins = dict(self.settings.pinned_addresses)
-        if pins:
-            adapter = _PinnedHTTPAdapter(pins)
-            session.mount("http://", adapter)
-            session.mount("https://", adapter)
+        if not pins or isinstance(session.get_adapter("https://"), _PinnedHTTPAdapter):
+            return
+        adapter = _PinnedHTTPAdapter(pins)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
 
     def _pin_redirect(self, url: str, addresses: tuple[str, ...]) -> None:
         """Pin a validated redirect on the session making this request."""
@@ -2711,9 +2720,13 @@ def _rating_caps(rating: int, findings: Iterable[Finding]) -> tuple[int, list[Ra
             cap=SEVERITY_RATING_CAP.get(finding.severity, MAX_RATING),
             detail=finding.detail,
             # Order-independent: a cap is a reason for the outcome when it is
-            # as strict as the outcome, whatever order the checks ran in.
-            applied=SEVERITY_RATING_CAP.get(finding.severity, MAX_RATING) == capped
-            and capped < rating,
+            # as strict as the outcome, whatever order the checks ran in. It is
+            # deliberately not also required to have *lowered* the rating - a
+            # critical finding capping at 2 on an instance the advisories had
+            # already put at 2 is still a reason that instance is a 2, and
+            # reporting it as "the rating was already lower" says something
+            # untrue about the only critical finding in the report.
+            applied=SEVERITY_RATING_CAP.get(finding.severity, MAX_RATING) == capped,
         )
         for finding in failed
     ]
@@ -2772,7 +2785,10 @@ def _compute_rating(
     base_rating = rating
     if settings.extra_checks and settings.extra_checks_affect_rating:
         rating, caps = _rating_caps(rating, findings)
-    elif findings and not settings.extra_checks_affect_rating:
+    elif any(finding.counts for finding in findings) and not settings.extra_checks_affect_rating:
+        # Only when something actually failed. `findings` holds the passes too,
+        # so testing the list itself told a clean instance that its failed
+        # checks were being disregarded when it had none.
         base_reason += "; failed extra checks are reported but do not affect the rating"
 
     return RatingExplanation(
@@ -2874,6 +2890,11 @@ def _open_instance(host: str, settings: ScannerSettings) -> tuple[
     try:
         return probe, _fetch_status(probe), hostname, port, settings, None, None
     except ScanError as exc:
+        # Only the probe this function *returns* is closed by the caller, and
+        # each attempt below opens a new one. An abandoned probe still owns the
+        # sockets its session pooled, so it is closed here rather than left for
+        # the collector - which is the whole reason `_Probe.close` exists.
+        probe.close()
         if settings.scheme != "https":
             raise
         https_error = exc
@@ -2886,6 +2907,7 @@ def _open_instance(host: str, settings: ScannerSettings) -> tuple[
         try:
             status = _fetch_status(insecure_probe)
         except ScanError:
+            insecure_probe.close()
             LOGGER.debug("Instance is unreachable over HTTPS even without verification")
         else:
             LOGGER.debug("HTTPS scan needed to skip certificate verification")
@@ -2909,6 +2931,7 @@ def _open_instance(host: str, settings: ScannerSettings) -> tuple[
     try:
         status = _fetch_status(plain_probe)
     except ScanError:
+        plain_probe.close()
         raise https_error from None
     return plain_probe, status, hostname, fallback_port, settings, None, str(https_error)
 

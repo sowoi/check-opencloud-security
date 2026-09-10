@@ -113,6 +113,17 @@ class Certificate:
     not_before: str = ""
     not_after: str = ""
     days_remaining: int | None = None
+    expired: bool = False
+    """Whether ``notAfter`` had already passed when the scan ran.
+
+    Read from the timestamps rather than from the sign of
+    :attr:`days_remaining`, which truncates towards zero: a certificate that
+    went out of date in the last twenty-four hours has *zero* days left and is
+    nonetheless expired, and that is the day the difference matters most.
+    Deliberately absent from :meth:`as_dict` - ``notAfter`` and
+    ``daysRemaining`` are both already there, and the shape of the result
+    document is a contract.
+    """
     lifetime_days: int | None = None
     alt_names: tuple[str, ...] = ()
     ocsp_urls: tuple[str, ...] = ()
@@ -356,16 +367,20 @@ class TlsInspection:
             )
         elif certificate.days_remaining is not None:
             days = certificate.days_remaining
-            when = (
-                f"expired {abs(days)} day(s) ago"
-                if days < 0
-                else f"expires in {days} day(s)"
-            )
+            if certificate.expired:
+                # Truncation towards zero puts the first day of expiry at 0,
+                # not at -1, so neither the wording nor the verdict may be
+                # taken from the sign of the count. `--tls-min-days 0` used to
+                # pass a certificate that had expired hours earlier for exactly
+                # that reason.
+                when = "expired today" if days == 0 else f"expired {abs(days)} day(s) ago"
+            else:
+                when = f"expires in {days} day(s)"
             checks.append(
                 TlsCheck(
                     "tlsCertificate",
-                    "high" if days <= 0 else "medium",
-                    days >= min_days,
+                    "high" if certificate.expired or days <= 0 else "medium",
+                    not certificate.expired and days >= min_days,
                     f"Certificate {when} ({certificate.not_after})",
                 )
             )
@@ -605,6 +620,7 @@ def _certificate(
             if not_after and not_after >= now
             else (-int((now - not_after).total_seconds() // 86400) if not_after else None)
         ),
+        expired=bool(not_after and not_after < now),
         lifetime_days=lifetime,
         alt_names=alt_names,
         ocsp_urls=tuple(str(url) for url in peercert.get("OCSP", ()) or ()),
