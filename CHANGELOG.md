@@ -12,6 +12,49 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **Tests for four behaviours that were being asserted by nothing.** Each was
+  found by reading coverage rather than the diff, and each is a promise the
+  code already makes in prose:
+
+  - **The operator area's live audit stream is now actually driven.** It was
+    covered only by a test that read `admin.py` with a regular expression, so
+    the generator itself never ran: the `disabled` state, the half-hour cap,
+    the keep-alive frame, the client hanging up, and both of the
+    start-at-the-end rules were untested. That last pair is the one worth
+    having - neither the in-memory window nor a configured audit *file* may be
+    replayed into a browser when somebody opens the view, because retention is
+    the log's business and a copy of it in a page is not. `_sse` is now tested
+    for what its docstring already claimed: a newline inside a record cannot
+    end the event early and forge a second one.
+  - **Key rotation, which is the entire reason a stored value carries a
+    `v<n>:` prefix.** Nothing checked that a value written under the old key
+    still decrypts after a new one is added, or that new writes move to the
+    new version - and nothing checked the other half, that a value whose key
+    version has been retired is lost rather than quietly read with a different
+    key. Tampered, truncated and malformed ciphertexts are now asserted to
+    come back as `None` rather than as an exception out of a request, and a
+    plaintext value written before encryption was switched on is asserted to
+    keep rendering until it expires.
+  - **The transport block in the CSV and PDF exports.** Every export test
+    scans the fake instance, which is plain HTTP, so the entire TLS section
+    was unreachable from the suite. It is now exercised against a real
+    loopback handshake: the negotiated version, the chain, the issuer and the
+    dates, that an expired certificate says *expired 30 day(s) ago* rather
+    than printing a date somebody has to subtract, that "not trusted" and "no
+    path to a public root" stay two different problems, and that a deprecated
+    version still accepted does not read like one that was refused.
+  - **`SecretProvider.resolve_tree`, and the refusals around it.** The
+    recursion that resolves every `secret://` in a nested configuration had no
+    test at all, nor did a reference naming nothing, an unset environment
+    variable, or a command that exits non-zero - the last of which would
+    otherwise hand the caller an empty credential. Two boundaries are now
+    written down: only the four listed schemes are references, so a
+    `redis://` URL in a setting is a value and not a lookup; and `exec://`
+    runs its argv directly, so a `;` in a reference is part of an argument
+    rather than a second command.
+
 ### Fixed
 
 - **Drafting advisories after a release no longer fails the workflow asking

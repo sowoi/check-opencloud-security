@@ -1137,6 +1137,172 @@ def test_the_live_window_is_bounded_and_keeps_what_the_log_wrote():
     assert window.since(cursor)[1] == []
 
 
+# ------------------------------------------------ the stream itself, driven
+
+
+class _Watcher:
+    """A reader of the stream that hangs up after so many frames.
+
+    ``audit_events`` runs until the client goes away or the cap is reached,
+    so a test that only iterated it would never return. This stands in for
+    the request and reports itself disconnected once the test has seen what
+    it came for.
+    """
+
+    def __init__(self, frames: int) -> None:
+        self._remaining = frames
+
+    async def is_disconnected(self) -> bool:
+        if self._remaining <= 0:
+            return True
+        self._remaining -= 1
+        return False
+
+
+async def _collect(recent, settings_, frames=4):
+    from webapp.admin import audit_events
+
+    return [
+        frame
+        async for frame in audit_events(_Watcher(frames), recent, settings_)
+    ]
+
+
+@pytest.fixture
+def _instant_stream(monkeypatch):
+    """The stream polls once a second; nothing here is worth a second of it."""
+    monkeypatch.setattr("webapp.admin._STREAM_INTERVAL_SECONDS", 0)
+
+
+def test_a_record_arriving_after_somebody_started_watching_reaches_them(_instant_stream):
+    """The view exists to show what happens next; a stream that shows nothing is decoration."""
+    from webapp.audit import RecentAuditRecords
+
+    window = RecentAuditRecords(16)
+    window.add('{"event": "scan_requested"}')  # before the reader arrived
+
+    async def watch():
+        from webapp.admin import audit_events
+
+        request = _Watcher(6)
+        frames = []
+        stream = audit_events(request, window, _admin_settings(audit_log=True))
+        async for frame in stream:
+            frames.append(frame)
+            if frame == 'event: state\ndata: live\n\n':
+                window.add('{"event": "scan_completed"}')
+        return frames
+
+    frames = asyncio.run(watch())
+
+    assert frames[0] == "event: state\ndata: live\n\n"
+    records = [f for f in frames if f.startswith("event: record")]
+    assert any("scan_completed" in frame for frame in records)
+    # The negative half: the window is not replayed into the browser.
+    assert not any("scan_requested" in frame for frame in records)
+
+
+def test_a_quiet_trail_still_sends_something_down_the_connection(_instant_stream):
+    """A proxy in front of an idle stream will close it; the keep-alive is why it does not."""
+    from webapp.audit import RecentAuditRecords
+
+    frames = asyncio.run(_collect(RecentAuditRecords(16), _admin_settings(audit_log=True)))
+
+    assert frames[0] == "event: state\ndata: live\n\n"
+    assert frames[1:] == [": keep-alive\n\n"] * (len(frames) - 1)
+
+
+def test_the_stream_says_it_is_disabled_and_stops_where_no_trail_is_kept(_instant_stream):
+    """Nothing to follow, said once - not an open connection that never sends anything."""
+    frames = asyncio.run(_collect(None, _admin_settings(audit_log=False)))
+
+    assert frames == ["event: state\ndata: disabled\n\n"]
+
+
+def test_the_stream_ends_itself_at_the_cap_and_says_so(monkeypatch, _instant_stream):
+    """An operator who left the page open overnight gets a closed stream, not a held one."""
+    from webapp.audit import RecentAuditRecords
+
+    monkeypatch.setattr("webapp.admin._STREAM_MAX_SECONDS", -1)
+
+    frames = asyncio.run(_collect(RecentAuditRecords(16), _admin_settings(audit_log=True)))
+
+    assert frames == ["event: state\ndata: live\n\n", "event: state\ndata: closed\n\n"]
+
+
+def test_a_reader_who_hung_up_ends_the_stream_without_a_closing_state(_instant_stream):
+    """Nobody is listening: there is no state to send and no loop worth running."""
+    from webapp.audit import RecentAuditRecords
+
+    frames = asyncio.run(
+        _collect(RecentAuditRecords(16), _admin_settings(audit_log=True), frames=0)
+    )
+
+    assert frames == ["event: state\ndata: live\n\n"]
+
+
+def test_a_file_trail_is_followed_from_its_end_rather_than_replayed(tmp_path, _instant_stream):
+    """
+    Retention is the file's business, not the browser's.
+
+    A deployment that keeps months of audit records in a file must not have
+    them read into a page because somebody opened the view - the point is
+    what happens next, and the whole file is a copy nobody asked for.
+    """
+    log = tmp_path / "audit.log"
+    log.write_text('{"event": "scan_requested", "when": "yesterday"}\n', encoding="utf-8")
+
+    configured = _admin_settings(audit_log=True, audit_log_file=str(log))
+
+    async def watch():
+        from webapp.admin import audit_events
+
+        frames = []
+        async for frame in audit_events(_Watcher(6), None, configured):
+            frames.append(frame)
+            if frame == "event: state\ndata: live\n\n":
+                with log.open("a", encoding="utf-8") as handle:
+                    handle.write('{"event": "scan_completed", "when": "now"}\n')
+        return frames
+
+    frames = asyncio.run(watch())
+
+    assert any('"when": "now"' in frame for frame in frames)
+    assert not any("yesterday" in frame for frame in frames)
+
+
+def test_a_trail_in_a_file_that_is_not_there_is_not_a_broken_page(_instant_stream):
+    """The view still has to answer; a missing file is a quiet stream, not a 500."""
+    configured = _admin_settings(audit_log=True, audit_log_file="/nonexistent/audit.log")
+
+    frames = asyncio.run(_collect(None, configured))
+
+    assert frames[0] == "event: state\ndata: live\n\n"
+    assert frames[1:] == [": keep-alive\n\n"] * (len(frames) - 1)
+
+
+def test_a_newline_inside_a_record_cannot_forge_a_second_event():
+    """
+    The one place a record's content decides how the connection is framed.
+
+    An event ends at a blank line, so an unescaped newline in a record does
+    not merely render oddly - it lets whatever produced that record inject a
+    frame of its own choosing into an operator's live view. The audit log
+    JSON-encodes what it writes, which is a reason this has not happened and
+    not a reason it cannot.
+    """
+    from webapp.admin import _sse
+
+    frame = _sse("record", 'first\n\nevent: state\ndata: closed\r\nrest')
+
+    assert frame.count("\n\n") == 1
+    assert frame.endswith("\n\n")
+    assert frame.startswith("event: record\ndata: ")
+    assert "\r" not in frame
+    assert frame.splitlines()[1].startswith("data: ")
+    assert len([line for line in frame.split("\n") if line.startswith("event:")]) == 1
+
+
 # ------------------------------------------------- the operator documentation
 
 

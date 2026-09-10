@@ -140,6 +140,180 @@ def test_plain_values_pass_through_unchanged():
     assert provider.resolve(42) == 42
 
 
+def test_every_secret_in_a_nested_document_is_resolved(tmp_path):
+    """
+    Configuration is a tree, and a reference is legal wherever a value is.
+
+    A reference that survives resolution is not an error anybody sees: it is
+    the literal string 'secret://token' arriving at whatever the setting
+    feeds - a header, a URL, a command line - where it either fails
+    confusingly or gets logged.
+    """
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "token").write_text("s3cr3t\n", encoding="utf-8")
+    provider = SecretProvider(secrets_dir=str(secrets_dir))
+
+    resolved = provider.resolve_tree(
+        {
+            "releases": {"token": "secret://token"},
+            "targets": ["secret://token", "plain", 42],
+            "port": 9200,
+            "enabled": True,
+        }
+    )
+
+    assert resolved == {
+        "releases": {"token": "s3cr3t"},
+        "targets": ["s3cr3t", "plain", 42],
+        "port": 9200,
+        "enabled": True,
+    }
+    # The negative half: nothing that was not a reference was rewritten, and
+    # non-string leaves keep their type rather than becoming strings.
+    assert resolved["port"] == 9200 and isinstance(resolved["port"], int)
+    assert resolved["enabled"] is True
+
+
+def test_a_reference_that_cannot_be_resolved_stops_the_whole_tree(tmp_path):
+    """
+    Half a resolved configuration is the worst outcome available.
+
+    Continuing past a broken reference would start the service with the
+    literal 'secret://...' in place of a credential, which reads as an
+    authentication failure somewhere far away from the mistake.
+    """
+    provider = SecretProvider(secrets_dir=str(tmp_path))
+
+    with pytest.raises(SecretResolutionError):
+        provider.resolve_tree({"releases": {"token": "secret://absent"}})
+
+
+@pytest.mark.parametrize(
+    ("reference", "expected"),
+    [
+        ("secret://", "Empty secret reference"),
+        ("env://", "Empty secret reference"),
+        ("env://COS_DEFINITELY_NOT_SET", "is not set"),
+    ],
+)
+def test_a_reference_that_names_nothing_is_refused_rather_than_read_as_empty(
+    reference, expected
+):
+    """An empty credential is a credential the service would happily start without."""
+    with pytest.raises(SecretResolutionError, match=expected):
+        SecretProvider().resolve(reference)
+
+
+def test_an_unset_variable_is_told_apart_from_one_set_to_nothing():
+    """
+    The negative half: 'env://VAR' where VAR is empty resolves to empty.
+
+    That is the operator's choice and not this layer's to second-guess - only
+    a variable that was never set is a mistake it can be sure of.
+    """
+    os.environ["COS_TEST_EMPTY_SECRET"] = ""
+    try:
+        assert SecretProvider().resolve("env://COS_TEST_EMPTY_SECRET") == ""
+    finally:
+        del os.environ["COS_TEST_EMPTY_SECRET"]
+
+
+def test_every_scheme_this_layer_advertises_is_one_it_can_actually_resolve():
+    """
+    The list of schemes and the code that dispatches them are two things that must agree.
+
+    ``SECRET_SCHEMES`` is the gate: a value is a reference only because its
+    prefix is in that tuple. Adding one there without wiring up the branch
+    behind it would turn every use of the new scheme into the unsupported
+    error rather than a resolved secret, and the tuple is the part somebody
+    edits first.
+    """
+    from opencloud_local_scan.secrets import SECRET_SCHEMES
+
+    provider = SecretProvider()
+
+    for scheme in SECRET_SCHEMES:
+        with pytest.raises(SecretResolutionError) as raised:
+            provider.resolve(scheme)
+        # Empty remainder, not an unhandled scheme: the branch exists.
+        assert "Empty secret reference" in str(raised.value)
+
+
+def test_a_scheme_this_layer_does_not_know_is_a_plain_value(tmp_path):
+    """
+    The negative half, and a deliberate boundary rather than an oversight.
+
+    Only the four listed prefixes mean 'go and fetch this'. Anything else
+    that happens to contain '://' - a URL in a setting, a DSN, a password
+    with punctuation in it - is the value itself, and treating it as a
+    reference would break configurations that are entirely correct.
+    """
+    provider = SecretProvider(secrets_dir=str(tmp_path))
+
+    assert provider.resolve("vault://secret/token") == "vault://secret/token"
+    assert provider.resolve("redis://cache:6379/0") == "redis://cache:6379/0"
+
+
+def test_a_value_is_only_a_reference_when_a_known_scheme_starts_it():
+    """A password that contains '://' is a password, not a reference."""
+    provider = SecretProvider()
+
+    assert provider.is_reference("secret://token") is True
+    assert provider.is_reference("exec://id") is True
+    assert provider.is_reference("https://example.com/token") is False
+    assert provider.is_reference("p@ss://word") is False
+    assert provider.is_reference(42) is False
+
+
+def test_a_command_that_fails_is_an_error_rather_than_an_empty_secret():
+    """
+    Taking a failed command's output would hand the caller an empty credential.
+
+    ``check=True`` is what makes this an exception, and nothing else in the
+    resolve path would notice the difference.
+    """
+    provider = SecretProvider(allow_exec=True)
+
+    with pytest.raises(SecretResolutionError, match="failed"):
+        provider.resolve("exec://false")
+
+    with pytest.raises(SecretResolutionError, match="failed"):
+        provider.resolve("exec://cos-no-such-command-exists")
+
+
+def test_an_exec_reference_with_no_command_in_it_is_refused_before_anything_runs():
+    """
+    'exec://' followed by whitespace names no command, and never reaches one.
+
+    It is rejected as an empty reference rather than as a failed command,
+    which is worth pinning down: the remainder is stripped before the scheme
+    is dispatched, so this never becomes an argv at all.
+    """
+    provider = SecretProvider(allow_exec=True)
+
+    with pytest.raises(SecretResolutionError, match="Empty secret reference"):
+        provider.resolve("exec://   ")
+
+
+def test_a_command_is_run_without_a_shell():
+    """
+    A reference is configuration, and configuration is not always the operator's.
+
+    Splitting with shlex and running the argv directly is what keeps a shell
+    metacharacter in a reference from being a second command; if this ever
+    goes through a shell, the file below gets created.
+    """
+    import tempfile
+    from pathlib import Path
+
+    marker = Path(tempfile.mkdtemp()) / "ran"
+    provider = SecretProvider(allow_exec=True)
+
+    assert provider.resolve(f"exec://echo safe; touch {marker}") == f"safe; touch {marker}"
+    assert not marker.exists()
+
+
 # --- factory ---
 def test_scanner_settings_are_built_from_the_configuration(tmp_path):
     """Everything the scanner needs can be expressed in the config file."""
