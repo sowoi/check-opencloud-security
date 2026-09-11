@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.21.3] - 2026-09-11
+
 ### Fixed
 
 - **A storage directory nobody named no longer writes a compose file Docker
