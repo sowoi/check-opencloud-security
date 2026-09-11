@@ -48,6 +48,10 @@ FILES: tuple[str, ...] = (
     "docker/setup-wizard.py",
     "scripts/verify_export.py",
     "authentik/blueprints/opencloud-scanner.yaml",
+    # The second blueprint: the proxy provider that is the only way into the
+    # operator's area. The wizard copies whichever of the two a deployment
+    # asked for, and can only copy what the tarball carried.
+    "authentik/blueprints/opencloud-admin.yaml",
     "docker/README.md",
     "README.md",
     "CHANGELOG.md",

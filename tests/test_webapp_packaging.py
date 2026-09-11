@@ -325,6 +325,10 @@ def test_the_release_bundle_carries_the_signed_in_stack(tmp_path):
         "docker/docker-compose.authentik.yml",
         "docker/authentik-env.sh",
         "authentik/blueprints/opencloud-scanner.yaml",
+        # And the second one, which is the only way into /admin. The wizard
+        # copies whichever blueprint a deployment asked for, and can copy only
+        # what the tarball carried - a missing one is an area nobody reaches.
+        "authentik/blueprints/opencloud-admin.yaml",
         "docs/authentik.md",
     ):
         assert required in names, f"the bundle is missing {required}"

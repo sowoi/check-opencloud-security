@@ -701,7 +701,7 @@ repository root, because an image needs files from outside that directory:
 | `docker/docker-compose.yml` | The default stack - `web_app`, `arq_worker` and `redis`, ready to `up` |
 | `docker/docker-compose.authentik.yml` | The same stack plus Authentik, when `/mcp` should require a sign-in |
 | `docker/authentik-env.sh` | Writes the secrets that stack needs into `docker/.env`, once |
-| `docker/setup-wizard.py` | The standalone Docker setup wizard: asks, then writes a compose file and its `.env` |
+| `docker/setup-wizard.py` | The standalone Docker setup wizard: asks, then writes a compose file, its `.env` and the reverse proxy configuration in front |
 | `docker/docker-compose.monitoring.yml` | The plugin's own scan service, unrelated to the web application |
 
 - Build by hand with `docker build -f docker/Dockerfile.web .`, never with
@@ -719,12 +719,24 @@ the non-secret answers inline and a `.env` holding every credential that file
 refers to as `${NAME}`. The split is the rule: a secret never lands in the
 compose file, `.env` is created `0600`, and the compose files that ship in
 `docker/` are refused as targets, because the next update would take a
-hand-made deployment with it. An existing `.env` is read back and its values
-become the defaults, so a re-run edits a deployment rather than regenerating
-its credentials. Asked for automatic updates, it adds Watchtower
+hand-made deployment with it. An existing `.env` is read back and so is
+`.<compose-file>.answers.json`, the notebook it writes of every non-secret
+answer, so a re-run edits a deployment rather than re-describing it or
+regenerating its credentials. That notebook is untrusted input: a value is
+taken only when the field still exists and the type matches **exactly**
+(`type(...) is not`, never `isinstance` - a bool is an int, and
+`host_port: true` would otherwise become a port). Asked for automatic updates, it adds Watchtower
 scoped by label to the stack's own containers and detects the Docker socket
 for the user running it - a rootless Docker serves it under
-`/run/user/<uid>`, not `/var/run`. Keep it independent of
+`/run/user/<uid>`, not `/var/run`. Asked for a reverse proxy, it writes the
+nginx, Apache, Caddy or Traefik configuration too, following
+`docs/reverse-proxy.md` - and the same split applies there: the shared secret
+in front of `/admin` goes into an owner-readable include or is read from the
+proxy's environment, never into the file an operator would commit. **A
+question's relevance is decided as the answers arrive, never per section**:
+naming an SMTP server is what brings the rest of the mail session into play,
+and asking for the bundled provider is what brings its address and ports in.
+Keep it independent of
 `opencloud_local_scan.wizard`, which sets up a monitoring check against one
 instance - no imports, no shared configuration.
 `tests/test_docker_wizard.py` asserts all of that.

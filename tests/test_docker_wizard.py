@@ -12,10 +12,12 @@ leaks a token into something an operator commits.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import stat
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -190,7 +192,7 @@ def test_an_existing_file_is_kept_when_the_operator_declines(
 ) -> None:
     """Overwriting a live deployment's secrets has to take a deliberate yes."""
     (tmp_path / "docker-compose.yml").write_text("# mine\n", encoding="utf-8")
-    monkeypatch.setattr(wizard_module.Wizard, "ask", lambda self, question: None)
+    monkeypatch.setattr(wizard_module.Wizard, "ask", lambda self, question, **_: None)
     monkeypatch.setattr(wizard_module.Wizard, "_read", lambda self, prompt: "no")
 
     exit_code = wizard_module.main(["--output-dir", str(tmp_path)])
@@ -251,7 +253,7 @@ def test_an_answer_typed_at_a_prompt_reaches_the_generated_file(
     def read(self, prompt: str) -> str:
         return ""
 
-    def ask(self, question):
+    def ask(self, question, **_):
         for text, answer in typed.items():
             if question.prompt == text:
                 value = int(answer) if question.kind == "int" else answer
@@ -304,7 +306,7 @@ def test_encryption_writes_a_key_the_worker_and_the_web_process_share(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The worker writes the document and the web process reads it back."""
-    def ask(self, question):
+    def ask(self, question, **_):
         if question.key == "encrypt_results":
             self.setup.encrypt_results = True
 
@@ -613,7 +615,28 @@ def test_a_sign_in_without_a_way_to_send_mail_is_pointed_out(tmp_path: Path) -> 
 
     setup.smtp_host = "smtp.example.com"
     setup.smtp_from = "authentik@example.com"
+    setup.smtp_username = "authentik@example.com"
+    setup.smtp_password = "an-app-password"  # nosec B105 - a placeholder, not a secret
     assert not any("mail" in warning.lower() for warning in wizard_module.check_consistency(setup))
+
+    # Half a credential is its own warning: authentik reads an empty username
+    # as "do not authenticate", so a server that wanted one refuses every
+    # message and the first thing anybody notices is a password reset that
+    # never arrives.
+    half = wizard_module.Setup(
+        enable_mcp=True,
+        mcp_auth_enabled=True,
+        deploy_authentik=True,
+        smtp_host="smtp.example.com",
+        smtp_from="authentik@example.com",
+    )
+    assert any(
+        "username" in warning for warning in wizard_module.check_consistency(half)
+    )
+    half.smtp_auth = False
+    assert not any(
+        "username" in warning for warning in wizard_module.check_consistency(half)
+    )
 
 
 def test_the_generated_redis_asks_for_a_password_that_only_the_env_file_holds() -> None:
@@ -1051,3 +1074,932 @@ def test_a_policy_nobody_installs_rotates_nothing_and_the_wizard_says_so() -> No
         "/etc/logrotate.d" in warning
         for warning in wizard_module.check_consistency(setup)
     )
+
+
+def _questions_asked(
+    monkeypatch: pytest.MonkeyPatch, answers: dict[str, object]
+) -> list[str]:
+    """Run the questions, answering only what is named, and record the order.
+
+    The wizard is driven through ``Wizard.ask`` rather than through ``_read``
+    because the prompt a question is read with says nothing about which
+    question it is - and what these tests are about is precisely *which*
+    questions a set of answers brings into play.
+    """
+    asked: list[str] = []
+
+    def ask(self, question, **_) -> None:
+        asked.append(question.key)
+        if question.key in answers:
+            setattr(self.setup, question.key, answers[question.key])
+
+    monkeypatch.setattr(wizard_module.Wizard, "ask", ask)
+    monkeypatch.setattr(wizard_module.Wizard, "_read", lambda self, prompt: "")
+    return asked
+
+
+def test_naming_a_mail_server_brings_the_rest_of_the_session_with_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    An answer has to be able to open the questions that follow it.
+
+    The mail questions are the case that made this visible: every one of them
+    except the host is worth asking only once there is a host, so a section
+    whose question list was filtered once, before the section began, could
+    only ever ask for the server name - and a deployment left with a host and
+    no port, no transport security and no credentials fails at the first
+    password recovery, which is the worst moment available.
+    """
+    asked = _questions_asked(
+        monkeypatch,
+        {
+            "admin_enabled": False,
+            "deploy_authentik": True,
+            "smtp_host": "smtp.example.com",
+        },
+    )
+
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 0
+
+    for key in (
+        "smtp_port",
+        "smtp_security",
+        "smtp_auth",
+        "smtp_username",
+        "smtp_password",
+        "smtp_from",
+        "smtp_timeout",
+    ):
+        assert key in asked, key
+    # And the negative half: no host, nothing but the host is asked. In a
+    # directory of its own, because the run above left its answers in this
+    # one and they would supply the host all over again.
+    silent = _questions_asked(monkeypatch, {"deploy_authentik": True})
+    assert wizard_module.main(["--output-dir", str(tmp_path / "fresh")]) == 0
+    assert "smtp_host" in silent
+    assert "smtp_port" not in silent
+
+
+def test_a_relay_that_wants_no_account_is_not_asked_for_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty username is how Authentik is told to submit without authenticating."""
+    asked = _questions_asked(
+        monkeypatch,
+        {
+            "deploy_authentik": True,
+            "smtp_host": "smtp.example.com",
+            "smtp_auth": False,
+        },
+    )
+
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 0
+
+    assert "smtp_auth" in asked
+    assert "smtp_username" not in asked
+    assert "smtp_password" not in asked
+
+    # A credential typed before the answer changed is dropped rather than sent
+    # to a relay that never asked for one.
+    setup = wizard_module.Setup(
+        enable_mcp=True,
+        deploy_authentik=True,
+        smtp_host="smtp.example.com",
+        smtp_auth=False,
+        smtp_username="left@example.com",
+        smtp_password="left-over",  # nosec B106 - a placeholder, not a secret
+    )
+    wizard_module._finalise(setup)
+    assert setup.smtp_username == ""
+    assert setup.smtp_password == ""
+
+
+def test_the_operators_area_can_be_the_only_reason_for_a_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Two different things here can want a sign-in, and only one of them is /mcp.
+
+    The operator's area has no other way in at all - the service authenticates
+    nobody - so a deployment that turns /mcp off and /admin on still has to be
+    offered a provider, and asked for its address and its ports. It used to be
+    asked for none of that, because every Authentik question hung off the MCP
+    endpoint being enabled.
+    """
+    setup = wizard_module.Setup(enable_mcp=False, admin_enabled=True)
+
+    assert wizard_module._relevant("deploy_authentik", setup)
+    setup.deploy_authentik = True
+    for key in ("authentik_url", "authentik_slug", "authentik_http_port"):
+        assert wizard_module._relevant(key, setup), key
+
+    # Nothing to guard, no provider: three containers and a database that
+    # nothing in front of them consults are three containers to patch.
+    nothing = wizard_module.Setup(
+        enable_mcp=False, admin_enabled=False, deploy_authentik=True
+    )
+    assert not wizard_module._uses_authentik(nothing)
+    assert "authentik_server" not in yaml.safe_load(
+        wizard_module.render_compose_file(nothing, "compose.yml")
+    )["services"]
+
+
+def test_the_area_gets_the_blueprint_that_provisions_its_way_in(
+    tmp_path: Path,
+) -> None:
+    """A proxy provider is a different thing from the one that issues /mcp tokens."""
+    setup = wizard_module.Setup(
+        enable_mcp=False,
+        admin_enabled=True,
+        admin_users="okko",
+        deploy_authentik=True,
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._generate_unattended(setup)
+    wizard_module._finalise(setup)
+
+    written = wizard_module.write_files(
+        setup, tmp_path / "docker-compose.yml", tmp_path / ".env"
+    )
+
+    blueprints = tmp_path / "authentik" / "blueprints"
+    assert (blueprints / "opencloud-admin.yaml").is_file()
+    assert (blueprints / "opencloud-scanner.yaml").is_file()
+    assert any("opencloud-admin.yaml" in item for item in written)
+
+    # The proxy provider is bound to the origin it protects, which is the
+    # address visitors use rather than the container's own.
+    document = yaml.safe_load((tmp_path / "docker-compose.yml").read_text(encoding="utf-8"))
+    server = document["services"]["authentik_server"]["environment"]
+    assert server["COS_WEB_ADMIN_URL"] == "https://scan.example.com"
+
+    # A deployment with no area gets no proxy provider to leave lying around.
+    plain = wizard_module.Setup(enable_mcp=True, deploy_authentik=True)
+    wizard_module._finalise(plain)
+    elsewhere = tmp_path / "plain"
+    wizard_module.write_files(
+        plain, elsewhere / "docker-compose.yml", elsewhere / ".env"
+    )
+    assert not (elsewhere / "authentik" / "blueprints" / "opencloud-admin.yaml").exists()
+
+
+def test_the_provider_can_be_moved_off_the_port_something_else_is_using(
+    tmp_path: Path,
+) -> None:
+    """9000 is a popular port, and a deployment that cannot move is one that cannot run."""
+    setup = wizard_module.Setup(
+        enable_mcp=True,
+        mcp_auth_enabled=True,
+        admin_enabled=True,
+        admin_users="okko",
+        deploy_authentik=True,
+        authentik_http_port=9500,
+        authentik_https_port=9543,
+        reverse_proxy="nginx",
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._generate_unattended(setup)
+    wizard_module._finalise(setup)
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+    assert document["services"]["authentik_server"]["ports"] == [
+        "127.0.0.1:9500:9000",
+        "127.0.0.1:9543:9443",
+    ]
+
+    # The proxy in front has to reach the same listener, or the forward auth
+    # asks a port nothing answers on and /admin never opens.
+    assert "http://127.0.0.1:9500" in wizard_module.render_proxy_file(setup)
+
+
+def test_a_storage_directory_nobody_named_never_becomes_a_mount_compose_refuses(
+    tmp_path: Path,
+) -> None:
+    """
+    ``- :/data`` is not a mount. It is a stack that will not start.
+
+    The wizard used to write exactly that whenever a host directory was asked
+    for and none was given: an empty source, a colon, and a compose file
+    Docker refuses to parse - over a question that was never answered, taking
+    a working deployment with it. The answer now falls back to the named
+    volume, which needs nothing from anybody and keeps the data.
+    """
+    setup = wizard_module.Setup(
+        redis_persistence="filesystem",
+        redis_data_path="",
+        audit_log=True,
+        audit_storage="filesystem",
+        audit_log_path="",
+    )
+    wizard_module._finalise(setup)
+
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+
+    redis = document["services"]["redis"]["volumes"]
+    web = document["services"]["web_app"]["volumes"]
+    assert redis == [f"{wizard_module.REDIS_VOLUME}:{wizard_module.REDIS_DATA_DIRECTORY}"]
+    assert web == [f"{wizard_module.AUDIT_VOLUME}:{wizard_module.AUDIT_LOG_DIRECTORY}"]
+    # Declared, or the mount names a volume that does not exist.
+    assert wizard_module.REDIS_VOLUME in document["volumes"]
+    assert wizard_module.AUDIT_VOLUME in document["volumes"]
+    for service in document["services"].values():
+        for mount in service.get("volumes", []):
+            assert not mount.startswith(":"), mount
+
+    # And it says so, rather than quietly putting the data somewhere else.
+    warnings = wizard_module.check_consistency(setup)
+    assert any(wizard_module.REDIS_VOLUME in warning for warning in warnings)
+    assert any(wizard_module.AUDIT_VOLUME in warning for warning in warnings)
+
+
+def test_the_directory_a_volume_maps_to_is_asked_for_and_defaults_beside_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default has to be somewhere an operator can find without being told."""
+    assert wizard_module.Setup().redis_data_path == "./data"
+    assert wizard_module.Setup().audit_log_path == "./audit"
+
+    asked = _questions_asked(
+        monkeypatch, {"audit_log": True, "audit_storage": "filesystem"}
+    )
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 0
+    assert "audit_log_path" in asked
+
+    setup = wizard_module.Setup(redis_persistence="filesystem")
+    wizard_module._finalise(setup)
+    document = yaml.safe_load(wizard_module.render_compose_file(setup, "compose.yml"))
+    assert document["services"]["redis"]["volumes"] == [
+        f"./data:{wizard_module.REDIS_DATA_DIRECTORY}"
+    ]
+    # A bind mount declares nothing: the directory is the operator's to make,
+    # and they are told to, before the first `up` invents it owned by root.
+    assert "volumes" not in document
+    assert any(
+        "chown" in warning and "./data" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+
+def test_a_relative_storage_directory_has_to_say_that_it_is_one() -> None:
+    """
+    ``data:/data`` is a named volume; ``./data:/data`` is a directory.
+
+    One character apart, and the difference between a path an operator can
+    back up and one Docker invented somewhere under its own root. So a bare
+    name is refused rather than accepted as either.
+    """
+    assert wizard_module._host_directory("./data") is None
+    assert wizard_module._host_directory("../shared/data") is None
+    assert wizard_module._host_directory("/srv/opencloud-scan/data") is None
+
+    assert wizard_module._host_directory("data")
+    assert wizard_module._host_directory("srv/audit")
+    assert wizard_module._host_directory("/srv/audit:ro")
+    # The empty answer is the one that used to produce ':/data'.
+    assert wizard_module._host_directory("")
+
+
+def test_the_proxy_named_is_the_proxy_written(tmp_path: Path) -> None:
+    """A configuration for a server you do not run is a file you cannot install."""
+    for flavour, expected in (
+        ("nginx", "opencloud-scan-nginx.conf"),
+        ("apache", "opencloud-scan-apache.conf"),
+        ("caddy", "opencloud-scan-caddyfile"),
+        ("traefik", "opencloud-scan-traefik.yml"),
+    ):
+        setup = wizard_module.Setup(
+            reverse_proxy=flavour, public_base_url="https://scan.example.com"
+        )
+        wizard_module._finalise(setup)
+        directory = tmp_path / flavour
+        wizard_module.write_files(
+            setup, directory / "docker-compose.yml", directory / ".env"
+        )
+
+        written = directory / expected
+        assert written.is_file(), flavour
+        content = written.read_text(encoding="utf-8")
+        # It has to name the host it answers to and the address it proxies to,
+        # or it is a template rather than a configuration.
+        assert "scan.example.com" in content
+        assert "127.0.0.1:8811" in content
+
+    # 'none' is the default, and it writes no proxy configuration at all.
+    plain = tmp_path / "plain"
+    assert _run(plain) == 0
+    names = sorted(item.name for item in plain.iterdir())
+    assert "docker-compose.yml" in names
+    assert not any(
+        name.endswith(("nginx.conf", "apache.conf", "caddyfile", "traefik.yml"))
+        for name in names
+    )
+
+
+def test_a_generated_proxy_answers_at_the_name_the_service_publishes(
+    tmp_path: Path,
+) -> None:
+    """Three places naming three hosts is a deployment that works until it does not."""
+    setup = wizard_module.Setup(
+        reverse_proxy="nginx", public_base_url="https://scan.example.com"
+    )
+    wizard_module._finalise(setup)
+
+    assert setup.reverse_proxy_hostname == "scan.example.com"
+    assert "server_name scan.example.com;" in wizard_module.render_proxy_file(setup)
+
+    # Asked for explicitly, it wins - and the scheme follows the certificate.
+    named = wizard_module.Setup(
+        reverse_proxy="nginx",
+        reverse_proxy_hostname="files.example.com",
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._finalise(named)
+    assert "server_name files.example.com;" in wizard_module.render_proxy_file(named)
+
+    # A deployment that never named itself gets a configuration for localhost,
+    # and is told that is all it is.
+    local = wizard_module.Setup(reverse_proxy="caddy")
+    wizard_module._finalise(local)
+    assert any(
+        "localhost" in warning for warning in wizard_module.check_consistency(local)
+    )
+
+
+def test_the_generated_proxy_never_buffers_the_endpoints_that_stream(
+    tmp_path: Path,
+) -> None:
+    """A buffered event stream is an agent session that waits for ever."""
+    expected = {
+        "nginx": "proxy_buffering off;",
+        "apache": "flushpackets=on",
+        "caddy": "flush_interval -1",
+        "traefik": "flushInterval: 1ms",
+    }
+    for flavour, directive in expected.items():
+        setup = wizard_module.Setup(
+            reverse_proxy=flavour,
+            enable_mcp=True,
+            public_base_url="https://scan.example.com",
+        )
+        wizard_module._finalise(setup)
+        assert directive in wizard_module.render_proxy_file(setup), flavour
+
+    # With the endpoint off there is no /mcp block to get wrong.
+    without = wizard_module.Setup(
+        reverse_proxy="nginx", enable_mcp=False, public_base_url="https://scan.example.com"
+    )
+    wizard_module._finalise(without)
+    assert "location /mcp" not in wizard_module.render_proxy_file(without)
+
+
+def _admin_setup(flavour: str) -> Any:
+    setup = wizard_module.Setup(
+        reverse_proxy=flavour,
+        admin_enabled=True,
+        admin_users="okko",
+        deploy_authentik=True,
+        trust_forwarded_for=True,
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._generate_unattended(setup)
+    wizard_module._finalise(setup)
+    return setup
+
+
+def test_only_a_proxy_that_can_ask_the_outpost_is_given_an_admin_block(
+    tmp_path: Path,
+) -> None:
+    """
+    A generated /admin block that authenticated nobody would be the worst
+    file this script could write.
+
+    Three of the four can ask an outpost whether a request may pass before
+    passing it on. Apache cannot, so it gets no block for the area at all -
+    the catch-all proxies it without the shared secret, the service answers
+    404, and the comment in the file says why rather than leaving somebody to
+    find out.
+    """
+    for flavour in ("nginx", "caddy", "traefik"):
+        setup = _admin_setup(flavour)
+        content = wizard_module.render_proxy_file(setup)
+        assert wizard_module.AUTHENTIK_OUTPOST_PREFIX in content, flavour
+        assert wizard_module.ADMIN_PATH in content, flavour
+        # The header itself: written inline where the proxy can read a value
+        # from its environment, and included from a file where it cannot.
+        carrier = (
+            wizard_module.render_admin_secret_file(setup)
+            if flavour == "nginx"
+            else content
+        )
+        assert wizard_module.ADMIN_PROXY_HEADER in carrier, flavour
+        for header in wizard_module.ADMIN_IDENTITY_HEADERS:
+            assert header in content, (flavour, header)
+
+    apache = _admin_setup("apache")
+    content = wizard_module.render_proxy_file(apache)
+    assert "forward" in content.lower()
+    assert f"RequestHeader unset {wizard_module.ADMIN_PROXY_HEADER}" in content
+    # Nothing Apache actually executes adds the header. The comment explaining
+    # how to add it yourself mentions the directive, so only live lines count.
+    directives = [
+        line.strip() for line in content.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any(
+        line.startswith(f"RequestHeader set {wizard_module.ADMIN_PROXY_HEADER}")
+        for line in directives
+    )
+    assert apache.admin_proxy_secret not in content
+    assert any(
+        "404" in warning for warning in wizard_module.check_consistency(apache)
+    )
+
+
+def test_the_proxys_admin_secret_stays_out_of_the_file_meant_to_be_committed(
+    tmp_path: Path,
+) -> None:
+    """
+    A proxy configuration is pasted into tickets and copied between hosts.
+
+    So the shared secret is not in it, for the same reason it is not in the
+    compose file: nginx gets a one-line include, owner-readable, and the two
+    that can read their own environment are told to.
+    """
+    setup = _admin_setup("nginx")
+    written = wizard_module.write_files(
+        setup, tmp_path / "docker-compose.yml", tmp_path / ".env"
+    )
+
+    configuration = tmp_path / wizard_module.proxy_filename(setup)
+    secret_file = tmp_path / wizard_module.admin_secret_filename(setup)
+    assert setup.admin_proxy_secret
+    assert setup.admin_proxy_secret not in configuration.read_text(encoding="utf-8")
+    assert setup.admin_proxy_secret in secret_file.read_text(encoding="utf-8")
+    assert stat.S_IMODE(secret_file.stat().st_mode) == stat.S_IRUSR | stat.S_IWUSR
+    assert any(str(secret_file) in item for item in written)
+    # The include is what carries it, so removing the file closes the area
+    # rather than opening it.
+    assert (
+        f"include {wizard_module.admin_secret_path(setup)};"
+        in configuration.read_text(encoding="utf-8")
+    )
+    # Deliberately not a .conf: everything called that under conf.d is
+    # included into the http block, and this belongs to one location.
+    assert not secret_file.name.endswith(".conf")
+
+    for flavour in ("caddy", "traefik"):
+        other = _admin_setup(flavour)
+        content = wizard_module.render_proxy_file(other)
+        assert other.admin_proxy_secret not in content, flavour
+        assert "COS_WEB_ADMIN_PROXY_SECRET" in content, flavour
+
+
+def test_a_proxy_whose_client_address_nobody_reads_is_pointed_out() -> None:
+    """Untrusted, every visitor shares one rate-limit bucket with the whole internet."""
+    setup = wizard_module.Setup(
+        reverse_proxy="nginx",
+        trust_forwarded_for=False,
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._finalise(setup)
+
+    assert any(
+        "COS_WEB_TRUST_FORWARDED_FOR" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+    setup.trust_forwarded_for = True
+    assert not any(
+        "COS_WEB_TRUST_FORWARDED_FOR" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+    # And a deployment with no generated proxy is not nagged about a header
+    # nothing in front of it writes.
+    assert not any(
+        "COS_WEB_TRUST_FORWARDED_FOR" in warning
+        for warning in wizard_module.check_consistency(wizard_module.Setup())
+    )
+
+
+def test_the_proxy_reaches_the_service_even_when_it_listens_on_every_interface(
+    tmp_path: Path,
+) -> None:
+    """0.0.0.0 means listen everywhere; nothing *connects* to it."""
+    setup = wizard_module.Setup(
+        reverse_proxy="nginx",
+        bind_address="0.0.0.0",  # nosec B104
+        host_port=9000,
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._finalise(setup)
+
+    content = wizard_module.render_proxy_file(setup)
+    assert "proxy_pass http://127.0.0.1:9000;" in content
+    assert "0.0.0.0:9000" not in content  # nosec B104
+
+
+def test_a_provider_only_this_host_can_reach_is_pointed_out() -> None:
+    """
+    The forward auth redirects a browser to the provider, not to the outpost.
+
+    The generated proxy routes the outpost's own endpoints and nothing else,
+    so an Authentik left on its default `localhost` address signs nobody in
+    from anywhere but this machine - and the failure looks like a broken
+    redirect rather than a setting.
+    """
+    setup = _admin_setup("nginx")
+
+    assert "localhost" in setup.authentik_url
+    assert any(
+        "browser can reach" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+    setup.authentik_url = "https://sso.example.com"
+    assert not any(
+        "browser can reach" in warning
+        for warning in wizard_module.check_consistency(setup)
+    )
+
+
+def test_turning_the_operators_area_on_prints_what_to_do_next() -> None:
+    """
+    /admin refuses rather than asking, so the steps have to be written down.
+
+    There is no login page to arrive at and no password prompt to get wrong:
+    a request missing any part of the arrangement gets the same 404 as any
+    unknown path. That is the right answer to give a stranger and a miserable
+    one to debug against, so the wizard ends with the order to do things in
+    and what each failure means.
+    """
+    setup = _admin_setup("nginx")
+    setup.authentik_url = "https://sso.example.com"
+    setup.admin_users = "okko"
+
+    walkthrough = "\n".join(wizard_module.admin_walkthrough(setup))
+
+    # Every step somebody has to take in a browser or as root, in order.
+    assert wizard_module.AUTHENTIK_INITIAL_SETUP_PATH in walkthrough
+    assert wizard_module.AUTHENTIK_OPERATOR_GROUP in walkthrough
+    assert "COS_WEB_ADMIN_USERS" in walkthrough
+    assert "https://scan.example.com/admin" in walkthrough
+    # And what the 404 it may answer with actually means.
+    assert wizard_module.ADMIN_PROXY_HEADER in walkthrough
+    assert "404" in walkthrough
+    assert [line for line in walkthrough.splitlines() if line.strip().startswith("6.")]
+
+    # An area nobody turned on has nothing to explain.
+    assert wizard_module.admin_walkthrough(wizard_module.Setup()) == []
+
+
+def test_the_walkthrough_describes_the_deployment_it_was_written_for() -> None:
+    """
+    Generic advice would be the documentation, which the operator already has.
+
+    Against somebody else's provider there is no Authentik password to set and
+    no group to join - there is a header contract to meet - and the sign-out
+    link the bundled stack configures for itself has to be named by hand.
+    """
+    own = wizard_module.Setup(
+        admin_enabled=True,
+        admin_users="okko",
+        public_base_url="https://scan.example.com",
+    )
+    wizard_module._generate_unattended(own)
+    wizard_module._finalise(own)
+
+    walkthrough = "\n".join(wizard_module.admin_walkthrough(own))
+
+    assert wizard_module.AUTHENTIK_OPERATOR_GROUP not in walkthrough
+    assert wizard_module.AUTHENTIK_INITIAL_SETUP_PATH not in walkthrough
+    assert wizard_module.ADMIN_IDENTITY_HEADERS[0] in walkthrough
+    assert "COS_WEB_ADMIN_SIGN_OUT_URL" in walkthrough
+
+    # The bundled stack sets the exit itself, so it is not asked for twice.
+    bundled = "\n".join(wizard_module.admin_walkthrough(_admin_setup("nginx")))
+    assert "COS_WEB_ADMIN_SIGN_OUT_URL" not in bundled
+
+
+def test_the_walkthrough_names_the_step_an_installed_config_is_not_enough_for() -> None:
+    """
+    Caddy and Traefik read the shared secret at run time rather than hold it.
+
+    So installing their configuration is not the last step: without the value
+    in the proxy's own environment the header goes out empty and the area
+    stays shut, with an installed, correct-looking file sitting in front of
+    it. nginx carries the secret in the include the wizard writes, and has no
+    equivalent step to miss.
+    """
+    for flavour in ("caddy", "traefik"):
+        walkthrough = "\n".join(wizard_module.admin_walkthrough(_admin_setup(flavour)))
+        assert f"systemctl edit {flavour}" in walkthrough, flavour
+        assert "COS_WEB_ADMIN_PROXY_SECRET" in walkthrough, flavour
+
+    nginx = "\n".join(wizard_module.admin_walkthrough(_admin_setup("nginx")))
+    assert "systemctl edit" not in nginx
+
+
+# --- moving around the questions --------------------------------------------
+def _typed(monkeypatch: pytest.MonkeyPatch, answers: list[str]) -> list[str]:
+    """Feed the wizard typed answers, and collect everything it printed.
+
+    A run that types past the end of the list keeps answering with an empty
+    line, which is how an operator accepts the rest of the defaults - so a
+    test only has to script the part it is about.
+    """
+    printed: list[str] = []
+    stream = iter(answers)
+    monkeypatch.setattr(
+        wizard_module.Wizard, "say", lambda self, text="": printed.append(text)
+    )
+    monkeypatch.setattr(
+        wizard_module.Wizard, "_read", lambda self, prompt: next(stream, "")
+    )
+    return printed
+
+
+def test_a_choice_can_be_answered_with_the_number_beside_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Typing 'dockerhub' correctly is a tax paid at every one of these."""
+    setup = wizard_module.Setup()
+    printed = _typed(monkeypatch, ["2", "rest"])
+
+    wizard_module.run_questions(wizard_module.Wizard(setup))
+
+    assert setup.image_source == "dockerhub"
+    # The options are listed with their numbers, and the current one marked.
+    assert any(line.strip() == "* 1) build" for line in printed)
+    assert any(line.strip() == "2) dockerhub" for line in printed)
+
+    # The word still works, and a number outside the list is refused rather
+    # than quietly taken as something.
+    other = wizard_module.Setup()
+    _typed(monkeypatch, ["9", "dockerhub", "rest"])
+    wizard_module.run_questions(wizard_module.Wizard(other))
+    assert other.image_source == "dockerhub"
+
+
+def test_an_answer_already_given_can_be_gone_back_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Noticing a typo one question too late used to mean starting over.
+
+    There are forty-odd questions here and no way back through a file that is
+    not written yet, so the only remedy was to abandon the run - or to answer
+    the rest of them knowing the compose file would need editing anyway.
+    """
+    setup = wizard_module.Setup()
+    printed = _typed(monkeypatch, ["dockerhub", "b", "build", "rest"])
+
+    wizard_module.run_questions(wizard_module.Wizard(setup))
+
+    assert setup.image_source == "build"
+    # The question it went back to was asked again, not skipped over.
+    asked = [line for line in printed if "pull the published one?" in line]
+    assert len(asked) == 2
+
+    # There is nothing behind the first question, and saying so beats
+    # pretending the answer was accepted.
+    first = wizard_module.Setup()
+    said = _typed(monkeypatch, ["b", "dockerhub", "rest"])
+    wizard_module.run_questions(wizard_module.Wizard(first))
+    assert first.image_source == "dockerhub"
+    assert any("nothing behind it" in line for line in said)
+
+
+def test_the_remaining_defaults_can_be_taken_in_one_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Somebody who wants the defaults should not have to press Enter forty times."""
+    setup = wizard_module.Setup()
+    printed = _typed(monkeypatch, ["rest"])
+
+    wizard_module.run_questions(wizard_module.Wizard(setup))
+
+    # Nothing after the first question was asked at all.
+    assert not any("The reverse proxy" in line for line in printed)
+    assert not any("Port on the host" in line for line in printed)
+    # And the defaults are intact, to be reviewed in the summary.
+    assert setup.host_port == 8811
+    assert setup.reverse_proxy == "none"
+
+
+def test_a_setting_that_has_a_value_can_be_emptied_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    An empty line keeps the default, so nothing could ever be cleared.
+
+    That is fine until a `.env` from an earlier run supplies the default, or
+    a preset does: the answer offered back is one an operator may specifically
+    want gone, and 'the same as before' was the only thing they could say.
+    """
+    setup = wizard_module.Setup(allowed_hosts="opencloud.example.com")
+    wizard = wizard_module.Wizard(setup)
+    question = wizard_module.Question(
+        key="allowed_hosts",
+        prompt="p",
+        explain="e",
+        example="x",
+        validate=wizard_module._hostname_list,
+    )
+
+    _typed(monkeypatch, ["-"])
+    wizard.ask(question)
+    assert setup.allowed_hosts == ""
+
+    # Not a way around a validator: a directory that may not be empty is
+    # refused the same way any other bad answer is.
+    directory = wizard_module.Setup(redis_data_path="./data")
+    wizard = wizard_module.Wizard(directory)
+    path_question = wizard_module.Question(
+        key="redis_data_path",
+        prompt="p",
+        explain="e",
+        example="./data",
+        validate=wizard_module._host_directory,
+    )
+    said = _typed(monkeypatch, ["-", "./elsewhere"])
+    wizard.ask(path_question)
+    assert directory.redis_data_path == "./elsewhere"
+    assert any("compose refuses" in line.lower() for line in said)
+
+
+def test_the_summary_is_grouped_the_way_the_questions_were_asked() -> None:
+    """Sixty field names in a flat list is a thing an operator scrolls past."""
+    setup = wizard_module.Setup()
+    wizard_module._generate_unattended(setup)
+    wizard_module._finalise(setup)
+
+    lines = wizard_module.summarise(setup)
+
+    assert "  Images" in lines
+    assert "  Reachability" in lines
+    assert "  The reverse proxy" in lines
+    # The answers sit under their heading, indented past it.
+    images = lines.index("  Images")
+    assert lines[images + 1].startswith("    image_source")
+    # What nobody was asked for is listed apart from what they decided.
+    assert "  Derived, and generated for you" in lines
+    assert any("redis_password" in line for line in lines)
+
+
+def test_a_mistake_spotted_in_the_summary_can_be_fixed_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The summary is where a mistake is noticed, and it used to be a dead end.
+
+    Yes wrote the wrong thing; no threw away every other answer to fix one of
+    them. Naming a setting re-asks that one question and comes back here.
+    """
+    printed = _typed(
+        monkeypatch,
+        [
+            "rest",             # take the defaults, go to the summary
+            "host_port", "9443",  # fix one by name
+            "admin", "yes",       # and one by enough of a name
+            "nonsense",           # which is not a setting
+            "y",                  # write it
+        ],
+    )
+
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 0
+
+    document = _compose(tmp_path)
+    assert document["services"]["web_app"]["ports"] == ["127.0.0.1:9443:8811"]
+    assert document["services"]["web_app"]["environment"]["COS_WEB_ADMIN_ENABLED"] == "true"
+    assert any("Nothing called 'nonsense'" in line for line in printed)
+
+    # Turning the area on at the summary generates what it needs, rather than
+    # writing a deployment that refuses to start.
+    assert len(_env(tmp_path)["COS_WEB_ADMIN_PROXY_SECRET"]) >= 32
+
+
+def test_declining_at_the_summary_still_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The last question is a question, and no has to mean no."""
+    _typed(monkeypatch, ["rest", "n"])
+
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 1
+    assert not (tmp_path / "docker-compose.yml").exists()
+    assert not (tmp_path / ".env").exists()
+
+
+def test_running_the_wizard_again_offers_back_what_it_was_told_last_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The script promised that a second run edits a deployment. Half of it did.
+
+    Every credential was read back out of `.env`, so nothing was regenerated -
+    and every other answer was gone. Changing the port on a live deployment
+    meant retyping the limits, the paths, the proxy and the sign-in around it,
+    or editing the compose file by hand and leaving the wizard behind.
+    """
+    _typed(monkeypatch, ["rest", "host_port", "9443", "reverse_proxy", "nginx", "y"])
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 0
+
+    # A second run, answering nothing at all.
+    printed = _typed(monkeypatch, ["rest", "y"])
+    assert wizard_module.main(["--output-dir", str(tmp_path), "--force"]) == 0
+
+    document = _compose(tmp_path)
+    assert document["services"]["web_app"]["ports"] == ["127.0.0.1:9443:8811"]
+    assert (tmp_path / "opencloud-scan-nginx.conf").is_file()
+    assert any("this is an edit of it" in line for line in printed)
+
+
+def test_the_remembered_answers_hold_no_credential(tmp_path: Path) -> None:
+    """
+    Two files to protect, one of them a surprise, is one too many.
+
+    The notebook is an ordinary readable file beside the compose file; every
+    secret stays in `.env`, which is created owner-readable and is where the
+    next run reads them back from.
+    """
+    assert _run(tmp_path, "--preset", "private") == 0
+
+    notebook = tmp_path / wizard_module.answers_filename("docker-compose.yml")
+    stored = json.loads(notebook.read_text(encoding="utf-8"))
+
+    assert stored["audit_log"] is True  # the preset's answers are remembered
+    for key in wizard_module.SECRET_VARIABLES:
+        assert key not in stored, key
+    values = _env(tmp_path)
+    text = notebook.read_text(encoding="utf-8")
+    for secret in values.values():
+        assert secret not in text
+
+
+def test_a_notebook_nobody_can_read_is_one_nobody_wrote(tmp_path: Path) -> None:
+    """
+    It is an editable file, and a wizard that trips over one is worse than
+    one that starts from the defaults.
+
+    The type check is exact rather than an isinstance: a bool is an int in
+    Python, so `host_port: true` would otherwise be accepted as a port.
+    """
+    setup = wizard_module.Setup()
+    notebook = tmp_path / "answers.json"
+
+    notebook.write_text("{ this is not json", encoding="utf-8")
+    assert wizard_module._read_previous_answers(setup, notebook) == 0
+
+    notebook.write_text('["a list, not an object"]', encoding="utf-8")
+    assert wizard_module._read_previous_answers(setup, notebook) == 0
+
+    notebook.write_text(
+        json.dumps(
+            {
+                "host_port": True,
+                "audit_log": 8811,
+                "gone_in_this_version": "x",
+                "COS_WEB_PURGE_TOKEN": "not read from here",
+                "project_name": "kept",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert wizard_module._read_previous_answers(setup, notebook) == 1
+    assert setup.host_port == 8811
+    assert setup.audit_log is False
+    assert setup.project_name == "kept"
+
+
+def test_a_preset_named_now_beats_one_remembered_from_before(
+    tmp_path: Path,
+) -> None:
+    """A decision made on this command line is a decision made now."""
+    assert _run(tmp_path, "--preset", "private") == 0
+    assert _compose(tmp_path)["services"]["arq_worker"]["environment"][
+        "COS_WEB_ALLOW_PRIVATE_TARGETS"
+    ] == "true"
+
+    assert _run(tmp_path, "--force") == 0
+    worker = _compose(tmp_path)["services"]["arq_worker"]["environment"]
+    assert worker["COS_WEB_ALLOW_PRIVATE_TARGETS"] == "true", "remembered"
+
+    assert _run(tmp_path, "--preset", "public", "--force") == 0
+    worker = _compose(tmp_path)["services"]["arq_worker"]["environment"]
+    assert worker["COS_WEB_ALLOW_PRIVATE_TARGETS"] == "false", "named now"
+
+
+def test_a_derived_value_named_at_the_summary_says_it_is_derived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The summary lists what was generated as well as what was decided.
+
+    Answering "no such thing" at a name somebody is reading off the screen is
+    the kind of reply that makes people distrust the whole screen.
+    """
+    printed = _typed(monkeypatch, ["rest", "redis_password", "nonsense", "n"])
+
+    assert wizard_module.main(["--output-dir", str(tmp_path)]) == 1
+
+    assert any("is derived from the answers above" in line for line in printed)
+    assert any("Nothing called 'nonsense'" in line for line in printed)

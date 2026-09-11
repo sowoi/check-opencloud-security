@@ -488,6 +488,17 @@ headers only because the proxy also sends `COS_WEB_ADMIN_PROXY_SECRET` as
   bug. `authentik/blueprints/opencloud-admin.yaml` provisions the provider,
   the operator group and the outpost for the bundled stack.
 
+**The wizard writes the proxy configuration that does this.** Turn the area on
+and ask it for the bundled Authentik, and its reverse proxy question produces
+a working nginx, Caddy or Traefik file: every request to `/admin` is shown to
+the outpost first, and only what the outpost accepts is passed on, carrying
+the identity headers and `X-COS-Admin-Proxy`. The secret is not written into
+that file - nginx gets a one-line `include` of an owner-readable snippet, and
+Caddy and Traefik read it from their own environment. Apache is the exception:
+it has no forward auth of its own, so the generated file routes everything
+*except* the area and says why. See
+[`docker/README.md`](docker/README.md#the-reverse-proxy).
+
 **A deployment that cannot enforce the sign-in refuses to start.** No secret,
 a secret under 32 characters, or an empty `COS_WEB_ADMIN_USERS` all raise at
 startup rather than serving an open console. An empty user list is never read
