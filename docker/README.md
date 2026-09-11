@@ -5,7 +5,7 @@ application image, and the three Compose stacks they belong to.
 
 | File | What it is |
 |:-----|:-----------|
-| [`setup-wizard.py`](setup-wizard.py) | **Start here.** Asks what a deployment needs and writes a compose file and its `.env` |
+| [`setup-wizard.py`](setup-wizard.py) | **Start here.** Asks what a deployment needs and writes a compose file, its `.env`, and the reverse proxy configuration in front |
 | [`docker-compose.yml`](docker-compose.yml) | The locally built web stack: `web_app`, `arq_worker`, `redis` |
 | [`docker-compose.dockerhub.yml`](docker-compose.dockerhub.yml) | The published-image web stack: `okxo/opencloud-scanner`, worker and Redis |
 | [`docker-compose.authentik.yml`](docker-compose.authentik.yml) | The whole thing with a sign-in: the web stack *and* Authentik, in one file |
@@ -160,9 +160,12 @@ example answer, then writes into whichever directory you point it at:
   owner-readable only. A purge token or an encryption key never reaches the
   compose file;
 - the **Redis password**, generated into that same `.env`;
-- and, when you ask it to bring an identity provider, the **Authentik
-  blueprint**, in `authentik/blueprints/` beside the compose file that mounts
-  it.
+- when you ask it to bring an identity provider, the **Authentik
+  blueprints**, in `authentik/blueprints/` beside the compose file that mounts
+  them — the OAuth2 one that issues tokens for `/mcp`, and, where there is an
+  operator's area to guard, the proxy one that signs somebody into `/admin`;
+- and, when you name one, a **reverse proxy configuration** — nginx, Apache,
+  Caddy or Traefik — see [The reverse proxy](#the-reverse-proxy).
 
 It generates the credentials nobody should invent by hand - answer `generate`
 at the erasure token, the signing key, the audit salt or the encryption key -
@@ -185,6 +188,8 @@ flag still wins over a reused value.
 | `--auto-updates` | Add Watchtower to the stack, updating the pulled images daily. Scoped to this stack's own containers |
 | `--sign-in` | Require a sign-in on `/mcp`, against a provider you already run |
 | `--with-authentik` | Add Authentik to the stack, provisioned to issue those tokens. Does not require one by itself |
+| `--reverse-proxy nginx\|apache\|caddy\|traefik\|none` | Write a configuration for the proxy in front. Default: `none` |
+| `--proxy-hostname NAME` | The name it answers to. Taken from the public base URL when not given |
 | `--smtp-host HOST` | Mail server Authentik sends from. Empty leaves it on local delivery |
 | `--smtp-port PORT` | Default: `587` |
 | `--smtp-username NAME` | The account it authenticates as |
@@ -218,7 +223,7 @@ implies the other:
   case and adds no containers.
 - `--with-authentik` provisions one: Authentik and its database join the
   generated stack, those three values are derived rather than asked for, the
-  credentials are generated into `.env` and the blueprint is written beside
+  credentials are generated into `.env` and the blueprints are written beside
   the compose file. It leaves `/mcp` **open**, which is the point - bring the
   provider up, log in, try a token, and switch the guard on when it works.
 
@@ -228,6 +233,65 @@ nothing of Authentik reaches a deployment that did not ask for it. Its mail
 settings are asked for when it *is* provisioned, because an identity provider
 with no way to send a password recovery locks out the one account it starts
 with. See [`../docs/authentik.md`](../docs/authentik.md).
+
+**Two different things can want that provider**, and the MCP endpoint is only
+one of them. The operator's area at `/admin` has no other way in at all - the
+service authenticates nobody and refuses a request that did not come through
+an outpost - so a deployment that leaves `/mcp` open, or turns it off
+entirely, and switches `/admin` on is still offered a provider and asked for
+its address, its slug and its ports. Answer yes there and the second
+blueprint, `opencloud-admin.yaml`, is copied beside the compose file too: it
+provisions the proxy provider, the operator group and the outpost that the
+generated reverse proxy then asks about every request to the area.
+
+**The mail questions are asked in full.** Naming a server is what brings the
+rest of the session into play - the port, whether it is STARTTLS, implicit TLS
+or neither, whether the server wants an account and which - so that a
+deployment leaves the wizard able to send the password recovery it will
+eventually need, rather than with a host name and six unset settings. Say the
+server needs no account and the username and password are not asked for, and
+any left over from an earlier answer are dropped: Authentik reads an empty
+username as *do not authenticate*, and half a credential fails at the first
+message.
+
+### The reverse proxy
+
+The stack publishes a plain HTTP port on the loopback address and nothing
+else, so something in front has to terminate TLS. Name what you run -
+`nginx`, `apache`, `caddy` or `traefik` - and the configuration is written
+beside the compose file, ready to install; the wizard prints the install
+commands in its next steps and the file repeats them in its own header.
+
+Each one is a working configuration rather than a sketch:
+
+- **TLS**, with a redirect from port 80 that leaves `/.well-known/acme-challenge/`
+  alone. nginx and Apache are asked for the certificate and key; Caddy and
+  Traefik fetch their own, and are asked only for the address the certificate
+  authority should write to.
+- **`X-Forwarded-For` set, never appended**, so a client cannot choose the
+  address its rate limit is counted against. The wizard says so if
+  `COS_WEB_TRUST_FORWARDED_FOR` is still off, because until it is on, every
+  visitor shares one bucket.
+- **`/mcp` unbuffered**, with a timeout long enough for an agent session. A
+  buffered event stream is a client that waits for ever.
+- **The forward auth in front of `/admin`**, where the stack can provide it:
+  the request is shown to the authentik outpost first and only what it accepts
+  is passed on, carrying the identity the outpost established and the shared
+  secret that makes those headers worth believing. The audit view is an event
+  stream too, so that block is not buffered either.
+
+**Apache gets no `/admin` block**, because it has no forward auth of its own.
+The area is proxied by the catch-all like every other path but without
+`X-COS-Admin-Proxy`, so the service answers 404 - the right failure, and the
+file says so rather than leaving you to find out. Give it mod_auth_openidc, or
+put an authentik proxy provider in full proxy mode in front.
+
+**The secret stays out of the file you would commit.** A proxy configuration
+is pasted into tickets and copied between hosts, exactly like a compose file,
+so nginx gets a one-line `include` of `<project>-admin-proxy.secret`, created
+owner-readable only, while Caddy and Traefik read the value from their own
+environment. Remove the include and the area stops answering, which is the
+direction this should fail in.
 
 The `private` preset is the estate deployment: private targets allowed, the
 debug ports probed, search engines refused and an audit log that names its own
@@ -293,9 +357,17 @@ cannot write to a mount Docker created for root; the wizard prints the exact
 command in its next steps:
 
 ```bash
-mkdir -p /srv/opencloud-scan/audit && sudo chown 10001 /srv/opencloud-scan/audit
-mkdir -p /srv/opencloud-scan/redis && sudo chown 999 /srv/opencloud-scan/redis
+mkdir -p ./audit && sudo chown 10001 ./audit
+mkdir -p ./data  && sudo chown 999 ./data
 ```
+
+**Which directory is asked for, and it defaults to one beside the compose
+file** - `./data` for Redis, `./audit` for the trail. The leading `./` is not
+decoration: Compose reads `data:/data` as a *named volume* called data and
+`./data:/data` as the directory next to the file, so a bare name is refused
+rather than silently mounting something else. An absolute path works too. An
+empty answer used to produce `- :/data`, which Compose cannot parse at all -
+it now falls back to the named volume and says that it did.
 
 The same thing by hand, without the wizard, is documented under
 [keeping the trail past the container](../docs/webapp.md#keeping-the-trail-past-the-container).

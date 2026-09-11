@@ -601,7 +601,16 @@ meant.
 
 Worked configuration for nginx, Apache httpd, Caddy, Traefik and HAProxy -
 including the streaming the MCP endpoint needs and the paths a proxy must not
-rewrite - is in [Reverse proxies](reverse-proxy.md). The short version:
+rewrite - is in [Reverse proxies](reverse-proxy.md).
+
+[`docker/setup-wizard.py`](../docker/setup-wizard.py) will write that file for
+you for the first four: answer its reverse proxy question and the
+configuration lands beside the generated compose file, with TLS, the
+unbuffered `/mcp` stream, an `X-Forwarded-For` a client cannot choose, and -
+where this stack provides the outpost - the forward auth in front of `/admin`.
+See [the wizard's own notes](../docker/README.md#the-reverse-proxy).
+
+The short version:
 
 Terminate TLS in front, pass `X-Forwarded-For`, and only then set
 `COS_WEB_TRUST_FORWARDED_FOR=true`.

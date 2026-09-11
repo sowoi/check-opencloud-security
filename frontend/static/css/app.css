@@ -2580,6 +2580,12 @@ pre.config code { font-family: var(--mono); }
         margin: 2rem auto 0;
         animation-delay: .35s;
     }
+    /* The strip is a child of `.hero` too, and the three items above are the
+       only ones that name an order - so its default `0` sorted it above all
+       of them and the promises opened the page, above the headline that has
+       to land first. It reads as a footnote to the instrument, so it goes
+       after the artwork: last ordered, last placed. */
+    .assurance { order: 4; margin-top: 2.25rem; }
 
     .card { padding: 1.15rem; }
     main { padding-bottom: 2.5rem; }

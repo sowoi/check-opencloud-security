@@ -828,7 +828,14 @@ meant.</p>
 <h2 id="putting-it-behind-a-reverse-proxy">Putting it behind a reverse proxy</h2>
 <p>Worked configuration for nginx, Apache httpd, Caddy, Traefik and HAProxy -
 including the streaming the MCP endpoint needs and the paths a proxy must not
-rewrite - is in <a href="/documentation/reverse-proxy">Reverse proxies</a>. The short version:</p>
+rewrite - is in <a href="/documentation/reverse-proxy">Reverse proxies</a>.</p>
+<p><a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/setup-wizard.py"><code>docker/setup-wizard.py</code></a> will write that file for
+you for the first four: answer its reverse proxy question and the
+configuration lands beside the generated compose file, with TLS, the
+unbuffered <code>/mcp</code> stream, an <code>X-Forwarded-For</code> a client cannot choose, and -
+where this stack provides the outpost - the forward auth in front of <code>/admin</code>.
+See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/README.md#the-reverse-proxy">the wizard's own notes</a>.</p>
+<p>The short version:</p>
 <p>Terminate TLS in front, pass <code>X-Forwarded-For</code>, and only then set
 <code>COS_WEB_TRUST_FORWARDED_FOR=true</code>.</p>
 <p>The header is read from the <strong>right</strong>, <code>COS_WEB_TRUSTED_PROXY_HOPS</code> entries in

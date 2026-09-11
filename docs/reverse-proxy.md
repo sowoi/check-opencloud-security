@@ -292,6 +292,13 @@ plain ASGI service on one port. It sends its own security headers, including a
 add. What it does need is the truth about who is calling and enough patience
 for a scan to finish.
 
+**You do not have to copy any of this by hand.**
+[`docker/setup-wizard.py`](../docker/setup-wizard.py) writes the nginx, Apache,
+Caddy or Traefik configuration for a generated deployment, following the notes
+below and filling in the host name, the port and - where the stack brings its
+own identity provider - the forward auth in front of `/admin`. These sections
+are what it generates, and the reference for a deployment it did not write.
+
 ### What the service needs from a proxy
 
 - **A real client address.** The rate limit and the target cooldown are the

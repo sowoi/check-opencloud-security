@@ -16,15 +16,25 @@ and shows an example answer, and then writes two files:
 * ``.env`` - the secrets, owner-readable only, referenced from the compose
   file as ``${NAME}`` and never written into it.
 
-Ask for a sign-in on ``/mcp`` and it asks for the issuer, the audience and the
-keys of the provider you already run, which is what an estate that wants one
-usually has. Ask for ``--with-authentik`` as well and it provisions a provider
-instead: Authentik and its database join the stack, those three values are
-derived rather than asked for, and a third file is written - the blueprint,
-beside the compose file that mounts it. Nothing of Authentik appears in a
-deployment that did not ask for it. Its mail settings are asked for when it
-does, because an identity provider that cannot send a password recovery is one
-nobody can get back into.
+Two things here can want somebody signed in: the MCP endpoint at ``/mcp``, and
+the operator's area at ``/admin``, which has no other way in at all. Ask for
+either and it asks for the issuer, the audience and the keys of the provider
+you already run, which is what an estate that wants one usually has. Ask for
+``--with-authentik`` as well and it provisions a provider instead: Authentik
+and its database join the stack, those values are derived rather than asked
+for, and the blueprints are written beside the compose file that mounts them -
+the OAuth2 one that issues tokens for ``/mcp``, and, where there is an area to
+guard, the proxy one that signs an operator into ``/admin``. Nothing of
+Authentik appears in a deployment that did not ask for it. Its mail settings
+are asked for when it does - the server, the port, the transport security,
+whether it wants an account and which - because an identity provider that
+cannot send a password recovery is one nobody can get back into.
+
+Name a reverse proxy and it writes that configuration too: nginx, Apache,
+Caddy or Traefik, in the directory beside the compose file, with TLS, the
+unbuffered ``/mcp`` stream, an ``X-Forwarded-For`` the client cannot choose
+and - for the three that can ask an outpost before serving a request - the
+forward auth in front of ``/admin``.
 
 That split is the whole point of the wizard. A compose file is something an
 operator commits, pastes into a ticket and copies between hosts; a purge token
@@ -79,14 +89,45 @@ DOCKERHUB_IMAGE = "okxo/opencloud-scanner:latest"
 # generates a different version from the file next to it is a support case.
 AUTHENTIK_IMAGE = "ghcr.io/goauthentik/server"
 AUTHENTIK_TAG = "2026.8.0"
-BLUEPRINT_SOURCE = REPO_ROOT / "authentik" / "blueprints" / "opencloud-scanner.yaml"
-BLUEPRINT_RELATIVE = Path("authentik") / "blueprints" / "opencloud-scanner.yaml"
+BLUEPRINT_DIRECTORY = Path("authentik") / "blueprints"
+BLUEPRINT_SOURCE = REPO_ROOT / BLUEPRINT_DIRECTORY / "opencloud-scanner.yaml"
+BLUEPRINT_RELATIVE = BLUEPRINT_DIRECTORY / "opencloud-scanner.yaml"
+
+# The second blueprint, and the only way into the operator's area. It
+# provisions a *proxy* provider rather than an OAuth2 one, so it is copied
+# only for a deployment that asked for /admin - an unused provider in a
+# directory is one more thing that can be bound to the wrong application.
+ADMIN_BLUEPRINT_SOURCE = REPO_ROOT / BLUEPRINT_DIRECTORY / "opencloud-admin.yaml"
+ADMIN_BLUEPRINT_RELATIVE = BLUEPRINT_DIRECTORY / "opencloud-admin.yaml"
 
 # Where an outpost ends the session it started. A local path, because the
 # reverse proxy that routes `/outpost.goauthentik.io/` for the forward auth is
 # the same one serving /admin - a stack where this path does not answer is one
 # where signing *in* did not work either.
 AUTHENTIK_SIGN_OUT_PATH = "/outpost.goauthentik.io/sign_out"
+
+# Where the outpost answers, and the prefix the reverse proxy has to route to
+# it for the forward auth to work at all. Authentik's *embedded* outpost serves
+# both on the server container's HTTP port, which is why this stack runs no
+# outpost container of its own.
+AUTHENTIK_OUTPOST_PREFIX = "/outpost.goauthentik.io"
+
+# The header the proxy in front of /admin adds, and the ones the outpost
+# answers with. The service believes the second group only because the first
+# one arrived: see webapp/admin_auth.py, which refuses anything without it.
+ADMIN_PROXY_HEADER = "X-COS-Admin-Proxy"
+ADMIN_IDENTITY_HEADERS = (
+    "X-authentik-username",
+    "X-authentik-groups",
+    "X-authentik-email",
+)
+
+# The path the operator's area lives at, as the proxy has to match it.
+ADMIN_PATH = "/admin"
+
+# The MCP endpoint, which is the one path here that answers with an event
+# stream and therefore the one a proxy must not buffer.
+MCP_PATH = "/mcp"
 
 # Where the two things a deployment can choose to keep live *inside* the
 # containers. Both are mount points rather than paths in an image layer: a
@@ -109,6 +150,26 @@ REDIS_IMAGE_UID = 999
 
 # Where a deployment keeps things, when it keeps them at all.
 STORAGE_CHOICES = ("none", "volume", "filesystem")
+
+# The directories a bind mount defaults to, beside the generated compose file.
+# Relative on purpose, and relative with a `./` on purpose: Compose resolves a
+# relative bind mount against the directory the compose file is in, while a
+# source with no `./` in front of it is not a path at all - `data:/data` is a
+# *named volume* called data. One character apart, and the difference between
+# a directory an operator can back up and one Docker invented.
+DEFAULT_REDIS_DATA_PATH = "./data"
+DEFAULT_AUDIT_LOG_PATH = "./audit"
+
+# The reverse proxies the wizard can write a working configuration for. They
+# are the ones an estate already runs; anything else is served by the notes in
+# docs/reverse-proxy.md, which this generator follows.
+PROXY_CHOICES = ("none", "nginx", "apache", "caddy", "traefik")
+
+# Which of them can ask an outpost about a request before passing it on. The
+# operator's area needs that and nothing else will do, so a deployment that
+# picks one of the others is told rather than handed a config that would serve
+# /admin to whoever asked.
+FORWARD_AUTH_PROXIES = ("nginx", "caddy", "traefik")
 
 # Who rotates the audit file. "service" is this application, by size, and needs
 # nothing installed; "logrotate" is the host's own, which is what an estate
@@ -229,11 +290,26 @@ class Setup:
     # expiring-password notice. The scan service itself sends none.
     smtp_host: str = ""
     smtp_port: int = 587
+    # Whether the server wants an account at all. A relay on your own network
+    # often authenticates by address instead, and offering the username and
+    # password questions to a deployment that has neither is how half a
+    # session ends up configured.
+    smtp_auth: bool = True
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_security: str = "starttls"
     smtp_timeout: int = 10
+
+    # The reverse proxy in front, and the configuration file written for it.
+    # 'none' writes none - which is right when something else already
+    # terminates TLS, and wrong in the quiet way if nothing does.
+    reverse_proxy: str = "none"
+    reverse_proxy_hostname: str = ""
+    reverse_proxy_tls: bool = True
+    reverse_proxy_certificate: str = ""
+    reverse_proxy_private_key: str = ""
+    reverse_proxy_acme_email: str = ""
 
     # What is kept, and who may delete it.
     audit_log: bool = False
@@ -245,7 +321,7 @@ class Setup:
     # it. An audit trail is the one thing here an operator is asked for months
     # after the fact, so it is the one thing worth surviving.
     audit_storage: str = "none"
-    audit_log_path: str = ""
+    audit_log_path: str = DEFAULT_AUDIT_LOG_PATH
     # Who rotates that file once it is on the host's filesystem: this service,
     # by size, or the logrotate the host already runs for every other log on
     # it. Only ever asked when the trail goes to a host directory - a named
@@ -276,7 +352,7 @@ class Setup:
     # flight survive a restart - at the price of a copy of what it holds
     # sitting on a disk.
     redis_persistence: str = "none"
-    redis_data_path: str = ""
+    redis_data_path: str = DEFAULT_REDIS_DATA_PATH
 
 
 # Answers a private deployment wants instead: it scans its own network, it is
@@ -428,16 +504,59 @@ def _mail_address(value: str) -> str | None:
 def _host_directory(value: str) -> str | None:
     """A host directory to bind-mount into a container.
 
-    Absolute, because Compose reads a relative path as being relative to the
-    compose file rather than to wherever ``docker compose`` was run, and a
-    deployment that keeps its audit trail in a directory nobody can name twice
-    keeps it by accident.
+    Either absolute, or relative with a ``./`` in front of it. The leading dot
+    is not decoration: Compose reads ``data:/data`` as a *named volume* called
+    data and ``./data:/data`` as the directory beside the compose file, so a
+    bare ``data`` would silently mount something else than the operator meant.
+    An empty answer is refused outright, because the mount it produced -
+    ``- :/data`` - is not a mount Compose can parse at all.
     """
     path = value.strip()
-    if not path.startswith("/"):
-        return "A host directory is absolute, e.g. /srv/opencloud-scan/audit."
+    if not path:
+        return (
+            "A directory is needed, or the generated mount reads ':/data' and "
+            "Compose refuses the file. './data' keeps it beside the compose "
+            "file; answer 'volume' at the question above to let Docker manage "
+            "it instead."
+        )
+    if not path.startswith(("/", "./", "../")):
+        return (
+            "Give an absolute path, e.g. /srv/opencloud-scan/data, or a "
+            f"relative one starting with './', e.g. {DEFAULT_REDIS_DATA_PATH}. "
+            "Compose reads a source without a leading './' as the name of a "
+            "named volume rather than as a directory."
+        )
     if ":" in path:
         return "A ':' would be read as the start of the mount options."
+    return None
+
+
+def _single_hostname(value: str) -> str | None:
+    """The one name the generated proxy answers to.
+
+    A name rather than a URL: it is written into ``server_name``,
+    ``ServerName`` and a Traefik ``Host()`` rule, none of which take a scheme.
+    """
+    name = value.strip()
+    if not name:
+        return None
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", name):
+        return "A host name without the scheme, e.g. scan.example.com."
+    if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?", name):
+        return "A host name looks like scan.example.com."
+    return None
+
+
+def _certificate_path(value: str) -> str | None:
+    """Where the proxy reads a certificate or a key from, on the host."""
+    path = value.strip()
+    if not path:
+        return None
+    if not path.startswith("/"):
+        return (
+            "An absolute path, e.g. /etc/ssl/scan/fullchain.pem. A web server "
+            "resolves a relative one against its own root rather than yours."
+        )
     return None
 
 
@@ -976,21 +1095,77 @@ def build_sections(setup: Setup) -> list[Section]:
                     example="no",
                     kind="bool",
                 ),
+            ],
+        ),
+        Section(
+            "The operator's area",
+            "An optional console at /admin, behind the authentik sign-in.",
+            [
+                Question(
+                    key="admin_enabled",
+                    prompt="Serve the operator's area at /admin?",
+                    explain=(
+                        "A page showing this deployment's load, its limits and when "
+                        "the release schedule and advisory database were last read, "
+                        "with a button for each of those two refreshes and a live view "
+                        "of the audit trail. Off by default, and off means the path "
+                        "does not exist rather than asking for a password: a stranger "
+                        "cannot tell whether this deployment has one. It is never "
+                        "public - authentik signs the operator in before the request "
+                        "reaches the service, and the service refuses to start if it "
+                        "cannot check that."
+                    ),
+                    example="no",
+                    kind="bool",
+                ),
+                Question(
+                    key="admin_users",
+                    prompt="Who may use it, by authentik username",
+                    explain=(
+                        "Separated by semicolons. This is the whole guest list: an "
+                        "empty one is refused at startup rather than read as "
+                        "'anybody the provider authenticated', which would hand the "
+                        "console to every account in the directory. Signing in is "
+                        "not the same as being an operator here."
+                    ),
+                    example="admin",
+                ),
+                Question(
+                    key="admin_proxy_secret",
+                    prompt="Shared secret between the outpost and the service",
+                    explain=(
+                        "The outpost adds this to every request it forwards, and it "
+                        "is the only reason the identity headers are worth believing "
+                        "- without it, anybody who can reach the container could send "
+                        "the same headers and be whoever they liked. Generated, "
+                        "kept in .env, and never written into the compose file."
+                    ),
+                    example="generate",
+                    generate=32,
+                ),
+            ],
+        ),
+        Section(
+            "The identity provider",
+            "Who signs people in - for /mcp, for /admin, or for both.",
+            [
                 Question(
                     key="deploy_authentik",
                     prompt="Add Authentik to this stack as the provider?",
                     explain=(
-                        "Say no - the default - and a sign-in, if you asked for one, "
-                        "is checked against a provider you already run: you are asked "
-                        "for its issuer, its audience and its keys. Say yes and "
-                        "Authentik and its PostgreSQL are added to this compose file "
-                        "and provision the OAuth2 provider themselves, so those three "
-                        "are already right and there is nothing to click. Two more "
-                        "containers and a database to back up, for an estate that has "
-                        "no identity provider yet. This does not close /mcp on its "
-                        "own: the answer above does that, and bringing the provider "
-                        "up first is a good way to try a token before anybody is "
-                        "turned away."
+                        "Two things above can want one: a sign-in on /mcp, and the "
+                        "operator's area at /admin, which has no other way in. Say "
+                        "no - the default - and each is checked against a provider "
+                        "you already run: you are asked for the issuer, the audience "
+                        "and the keys, and you put your own proxy in front of /admin. "
+                        "Say yes and Authentik and its PostgreSQL join this compose "
+                        "file and provision themselves, so those values are already "
+                        "right and there is nothing to click. Two more containers and "
+                        "a database to back up, for an estate that has no identity "
+                        "provider yet. This does not close /mcp on its own - the "
+                        "sign-in question does that, and bringing the provider up "
+                        "first is a good way to try a token before anybody is turned "
+                        "away."
                     ),
                     example="no",
                     kind="bool",
@@ -1145,11 +1320,25 @@ def build_sections(setup: Setup) -> list[Section]:
                     choices=("starttls", "ssl", "none"),
                 ),
                 Question(
+                    key="smtp_auth",
+                    prompt="Does the server require a username and password?",
+                    explain=(
+                        "Almost every hosted provider does. Say no for a relay on "
+                        "your own network that authenticates by address instead - "
+                        "an empty username is how Authentik is told to submit "
+                        "without authenticating, and half a credential is refused "
+                        "at the first message rather than at the first mistake."
+                    ),
+                    example="yes",
+                    kind="bool",
+                ),
+                Question(
                     key="smtp_username",
                     prompt="Username",
                     explain=(
-                        "Leave unset for a relay that authenticates by address rather "
-                        "than by account."
+                        "The account Authentik authenticates as. Often the whole "
+                        "mail address rather than the part before the @, and often "
+                        "not the same as the From address below."
                     ),
                     example="authentik@example.com",
                 ),
@@ -1159,7 +1348,9 @@ def build_sections(setup: Setup) -> list[Section]:
                     explain=(
                         "Written to .env, never into the compose file. It can also be "
                         "supplied without typing it here, by putting "
-                        "AUTHENTIK_EMAIL_PASSWORD in the environment the wizard runs in."
+                        "AUTHENTIK_EMAIL_PASSWORD in the environment the wizard runs in. "
+                        "An app password rather than the account's own is worth the "
+                        "detour: this one sits on a disk on a host that sends mail."
                     ),
                     example="an app password from your provider",
                 ),
@@ -1184,54 +1375,6 @@ def build_sections(setup: Setup) -> list[Section]:
                     example="10",
                     kind="int",
                     validate=_positive(1),
-                ),
-            ],
-        ),
-        Section(
-            "The operator's area",
-            "An optional console at /admin, behind the authentik sign-in.",
-            [
-                Question(
-                    key="admin_enabled",
-                    prompt="Serve the operator's area at /admin?",
-                    explain=(
-                        "A page showing this deployment's load, its limits and when "
-                        "the release schedule and advisory database were last read, "
-                        "with a button for each of those two refreshes and a live view "
-                        "of the audit trail. Off by default, and off means the path "
-                        "does not exist rather than asking for a password: a stranger "
-                        "cannot tell whether this deployment has one. It is never "
-                        "public - authentik signs the operator in before the request "
-                        "reaches the service, and the service refuses to start if it "
-                        "cannot check that."
-                    ),
-                    example="no",
-                    kind="bool",
-                ),
-                Question(
-                    key="admin_users",
-                    prompt="Who may use it, by authentik username",
-                    explain=(
-                        "Separated by semicolons. This is the whole guest list: an "
-                        "empty one is refused at startup rather than read as "
-                        "'anybody the provider authenticated', which would hand the "
-                        "console to every account in the directory. Signing in is "
-                        "not the same as being an operator here."
-                    ),
-                    example="admin",
-                ),
-                Question(
-                    key="admin_proxy_secret",
-                    prompt="Shared secret between the outpost and the service",
-                    explain=(
-                        "The outpost adds this to every request it forwards, and it "
-                        "is the only reason the identity headers are worth believing "
-                        "- without it, anybody who can reach the container could send "
-                        "the same headers and be whoever they liked. Generated, "
-                        "kept in .env, and never written into the compose file."
-                    ),
-                    example="generate",
-                    generate=32,
                 ),
             ],
         ),
@@ -1299,10 +1442,15 @@ def build_sections(setup: Setup) -> list[Section]:
                         f"It has to exist and be owned by uid {WEB_IMAGE_UID}, "
                         "which is the unprivileged user the image runs as - "
                         "the service refuses to start rather than report a "
-                        "trail it cannot write. A named volume needs none of "
-                        "that, which is why it is the other answer."
+                        "trail it cannot write. The default is "
+                        f"{DEFAULT_AUDIT_LOG_PATH}, beside the generated compose "
+                        "file, which is what Compose resolves a relative source "
+                        "against; an absolute path works too, and a name with no "
+                        "'./' in front of it would be read as a named volume "
+                        "rather than a directory. A named volume needs none of "
+                        "this, which is why it is the other answer."
                     ),
-                    example="/srv/opencloud-scan/audit",
+                    example=DEFAULT_AUDIT_LOG_PATH,
                     validate=_host_directory,
                 ),
                 Question(
@@ -1415,11 +1563,103 @@ def build_sections(setup: Setup) -> list[Section]:
                     explain=(
                         f"Bind-mounted at {REDIS_DATA_DIRECTORY} in the "
                         f"container, and owned by uid {REDIS_IMAGE_UID}, which "
-                        "is the user the Redis image runs as. A named volume "
-                        "needs none of that."
+                        "is the user the Redis image runs as. The default is "
+                        f"{DEFAULT_REDIS_DATA_PATH}, the directory beside the "
+                        "generated compose file - Compose resolves a relative "
+                        "source against that file rather than against wherever "
+                        "you ran it from. An absolute path works too; a name "
+                        "with no './' in front of it does not, because Compose "
+                        "would read it as a named volume. A named volume needs "
+                        "none of this, which is the other answer above."
                     ),
-                    example="/srv/opencloud-scan/redis",
+                    example=DEFAULT_REDIS_DATA_PATH,
                     validate=_host_directory,
+                ),
+            ],
+        ),
+        Section(
+            "The reverse proxy",
+            "What terminates TLS in front, and the configuration file for it.",
+            [
+                Question(
+                    key="reverse_proxy",
+                    prompt="Write a reverse proxy configuration as well?",
+                    explain=(
+                        "The stack publishes a plain HTTP port on the loopback "
+                        "address and nothing else: something in front has to "
+                        "terminate TLS, overwrite X-Forwarded-For so the rate limit "
+                        "counts clients rather than the proxy, and leave the /mcp "
+                        "event stream unbuffered. Name what you run and the file is "
+                        "written beside the compose file, ready to install - "
+                        "including the forward auth in front of /admin when this "
+                        "deployment has one. 'none' writes nothing, which is right "
+                        "when the proxy is already configured or lives on another "
+                        "host."
+                    ),
+                    example="nginx",
+                    kind="choice",
+                    choices=PROXY_CHOICES,
+                ),
+                Question(
+                    key="reverse_proxy_hostname",
+                    prompt="Host name the proxy answers to",
+                    explain=(
+                        "The name in the certificate and in the address visitors "
+                        "type, without a scheme. Taken from the public address of "
+                        "this service when you leave it empty, because the two "
+                        "disagreeing is how a canonical link points somewhere "
+                        "nobody can reach."
+                    ),
+                    example="scan.example.com",
+                    validate=_single_hostname,
+                ),
+                Question(
+                    key="reverse_proxy_tls",
+                    prompt="Should this configuration terminate TLS?",
+                    explain=(
+                        "Yes writes the HTTPS server and a redirect from port 80, "
+                        "and asks for the certificate below. No writes a plain HTTP "
+                        "server, which is only honest when something else in front "
+                        "- a load balancer, a tunnel, a CDN - is already doing it. "
+                        "Caddy and Traefik obtain their own certificates and are "
+                        "never asked this."
+                    ),
+                    example="yes",
+                    kind="bool",
+                ),
+                Question(
+                    key="reverse_proxy_certificate",
+                    prompt="Certificate chain file",
+                    explain=(
+                        "The full chain, as the proxy reads it from this host. A "
+                        "certbot deployment names the file under "
+                        "/etc/letsencrypt/live/<name>/fullchain.pem."
+                    ),
+                    example="/etc/ssl/scan/fullchain.pem",
+                    validate=_certificate_path,
+                ),
+                Question(
+                    key="reverse_proxy_private_key",
+                    prompt="Private key file",
+                    explain=(
+                        "The key belonging to that certificate, readable by the "
+                        "proxy and by nobody else."
+                    ),
+                    example="/etc/ssl/scan/privkey.pem",
+                    validate=_certificate_path,
+                ),
+                Question(
+                    key="reverse_proxy_acme_email",
+                    prompt="Address for the certificate authority",
+                    explain=(
+                        "Caddy and Traefik obtain and renew a certificate "
+                        "themselves and register this address with the authority, "
+                        "which is where a warning goes when a renewal has been "
+                        "failing. Leave it empty and the certificate is still "
+                        "issued - nobody is told when it stops being."
+                    ),
+                    example="ops@example.com",
+                    validate=_mail_address,
                 ),
             ],
         ),
@@ -1427,23 +1667,43 @@ def build_sections(setup: Setup) -> list[Section]:
 
 
 def run_questions(wizard: Wizard) -> None:
-    """Ask everything, skipping the questions the previous answers settled."""
+    """Ask everything, skipping the questions the previous answers settled.
+
+    Relevance is decided one question at a time, as the answers arrive, and
+    never for the section as a whole. An answer routinely brings the next
+    question into play - naming an SMTP server is what makes the port, the
+    transport security and the credentials worth asking for, and asking for
+    Authentik is what makes its address and its ports worth asking for. A list
+    filtered once before the section starts can only ever *lose* questions,
+    which is how a mail server used to be configured with nothing but a host
+    name.
+    """
     setup = wizard.setup
     for section in build_sections(setup):
-        questions = [item for item in section.questions if _relevant(item.key, setup)]
-        if not questions:
-            continue
-        wizard.heading(section)
-        for question in questions:
-            # Re-checked, because an answer given a moment ago can settle a
-            # later question in the same section.
-            if _relevant(question.key, setup):
-                wizard.ask(question)
+        shown = False
+        for question in section.questions:
+            if not _relevant(question.key, setup):
+                continue
+            if not shown:
+                wizard.heading(section)
+                shown = True
+            wizard.ask(question)
 
 
 def _signs_in(setup: Setup) -> bool:
     """Whether this deployment asked for a sign-in on ``/mcp`` at all."""
     return setup.enable_mcp and setup.mcp_auth_enabled
+
+
+def _wants_a_provider(setup: Setup) -> bool:
+    """Whether anything in this deployment has a sign-in to offer.
+
+    Two things can: the MCP endpoint, which may require a token, and the
+    operator's area, which has no other way in at all. Either is reason enough
+    to be asked about a provider; neither being present means the question has
+    no answer worth giving.
+    """
+    return setup.enable_mcp or setup.admin_enabled
 
 
 def _uses_authentik(setup: Setup) -> bool:
@@ -1454,8 +1714,37 @@ def _uses_authentik(setup: Setup) -> bool:
     may ask, and neither one implies the other. A stack can be provisioned
     with the guard still off, which is how an operator tries the sign-in out
     before switching it on for everybody.
+
+    It is not independent of there being something to guard, though: three
+    containers and a database that nothing in front of them consults are three
+    containers to patch for nothing.
     """
-    return setup.deploy_authentik
+    return setup.deploy_authentik and _wants_a_provider(setup)
+
+
+def _guards_the_admin_area(setup: Setup) -> bool:
+    """Whether the bundled provider is what stands in front of ``/admin``."""
+    return setup.admin_enabled and _uses_authentik(setup)
+
+
+def _writes_proxy(setup: Setup) -> bool:
+    """Whether a reverse proxy configuration is written beside the stack."""
+    return setup.reverse_proxy in PROXY_CHOICES and setup.reverse_proxy != "none"
+
+
+def _proxy_forwards_auth(setup: Setup) -> bool:
+    """Whether the generated proxy asks the outpost before serving ``/admin``.
+
+    Three conditions, and every one of them is load-bearing. There has to be
+    an area to guard, a provider to ask, and a proxy that can ask - Apache
+    has no forward-auth of its own, and a generated ``/admin`` block that
+    quietly did not authenticate anybody is the single worst file this script
+    could write.
+    """
+    return (
+        _guards_the_admin_area(setup)
+        and setup.reverse_proxy in FORWARD_AUTH_PROXIES
+    )
 
 
 def _relevant(key: str, setup: Setup) -> bool:
@@ -1470,18 +1759,46 @@ def _relevant(key: str, setup: Setup) -> bool:
         return setup.releases_mode != "off"
     if key in {"mcp_allowed_hosts", "mcp_max_concurrent_waits", "mcp_auth_enabled"}:
         return setup.enable_mcp
-    if key == "deploy_authentik" or key.startswith("authentik_"):
+    if key in {"admin_users", "admin_proxy_secret"}:
+        # A guest list and a shared secret for an area that does not exist are
+        # an unused credential in .env and a question with no consequence.
+        return setup.admin_enabled
+    if key == "deploy_authentik":
+        return _wants_a_provider(setup)
+    if key.startswith("authentik_"):
         # Authentik answers the issuer, the audience and the keys itself, so
         # its own questions replace them rather than adding to them.
-        return setup.enable_mcp and (key == "deploy_authentik" or _uses_authentik(setup))
+        return _uses_authentik(setup)
     if key.startswith("smtp_"):
         if not _uses_authentik(setup):
             return False
-        return key == "smtp_host" or bool(setup.smtp_host)
+        if key == "smtp_host":
+            return True
+        if not setup.smtp_host:
+            return False
+        # An account is only worth asking about where the server wants one.
+        return setup.smtp_auth or key not in {"smtp_username", "smtp_password"}
     if key.startswith("mcp_auth_"):
         if not _signs_in(setup):
             return False
         return key == "mcp_auth_scopes" or not _uses_authentik(setup)
+    if key.startswith("reverse_proxy"):
+        if key == "reverse_proxy":
+            return True
+        if setup.reverse_proxy == "none":
+            return False
+        if key == "reverse_proxy_acme_email":
+            # Only the two that go and fetch a certificate themselves.
+            return setup.reverse_proxy in {"caddy", "traefik"}
+        if key in {
+            "reverse_proxy_tls",
+            "reverse_proxy_certificate",
+            "reverse_proxy_private_key",
+        }:
+            if setup.reverse_proxy not in {"nginx", "apache"}:
+                return False
+            return key == "reverse_proxy_tls" or setup.reverse_proxy_tls
+        return True
 
     if key in {"audit_log_targets", "audit_salt", "audit_storage"}:
         return setup.audit_log
@@ -1507,7 +1824,7 @@ def _uses_logrotate(setup: Setup) -> bool:
     """Whether the host's logrotate is the thing keeping the trail in bounds."""
     return (
         _keeps_audit_file(setup)
-        and setup.audit_storage == "filesystem"
+        and _binds_a_directory(setup.audit_storage, setup.audit_log_path)
         and setup.audit_rotation == "logrotate"
     )
 
@@ -1517,9 +1834,23 @@ def _persists_redis(setup: Setup) -> bool:
     return setup.redis_persistence != "none"
 
 
+def _binds_a_directory(storage: str, host_path: str) -> bool:
+    """Whether this storage answer names a directory on the host.
+
+    An empty path with ``filesystem`` chosen is the one combination that can
+    produce nothing to mount. It used to produce ``- :/data``, which Compose
+    refuses to parse, taking the whole stack down over a question that was
+    never asked - so it falls back to the named volume, which needs no answer
+    from anybody and keeps the data.
+    """
+    return storage == "filesystem" and bool(host_path.strip())
+
+
 def _mount_source(storage: str, host_path: str, volume: str) -> str:
     """The left-hand side of a bind or named-volume mount."""
-    return host_path.strip() if storage == "filesystem" else volume
+    if _binds_a_directory(storage, host_path):
+        return host_path.strip()
+    return volume
 
 
 def check_consistency(setup: Setup) -> list[str]:
@@ -1561,6 +1892,65 @@ def check_consistency(setup: Setup) -> list[str]:
             "COS_WEB_ADMIN_PROXY_SECRET as X-COS-Admin-Proxy, or the area is "
             "unreachable - the service refuses a request that did not come "
             "through an outpost."
+        )
+    if _writes_proxy(setup) and not setup.trust_forwarded_for:
+        warnings.append(
+            "A reverse proxy configuration is being written, and the service "
+            "is not reading the client address from it. Every request will "
+            "look like it came from the proxy, so the per-client rate limit "
+            "becomes one shared bucket for the whole internet. The generated "
+            "config overwrites X-Forwarded-For rather than appending to it, "
+            "which is what makes COS_WEB_TRUST_FORWARDED_FOR safe to turn on "
+            "here."
+        )
+    if setup.admin_enabled and _writes_proxy(setup) and not _proxy_forwards_auth(setup):
+        reason = (
+            f"{setup.reverse_proxy} has no forward-auth of its own"
+            if setup.reverse_proxy not in FORWARD_AUTH_PROXIES
+            else "there is no bundled provider for it to ask"
+        )
+        warnings.append(
+            f"The generated {setup.reverse_proxy} configuration routes "
+            f"everything except {ADMIN_PATH}, because {reason}. The area is "
+            "reachable only through something that signs the operator in and "
+            f"adds {ADMIN_PROXY_HEADER}; until you write that yourself, "
+            f"{ADMIN_PATH} answers 404 - which is the failure you want, and "
+            "it will look like a bug."
+        )
+    if _proxy_forwards_auth(setup) and "localhost" in setup.authentik_url:
+        warnings.append(
+            "The sign-in in front of /admin sends the operator to "
+            f"{setup.authentik_url}, which is a name only this host resolves. "
+            "The generated proxy routes the outpost's own endpoints, not "
+            "Authentik's interface, so give the provider an address a browser "
+            "can reach - its own vhost in front of the port published above - "
+            "and set it as the public address of Authentik."
+        )
+    if _writes_proxy(setup) and _proxy_hostname(setup) == "localhost":
+        warnings.append(
+            "The reverse proxy configuration answers to 'localhost', because "
+            "that is all the public address of this service names. It will "
+            "work on this machine and nowhere else - give the public address "
+            "the name visitors type, or edit the generated file before "
+            "installing it."
+        )
+    if (
+        _writes_proxy(setup)
+        and setup.reverse_proxy in {"nginx", "apache"}
+        and not setup.reverse_proxy_tls
+    ):
+        warnings.append(
+            "The generated proxy configuration terminates no TLS. That is "
+            "only right if something else in front of it does: this service "
+            "hands out result URLs whose uuid is the whole authorisation, and "
+            "over plain HTTP they travel in the clear."
+        )
+    if setup.smtp_host and setup.smtp_auth and not setup.smtp_username:
+        warnings.append(
+            "The mail server was said to require an account but no username "
+            "was given. Authentik reads an empty username as 'do not "
+            "authenticate', and a server that wanted one refuses the "
+            "submission."
         )
 
     if _uses_authentik(setup) and not setup.mcp_auth_enabled:
@@ -1613,12 +2003,21 @@ def check_consistency(setup: Setup) -> list[str]:
             "host. A client that reaches the service directly can then send "
             "any address it likes and the rate limit stops counting."
         )
-    if _keeps_audit_file(setup) and setup.audit_storage == "filesystem" and not setup.audit_log_path:
+    if (
+        _keeps_audit_file(setup)
+        and setup.audit_storage == "filesystem"
+        and not setup.audit_log_path.strip()
+    ):
         warnings.append(
-            "The audit trail is set to go to a host directory but none was "
-            "named. Give one, or answer 'volume' and let Docker manage it."
+            "The audit trail was set to go to a host directory but none was "
+            f"named, so it goes to the named volume {AUDIT_VOLUME} instead. "
+            "That keeps the records; it just keeps them somewhere Docker "
+            f"chose. Name a directory - {DEFAULT_AUDIT_LOG_PATH} is beside "
+            "the compose file - to put them where your backups already look."
         )
-    if setup.audit_storage == "filesystem" and setup.audit_log_path:
+    if _keeps_audit_file(setup) and _binds_a_directory(
+        setup.audit_storage, setup.audit_log_path
+    ):
         warnings.append(
             f"{setup.audit_log_path} has to exist and be owned by uid "
             f"{WEB_IMAGE_UID} before the stack starts, or the web service "
@@ -1633,12 +2032,16 @@ def check_consistency(setup: Setup) -> list[str]:
             "nothing rotates the audit trail, because the service was told "
             "the host would. The next steps print the command."
         )
-    if setup.redis_persistence == "filesystem" and not setup.redis_data_path:
+    if setup.redis_persistence == "filesystem" and not setup.redis_data_path.strip():
         warnings.append(
-            "Redis persistence is set to a host directory but none was named. "
-            "Give one, or answer 'volume' and let Docker manage it."
+            "Redis persistence was set to a host directory but none was "
+            f"named, so it uses the named volume {REDIS_VOLUME} instead. The "
+            f"mount that would otherwise have been written - ':{REDIS_DATA_DIRECTORY}' "
+            "- is not one Compose can parse, and the stack would not have "
+            f"started at all. Name a directory, {DEFAULT_REDIS_DATA_PATH} for "
+            "one beside the compose file, to choose where it goes."
         )
-    if setup.redis_persistence == "filesystem" and setup.redis_data_path:
+    if _binds_a_directory(setup.redis_persistence, setup.redis_data_path):
         warnings.append(
             f"{setup.redis_data_path} has to exist and be owned by uid "
             f"{REDIS_IMAGE_UID}, the user the Redis image runs as:  mkdir -p "
@@ -1687,6 +2090,47 @@ def _authentik_jwks_url(setup: Setup) -> str:
     return f"http://authentik-server:9000/application/o/{setup.authentik_slug}/jwks/"
 
 
+def _proxy_hostname(setup: Setup) -> str:
+    """The one name the generated proxy configuration answers to.
+
+    Taken from the public address when it was not asked for separately, so
+    that the certificate, ``server_name`` and the canonical links the service
+    publishes cannot drift apart - three places naming three hosts is a
+    deployment that works until somebody uses the second one.
+    """
+    name = setup.reverse_proxy_hostname.strip()
+    if name:
+        return name
+    host = setup.public_base_url.strip().split("://", 1)[-1]
+    host = host.split("/", 1)[0].rsplit("@", 1)[-1]
+    if host.startswith("["):  # an IPv6 literal keeps its brackets and its port
+        return host
+    return host.split(":", 1)[0] or "localhost"
+
+
+def _proxy_scheme(setup: Setup) -> str:
+    """http or https, as the generated configuration will actually serve it."""
+    if setup.reverse_proxy in {"caddy", "traefik"}:
+        return "https"  # both fetch a certificate themselves
+    return "https" if setup.reverse_proxy_tls else "http"
+
+
+def _proxy_public_url(setup: Setup) -> str:
+    """The address the generated proxy publishes this service at."""
+    return f"{_proxy_scheme(setup)}://{_proxy_hostname(setup)}"
+
+
+def _authentik_host_url(setup: Setup) -> str:
+    """Where the proxy on this host reaches Authentik's HTTP listener.
+
+    The compose file publishes it on the loopback address, so this is a local
+    address whatever the provider's public name turns out to be - the browser
+    is redirected to :attr:`Setup.authentik_url`, and only the forward-auth
+    subrequest comes here.
+    """
+    return f"http://127.0.0.1:{setup.authentik_http_port}"
+
+
 def _finalise(setup: Setup) -> None:
     """Fill in what the answers imply rather than asking for it twice.
 
@@ -1714,6 +2158,12 @@ def _finalise(setup: Setup) -> None:
         setup.authentik_client_secret = (
             setup.authentik_client_secret or secrets.token_urlsafe(30)
         )
+        if not setup.smtp_auth:
+            # Said to need no account, so it keeps none. A username left over
+            # from an earlier answer would make Authentik authenticate to a
+            # relay that never asked it to, and fail at the first message.
+            setup.smtp_username = ""
+            setup.smtp_password = ""
         if setup.smtp_host and not setup.smtp_from:
             setup.smtp_from = setup.smtp_username or "authentik@localhost"
     else:
@@ -1725,6 +2175,10 @@ def _finalise(setup: Setup) -> None:
         setup.authentik_client_secret = ""
         setup.smtp_host = ""
         setup.smtp_password = ""
+    if _writes_proxy(setup) and not setup.reverse_proxy_hostname:
+        # Recorded rather than recomputed at every use, so the summary shows
+        # the name the file will actually carry.
+        setup.reverse_proxy_hostname = _proxy_hostname(setup)
 
 
 def _authentik_environment(setup: Setup) -> list[EnvEntry]:
@@ -1760,6 +2214,17 @@ def _authentik_environment(setup: Setup) -> list[EnvEntry]:
         ),
         _entry("AUTHENTIK_SCANNER_REDIRECT_URI", f'"{setup.authentik_redirect_uri}"'),
     ]
+    if _guards_the_admin_area(setup):
+        entries.append(
+            _entry(
+                "COS_WEB_ADMIN_URL",
+                f'"{setup.public_base_url}"',
+                "Read by the second blueprint, the one that provisions the proxy",
+                "provider in front of /admin. A forward-auth provider is bound to",
+                "the origin of the application it protects, so this is the address",
+                "visitors use rather than the container's own.",
+            )
+        )
     entries.extend(_mail_environment(setup))
     return entries
 
@@ -1947,7 +2412,7 @@ def _redis_storage_comment(setup: Setup) -> str:
         )
     where = (
         f"the host directory {setup.redis_data_path}"
-        if setup.redis_persistence == "filesystem"
+        if _binds_a_directory(setup.redis_persistence, setup.redis_data_path)
         else f"the named volume {REDIS_VOLUME}"
     )
     return (
@@ -1967,7 +2432,9 @@ def _volumes_block(setup: Setup) -> str:
     why a deployment using one has to create it itself.
     """
     named: list[tuple[str, str]] = []
-    if _keeps_audit_file(setup) and setup.audit_storage == "volume":
+    if _keeps_audit_file(setup) and not _binds_a_directory(
+        setup.audit_storage, setup.audit_log_path
+    ):
         named.append(
             (
                 AUDIT_VOLUME,
@@ -1978,7 +2445,9 @@ def _volumes_block(setup: Setup) -> str:
                 ),
             )
         )
-    if setup.redis_persistence == "volume":
+    if _persists_redis(setup) and not _binds_a_directory(
+        setup.redis_persistence, setup.redis_data_path
+    ):
         named.append(
             (
                 REDIS_VOLUME,
@@ -2075,6 +2544,773 @@ def render_logrotate_file(setup: Setup) -> str:
     create 0600 {WEB_IMAGE_UID} {WEB_IMAGE_UID}
 }}
 """
+
+
+# --- the reverse proxy ------------------------------------------------------
+# The templates below are filled by replacing `@@name@@`, not by str.format or
+# an f-string: every one of these languages is made of braces, and a config
+# file whose every `{` has to be doubled to survive the generator is one
+# nobody can read against the documentation it came from.
+def _fill(template: str, **values: str) -> str:
+    for name, value in values.items():
+        template = template.replace(f"@@{name}@@", value)
+    return template
+
+
+def _indent(text: str, prefix: str) -> str:
+    return "\n".join(f"{prefix}{line}" if line else "" for line in text.splitlines())
+
+
+def _upstream_address(setup: Setup) -> str:
+    """Where the proxy connects, as ``host:port``.
+
+    Not simply the published bind address: ``0.0.0.0`` means *listen on every
+    interface*, and a proxy asked to *connect* to it reaches nothing on most
+    systems. The loopback address is the one that is always right here,
+    because the proxy runs on the host the port is published on.
+    """
+    host = setup.bind_address.strip()
+    if host in {"", "0.0.0.0", "::", "[::]", "*"}:  # nosec B104
+        host = "127.0.0.1"
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"{host}:{setup.host_port}"
+
+
+def proxy_filename(setup: Setup) -> str:
+    """What the generated proxy configuration is called, before it is installed."""
+    suffix = {
+        "nginx": "nginx.conf",
+        "apache": "apache.conf",
+        "caddy": "caddyfile",
+        "traefik": "traefik.yml",
+    }[setup.reverse_proxy]
+    return f"{setup.project_name}-{suffix}"
+
+
+def admin_secret_filename(setup: Setup) -> str:
+    """The one line of nginx configuration that carries a credential.
+
+    Kept out of the configuration file for the same reason the compose file
+    carries no password: a proxy configuration is something an operator
+    commits, pastes into a ticket and copies between hosts. Deliberately not
+    named ``.conf``, because everything called that under ``conf.d`` is
+    included into the *http* block, and this belongs to one location.
+    """
+    return f"{setup.project_name}-admin-proxy.secret"
+
+
+def admin_secret_path(setup: Setup) -> str:
+    """Where that file has to be installed for the ``include`` to find it."""
+    return f"/etc/nginx/{admin_secret_filename(setup)}"
+
+
+def render_admin_secret_file(setup: Setup) -> str:
+    """The nginx snippet holding the shared secret, and nothing else."""
+    return f"""# The secret the outpost's verdict is worth nothing without.
+#
+# Written by docker/setup-wizard.py and included from the {ADMIN_PATH} location
+# in {proxy_filename(setup)}. It is the same value as
+# COS_WEB_ADMIN_PROXY_SECRET in .env: the service compares the two in constant
+# time and answers 404 to anything arriving without it, so a request that
+# reaches the container by some other route gets no console.
+#
+# Owner-readable only. Install it as root:
+#
+#   sudo install -m 0600 -o root -g root {admin_secret_filename(setup)} \\
+#     {admin_secret_path(setup)}
+proxy_set_header {ADMIN_PROXY_HEADER} "{setup.admin_proxy_secret}";
+"""
+
+
+_NGINX_PROXY_HEADERS = """proxy_http_version 1.1;
+proxy_set_header Host              $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+# Set, never appended: the service counts scans per client address, and a
+# header a client may add to is a rate limit a client may choose.
+proxy_set_header X-Forwarded-For   $remote_addr;
+proxy_set_header X-Real-IP         $remote_addr;"""
+
+
+def _nginx_locations(setup: Setup, upstream: str) -> str:
+    """Every ``location`` block, in the order nginx should be read in."""
+    blocks = [
+        _fill(
+            """    location / {
+@@headers@@
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+        # A scan takes seconds to a minute and an export can take longer.
+        proxy_read_timeout 300s;
+        proxy_pass @@upstream@@;
+    }""",
+            headers=_indent(_NGINX_PROXY_HEADERS, "        "),
+            upstream=upstream,
+        )
+    ]
+    if setup.enable_mcp:
+        blocks.append(
+            _fill(
+                """    # The MCP endpoint answers with an event stream. A proxy that buffers
+    # one turns a working agent session into a client that waits for ever,
+    # and a short read timeout ends one in the middle of an answer.
+    location @@mcp@@ {
+@@headers@@
+        proxy_set_header Connection        "";
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+        proxy_read_timeout 3600s;
+        proxy_pass @@upstream@@;
+    }""",
+                headers=_indent(_NGINX_PROXY_HEADERS, "        "),
+                upstream=upstream,
+                mcp=MCP_PATH,
+            )
+        )
+    if _proxy_forwards_auth(setup):
+        blocks.append(
+            _fill(
+                """    # The operator's area. Every request is shown to the authentik outpost
+    # first and only what it accepts is passed on - carrying the identity
+    # the outpost established, and the shared secret that is the whole
+    # reason those identity headers are worth believing. Take the include
+    # away and the area stops answering, which is the correct direction for
+    # this to fail in.
+    location @@admin@@ {
+        auth_request     @@outpost@@/auth/nginx;
+        error_page 401 = @goauthentik_signin;
+
+        auth_request_set $auth_cookie        $upstream_http_set_cookie;
+        add_header       Set-Cookie          $auth_cookie;
+        auth_request_set $authentik_username $upstream_http_x_authentik_username;
+        auth_request_set $authentik_groups   $upstream_http_x_authentik_groups;
+        auth_request_set $authentik_email    $upstream_http_x_authentik_email;
+
+@@headers@@
+        proxy_set_header @@user_header@@ $authentik_username;
+        proxy_set_header @@groups_header@@   $authentik_groups;
+        proxy_set_header @@email_header@@    $authentik_email;
+        include @@secret_file@@;
+        # The audit view is an event stream too, so this block may no more be
+        # buffered than /mcp may.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_pass @@upstream@@;
+    }
+
+    # Where the outpost itself answers: the forward-auth subrequest above,
+    # the sign-in it redirects to, and the sign-out link the area offers.
+    location @@outpost@@ {
+        proxy_pass @@authentik@@@@outpost@@;
+        proxy_set_header Host           $host;
+        proxy_set_header X-Original-URL $scheme://$http_host$request_uri;
+        auth_request_set $auth_cookie   $upstream_http_set_cookie;
+        add_header       Set-Cookie     $auth_cookie;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+    }
+
+    location @goauthentik_signin {
+        internal;
+        add_header Set-Cookie $auth_cookie;
+        return 302 @@outpost@@/start?rd=$request_uri;
+    }""",
+                headers=_indent(_NGINX_PROXY_HEADERS, "        "),
+                upstream=upstream,
+                admin=ADMIN_PATH,
+                outpost=AUTHENTIK_OUTPOST_PREFIX,
+                authentik=_authentik_host_url(setup),
+                secret_file=admin_secret_path(setup),
+                user_header=ADMIN_IDENTITY_HEADERS[0],
+                groups_header=ADMIN_IDENTITY_HEADERS[1],
+                email_header=ADMIN_IDENTITY_HEADERS[2],
+            )
+        )
+    return "\n\n".join(blocks)
+
+
+def _render_nginx(setup: Setup) -> str:
+    upstream = f"http://{_upstream_address(setup)}"
+    redirect = (
+        _fill(
+            """server {
+    listen 80;
+    listen [::]:80;
+    server_name @@host@@;
+
+    # An ACME client answering on :80 keeps working; everything else is
+    # told, permanently, to come back over TLS.
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+
+""",
+            host=_proxy_hostname(setup),
+        )
+        if setup.reverse_proxy_tls
+        else ""
+    )
+    listen = (
+        """    listen 443 ssl;
+    listen [::]:443 ssl;
+    # nginx 1.25 and newer. On anything older, write the two lines above as
+    # `listen 443 ssl http2;` and delete this one.
+    http2 on;"""
+        if setup.reverse_proxy_tls
+        else """    listen 80;
+    listen [::]:80;"""
+    )
+    tls = (
+        _fill(
+            """
+    ssl_certificate     @@certificate@@;
+    ssl_certificate_key @@private_key@@;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_prefer_server_ciphers off;
+""",
+            certificate=setup.reverse_proxy_certificate or "/etc/ssl/scan/fullchain.pem",
+            private_key=setup.reverse_proxy_private_key or "/etc/ssl/scan/privkey.pem",
+        )
+        if setup.reverse_proxy_tls
+        else ""
+    )
+    return _fill(
+        """# nginx for the check-opencloud-security web application.
+#
+# Written by docker/setup-wizard.py. Install it as root, once:
+#
+#   sudo install -m 0644 -o root -g root @@file@@ \\
+#     /etc/nginx/conf.d/@@project@@.conf
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# It proxies to @@upstream@@, which is where the generated compose file
+# publishes the service - the containers stay on that address and are never
+# reachable from the network themselves.
+#
+# Three things in here are load-bearing rather than decorative:
+#
+#   * X-Forwarded-For is *set*, not appended, so a client cannot choose the
+#     address its rate limit is counted against. Set
+#     COS_WEB_TRUST_FORWARDED_FOR=true, or the service goes on counting every
+#     visitor as this proxy.
+#   * /mcp is never buffered. It answers with an event stream.
+#   * nothing under /.well-known/ is answered here except the ACME challenge.
+#     The service serves /.well-known/ai.json itself, and an ACME setup that
+#     claims the whole prefix claims that with it.
+#
+# No security headers are added: the application sends its own, and an
+# `add_header` here would be one more place they can disagree.
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+@@redirect@@server {
+@@listen@@
+    server_name @@host@@;
+@@tls@@
+@@locations@@
+}
+""",
+        file=proxy_filename(setup),
+        project=setup.project_name,
+        upstream=upstream,
+        redirect=redirect,
+        listen=listen,
+        tls=tls,
+        host=_proxy_hostname(setup),
+        locations=_nginx_locations(setup, upstream),
+    )
+
+
+def _render_apache(setup: Setup) -> str:
+    upstream = f"http://{_upstream_address(setup)}"
+    mcp = (
+        _fill(
+            """
+    # The MCP endpoint answers with an event stream, and this block has to
+    # come before the catch-all below or the catch-all wins and buffers it.
+    <Location "@@mcp@@">
+        ProxyPass        @@upstream@@@@mcp@@ flushpackets=on timeout=3600
+        ProxyPassReverse @@upstream@@@@mcp@@
+        SetEnv proxy-sendchunked 1
+        SetEnv no-gzip 1
+    </Location>
+""",
+            upstream=upstream,
+            mcp=MCP_PATH,
+        )
+        if setup.enable_mcp
+        else ""
+    )
+    admin = (
+        _fill(
+            """
+    # @@admin@@ gets no sign-in from this file. Apache has no forward-auth of
+    # its own, so nothing here can ask the outpost whether a request may pass,
+    # and a block that proxied the area without asking would serve an
+    # unauthenticated console. It is proxied by the catch-all below like every
+    # other path, without @@header@@ - so the service answers 404, which is the
+    # right failure, and it will look like a bug.
+    #
+    # Two ways to give it one: mod_auth_openidc against the provider, adding
+    # the header with `RequestHeader set @@header@@` inside the protected
+    # <Location>; or an authentik proxy provider in full proxy mode in front.
+    #
+    # Until then these four headers are stripped on the way in. They are the
+    # outpost's to write and a client's to be refused for sending.
+    <Location "/">
+        RequestHeader unset @@header@@
+@@strip@@
+    </Location>
+""",
+            admin=ADMIN_PATH,
+            header=ADMIN_PROXY_HEADER,
+            strip="\n".join(
+                f"        RequestHeader unset {item}" for item in ADMIN_IDENTITY_HEADERS
+            ),
+        )
+        if setup.admin_enabled
+        else ""
+    )
+    redirect = (
+        _fill(
+            """<VirtualHost *:80>
+    ServerName @@host@@
+
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\\.well-known/acme-challenge/
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [R=308,L]
+</VirtualHost>
+
+""",
+            host=_proxy_hostname(setup),
+        )
+        if setup.reverse_proxy_tls
+        else ""
+    )
+    tls = (
+        _fill(
+            """
+    SSLEngine on
+    SSLCertificateFile    @@certificate@@
+    SSLCertificateKeyFile @@private_key@@
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+""",
+            certificate=setup.reverse_proxy_certificate or "/etc/ssl/scan/fullchain.pem",
+            private_key=setup.reverse_proxy_private_key or "/etc/ssl/scan/privkey.pem",
+        )
+        if setup.reverse_proxy_tls
+        else ""
+    )
+    return _fill(
+        """# Apache httpd for the check-opencloud-security web application.
+#
+# Written by docker/setup-wizard.py. Install it as root, once:
+#
+#   sudo a2enmod proxy proxy_http headers rewrite ssl
+#   sudo install -m 0644 -o root -g root @@file@@ \\
+#     /etc/apache2/sites-available/@@project@@.conf
+#   sudo a2ensite @@project@@ && sudo apachectl configtest
+#   sudo systemctl reload apache2
+#
+# On a Red Hat derivative the file belongs in /etc/httpd/conf.d/ instead and
+# the modules are loaded already.
+#
+# It proxies to @@upstream@@, where the generated compose
+# file publishes the service. X-Forwarded-For is *set* rather than appended,
+# so a client cannot choose the address its rate limit is counted against -
+# set COS_WEB_TRUST_FORWARDED_FOR=true to have the service read it.
+
+@@redirect@@<VirtualHost *:@@port@@>
+    ServerName @@host@@
+@@tls@@
+    ProxyPreserveHost On
+    ProxyRequests Off
+    RequestHeader set X-Forwarded-Proto "@@scheme@@"
+    # set, not add: the client does not get a vote on its own address.
+    RequestHeader set X-Forwarded-For "%{REMOTE_ADDR}e"
+@@mcp@@@@admin@@
+    ProxyPass        / @@upstream@@/ timeout=300
+    ProxyPassReverse / @@upstream@@/
+</VirtualHost>
+""",
+        file=proxy_filename(setup),
+        project=setup.project_name,
+        upstream=upstream,
+        redirect=redirect,
+        port="443" if setup.reverse_proxy_tls else "80",
+        host=_proxy_hostname(setup),
+        scheme=_proxy_scheme(setup),
+        tls=tls,
+        mcp=mcp,
+        admin=admin,
+    )
+
+
+def _render_caddy(setup: Setup) -> str:
+    upstream = _upstream_address(setup)
+    authentik = f"127.0.0.1:{setup.authentik_http_port}"
+    blocks = []
+    if setup.reverse_proxy_acme_email:
+        blocks.append(
+            _fill(
+                """	# Where the certificate authority writes when a renewal has been
+	# failing. Caddy obtains and renews the certificate itself.
+	tls @@email@@
+""",
+                email=setup.reverse_proxy_acme_email,
+            )
+        )
+    blocks.append("\tencode zstd gzip\n")
+    if _proxy_forwards_auth(setup):
+        blocks.append(
+            _fill(
+                """	# The outpost's own endpoints: the forward-auth subrequest, the
+	# sign-in it redirects to, and the sign-out link the area offers.
+	handle @@outpost@@/* {
+		reverse_proxy @@authentik@@
+	}
+
+	# The operator's area. Shown to the outpost first; only what it accepts
+	# is passed on, carrying the identity it established and the shared
+	# secret that makes those headers worth believing. Caddy reads the
+	# secret from its own environment, so it is not in this file.
+	handle @@admin@@* {
+		forward_auth @@authentik@@ {
+			uri @@outpost@@/auth/caddy
+			copy_headers @@identity@@
+		}
+		reverse_proxy @@upstream@@ {
+			header_up @@header@@ {env.@@variable@@}
+			# The audit view is an event stream, like /mcp below.
+			flush_interval -1
+			transport http {
+				read_timeout 1h
+			}
+		}
+	}
+""",
+                outpost=AUTHENTIK_OUTPOST_PREFIX,
+                authentik=authentik,
+                admin=ADMIN_PATH,
+                upstream=upstream,
+                identity=" ".join(ADMIN_IDENTITY_HEADERS),
+                header=ADMIN_PROXY_HEADER,
+                variable=SECRET_VARIABLES["admin_proxy_secret"],
+            )
+        )
+    if setup.enable_mcp:
+        blocks.append(
+            _fill(
+                """	# The MCP endpoint answers with an event stream: flush_interval -1
+	# is what stops Caddy buffering it into silence.
+	handle @@mcp@@* {
+		reverse_proxy @@upstream@@ {
+			flush_interval -1
+			transport http {
+				read_timeout 1h
+			}
+		}
+	}
+""",
+                mcp=MCP_PATH,
+                upstream=upstream,
+            )
+        )
+    blocks.append(
+        _fill(
+            """	handle {
+		reverse_proxy @@upstream@@ {
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+""",
+            upstream=upstream,
+        )
+    )
+    secret_note = (
+        _fill(
+            """#
+# One value is read from the environment rather than written here: Caddy
+# substitutes {env.@@variable@@} at request time, so give it to the service -
+# `systemctl edit caddy` and an EnvironmentFile pointing at the generated
+# .env is the usual way. Without it the header is empty and the area answers
+# 404, which is the right direction for this to fail in.
+""",
+            variable=SECRET_VARIABLES["admin_proxy_secret"],
+        )
+        if _proxy_forwards_auth(setup)
+        else ""
+    )
+    return _fill(
+        """# Caddy for the check-opencloud-security web application.
+#
+# Written by docker/setup-wizard.py. Install it as root, once:
+#
+#   sudo install -m 0644 -o root -g root @@file@@ /etc/caddy/@@file@@
+#   echo 'import @@file@@' | sudo tee -a /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Written to be imported, so it carries no global options block - the site's
+# own `tls` line does the one thing such a block would have been for.
+#
+# Caddy obtains and renews the certificate itself, and writes X-Forwarded-For
+# from the connection while dropping whatever the client sent, which is what
+# makes COS_WEB_TRUST_FORWARDED_FOR=true safe here.
+@@secret_note@@
+@@host@@ {
+@@blocks@@}
+""",
+        file=proxy_filename(setup),
+        secret_note=secret_note,
+        host=_proxy_hostname(setup),
+        blocks="\n".join(blocks),
+    )
+
+
+def _render_traefik(setup: Setup) -> str:
+    upstream = f"http://{_upstream_address(setup)}"
+    authentik = _authentik_host_url(setup)
+    name = setup.project_name
+    admin_routers = (
+        _fill(
+            """
+    @@name@@-admin:
+      # Higher than the router above, so the area is matched first and the
+      # middlewares below are not skipped. They are the only thing between
+      # the console and whoever asks for it.
+      rule: "Host(`@@host@@`) && PathPrefix(`@@admin@@`)"
+      priority: 20
+      entryPoints:
+        - websecure
+      middlewares:
+        - @@name@@-admin-auth
+        - @@name@@-admin-secret
+      service: @@name@@
+      tls:
+        certResolver: letsencrypt
+
+    @@name@@-outpost:
+      # The outpost's own endpoints, which have to reach authentik rather
+      # than the scan service: the forward-auth subrequest, the sign-in it
+      # redirects to, and the sign-out link the area offers.
+      rule: "Host(`@@host@@`) && PathPrefix(`@@outpost@@`)"
+      priority: 30
+      entryPoints:
+        - websecure
+      service: @@name@@-authentik
+      tls:
+        certResolver: letsencrypt
+""",
+            name=name,
+            host=_proxy_hostname(setup),
+            admin=ADMIN_PATH,
+            outpost=AUTHENTIK_OUTPOST_PREFIX,
+        )
+        if _proxy_forwards_auth(setup)
+        else ""
+    )
+    admin_services = (
+        _fill(
+            """
+    @@name@@-authentik:
+      loadBalancer:
+        servers:
+          - url: "@@authentik@@"
+""",
+            name=name,
+            authentik=authentik,
+        )
+        if _proxy_forwards_auth(setup)
+        else ""
+    )
+    middlewares = (
+        _fill(
+            """
+  middlewares:
+    @@name@@-admin-auth:
+      forwardAuth:
+        address: "@@authentik@@@@outpost@@/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+@@identity@@
+
+    @@name@@-admin-secret:
+      headers:
+        customRequestHeaders:
+          # Read from Traefik's own environment: a dynamic configuration file
+          # is rendered as a Go template before it is parsed. If yours is not,
+          # put the value from .env here instead and chmod 0600 this file.
+          @@header@@: '{{ env "@@variable@@" }}'
+""",
+            name=name,
+            authentik=authentik,
+            outpost=AUTHENTIK_OUTPOST_PREFIX,
+            identity="\n".join(f"          - {item}" for item in ADMIN_IDENTITY_HEADERS),
+            header=ADMIN_PROXY_HEADER,
+            variable=SECRET_VARIABLES["admin_proxy_secret"],
+        )
+        if _proxy_forwards_auth(setup)
+        else ""
+    )
+    return _fill(
+        """# Traefik dynamic configuration for the check-opencloud-security web
+# application.
+#
+# Written by docker/setup-wizard.py. Install it as root, once:
+#
+#   sudo install -m 0644 -o root -g root @@file@@ \\
+#     /etc/traefik/dynamic/@@name@@.yml
+#
+# and, in the static configuration, point the file provider at that directory
+# and give the entrypoint timeouts long enough for a scan:
+#
+#   providers:
+#     file:
+#       directory: /etc/traefik/dynamic
+#       watch: true
+#   entryPoints:
+#     websecure:
+#       address: ":443"
+#       transport:
+#         respondingTimeouts:
+#           readTimeout: 0
+#           writeTimeout: 0
+#           idleTimeout: 300s
+#   certificatesResolvers:
+#     letsencrypt:
+#       acme:
+#         email: @@email@@
+#         storage: /etc/traefik/acme.json
+#         httpChallenge:
+#           entryPoint: web
+#
+# Traefik streams by default, so the MCP endpoint needs nothing beyond the
+# flush interval below and those timeouts. It overwrites X-Real-Ip and
+# *appends* to X-Forwarded-For; the service reads that header from the right,
+# so COS_WEB_TRUST_FORWARDED_FOR=true with the default
+# COS_WEB_TRUSTED_PROXY_HOPS=1 is correct here. Behind a CDN as well, count
+# both and set 2.
+
+http:
+  routers:
+    @@name@@:
+      rule: "Host(`@@host@@`)"
+      priority: 10
+      entryPoints:
+        - websecure
+      service: @@name@@
+      tls:
+        certResolver: letsencrypt
+@@admin_routers@@
+  services:
+    @@name@@:
+      loadBalancer:
+        servers:
+          - url: "@@upstream@@"
+        # Do not collect the event stream /mcp answers with into batches.
+        responseForwarding:
+          flushInterval: 1ms
+@@admin_services@@@@middlewares@@""",
+        file=proxy_filename(setup),
+        name=name,
+        host=_proxy_hostname(setup),
+        upstream=upstream,
+        email=setup.reverse_proxy_acme_email or "ops@example.com",
+        admin_routers=admin_routers,
+        admin_services=admin_services,
+        middlewares=middlewares,
+    )
+
+
+def _proxy_install_commands(setup: Setup) -> list[str]:
+    """How the generated proxy configuration gets installed, in order.
+
+    Printed with the other next steps rather than run: every one of them needs
+    root and touches a service this wizard was not pointed at. The same lines
+    are in the header of the file itself, so an operator who finds it a year
+    from now is not reading a file with no instructions.
+    """
+    if not _writes_proxy(setup):
+        return []
+    name = proxy_filename(setup)
+    project = setup.project_name
+    if setup.reverse_proxy == "nginx":
+        commands = []
+        if _proxy_forwards_auth(setup):
+            commands.append(
+                f"sudo install -m 0600 -o root -g root {admin_secret_filename(setup)} "
+                f"{admin_secret_path(setup)}"
+            )
+        commands.append(
+            f"sudo install -m 0644 -o root -g root {name} /etc/nginx/conf.d/{project}.conf"
+        )
+        commands.append("sudo nginx -t && sudo systemctl reload nginx")
+        return commands
+    if setup.reverse_proxy == "apache":
+        return [
+            "sudo a2enmod proxy proxy_http headers rewrite ssl",
+            (
+                f"sudo install -m 0644 -o root -g root {name} "
+                f"/etc/apache2/sites-available/{project}.conf"
+            ),
+            f"sudo a2ensite {project} && sudo apachectl configtest",
+            "sudo systemctl reload apache2",
+        ]
+    if setup.reverse_proxy == "caddy":
+        return [
+            f"sudo install -m 0644 -o root -g root {name} /etc/caddy/{name}",
+            f"echo 'import {name}' | sudo tee -a /etc/caddy/Caddyfile",
+            "sudo systemctl reload caddy",
+        ]
+    return [
+        f"sudo install -m 0644 -o root -g root {name} /etc/traefik/dynamic/{project}.yml",
+    ]
+
+
+def render_proxy_file(setup: Setup) -> str:
+    """The configuration for whichever reverse proxy was asked for."""
+    return {
+        "nginx": _render_nginx,
+        "apache": _render_apache,
+        "caddy": _render_caddy,
+        "traefik": _render_traefik,
+    }[setup.reverse_proxy](setup)
+
+
+def _write_proxy_files(setup: Setup, output_dir: Path) -> list[str]:
+    """The proxy configuration, and the one line of it that is a credential."""
+    if not _writes_proxy(setup):
+        return []
+    written: list[str] = []
+    path = output_dir / proxy_filename(setup)
+    path.write_text(render_proxy_file(setup), encoding="utf-8")
+    os.chmod(path, 0o644)
+    written.append(f"{path} (install it into your {setup.reverse_proxy})")
+
+    if _proxy_forwards_auth(setup) and setup.reverse_proxy == "nginx":
+        secret = output_dir / admin_secret_filename(setup)
+        descriptor = os.open(
+            secret, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(render_admin_secret_file(setup))
+        os.chmod(secret, stat.S_IRUSR | stat.S_IWUSR)
+        written.append(f"{secret} (owner-readable only)")
+    return written
 
 
 def render_env_file(setup: Setup) -> str:
@@ -2775,29 +4011,42 @@ def write_files(
         os.chmod(policy, 0o644)
         written.append(f"{policy} (install it into /etc/logrotate.d)")
 
-    blueprint = _copy_blueprint(setup, compose_path.parent)
-    if blueprint:
-        written.append(blueprint)
+    written.extend(_write_proxy_files(setup, compose_path.parent))
+    written.extend(_copy_blueprints(setup, compose_path.parent))
     return written
 
 
-def _copy_blueprint(setup: Setup, output_dir: Path) -> str | None:
-    """Put the provisioning blueprint next to the compose file that mounts it.
+def _copy_blueprints(setup: Setup, output_dir: Path) -> list[str]:
+    """Put the provisioning blueprints next to the compose file that mounts them.
 
-    The generated stack mounts a relative path, so the blueprint has to travel
-    with it - a deployment directory somewhere else on the host cannot reach
-    back into a checkout, and a stack whose blueprint is missing starts and
-    then refuses every token with nothing in the log to say why.
+    The generated stack mounts a relative path, so they have to travel with it
+    - a deployment directory somewhere else on the host cannot reach back into
+    a checkout, and a stack whose blueprint is missing starts and then refuses
+    every token with nothing in the log to say why.
+
+    Two of them, for the two things a provider can guard here: the OAuth2
+    provider that issues the tokens ``/mcp`` verifies, and the proxy provider
+    that signs an operator in before ``/admin`` is served. The second is
+    copied only where there is an area to guard.
     """
-    if not _uses_authentik(setup) or not BLUEPRINT_SOURCE.is_file():
-        return None
-    destination = output_dir / BLUEPRINT_RELATIVE
-    if destination.resolve() == BLUEPRINT_SOURCE.resolve():
-        return None
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(BLUEPRINT_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
-    os.chmod(destination, 0o644)
-    return str(destination)
+    if not _uses_authentik(setup):
+        return []
+    wanted = [(BLUEPRINT_SOURCE, BLUEPRINT_RELATIVE)]
+    if _guards_the_admin_area(setup):
+        wanted.append((ADMIN_BLUEPRINT_SOURCE, ADMIN_BLUEPRINT_RELATIVE))
+
+    copied: list[str] = []
+    for source, relative in wanted:
+        if not source.is_file():
+            continue
+        destination = output_dir / relative
+        if destination.resolve() == source.resolve():
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        os.chmod(destination, 0o644)
+        copied.append(str(destination))
+    return copied
 
 
 def summarise(setup: Setup) -> list[str]:
@@ -2904,6 +4153,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    proxy = parser.add_argument_group(
+        "reverse proxy",
+        "The proxy in front, which is what terminates TLS, overwrites "
+        "X-Forwarded-For so the rate limit counts clients rather than itself, "
+        "and leaves the /mcp event stream unbuffered. Name one and a working "
+        "configuration file is written beside the compose file, including the "
+        "forward auth in front of /admin where the stack can provide it.",
+    )
+    proxy.add_argument(
+        "--reverse-proxy",
+        choices=PROXY_CHOICES,
+        default=None,
+        help="Write a configuration for this proxy. Default: none.",
+    )
+    proxy.add_argument(
+        "--proxy-hostname",
+        default=None,
+        help=(
+            "The name it answers to. Taken from the public base URL when it "
+            "is not given."
+        ),
+    )
+
     mail = parser.add_argument_group(
         "mail",
         "SMTP for Authentik, which is the only part of this stack that sends "
@@ -2953,6 +4225,8 @@ def _apply_flags(setup: Setup, args: argparse.Namespace) -> None:
         setup.deploy_authentik = True
 
     for flag, key in (
+        ("reverse_proxy", "reverse_proxy"),
+        ("proxy_hostname", "reverse_proxy_hostname"),
         ("smtp_host", "smtp_host"),
         ("smtp_port", "smtp_port"),
         ("smtp_username", "smtp_username"),
@@ -3082,10 +4356,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     wizard.say()
     for line in _wrap(
         "This writes a compose file with the whole stack and a .env holding the "
-        "credentials it refers to - and, if you ask it to bring an identity "
-        "provider, the blueprint that provisions one. Press Enter to accept the value "
-        "in brackets; every question explains what it does and shows an example. "
-        "Nothing is written until you confirm at the end."
+        "credentials it refers to - and, if you ask for them, the blueprints that "
+        "provision an identity provider and the configuration for the reverse proxy "
+        "in front. Press Enter to accept the value in brackets; every question "
+        "explains what it does and shows an example. Nothing is written until you "
+        "confirm at the end."
     ):
         wizard.say(f"  {line}")
     wizard.say()
@@ -3147,12 +4422,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Before `up`, not after: a bind mount Docker has to invent is created
     # owned by root, and the container that then cannot write to it is the
     # one keeping the audit trail.
-    if setup.audit_storage == "filesystem" and setup.audit_log_path:
+    if _keeps_audit_file(setup) and _binds_a_directory(
+        setup.audit_storage, setup.audit_log_path
+    ):
         wizard.say(
             f"    mkdir -p {setup.audit_log_path} && "
             f"sudo chown {WEB_IMAGE_UID} {setup.audit_log_path}"
         )
-    if setup.redis_persistence == "filesystem" and setup.redis_data_path:
+    if _binds_a_directory(setup.redis_persistence, setup.redis_data_path):
         wizard.say(
             f"    mkdir -p {setup.redis_data_path} && "
             f"sudo chown {REDIS_IMAGE_UID} {setup.redis_data_path}"
@@ -3163,6 +4440,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"    sudo install -m 0644 -o root -g root {name} "
             f"/etc/logrotate.d/{setup.project_name}-audit"
         )
+    for line in _proxy_install_commands(setup):
+        wizard.say(f"    {line}")
     build = " --build" if setup.image_source == "build" else ""
     wizard.say(f"    docker compose -f {args.compose_file} up -d{build}")
     wizard.say(f"    open http://{setup.bind_address}:{setup.host_port}")
@@ -3171,6 +4450,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         wizard.say("  Then set the first Authentik password, which is the one")
         wizard.say("  account it starts with - the OAuth2 provider is already there:")
         wizard.say(f"    open {setup.authentik_url}/if/flow/initial-setup/")
+        if _guards_the_admin_area(setup):
+            wizard.say()
+            wizard.say("  The operator's area has a second guest list, and both have")
+            wizard.say("  to name you: add your account to the authentik group")
+            wizard.say("  'opencloud-scanner-operators', and the same username to")
+            wizard.say("  COS_WEB_ADMIN_USERS in the generated compose file.")
         if not setup.smtp_host:
             wizard.say()
             wizard.say("  No SMTP server was configured, so a password recovery will")
