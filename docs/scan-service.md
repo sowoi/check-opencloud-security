@@ -61,10 +61,12 @@ docker compose -f docker-compose.monitoring.yml run --rm check
 The plain `docker compose up` in that directory is the public web application
 instead - see [the web application](webapp.md). Set that one up with
 **`docker/setup-wizard.py`** rather than by editing a compose file: it asks
-what the service should be reachable at, how hard it may scan and who may
-erase a result, then writes a commented compose file and a `.env` holding the
-Redis password and every other credential that file refers to. It is one
-stdlib-only Python file, so it runs on a host with Docker and nothing else -
+what the service should be reachable at, how hard it may scan, who may erase
+a result and what terminates TLS in front, then writes a commented compose
+file, a `.env` holding the Redis password and every other credential that file
+refers to, and - when you name one - the nginx, Apache, Caddy or Traefik
+configuration to go with it. It is one stdlib-only Python file, so it runs on
+a host with Docker and nothing else -
 see [`docker/README.md`](../docker/README.md#setting-up-the-whole-stack).
 
 Everything in `secrets/` except the `*.example` templates is git-ignored - see

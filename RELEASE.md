@@ -32,6 +32,11 @@
   neither its address, nor its slug, nor **its ports**, and then generated a
   stack pinned to 9000 and 9443.
 
+- **The release tarball carries the blueprint that provisions `/admin`.** It
+  shipped `opencloud-scanner.yaml` and not `opencloud-admin.yaml`, so a
+  deployment set up from the download could turn the operator's area on and
+  get no proxy provider to reach it with.
+
 ### Added
 
 - **The wizard writes the reverse proxy configuration too.** The stack
