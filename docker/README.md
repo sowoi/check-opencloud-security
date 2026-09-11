@@ -164,8 +164,11 @@ example answer, then writes into whichever directory you point it at:
   blueprints**, in `authentik/blueprints/` beside the compose file that mounts
   them — the OAuth2 one that issues tokens for `/mcp`, and, where there is an
   operator's area to guard, the proxy one that signs somebody into `/admin`;
-- and, when you name one, a **reverse proxy configuration** — nginx, Apache,
-  Caddy or Traefik — see [The reverse proxy](#the-reverse-proxy).
+- when you name one, a **reverse proxy configuration** — nginx, Apache,
+  Caddy or Traefik — see [The reverse proxy](#the-reverse-proxy);
+- and `.<compose-file>.answers.json`, the **wizard's own notebook** of what it
+  was told, so that running it again is an edit rather than a re-description.
+  No credentials in it; those stay in `.env`.
 
 It generates the credentials nobody should invent by hand - answer `generate`
 at the erasure token, the signing key, the audit salt or the encryption key -
@@ -173,18 +176,40 @@ and warns before writing about the combinations the service itself refuses to
 start on, such as a sign-in on `/mcp` with a provider it was told nothing
 about.
 
-Point it at a directory that already has a `.env` and it reads that file back
-instead of overwriting it: every value it holds becomes the default the
-question offers, so re-running the wizard against a live deployment edits it
-rather than regenerating credentials something else already depends on. A
-flag still wins over a reused value.
+**At any question**, besides answering it:
+
+| Type | What happens |
+|:--|:--|
+| *Enter* | Takes the value in brackets |
+| A number | Picks that option, for a question that lists them. The word still works |
+| `b` | Goes back one question — the one actually asked before this, not the one defined before it |
+| `-` | Empties a text setting, which an empty line cannot: that keeps the default. Still refused where the setting may not be empty |
+| `rest` | Takes every remaining default and jumps to the summary |
+| `generate` | Makes a strong random value, at the questions that say so |
+
+**The summary is somewhere you can work.** It lists the answers grouped under
+the headings they were asked under, then what was derived or generated for
+you, then anything worth a second look — and it asks `Write it all out now?
+[Y/n], or name a setting to change`. Typing `host_port`, or enough of a name
+to be unambiguous, re-asks that one question and comes straight back. So the
+short path through the whole thing is `rest` at the first question, then the
+three or four settings you actually care about, by name.
+
+**Running it again edits the deployment.** It reads two things back: `.env`,
+so every credential it already holds survives rather than being regenerated
+under something that depends on it, and `.<compose-file>.answers.json` — the
+wizard's own notebook, written beside the compose file — so every other
+answer is offered back as the default too. Changing the port on a live
+deployment is a re-run, `rest`, `host_port`, and done. The notebook holds no
+credentials, is safe to delete, and a preset or a flag named on this command
+line still overrides what it remembers.
 
 | Flag | What it does |
 |:-----|:-------------|
 | `--output-dir DIR` | Where the generated files go. Default: the current directory |
 | `--compose-file NAME` | Name of the generated compose file |
 | `--env-file NAME` | Name of the generated secrets file |
-| `--preset public\|private` | Starting answers: open to anybody, or scanning your own network |
+| `--preset public\|private` | Starting answers: open to anybody, or scanning your own network. Naming one overrides what a previous run remembered |
 | `--auto-updates` | Add Watchtower to the stack, updating the pulled images daily. Scoped to this stack's own containers |
 | `--sign-in` | Require a sign-in on `/mcp`, against a provider you already run |
 | `--with-authentik` | Add Authentik to the stack, provisioned to issue those tokens. Does not require one by itself |
@@ -253,6 +278,28 @@ server needs no account and the username and password are not asked for, and
 any left over from an earlier answer are dropped: Authentik reads an empty
 username as *do not authenticate*, and half a credential fails at the first
 message.
+
+**Turning the area on prints the walkthrough for opening it.** `/admin`
+refuses rather than asking - there is no login page to arrive at and no
+password prompt to get wrong, so a request missing any part of the
+arrangement meets the same 404 as any unknown path. The wizard therefore ends
+with the steps in order, filled in with this deployment's own addresses: set
+the first Authentik password, put that account in the
+`opencloud-scanner-operators` group, install the generated proxy
+configuration, give Caddy or Traefik the shared secret in its environment,
+check `COS_WEB_ADMIN_USERS` names the same person, and open the area. Then
+what each failure means:
+
+| What you see | What is missing |
+|:--|:--|
+| No sign-in at all, just 404 | The `X-COS-Admin-Proxy` header never arrived — the proxy in front is not adding it |
+| Signed in, then 404 | That account is not in `COS_WEB_ADMIN_USERS` |
+| The sign-in loops | The provider's public address is not the one the browser used |
+
+Against your own provider the same walkthrough names the header contract
+instead of the Authentik steps, and reminds you to set
+`COS_WEB_ADMIN_SIGN_OUT_URL` - the bundled stack sets that for itself, and
+nobody else's exit is guessable.
 
 ### The reverse proxy
 

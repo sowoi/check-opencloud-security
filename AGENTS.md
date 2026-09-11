@@ -719,9 +719,13 @@ the non-secret answers inline and a `.env` holding every credential that file
 refers to as `${NAME}`. The split is the rule: a secret never lands in the
 compose file, `.env` is created `0600`, and the compose files that ship in
 `docker/` are refused as targets, because the next update would take a
-hand-made deployment with it. An existing `.env` is read back and its values
-become the defaults, so a re-run edits a deployment rather than regenerating
-its credentials. Asked for automatic updates, it adds Watchtower
+hand-made deployment with it. An existing `.env` is read back and so is
+`.<compose-file>.answers.json`, the notebook it writes of every non-secret
+answer, so a re-run edits a deployment rather than re-describing it or
+regenerating its credentials. That notebook is untrusted input: a value is
+taken only when the field still exists and the type matches **exactly**
+(`type(...) is not`, never `isinstance` - a bool is an int, and
+`host_port: true` would otherwise become a port). Asked for automatic updates, it adds Watchtower
 scoped by label to the stack's own containers and detects the Docker socket
 for the user running it - a rootless Docker serves it under
 `/run/user/<uid>`, not `/var/run`. Asked for a reverse proxy, it writes the

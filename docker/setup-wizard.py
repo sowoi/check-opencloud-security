@@ -68,6 +68,7 @@ Non-interactive use, for a test or an unattended install:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import secrets
@@ -124,6 +125,15 @@ ADMIN_IDENTITY_HEADERS = (
 
 # The path the operator's area lives at, as the proxy has to match it.
 ADMIN_PATH = "/admin"
+
+# The group the admin blueprint creates and binds the area's application to.
+# Being in it is what gets somebody through the sign-in; COS_WEB_ADMIN_USERS
+# is a second, separate list, and both have to name the same person.
+AUTHENTIK_OPERATOR_GROUP = "opencloud-scanner-operators"
+
+# Where Authentik asks for the password of the one account it starts with.
+# The trailing slash matters: without it the flow answers 404.
+AUTHENTIK_INITIAL_SETUP_PATH = "/if/flow/initial-setup/"
 
 # The MCP endpoint, which is the one path here that answers with an event
 # stream and therefore the one a proxy must not buffer.
@@ -198,6 +208,18 @@ SHIPPED_COMPOSE_FILES = {
 
 YES = {"y", "yes", "j", "ja", "1", "true", "on"}
 NO = {"n", "no", "nein", "0", "false", "off"}
+
+# What an operator can type instead of an answer. Bare words rather than a
+# punctuation prefix, because 'generate' was already one and a wizard with two
+# conventions has neither.
+BACK_WORDS = {"b", "back"}
+REST_WORD = "rest"
+CLEAR_WORD = "-"
+
+#: Returned by :meth:`Wizard.ask` instead of an answer: go back one question,
+#: or stop asking and take every remaining default.
+BACK = "back"
+REST = "rest"
 
 
 class SetupAborted(RuntimeError):
@@ -586,9 +608,16 @@ class Wizard:
         if self.interactive:
             print(text)
 
-    def heading(self, section: Section) -> None:
+    def heading(self, section: Section, position: str = "") -> None:
+        """The section's title, and where it falls in the run.
+
+        The position is worth the eight characters it costs: this is a long
+        walk, and a section heading that says nothing about how much is left
+        is the reason somebody abandons one halfway through.
+        """
+        title = f"{section.title} ({position})" if position else section.title
         self.say()
-        self.say(f"\u2500\u2500 {section.title} " + "\u2500" * max(4, 60 - len(section.title)))
+        self.say(f"\u2500\u2500 {title} " + "\u2500" * max(4, 60 - len(title)))
         self.say(f"   {section.summary}")
 
     # -- input -------------------------------------------------------------
@@ -603,40 +632,94 @@ class Wizard:
     def current(self, key: str) -> Any:
         return getattr(self.setup, key)
 
-    def ask(self, question: Question) -> None:
-        """Ask one question and store the answer on the setup."""
-        if not self.interactive:
-            return
+    def _chosen(self, question: Question, answer: str) -> str | None:
+        """A choice, by its own name or by the number printed beside it.
 
-        shown = _format_default(self.current(question.key))
+        Typing `dockerhub` correctly is a small tax paid at every one of these
+        questions, and a typo costs a whole re-read of the list.
+        """
+        if answer in question.choices:
+            return answer
+        if answer.isdigit():
+            index = int(answer)
+            if 1 <= index <= len(question.choices):
+                return question.choices[index - 1]
+        return None
+
+    def ask(
+        self,
+        question: Question,
+        *,
+        can_go_back: bool = False,
+        offer_rest: bool = True,
+    ) -> str | None:
+        """Ask one question and store the answer on the setup.
+
+        Returns :data:`BACK` or :data:`REST` when the operator asked to move
+        rather than to answer, and ``None`` when the question was settled -
+        by an answer, or by an empty line accepting what is in brackets.
+        """
+        if not self.interactive:
+            return None
+
+        current = self.current(question.key)
+        shown = _format_default(current)
         self.say()
         self.say(f"  {question.prompt}")
         for line in _wrap(question.explain):
             self.say(f"      {line}")
-        self.say(f"      Example: {question.example}")
+        if question.choices:
+            for number, choice in enumerate(question.choices, start=1):
+                marker = "*" if choice == current else " "
+                self.say(f"      {marker} {number}) {choice}")
+        else:
+            self.say(f"      Example: {question.example}")
         if question.kind == "bool":
             self.say("      Answer yes or no; true and false are accepted too.")
-        if question.choices:
-            self.say(f"      One of: {', '.join(question.choices)}")
         if question.generate:
             self.say("      Enter 'generate' and a strong random value is created for you.")
+        hints = self._hints(question, can_go_back=can_go_back, offer_rest=offer_rest)
+        for line in _wrap(hints, 70) if hints else []:
+            self.say(f"      {line}")
 
         while True:
             answer = self._read(f"      [{shown}] > ").strip()
             if not answer:
-                return
-            if question.generate and answer.lower() == "generate":
+                return None
+            lowered = answer.lower()
+            if lowered in BACK_WORDS:
+                if can_go_back:
+                    return BACK
+                self.say("      This is the first question - there is nothing behind it.")
+                continue
+            if lowered == REST_WORD:
+                if offer_rest:
+                    return REST
+                self.say("      Every question has been asked; there is no rest.")
+                continue
+            if lowered == CLEAR_WORD:
+                if question.kind != "str":
+                    self.say("      Only a text setting can be emptied.")
+                    continue
+                # Validated like any other answer: some of these are refused
+                # empty, and '-' must not be the way around that.
+                error = question.validate("")
+                if error:
+                    self.say(f"      {error}")
+                    continue
+                setattr(self.setup, question.key, "")
+                return None
+            if question.generate and lowered == "generate":
                 setattr(self.setup, question.key, secrets.token_hex(question.generate))
                 self.say("      Generated, and written to .env rather than shown here.")
-                return
+                return None
             if question.kind == "bool":
-                lowered = answer.lower()
                 if lowered in YES:
                     setattr(self.setup, question.key, True)
-                    return
+                    return None
                 if lowered in NO:
                     setattr(self.setup, question.key, False)
-                    return
+                    return None
                 self.say("      Answer yes or no - true and false work as well.")
                 continue
             if question.kind == "int":
@@ -645,16 +728,42 @@ class Wizard:
                     self.say(f"      {error}")
                     continue
                 setattr(self.setup, question.key, int(answer))
-                return
-            if question.kind == "choice" and answer not in question.choices:
-                self.say(f"      Answer one of: {', '.join(question.choices)}")
-                continue
+                return None
+            if question.kind == "choice":
+                choice = self._chosen(question, answer)
+                if choice is None:
+                    self.say(
+                        "      Answer with the number or the word: "
+                        f"{', '.join(question.choices)}"
+                    )
+                    continue
+                setattr(self.setup, question.key, choice)
+                return None
             error = question.validate(answer)
             if error:
                 self.say(f"      {error}")
                 continue
             setattr(self.setup, question.key, answer)
-            return
+            return None
+
+    def _hints(self, question: Question, *, can_go_back: bool, offer_rest: bool) -> str:
+        """The one line that says what can be typed here besides an answer.
+
+        On every question rather than once at the start, because the moment
+        somebody wants to go back is the moment they are looking at a prompt,
+        not at something they read four sections ago.
+        """
+        hints = []
+        if can_go_back:
+            hints.append("'b' goes back")
+        if question.kind == "str" and self.current(question.key):
+            hints.append("'-' empties it")
+        if offer_rest:
+            hints.append("'rest' takes the remaining defaults")
+        # No "Enter keeps ..." here: the prompt underneath already shows the
+        # value in brackets, and repeating a long one wrapped this line onto
+        # three.
+        return " · ".join(hints)
 
     def confirm(self, prompt: str, *, default: bool = True) -> bool:
         if not self.interactive:
@@ -1679,15 +1788,36 @@ def run_questions(wizard: Wizard) -> None:
     name.
     """
     setup = wizard.setup
-    for section in build_sections(setup):
-        shown = False
-        for question in section.questions:
-            if not _relevant(question.key, setup):
-                continue
-            if not shown:
-                wizard.heading(section)
-                shown = True
-            wizard.ask(question)
+    sections = build_sections(setup)
+    plan = [
+        (number, section, question)
+        for number, section in enumerate(sections, start=1)
+        for question in section.questions
+    ]
+    # Where each answered question sat, so that 'b' can go back to the last
+    # one actually asked rather than to the last one defined - the questions
+    # in between were skipped for a reason that still holds.
+    answered: list[int] = []
+    heading_shown: Section | None = None
+    position = 0
+    while position < len(plan):
+        number, section, question = plan[position]
+        if not _relevant(question.key, setup):
+            position += 1
+            continue
+        if section is not heading_shown:
+            wizard.heading(section, f"{number} of {len(sections)}")
+            heading_shown = section
+        movement = wizard.ask(question, can_go_back=bool(answered))
+        if movement == REST:
+            return
+        if movement == BACK:
+            # The heading reprints itself when this lands in an earlier
+            # section, because the check above compares what was last shown.
+            position = answered.pop()
+            continue
+        answered.append(position)
+        position += 1
 
 
 def _signs_in(setup: Setup) -> bool:
@@ -4011,6 +4141,14 @@ def write_files(
         os.chmod(policy, 0o644)
         written.append(f"{policy} (install it into /etc/logrotate.d)")
 
+    # The wizard's own notebook, so that the next run against this deployment
+    # is an edit rather than a re-description. Not announced with the rest:
+    # nobody has to do anything with it, and a list of files to act on is
+    # worth less for every line on it that needs no action.
+    answers = compose_path.parent / answers_filename(compose_path.name)
+    answers.write_text(render_answers_file(setup), encoding="utf-8")
+    os.chmod(answers, 0o644)
+
     written.extend(_write_proxy_files(setup, compose_path.parent))
     written.extend(_copy_blueprints(setup, compose_path.parent))
     return written
@@ -4049,17 +4187,282 @@ def _copy_blueprints(setup: Setup, output_dir: Path) -> list[str]:
     return copied
 
 
-def summarise(setup: Setup) -> list[str]:
-    """The answers, for the confirmation before anything is written."""
-    lines = []
-    for item in fields(setup):
-        if not _relevant(item.name, setup):
-            continue
-        value = getattr(setup, item.name)
-        if item.name in SECRET_VARIABLES and value:
-            value = "set (written to .env)"
-        lines.append(f"    {item.name:<26} {_format_default(value)}")
+# --- what to do once the area is on -----------------------------------------
+def _step(index: int, text: str, *commands: str) -> list[str]:
+    """One numbered step, wrapped, with its commands under it."""
+    wrapped = _wrap(text, 64)
+    lines = [f"    {index}. {wrapped[0]}"]
+    lines += [f"       {line}" for line in wrapped[1:]]
+    lines += [f"         {command}" for command in commands]
     return lines
+
+
+def admin_walkthrough(setup: Setup) -> list[str]:
+    """The steps between a stack that is running and an area that opens.
+
+    Printed rather than performed: every one of them happens in a browser, in
+    a directory this wizard does not administer, or as root.
+
+    It is worth spelling out because ``/admin`` is the one surface here that
+    *refuses* rather than asking. There is no login page to arrive at and no
+    password prompt to get wrong - a request that is missing any part of the
+    arrangement gets the same 404 as any unknown path, which is exactly the
+    right answer to give a stranger and a miserable one to debug against. So
+    the last section says what that 404 can mean, in the order it is worth
+    checking.
+    """
+    if not setup.admin_enabled:
+        return []
+
+    address = setup.public_base_url.rstrip("/") + ADMIN_PATH
+    secret_variable = SECRET_VARIABLES["admin_proxy_secret"]
+    lines = [
+        "",
+        f"  Opening the operator's area at {ADMIN_PATH}:",
+        "",
+    ]
+    index = 1
+    if _uses_authentik(setup):
+        lines += _step(
+            index,
+            "Set the first Authentik password. The account you create here "
+            "is the only one that exists, and the provider itself is already "
+            "provisioned - there is nothing to click beyond this.",
+            f"open {setup.authentik_url}{AUTHENTIK_INITIAL_SETUP_PATH}",
+        )
+        index += 1
+        lines += _step(
+            index,
+            "Put that account in the operator group, under Directory > "
+            f"Groups: {AUTHENTIK_OPERATOR_GROUP}. The blueprint binds the "
+            "area's application to that group and to nothing else, so an "
+            "account outside it never reaches the sign-in's other side.",
+        )
+        index += 1
+    else:
+        lines += _step(
+            index,
+            "Put a sign-in in front of the area. This service authenticates "
+            "nobody - it has no login page, no session and no password to "
+            "check - so something in front has to establish who is asking "
+            "and pass that on as "
+            f"{ADMIN_IDENTITY_HEADERS[0]}.",
+        )
+        index += 1
+        lines += _step(
+            index,
+            "Have that same thing add the shared secret as "
+            f"{ADMIN_PROXY_HEADER}, with the value of {secret_variable} "
+            "from the generated .env. It is the only reason the identity "
+            "header above is worth believing, and the service refuses "
+            "anything arriving without it.",
+        )
+        index += 1
+
+    if _proxy_forwards_auth(setup):
+        lines += _step(
+            index,
+            f"Install the generated {setup.reverse_proxy} configuration - the "
+            "commands are in the list above. It is the piece that shows each "
+            "request to the outpost first and adds the shared secret to what "
+            "the outpost accepts; until it is in place the area answers 404 "
+            "to everybody, including you.",
+        )
+        index += 1
+        if setup.reverse_proxy in {"caddy", "traefik"}:
+            # These two read the value at run time instead of carrying it, so
+            # an installed config alone still sends an empty header.
+            lines += _step(
+                index,
+                f"Give {setup.reverse_proxy} the shared secret in its own "
+                f"environment: it reads {secret_variable} from there rather "
+                "than holding it in a file you might commit. An "
+                "EnvironmentFile pointing at the generated .env is the usual "
+                "way, and without it the header goes out empty and the area "
+                "stays shut.",
+                f"sudo systemctl edit {setup.reverse_proxy}",
+            )
+            index += 1
+        lines += _step(
+            index,
+            f"Make sure a browser can reach Authentik itself at "
+            f"{setup.authentik_url}. The sign-in redirect goes there rather "
+            "than through the outpost, so an address only this host resolves "
+            "signs nobody in from anywhere else.",
+        )
+        index += 1
+    elif _writes_proxy(setup):
+        lines += _step(
+            index,
+            f"Add that to the generated {setup.reverse_proxy} configuration "
+            f"yourself. It routes everything except {ADMIN_PATH}, and the "
+            "comment where the area would have been says what has to go "
+            "there.",
+        )
+        index += 1
+
+    lines += _step(
+        index,
+        "Check the second guest list. COS_WEB_ADMIN_USERS in the generated "
+        f"compose file names: {setup.admin_users or '(nobody yet)'}. Signing "
+        "in proves the directory knows you; this decides whether this "
+        "deployment calls you an operator, and an empty list is refused at "
+        "startup rather than read as everybody.",
+    )
+    index += 1
+    lines += _step(index, "Open the area.", f"open {address}")
+
+    provider = "Authentik's" if _uses_authentik(setup) else "your provider's"
+    lines += [
+        "",
+        "  If it does not open, the 404 is telling you which step is missing:",
+        "",
+        f"    - no sign-in at all, just 404   the {ADMIN_PROXY_HEADER} header",
+        "                                    never arrived - the proxy in",
+        "                                    front is not adding it",
+        "    - signed in, then 404           that account is not in",
+        "                                    COS_WEB_ADMIN_USERS",
+        f"    - the sign-in loops             {provider} public address is",
+        "                                    not the one the browser used",
+    ]
+    if not _uses_authentik(setup):
+        # The bundled stack has this set already; nobody else's exit is
+        # guessable, and an area with no way out is what unset leaves.
+        lines += [
+            "",
+            "  The area's Sign out link appears only once",
+            "  COS_WEB_ADMIN_SIGN_OUT_URL names where your provider ends a",
+            "  session. Unset, the band names the operator and offers no way",
+            "  out, which beats a control that appears to sign somebody out",
+            "  and does not.",
+        ]
+    return lines
+
+
+def _summary_row(setup: Setup, name: str) -> str:
+    value = getattr(setup, name)
+    if name in SECRET_VARIABLES and value:
+        value = "set (written to .env)"
+    return f"    {name:<26} {_format_default(value)}"
+
+
+def summarise(setup: Setup) -> list[str]:
+    """The answers, for the confirmation before anything is written.
+
+    Grouped under the headings they were asked under. A flat list of sixty
+    field names is a thing an operator scrolls past rather than reads, and
+    this is the last chance anybody has to notice that the audit trail is
+    going somewhere they did not mean.
+    """
+    lines: list[str] = []
+    asked: set[str] = set()
+    for section in build_sections(setup):
+        rows = [
+            _summary_row(setup, question.key)
+            for question in section.questions
+            if _relevant(question.key, setup)
+        ]
+        if rows:
+            lines.append(f"  {section.title}")
+            lines.extend(rows)
+        asked.update(question.key for question in section.questions)
+
+    # What nobody was asked for: the credentials and the URLs the answers
+    # imply. They still belong in the summary - they are what the deployment
+    # will hold - but not among the decisions somebody made.
+    derived = [
+        item.name
+        for item in fields(setup)
+        if item.name not in asked
+        and _relevant(item.name, setup)
+        and getattr(setup, item.name) not in ("", False)
+    ]
+    if derived:
+        lines.append("  Derived, and generated for you")
+        lines.extend(_summary_row(setup, name) for name in derived)
+    return lines
+
+
+def _editable(setup: Setup) -> dict[str, Question]:
+    """The questions the summary is showing, by the name it shows them under."""
+    return {
+        question.key: question
+        for section in build_sections(setup)
+        for question in section.questions
+        if _relevant(question.key, setup)
+    }
+
+
+def _as_key(typed: str) -> str:
+    """What somebody typed at the summary, as the name it is listed under."""
+    return typed.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _named(questions: dict[str, Question], typed: str) -> Question | None:
+    """The setting an operator meant, by name or by an unambiguous start of one."""
+    key = _as_key(typed)
+    if key in questions:
+        return questions[key]
+    matches = [name for name in questions if name.startswith(key)]
+    return questions[matches[0]] if len(matches) == 1 else None
+
+
+def review(wizard: Wizard, setup: Setup) -> bool:
+    """Show what would be written, and let one answer be changed.
+
+    The summary is where a mistake is noticed, and it used to be a dead end:
+    *yes* wrote the wrong thing and *no* threw away forty answers to fix one
+    of them. Naming a setting re-asks that question and comes straight back
+    here, so the last screen is somewhere you can work rather than a verdict.
+    """
+    questions = _editable(setup)
+    while True:
+        wizard.say()
+        wizard.say("── Summary " + "─" * 53)
+        for line in summarise(setup):
+            wizard.say(line)
+
+        warnings = check_consistency(setup)
+        if warnings:
+            wizard.say()
+            wizard.say("  Worth a second look:")
+            for warning in warnings:
+                for index, line in enumerate(_wrap(warning, 68)):
+                    wizard.say(f"    {'-' if index == 0 else ' '} {line}")
+
+        if not wizard.interactive:
+            return True
+
+        wizard.say()
+        answer = wizard._read(
+            "  Write it all out now? [Y/n], or name a setting to change > "
+        ).strip()
+        if not answer or answer.lower() in YES:
+            return True
+        if answer.lower() in NO:
+            return False
+
+        question = _named(questions, answer)
+        if question is None:
+            if any(item.name == _as_key(answer) for item in fields(setup)):
+                # It is in the summary, under "Derived": saying "no such
+                # thing" at a name somebody is reading off the screen is the
+                # kind of answer that makes people distrust the whole screen.
+                wizard.say(
+                    f"  '{answer}' is derived from the answers above rather "
+                    "than asked for."
+                )
+                wizard.say("  Change what it is derived from and it follows.")
+            else:
+                wizard.say(f"  Nothing called '{answer}' is in the summary above.")
+                wizard.say("  Type a name exactly as it is listed, or enough of one.")
+            continue
+        wizard.ask(question, offer_rest=False)
+        # An answer changed here can imply the rest all over again: a provider
+        # that now needs credentials, a URL that no longer has one.
+        _generate_unattended(setup)
+        _finalise(setup)
+        questions = _editable(setup)
 
 
 # --- the command ------------------------------------------------------------
@@ -4102,11 +4505,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--preset",
         choices=("public", "private"),
-        default="public",
+        default=None,
         help=(
-            "Starting answers. 'public' is a service open to anybody that "
-            "refuses private targets; 'private' scans its own network, stays "
-            "out of search engines and keeps an audit log."
+            "Starting answers. 'public' - the default - is a service open to "
+            "anybody that refuses private targets; 'private' scans its own "
+            "network, stays out of search engines and keeps an audit log. "
+            "Naming one overrides what a previous run in this directory "
+            "answered."
         ),
     )
     parser.add_argument(
@@ -4280,10 +4685,19 @@ def _default_build_context(output_dir: Path) -> str:
     return relative if not relative.startswith(os.path.join("..", "..")) else str(REPO_ROOT)
 
 
-def _apply_preset(setup: Setup, preset: str) -> None:
-    if preset == "private":
-        for key, value in PRIVATE_PRESET.items():
-            setattr(setup, key, value)
+def _apply_preset(setup: Setup, preset: str | None) -> None:
+    """The starting answers a named preset decides.
+
+    Symmetric, and that is the point: naming ``public`` puts the keys the
+    private preset moves back where they started, so a preset given on this
+    command line overrides what a previous run in this directory remembered.
+    Naming none changes nothing, which is what leaves those answers in place.
+    """
+    if preset is None:
+        return
+    defaults = Setup()
+    for key, private in PRIVATE_PRESET.items():
+        setattr(setup, key, private if preset == "private" else getattr(defaults, key))
 
 
 def _generate_unattended(setup: Setup) -> None:
@@ -4303,6 +4717,74 @@ def _generate_unattended(setup: Setup) -> None:
         setup.audit_salt = secrets.token_hex(16)
     if setup.encrypt_results and not setup.encryption_key:
         setup.encryption_key = secrets.token_hex(32)
+
+
+def answers_filename(compose_name: str) -> str:
+    """Where the wizard remembers what it was told, for the next run.
+
+    Named after the compose file it belongs to, so two deployments sharing a
+    directory keep their own answers, and hidden because nobody should have
+    to think about it: it is the wizard's notebook, not part of the
+    deployment. Delete it and the next run simply starts from the defaults.
+    """
+    return f".{compose_name}.answers.json"
+
+
+def render_answers_file(setup: Setup) -> str:
+    """Every answer that is not a credential, as JSON.
+
+    **No secrets.** They live in ``.env``, which is owner-readable and read
+    back from separately - copying them here would mean two files to protect
+    and one of them a surprise.
+    """
+    remembered: dict[str, Any] = {
+        "_README": (
+            "What docker/setup-wizard.py was told, so that running it again "
+            "offers these back as the defaults. No credentials: those are in "
+            ".env. Safe to delete - the next run then starts from the "
+            "defaults."
+        )
+    }
+    remembered.update(
+        {
+            item.name: getattr(setup, item.name)
+            for item in fields(setup)
+            if item.name not in SECRET_VARIABLES
+        }
+    )
+    return json.dumps(remembered, indent=2, sort_keys=True) + "\n"
+
+
+def _read_previous_answers(setup: Setup, path: Path) -> int:
+    """The answers the last run wrote, as this run's defaults.
+
+    Everything here is untrusted input - the file is editable and may have
+    been written by an older wizard - so a value is taken only when the field
+    still exists and the type still matches exactly. ``type(...) is not`` and
+    not ``isinstance``: a bool is an int in Python, and ``host_port: true``
+    would otherwise become a port.
+    """
+    if not path.is_file():
+        return 0
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # A notebook nobody can read is one nobody wrote. Starting from the
+        # defaults is a worse run, not a broken one.
+        return 0
+    if not isinstance(stored, dict):
+        return 0
+
+    known = {item.name for item in fields(setup)}
+    loaded = 0
+    for name, value in stored.items():
+        if name not in known or name in SECRET_VARIABLES:
+            continue
+        if type(value) is not type(getattr(setup, name)):
+            continue
+        setattr(setup, name, value)
+        loaded += 1
+    return loaded
 
 
 def _read_existing_env(setup: Setup, env_path: Path) -> int:
@@ -4345,6 +4827,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     setup = Setup()
+    # Weakest first: what the last run answered, then a preset if one was
+    # named now, then the credentials that already exist, then the flags.
+    # A decision made on this command line wins over one remembered from the
+    # last.
+    remembered = _read_previous_answers(
+        setup, compose_path.parent / answers_filename(compose_path.name)
+    )
     _apply_preset(setup, args.preset)
     reused = _read_existing_env(setup, env_path)
     _apply_flags(setup, args)
@@ -4358,21 +4847,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         "This writes a compose file with the whole stack and a .env holding the "
         "credentials it refers to - and, if you ask for them, the blueprints that "
         "provision an identity provider and the configuration for the reverse proxy "
-        "in front. Press Enter to accept the value in brackets; every question "
-        "explains what it does and shows an example. Nothing is written until you "
-        "confirm at the end."
+        "in front. Every question explains what it does and shows an example, and "
+        "nothing is written until you confirm at the end - where you can still "
+        "change any answer."
     ):
         wizard.say(f"  {line}")
     wizard.say()
     wizard.say(f"  Compose file: {compose_path}")
     wizard.say(f"  Secrets file: {env_path}")
-    wizard.say(f"  Preset:       {args.preset}")
-    if reused:
+    wizard.say(f"  Preset:       {args.preset or 'public'}")
+    wizard.say()
+    wizard.say("  At any question: Enter takes the value in brackets, 'b' goes")
+    wizard.say("  back one, '-' empties a text setting, and 'rest' accepts every")
+    wizard.say("  remaining default. You can change any of them at the summary,")
+    wizard.say("  by name, before anything is written.")
+    if remembered or reused:
         wizard.say()
-        wizard.say(
-            f"  {env_path} is already there: its values are the defaults below,"
-        )
-        wizard.say("  so nothing you configured before is generated anew.")
+        wizard.say("  This deployment is already here, so this is an edit of it:")
+        if remembered:
+            wizard.say(
+                f"  the {remembered} answers the last run wrote are the defaults below,"
+            )
+        if reused:
+            wizard.say(
+                f"  and {env_path} keeps the credentials it already holds"
+            )
+            wizard.say("  rather than generating them anew.")
     wizard.say()
     wizard.say(
         "  This is not the plugin's --configure wizard, which sets up a"
@@ -4384,18 +4884,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _generate_unattended(setup)
         _finalise(setup)
 
-        wizard.say()
-        wizard.say("\u2500\u2500 Summary " + "\u2500" * 57)
-        for line in summarise(setup):
-            wizard.say(line)
-
-        warnings = check_consistency(setup)
-        if warnings:
-            wizard.say()
-            wizard.say("  Worth a second look:")
-            for warning in warnings:
-                for index, line in enumerate(_wrap(warning, 68)):
-                    wizard.say(f"    {'-' if index == 0 else ' '} {line}")
+        if not review(wizard, setup):
+            print("Nothing written.", file=sys.stderr)
+            return 1
 
         wizard.say()
         for path in (compose_path, env_path):
@@ -4404,9 +4895,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             ):
                 print("Nothing written.", file=sys.stderr)
                 return 1
-        if not wizard.confirm("Write it all out now?", default=True):
-            print("Nothing written.", file=sys.stderr)
-            return 1
     except SetupAborted as error:
         print(f"\nSetup aborted: {error}", file=sys.stderr)
         return 1
@@ -4445,22 +4933,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     build = " --build" if setup.image_source == "build" else ""
     wizard.say(f"    docker compose -f {args.compose_file} up -d{build}")
     wizard.say(f"    open http://{setup.bind_address}:{setup.host_port}")
-    if _uses_authentik(setup):
+    # The first-password step belongs to the walkthrough when there is one,
+    # rather than being said twice in two different orders.
+    if _uses_authentik(setup) and not setup.admin_enabled:
         wizard.say()
         wizard.say("  Then set the first Authentik password, which is the one")
         wizard.say("  account it starts with - the OAuth2 provider is already there:")
-        wizard.say(f"    open {setup.authentik_url}/if/flow/initial-setup/")
-        if _guards_the_admin_area(setup):
-            wizard.say()
-            wizard.say("  The operator's area has a second guest list, and both have")
-            wizard.say("  to name you: add your account to the authentik group")
-            wizard.say("  'opencloud-scanner-operators', and the same username to")
-            wizard.say("  COS_WEB_ADMIN_USERS in the generated compose file.")
-        if not setup.smtp_host:
-            wizard.say()
-            wizard.say("  No SMTP server was configured, so a password recovery will")
-            wizard.say("  not arrive. AUTHENTIK_EMAIL_* in the generated file is where")
-            wizard.say("  that goes; docs/authentik.md explains it.")
+        wizard.say(f"    open {setup.authentik_url}{AUTHENTIK_INITIAL_SETUP_PATH}")
+    for line in admin_walkthrough(setup):
+        wizard.say(line)
+    if _uses_authentik(setup) and not setup.smtp_host:
+        wizard.say()
+        wizard.say("  No SMTP server was configured, so a password recovery will")
+        wizard.say("  not arrive. AUTHENTIK_EMAIL_* in the generated file is where")
+        wizard.say("  that goes; docs/authentik.md explains it.")
     wizard.say()
     wizard.say(f"  Every setting is documented in {PROJECT_URL}#readme,")
     wizard.say("  and in docs/webapp.md in full.")

@@ -39,6 +39,57 @@
 
 ### Added
 
+- **The wizard's questions can be moved around in, and its summary can be
+  worked in.** Forty-odd questions with no way back, no way to skip ahead and
+  no way to fix one from the summary meant that noticing a typo one question
+  too late left two options: abandon the run, or answer the rest of it knowing
+  the compose file would need editing anyway. Now, at any question: `b` goes
+  back to the one actually asked before it, a numbered choice can be answered
+  with its number, `-` empties a text setting where an empty line only ever
+  kept the default, and `rest` takes every remaining default and jumps to the
+  summary. Section headings carry their position - *(7 of 12)* - because a
+  long walk that says nothing about how much is left is one people abandon
+  halfway.
+
+  **The summary is the last place a mistake is caught, and it used to be a
+  dead end.** It is now grouped under the headings the questions were asked
+  under, with what was derived or generated listed apart from what somebody
+  decided, and it asks *"Write it all out now? [Y/n], or name a setting to
+  change"*. Naming one - `host_port`, or enough of it to be unambiguous -
+  re-asks that question and comes straight back, so the express path through
+  the whole thing is `rest` and then the three settings that matter.
+
+- **Running the wizard again edits the deployment rather than re-describing
+  it.** It always promised that, and delivered half: `.env` was read back so
+  no credential was regenerated, and every *other* answer - the ports, the
+  limits, the paths, the proxy, the sign-in - was gone. It now writes
+  `.<compose-file>.answers.json` beside the compose file, its own notebook of
+  every non-secret answer, and offers those back as the defaults on the next
+  run. Changing a port on a live deployment is a re-run, `rest`, one setting,
+  done. The notebook holds no credentials - those stay in the owner-readable
+  `.env` they are already read back from - and is safe to delete. A preset
+  named on the command line now overrides what it remembers, which is why
+  `--preset public` sets the answers the private preset moves rather than
+  doing nothing.
+
+- **Turning the operator's area on ends the wizard with the walkthrough for
+  opening it.** `/admin` refuses rather than asks - no login page to arrive
+  at, no password prompt to get wrong - so every missing piece of the
+  arrangement produces the same 404 as any unknown path: the right answer to
+  give a stranger, and a miserable one to debug against. The steps are now
+  printed in order with this deployment's own addresses in them: set the first
+  Authentik password, put that account in the `opencloud-scanner-operators`
+  group the blueprint binds the application to, install the generated proxy
+  configuration, give Caddy or Traefik the shared secret in its own
+  environment - it reads the value at run time rather than carrying it, so an
+  installed, correct-looking file is not the last step - check that
+  `COS_WEB_ADMIN_USERS` names the same person, and open the area. Then what
+  each failure means: a bare 404 is the header that never arrived, a 404 after
+  signing in is the second guest list, and a looping sign-in is a provider
+  whose public address is not the one the browser used. Against somebody
+  else's provider it names the header contract instead, and the sign-out URL
+  the bundled stack sets for itself.
+
 - **The wizard writes the reverse proxy configuration too.** The stack
   publishes a plain HTTP port on the loopback address and nothing else, so
   something in front has to terminate TLS - and the notes for doing that lived
