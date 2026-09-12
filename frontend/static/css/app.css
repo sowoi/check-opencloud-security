@@ -1029,6 +1029,90 @@ main { flex: 1 0 auto; padding-bottom: 4.5rem; }
 }
 .search-results span { color: var(--ink-soft); }
 
+/* ----------------------------------------------------------------- compare
+ * Two scans side by side. The two grades are the same tokens the dial on a
+ * result page uses, at a size that lets them be read as a pair rather than
+ * as one headline: the reader is here for the difference between them, and
+ * the lists below carry it.
+ */
+.compare-panel {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: clamp(1.4rem, 3vw, 2.2rem);
+}
+.compare-form {
+    display: grid;
+    gap: .9rem;
+    align-items: end;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.compare-field label {
+    display: block;
+    margin-bottom: .5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+.compare-field input {
+    width: 100%;
+    min-width: 0;
+    padding: .9rem 1rem;
+    border: 1px solid var(--field-border);
+    border-radius: var(--radius-sm);
+    background: var(--field-bg);
+    color: var(--ink);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: .88rem;
+}
+.compare-field input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px var(--brand-glow);
+}
+.compare-error { border-left: 3px solid var(--bad); }
+.compare-warning { border-left: 3px solid var(--fair); }
+.compare-verdict { margin: .2rem 0 .6rem; }
+.compare-verdict[data-verdict="improved"] { color: var(--good-ink); }
+.compare-verdict[data-verdict="regressed"] { color: var(--bad-ink); }
+.compare-sides {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    margin-top: 1.5rem;
+}
+.compare-side {
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--tint);
+}
+.compare-grade { margin: .3rem 0 .8rem; }
+.compare-grade .grade {
+    font-family: var(--font-display);
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -.04em;
+    color: var(--good-ink);
+}
+.compare-grade[data-tone="fair"] .grade { color: var(--fair-ink); }
+.compare-grade[data-tone="bad"] .grade { color: var(--bad-ink); }
+.compare-facts { display: grid; gap: .3rem 1rem; grid-template-columns: auto 1fr; margin: 0; }
+.compare-facts dt { color: var(--ink-faint); font-size: .82rem; }
+.compare-facts dd { margin: 0; font-size: .9rem; }
+.compare-changes { width: 100%; border-collapse: collapse; }
+.compare-changes th, .compare-changes td {
+    padding: .55rem .7rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    font-size: .92rem;
+    vertical-align: top;
+}
+.compare-changes th { color: var(--ink-faint); font-size: .82rem; font-weight: 600; }
+
+@media (max-width: 42rem) {
+    .compare-form { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ------------------------------------------------------------------ footer */
 .site-footer {
     border-top: 1px solid var(--line);

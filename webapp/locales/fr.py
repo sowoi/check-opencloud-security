@@ -227,6 +227,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Rechercher",
+    "nav.compare": "Comparer",
     "nav.api": "API",
     "nav.ai": "IA",
     "nav.privacy": "Confidentialité",
@@ -1243,6 +1244,94 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "Sur cette page",
     "docs.guide.toc.aria": "Sur cette page",
+    # ---------------------------------------------------------------- compare
+    "compare.title": "Comparer deux analyses",
+    "compare.description": (
+        "Comparez deux analyses terminées de la même instance et voyez ce qui "
+        "a été corrigé, ce qui est nouveau et ce qui reste ouvert."
+    ),
+    "compare.eyebrow": "Les correctifs ont-ils fonctionné ?",
+    "compare.heading": "Comparer deux analyses",
+    "compare.lede": (
+        "Collez l'uuid d'une analyse antérieure et celui d'une analyse "
+        "postérieure. Les deux résultats doivent encore exister - ce service "
+        "ne conserve aucun historique où retrouver une analyse expirée."
+    ),
+    "compare.form.baseline": "Analyse antérieure",
+    "compare.form.current": "Analyse postérieure",
+    "compare.form.placeholder": "L'uuid dans l'adresse d'une page de résultat",
+    "compare.form.submit": "Comparer",
+    "compare.form.hint": (
+        "L'uuid est la partie qui suit <code>/scan/</code> dans l'adresse "
+        "d'une page de résultat. Il constitue à lui seul l'autorisation "
+        "d'accès à ce résultat : traitez-le comme un mot de passe."
+    ),
+    "compare.error.unknown.baseline": (
+        "L'analyse antérieure est inconnue ou a expiré. Rien ici ne permet de "
+        "la retrouver : relancez une analyse de l'instance et comparez les "
+        "deux résultats les plus récents."
+    ),
+    "compare.error.unknown.current": (
+        "L'analyse postérieure est inconnue ou a expiré. Rien ici ne permet "
+        "de la retrouver : relancez une analyse de l'instance et comparez les "
+        "deux résultats les plus récents."
+    ),
+    "compare.error.unfinished.baseline": (
+        "L'analyse antérieure n'est pas encore terminée. Ouvrez sa page de "
+        "résultat, attendez-la, puis comparez à nouveau."
+    ),
+    "compare.error.unfinished.current": (
+        "L'analyse postérieure n'est pas encore terminée. Ouvrez sa page de "
+        "résultat, attendez-la, puis comparez à nouveau."
+    ),
+    "compare.error.same": (
+        "Les deux champs désignent la même analyse : il n'y a rien à "
+        "comparer. Relancez une analyse de l'instance et comparez le nouvel "
+        "uuid avec celui-ci."
+    ),
+    "compare.different_targets": (
+        "Ces deux analyses décrivent des instances différentes. La "
+        "comparaison est tout de même affichée - comparer une préproduction à "
+        "une production est une question légitime - mais chaque chiffre "
+        "ci-dessous répond alors à une autre."
+    ),
+    "compare.verdict.kicker": "Entre les deux analyses",
+    "compare.verdict.improved": "C'est meilleur",
+    "compare.verdict.unchanged": "Rien n'a changé",
+    "compare.verdict.regressed": "C'est pire",
+    "compare.rating.up": "La note a augmenté de {points} point(s).",
+    "compare.rating.down": "La note a baissé de {points} point(s).",
+    "compare.rating.same": (
+        "La note n'a pas bougé. Cela ne signifie pas à soi seul que la "
+        "correction a échoué : les constats d'une même gravité partagent un "
+        "seul plafond, donc plusieurs correctifs peuvent être appliqués avant "
+        "que la lettre ne change. Lisez les listes ci-dessous."
+    ),
+    "compare.side.baseline": "Antérieure",
+    "compare.side.current": "Postérieure",
+    "compare.side.target": "Instance",
+    "compare.side.version": "Version",
+    "compare.side.scanned": "Analysée",
+    "compare.side.unknown": "Non établi",
+    "compare.side.open": "Ouvrir ce résultat",
+    "compare.introduced.heading": "Nouveaux constats ({count})",
+    "compare.introduced.none": (
+        "Rien de nouveau depuis l'analyse antérieure."
+    ),
+    "compare.resolved.heading": "Constats résolus ({count})",
+    "compare.resolved.none": (
+        "Rien de ce qui était ouvert dans l'analyse antérieure n'a disparu."
+    ),
+    "compare.unchanged.heading": "Toujours ouverts ({count})",
+    "compare.unchanged.none": "Rien n'est ouvert dans les deux analyses.",
+    "compare.changes.heading": "Ce que la comparaison détaille",
+    "compare.changes.category": "Catégorie",
+    "compare.changes.change": "Changement",
+    "compare.nothing_stored": (
+        "Cette comparaison a été calculée à partir des deux résultats et n'a "
+        "été stockée nulle part. Rechargez la page et elle est recalculée ; "
+        "si l'un des résultats expire, elle ne peut plus être demandée."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Recherche",
     "search.description": (
@@ -1376,6 +1465,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.track.label": "Canal {track}",
     "result.another": "Analyser une autre instance",
+    "result.compare": "Comparer avec une analyse antérieure",
     "result.progress.kicker": "En cours",
     "result.progress.queued.title": "En attente d'un travailleur de scan",
     "result.progress.queued.detail": (

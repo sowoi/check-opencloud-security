@@ -228,6 +228,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Katalog",
     "nav.docs": "Doku",
     "nav.search": "Suche",
+    "nav.compare": "Vergleichen",
     "nav.api": "API",
     "nav.ai": "KI",
     "nav.privacy": "Datenschutz",
@@ -1205,6 +1206,91 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "Auf dieser Seite",
     "docs.guide.toc.aria": "Auf dieser Seite",
+    # ---------------------------------------------------------------- compare
+    "compare.title": "Zwei Scans vergleichen",
+    "compare.description": (
+        "Zwei abgeschlossene Scans derselben Instanz vergleichen und sehen, "
+        "was behoben wurde, was neu ist und was weiterhin offen ist."
+    ),
+    "compare.eyebrow": "Haben die Korrekturen gewirkt?",
+    "compare.heading": "Zwei Scans vergleichen",
+    "compare.lede": (
+        "Fügen Sie die uuid eines früheren und eines späteren Scans ein. Beide "
+        "Ergebnisse müssen noch vorhanden sein - dieser Dienst führt keine "
+        "Historie, in der ein abgelaufener Scan nachgeschlagen werden könnte."
+    ),
+    "compare.form.baseline": "Früherer Scan",
+    "compare.form.current": "Späterer Scan",
+    "compare.form.placeholder": "Die uuid aus der Adresse einer Ergebnisseite",
+    "compare.form.submit": "Vergleichen",
+    "compare.form.hint": (
+        "Die uuid ist der Teil nach <code>/scan/</code> in der Adresse einer "
+        "Ergebnisseite. Sie ist die gesamte Berechtigung für dieses Ergebnis - "
+        "behandeln Sie sie wie ein Passwort."
+    ),
+    "compare.error.unknown.baseline": (
+        "Der frühere Scan ist unbekannt oder abgelaufen. Hier lässt er sich "
+        "nicht nachschlagen: Scannen Sie die Instanz erneut und vergleichen "
+        "Sie die beiden neuesten Ergebnisse."
+    ),
+    "compare.error.unknown.current": (
+        "Der spätere Scan ist unbekannt oder abgelaufen. Hier lässt er sich "
+        "nicht nachschlagen: Scannen Sie die Instanz erneut und vergleichen "
+        "Sie die beiden neuesten Ergebnisse."
+    ),
+    "compare.error.unfinished.baseline": (
+        "Der frühere Scan ist noch nicht abgeschlossen. Öffnen Sie seine "
+        "Ergebnisseite, warten Sie ihn ab und vergleichen Sie erneut."
+    ),
+    "compare.error.unfinished.current": (
+        "Der spätere Scan ist noch nicht abgeschlossen. Öffnen Sie seine "
+        "Ergebnisseite, warten Sie ihn ab und vergleichen Sie erneut."
+    ),
+    "compare.error.same": (
+        "Beide Felder nennen denselben Scan, es gibt also nichts zu "
+        "vergleichen. Scannen Sie die Instanz erneut und vergleichen Sie die "
+        "neue uuid mit dieser."
+    ),
+    "compare.different_targets": (
+        "Diese beiden Scans beschreiben verschiedene Instanzen. Der Vergleich "
+        "wird trotzdem gezeigt - Staging gegen Produktion ist eine berechtigte "
+        "Frage -, aber jede Zahl darunter beantwortet dann eine andere."
+    ),
+    "compare.verdict.kicker": "Zwischen den beiden Scans",
+    "compare.verdict.improved": "Es ist besser geworden",
+    "compare.verdict.unchanged": "Nichts hat sich geändert",
+    "compare.verdict.regressed": "Es ist schlechter geworden",
+    "compare.rating.up": "Die Note ist um {points} Punkt(e) gestiegen.",
+    "compare.rating.down": "Die Note ist um {points} Punkt(e) gefallen.",
+    "compare.rating.same": (
+        "Die Note hat sich nicht bewegt. Das allein ist keine gescheiterte "
+        "Behebung - Funde einer Schwere teilen sich eine einzige Deckelung, "
+        "also können mehrere Korrekturen landen, bevor sich der Buchstabe "
+        "ändert. Lesen Sie die Listen unten."
+    ),
+    "compare.side.baseline": "Früher",
+    "compare.side.current": "Später",
+    "compare.side.target": "Instanz",
+    "compare.side.version": "Version",
+    "compare.side.scanned": "Gescannt",
+    "compare.side.unknown": "Nicht ermittelt",
+    "compare.side.open": "Dieses Ergebnis öffnen",
+    "compare.introduced.heading": "Neue Funde ({count})",
+    "compare.introduced.none": "Seit dem früheren Scan ist nichts neu.",
+    "compare.resolved.heading": "Behobene Funde ({count})",
+    "compare.resolved.none": (
+        "Nichts, was im früheren Scan offen war, ist verschwunden."
+    ),
+    "compare.unchanged.heading": "Weiterhin offen ({count})",
+    "compare.unchanged.none": "In beiden Scans ist nichts offen.",
+    "compare.changes.heading": "Was der Vergleich einzeln aufführt",
+    "compare.changes.category": "Kategorie",
+    "compare.changes.change": "Änderung",
+    "compare.nothing_stored": (
+        "Dieser Vergleich wurde aus den beiden Ergebnissen berechnet und "
+        "nirgends gespeichert. Beim Neuladen wird er erneut berechnet; läuft "
+        "eines der Ergebnisse ab, lässt er sich gar nicht mehr erfragen."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Suche",
     "search.description": (
@@ -1337,6 +1423,7 @@ MESSAGES: dict[str, str] = {
     ),
     "result.track.label": "{track}-Track",
     "result.another": "Eine weitere Instanz scannen",
+    "result.compare": "Mit einem früheren Scan vergleichen",
     "result.progress.kicker": "In Bearbeitung",
     "result.progress.queued.title": "Wartet auf einen Scanner-Worker",
     "result.progress.queued.detail": (

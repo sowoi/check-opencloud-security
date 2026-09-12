@@ -37,6 +37,7 @@ translated.
 - [How a scan flows through it](#how-a-scan-flows-through-it)
 - [Queueing rather than refusing](#queueing-rather-than-refusing)
 - [Isolation between scans](#isolation-between-scans)
+- [Comparing two scans](#comparing-two-scans)
 - [The SSRF guard](#the-ssrf-guard)
 - [Rate limiting](#rate-limiting)
 - [What gets logged](#what-gets-logged)
@@ -374,6 +375,44 @@ The uuid is a capability: knowing it is the only way to reach the scan.
   all three cases, so a stranger cannot learn that a uuid was once real;
 - every key carries the TTL, including the one written while the scan is still
   queued. Nothing outlives the promise on the landing page.
+
+## Comparing two scans
+
+`GET /compare` answers the question that follows a remediation plan: *did it
+help?* It takes two uuids the reader already has - `?baseline=` for the
+earlier scan, `?current=` for the later one - and shows what was resolved,
+what is new, what is still open, and how the grade moved. A finished result
+page links to it with its own uuid already filled in, so only the earlier one
+has to be pasted.
+
+**The arithmetic is not this layer's.** It is
+`opencloud_local_scan.baseline`, the same comparison the plugin's `--baseline`
+spends on staying quiet between runs and `check-opencloud-scanner diff`
+prints, reached through `workflows.compare_documents` - the function the
+`compare_scans` MCP tool calls too. A reader, an agent and an operator's own
+alerting therefore cannot be told different things about the same two scans.
+See [ADR 0029](../adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md).
+
+**Nothing is stored.** The comparison is worked out from two results that both
+still exist and is written nowhere: this service keeps no scan history
+([ADR 0002](../adr/0002-no-scan-result-caching.md)) and a uuid is a capability
+with a TTL ([ADR 0007](../adr/0007-erasure-on-request.md)). A stored
+comparison would be a scan result under another name, outliving the results it
+describes and exempt from their erasure.
+
+The answers it can give:
+
+| Situation | Answer |
+|:----------|:-------|
+| Both uuids resolve to finished scans | **200**, the comparison |
+| Either uuid is unknown or expired | **404**, naming *which* of the two is gone - "one of them has expired" sends somebody looking through both |
+| Either scan has not finished | **409**: there is nothing to compare yet, and 404 would send a reader to scan again while their scan is still running |
+| The same uuid twice | **422**. An empty diff of a scan against itself reads as "nothing is wrong" |
+| The two scans describe different instances | **200**, compared and said so. Staging against production is a fair question; answering it silently is not |
+
+Like `/scan/{uuid}` and for the same reason, the page renders results and is
+therefore never indexed and never in the OpenAPI schema, and each uuid remains
+the whole of the authorisation for the result behind it.
 
 ## The SSRF guard
 
@@ -906,7 +945,9 @@ from the module the library tests cover, and a second implementation of that
 in JavaScript is the one thing on the page that must not exist. The explanations the landing page used to carry sit on
 their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
 `GET /search`, `GET /api`, `GET /ai`, `GET /privacy` and `GET /about` - which
-are HTML only and stay out of the OpenAPI schema. `/grades` explains the
+are HTML only and stay out of the OpenAPI schema. So does `GET /compare`,
+for a second reason: it renders two results and is therefore never
+indexable, exactly as `/scan/{uuid}` is not. `/grades` explains the
 plugin's real 0-5 map and its remediation ceilings; `/documentation` is the
 local CLI quick reference and guide index, and it is also the page that points
 away from this service: the Docker one-liners that run the same scan on the

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{#
+  Two finished scans, and what moved between them.
+
+  Everything drawn here comes from `workflows.compare_documents`, which is the
+  plugin's own baseline arithmetic - the same call `--baseline` and the
+  `compare_scans` tool make. This template decides nothing: it labels a
+  verdict somebody else reached, and orders the three lists so that the news
+  is read before the reassurance.
+#}
+
+{#
+  One finding, named the way the result page names it and linked to the
+  catalogue entry that explains it. The comparison calls it
+  `check:exposed:/opencloud.yaml`; the family belongs to the arithmetic, not
+  to the reader.
+#}
+{% macro check_code(value) -%}
+  {%- set name = value | finding_id -%}
+  {%- set href = name | catalogue_link -%}
+  {%- if href %}<a class="check-link" href="{{ href }}" title="{{ t('result.explain.title') }}"><code>{{ name }}</code></a>{% else %}<code>{{ name }}</code>{% endif -%}
+{%- endmacro %}
+
+{% macro scan_side(side, heading) %}
+<div class="compare-side">
+  <p class="kicker">{{ heading }}</p>
+  <p class="compare-grade" data-tone="{{ side.rating | rating_tone }}">
+    <span class="grade">{{ side.rating | rating_label }}</span>
+  </p>
+  <dl class="compare-facts">
+    <dt>{{ t('compare.side.target') }}</dt>
+    <dd class="scan-target">{{ side.target or t('compare.side.unknown') }}</dd>
+    <dt>{{ t('compare.side.version') }}</dt>
+    <dd>{{ side.version or t('compare.side.unknown') }}</dd>
+    <dt>{{ t('compare.side.scanned') }}</dt>
+    <dd>{{ side.scannedAt or t('compare.side.unknown') }}</dd>
+  </dl>
+  <p class="flush"><a href="{{ side.url }}">{{ t('compare.side.open') }}</a></p>
+</div>
+{% endmacro %}
+
+{% block title %}{{ t('compare.title') }}{% endblock %}
+{% block description %}{{ t('compare.description') }}{% endblock %}
+
+{% block content %}
+<section class="page-hero compact" data-reveal>
+  <p class="eyebrow">{{ t('compare.eyebrow') }}</p>
+  <h1>{{ t('compare.heading') }}</h1>
+  <p class="lede">{{ t('compare.lede') }}</p>
+</section>
+
+<section class="glass compare-panel" data-reveal>
+  <form class="compare-form" action="/compare" method="get">
+    <div class="compare-field">
+      <label for="compare-baseline">{{ t('compare.form.baseline') }}</label>
+      <input id="compare-baseline" name="baseline" type="text" inputmode="latin"
+             autocomplete="off" spellcheck="false" maxlength="36"
+             placeholder="{{ t('compare.form.placeholder') }}"
+             value="{{ baseline }}">
+    </div>
+    <div class="compare-field">
+      <label for="compare-current">{{ t('compare.form.current') }}</label>
+      <input id="compare-current" name="current" type="text" inputmode="latin"
+             autocomplete="off" spellcheck="false" maxlength="36"
+             placeholder="{{ t('compare.form.placeholder') }}"
+             value="{{ current }}">
+    </div>
+    <button class="btn btn-primary" type="submit">{{ t('compare.form.submit') }}</button>
+  </form>
+  <p class="hint">{{ t.html('compare.form.hint') }}</p>
+</section>
+
+{% if error %}
+<section class="card compare-error" data-reveal>
+  <p class="flush">{{ error }}</p>
+</section>
+{% endif %}
+
+{% if comparison %}
+{#
+  sameTarget false is not refused - comparing staging against production is a
+  fair question - but every number below then answers a different one, so it
+  is said before any of them are read.
+#}
+{% if not comparison.sameTarget %}
+<section class="card compare-warning" data-reveal>
+  <p class="flush">{{ t('compare.different_targets') }}</p>
+</section>
+{% endif %}
+
+<section class="card" data-reveal>
+  <p class="kicker">{{ t('compare.verdict.kicker') }}</p>
+  <h2 class="compare-verdict" data-verdict="{{ comparison.verdict }}">
+    {{ t('compare.verdict.' ~ comparison.verdict) }}
+  </h2>
+  {#
+    The plugin's own one-line summary is deliberately not printed here. It is
+    English wherever it is produced - it is the sentence a monitoring system
+    receives - and the three headings below already say what it says, in the
+    language this page was asked for.
+  #}
+  {% if comparison.ratingChange is not none %}
+  <p class="flush">
+    {%- if comparison.ratingChange > 0 -%}
+      {{ t('compare.rating.up', points=comparison.ratingChange) }}
+    {%- elif comparison.ratingChange < 0 -%}
+      {{ t('compare.rating.down', points=-comparison.ratingChange) }}
+    {%- else -%}
+      {{ t('compare.rating.same') }}
+    {%- endif -%}
+  </p>
+  {% endif %}
+
+  <div class="compare-sides">
+    {{ scan_side(comparison.baseline, t('compare.side.baseline')) }}
+    {{ scan_side(comparison.current, t('compare.side.current')) }}
+  </div>
+</section>
+
+{#
+  Introduced first: it is the only one of the three that needs acting on
+  today. Resolved next, because it is the answer to "did the fixes work", and
+  still open last - named rather than left out, because "nothing new" and
+  "nothing wrong" are very different answers.
+#}
+<section class="card" data-reveal>
+  <h2>{{ t('compare.introduced.heading', count=comparison.introduced | length) }}</h2>
+  {% if comparison.introduced %}
+  <ul class="findings">
+    {% for finding in comparison.introduced %}
+    <li class="finding" data-tag="critical">
+      <div class="finding-head">{{ check_code(finding) }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="flush">{{ t('compare.introduced.none') }}</p>
+  {% endif %}
+</section>
+
+<section class="card" data-reveal>
+  <h2>{{ t('compare.resolved.heading', count=comparison.resolved | length) }}</h2>
+  {% if comparison.resolved %}
+  <ul class="findings">
+    {% for finding in comparison.resolved %}
+    <li class="finding" data-tag="info">
+      <div class="finding-head">{{ check_code(finding) }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="flush">{{ t('compare.resolved.none') }}</p>
+  {% endif %}
+</section>
+
+<section class="card" data-reveal>
+  <h2>{{ t('compare.unchanged.heading', count=comparison.unchanged | length) }}</h2>
+  {% if comparison.unchanged %}
+  <ul class="findings">
+    {% for finding in comparison.unchanged %}
+    <li class="finding" data-tag="warning">
+      <div class="finding-head">{{ check_code(finding) }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="flush">{{ t('compare.unchanged.none') }}</p>
+  {% endif %}
+</section>
+
+{% if comparison.changes %}
+<section class="card" data-reveal>
+  <h2>{{ t('compare.changes.heading') }}</h2>
+  <table class="compare-changes">
+    <thead>
+      <tr>
+        <th scope="col">{{ t('compare.changes.category') }}</th>
+        <th scope="col">{{ t('compare.changes.change') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in comparison.changes %}
+      <tr>
+        <td>{{ item.category }}</td>
+        <td>{{ item.change }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card" data-reveal>
+  <p class="hint flush">{{ t('compare.nothing_stored') }}</p>
+</section>
+{% endif %}
+{% endblock %}

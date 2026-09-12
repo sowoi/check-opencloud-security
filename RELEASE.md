@@ -2,6 +2,32 @@
 
 ### Added
 
+- **The browser can ask whether the fixes worked.** Three surfaces already
+  answered it - `--baseline` between two monitoring runs,
+  `check-opencloud-scanner diff` between two archived documents, and the
+  `compare_scans` tool for an agent - and the person who ran both scans in a
+  browser was the only one who could not. `GET /compare` takes the two uuids
+  they already hold and shows what was resolved, what is new, what is still
+  open and how the grade moved; a finished result page links to it with its
+  own uuid already filled in, so only the earlier one has to be pasted.
+
+  **It is the same arithmetic, not a fourth opinion.** The comparison in
+  `webapp/workflows.py` was split into the part that reads two documents and
+  the part that compares them, and the page calls the second directly. A
+  reader, an agent and an operator's own alerting are therefore told the same
+  thing about the same pair - the failure mode a second implementation in the
+  page would eventually produce, and the one
+  [ADR 0029](adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md)
+  exists to prevent.
+
+  **Nothing is stored, and nothing is listed.** Both uuids have to be
+  presented, both results have to still exist, and the answer is written
+  nowhere. An unknown uuid is a 404 that names *which* of the two is gone, a
+  scan still running is a 409 rather than a 404, and the same uuid twice is
+  refused with 422 - an empty diff of a scan against itself reads as "nothing
+  is wrong". Two documents describing different instances are compared and
+  said so. Like every page that renders a result, it is never indexed.
+
 - **Checkmk runs this check from either side now.** Checkmk speaks Nagios, so
   a Checkmk server has always been able to run the plugin as an active check
   and read its line - but that route needs the server to reach the instance,
@@ -34,6 +60,15 @@
   in `local/` itself - a script in the directory proper runs on every agent
   call, once a minute, which is a full scan a minute against somebody's
   production instance.
+
+### Fixed
+
+- **A comparison shows when each scan ran, instead of calling both times
+  "unparsable".** `scannedAt` is written by the scanner from its own clock and
+  is not one of the fields a scanned host has any say in, but it was being run
+  through the allow-list meant for a version string a stranger chose - and
+  that list has no `:` in it. Every comparison reported both timestamps as
+  `unparsable`, to an agent as well as on the new page.
 
 ## check-opencloud-security 1.21.3
 

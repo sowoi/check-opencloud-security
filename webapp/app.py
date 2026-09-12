@@ -93,8 +93,11 @@ from .catalog import (
     catalogue_anchor,
     catalogue_link,
     check_catalogue,
+    finding_id,
     grade_scale,
     open_findings,
+    rating_label,
+    rating_tone,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
@@ -201,6 +204,8 @@ from .workflows import (
     REMOTE_NOTE,
     RETRYABLE_STATUSES,
     UUID_NOTE,
+    WorkflowError,
+    compare_documents,
 )
 
 LOGGER = logging.getLogger("check_opencloud.web")
@@ -725,6 +730,15 @@ def build_templates(directory: Path | None = None) -> Jinja2Templates:
     # does not publish.
     templates.env.filters["catalogue_anchor"] = catalogue_anchor
     templates.env.filters["catalogue_link"] = catalogue_link
+    # A grade is the plugin's RATE_MAP, wherever it is drawn. The comparison
+    # page has two of them and no summary to read them from, so the same two
+    # functions the dashboard's summary already uses are available directly.
+    templates.env.filters["rating_label"] = rating_label
+    templates.env.filters["rating_tone"] = rating_tone
+    # A comparison names a finding by family - check:/hardening: - and the
+    # catalogue does not. Stripping it in one filter keeps the page's links
+    # pointing at entries that exist.
+    templates.env.filters["finding_id"] = finding_id
     # English is what a render falls back to when nobody negotiated a
     # language, so a template is never one missing context variable away from
     # an exception.
@@ -1696,6 +1710,74 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 ),
             },
         )
+
+    @app.get("/compare", response_class=HTMLResponse, include_in_schema=False)
+    async def compare_page(request: Request) -> Response:
+        """
+        Did the fixes work? Two uuids a reader already holds, and one answer.
+
+        The same question `--baseline` answers for an operator's monitoring
+        and the `compare_scans` tool answers for an agent, for the person who
+        ran both scans in a browser and until now had no way to ask it. The
+        arithmetic is neither of theirs twice over: this route reads the two
+        result documents and hands them to `workflows.compare_documents`, so
+        a reader and their own alerting cannot disagree about the same pair.
+
+        Both uuids have to be presented and both results have to still exist.
+        Nothing is stored, nothing is listed, and each uuid remains the whole
+        of the authorisation for the result behind it - which is why an
+        unknown one is the same 404 here as anywhere else in the service.
+        """
+        translate = translator_for(request)
+        # Capped before anything is done with them, the form included: a uuid
+        # is 36 characters, the store refuses anything that is not one, and
+        # the value is echoed back into the field a reader types into.
+        def _submitted(name: str) -> str:
+            return (request.query_params.get(name) or "").strip()[:64]
+
+        baseline, current = _submitted("baseline"), _submitted("current")
+        context: dict[str, Any] = {
+            "t": translate,
+            "baseline": baseline,
+            "current": current,
+        }
+        if not baseline or not current:
+            return page(request, "compare.html", context)
+
+        documents: list[dict[str, Any]] = []
+        for side, identifier in (("baseline", baseline), ("current", current)):
+            record = await app.state.store.get(identifier)
+            if record is None:
+                # Which of the two is gone, because "one of your uuids has
+                # expired" sends somebody looking through both.
+                return page(
+                    request,
+                    "compare.html",
+                    {**context, "error": translate(f"compare.error.unknown.{side}")},
+                    status=404,
+                )
+            if record.state != STATE_COMPLETED or record.result is None:
+                return page(
+                    request,
+                    "compare.html",
+                    {**context, "error": translate(f"compare.error.unfinished.{side}")},
+                    status=409,
+                )
+            documents.append(record.result)
+
+        try:
+            comparison = compare_documents(baseline, current, *documents)
+        except WorkflowError as exc:
+            # The rule stays where every surface enforces it; only the wording
+            # is this layer's, because a reader gets the page in their own
+            # language and a workflow's message is English for an agent.
+            return page(
+                request,
+                "compare.html",
+                {**context, "error": translate("compare.error.same")},
+                status=exc.status or 422,
+            )
+        return page(request, "compare.html", {**context, "comparison": comparison})
 
     @app.get("/api/scans/{identifier}/export/{fmt}")
     async def scan_export(request: Request, identifier: str, fmt: str) -> Response:

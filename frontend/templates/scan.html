@@ -95,6 +95,17 @@
         </button>
       </form>
       {% endif %}
+      {#
+        The comparison a reader arrives at from here rather than by typing
+        two uuids: this one is already known, so only the earlier one has to
+        be pasted. Offered on a finished result only - there is nothing to
+        compare while the scan is still running.
+      #}
+      {% if can_rescan %}
+      <a class="btn btn-quiet" href="/compare?current={{ scan.uuid }}">
+        {{ t('result.compare') }}
+      </a>
+      {% endif %}
       <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
     </div>
   </div>

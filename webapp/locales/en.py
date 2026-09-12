@@ -254,6 +254,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Search",
+    "nav.compare": "Compare",
     "nav.api": "API",
     "nav.ai": "AI",
     "nav.privacy": "Privacy",
@@ -1152,6 +1153,91 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "On this page",
     "docs.guide.toc.aria": "On this page",
+    # ---------------------------------------------------------------- compare
+    # The page that answers "did the fixes work" for a reader, the way
+    # --baseline answers it for an operator's monitoring. Every number it
+    # shows was worked out before the page was rendered; these are labels.
+    "compare.title": "Compare two scans",
+    "compare.description": (
+        "Compare two finished scans of the same instance and see what was "
+        "fixed, what is new and what is still open."
+    ),
+    "compare.eyebrow": "Did the fixes work?",
+    "compare.heading": "Compare two scans",
+    "compare.lede": (
+        "Paste the uuid of an earlier scan and the uuid of a later one. Both "
+        "results have to still exist - this service keeps no history to look "
+        "an expired scan up in."
+    ),
+    "compare.form.baseline": "Earlier scan",
+    "compare.form.current": "Later scan",
+    "compare.form.placeholder": "The uuid from a result page address",
+    "compare.form.submit": "Compare",
+    "compare.form.hint": (
+        "A uuid is the part after <code>/scan/</code> in the address of a "
+        "result page. It is the whole of the authorisation for that result, "
+        "so treat it like a password."
+    ),
+    "compare.error.unknown.baseline": (
+        "The earlier scan is unknown or has expired. Nothing here can look it "
+        "up: scan the instance again and compare the two newest results."
+    ),
+    "compare.error.unknown.current": (
+        "The later scan is unknown or has expired. Nothing here can look it "
+        "up: scan the instance again and compare the two newest results."
+    ),
+    "compare.error.unfinished.baseline": (
+        "The earlier scan has not finished yet. Open its result page, wait "
+        "for it, and compare again."
+    ),
+    "compare.error.unfinished.current": (
+        "The later scan has not finished yet. Open its result page, wait for "
+        "it, and compare again."
+    ),
+    "compare.error.same": (
+        "Both fields name the same scan, so there is nothing to compare. Scan "
+        "the instance again and compare the new uuid with this one."
+    ),
+    "compare.different_targets": (
+        "These two scans describe different instances. The comparison is "
+        "still shown - staging against production is a fair question - but "
+        "every number below then answers a different one."
+    ),
+    "compare.verdict.kicker": "Between the two scans",
+    "compare.verdict.improved": "It got better",
+    "compare.verdict.unchanged": "Nothing changed",
+    "compare.verdict.regressed": "It got worse",
+    "compare.rating.up": "The grade rose by {points} point(s).",
+    "compare.rating.down": "The grade fell by {points} point(s).",
+    # Said plainly, because a grade that did not move is the case people
+    # misread as a failed remediation: findings of one severity share a single
+    # cap, so several fixes can land before the letter changes.
+    "compare.rating.same": (
+        "The grade did not move. That is not a failed remediation on its own - "
+        "findings of one severity share a single cap, so several fixes can "
+        "land before the letter changes. Read the lists below."
+    ),
+    "compare.side.baseline": "Earlier",
+    "compare.side.current": "Later",
+    "compare.side.target": "Instance",
+    "compare.side.version": "Version",
+    "compare.side.scanned": "Scanned",
+    "compare.side.unknown": "Not established",
+    "compare.side.open": "Open this result",
+    "compare.introduced.heading": "New findings ({count})",
+    "compare.introduced.none": "Nothing is new since the earlier scan.",
+    "compare.resolved.heading": "Resolved findings ({count})",
+    "compare.resolved.none": "Nothing that was open in the earlier scan is gone.",
+    "compare.unchanged.heading": "Still open ({count})",
+    "compare.unchanged.none": "Nothing is open in both scans.",
+    "compare.changes.heading": "What the comparison itemises",
+    "compare.changes.category": "Category",
+    "compare.changes.change": "Change",
+    "compare.nothing_stored": (
+        "This comparison was worked out from the two results and stored "
+        "nowhere. Reload the page and it is worked out again; let either "
+        "result expire and it can no longer be asked for at all."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Search",
     "search.description": (
@@ -1263,6 +1349,7 @@ MESSAGES: dict[str, str] = {
     "result.track.title": "The release track this scan was rated against",
     "result.track.label": "{track} track",
     "result.another": "Scan another instance",
+    "result.compare": "Compare with an earlier scan",
     "result.progress.kicker": "In progress",
     "result.progress.queued.title": "Waiting for a scanner worker",
     "result.progress.queued.detail": (

@@ -24,6 +24,7 @@
   <a href="#how-a-scan-flows-through-it" lang="en">How a scan flows through it</a>
   <a href="#queueing-rather-than-refusing" lang="en">Queueing rather than refusing</a>
   <a href="#isolation-between-scans" lang="en">Isolation between scans</a>
+  <a href="#comparing-two-scans" lang="en">Comparing two scans</a>
   <a href="#the-ssrf-guard" lang="en">The SSRF guard</a>
   <a href="#rate-limiting" lang="en">Rate limiting</a>
   <a href="#what-gets-logged" lang="en">What gets logged</a>
@@ -85,6 +86,7 @@ translated.</p>
 <li><a href="#how-a-scan-flows-through-it">How a scan flows through it</a></li>
 <li><a href="#queueing-rather-than-refusing">Queueing rather than refusing</a></li>
 <li><a href="#isolation-between-scans">Isolation between scans</a></li>
+<li><a href="#comparing-two-scans">Comparing two scans</a></li>
 <li><a href="#the-ssrf-guard">The SSRF guard</a></li>
 <li><a href="#rate-limiting">Rate limiting</a></li>
 <li><a href="#what-gets-logged">What gets logged</a></li>
@@ -637,6 +639,60 @@ scan:{uuid}:metadata    target, waivers, timestamps
 <li>every key carries the TTL, including the one written while the scan is still
   queued. Nothing outlives the promise on the landing page.</li>
 </ul>
+<h2 id="comparing-two-scans">Comparing two scans</h2>
+<p><code>GET /compare</code> answers the question that follows a remediation plan: <em>did it
+help?</em> It takes two uuids the reader already has - <code>?baseline=</code> for the
+earlier scan, <code>?current=</code> for the later one - and shows what was resolved,
+what is new, what is still open, and how the grade moved. A finished result
+page links to it with its own uuid already filled in, so only the earlier one
+has to be pasted.</p>
+<p><strong>The arithmetic is not this layer's.</strong> It is
+<code>opencloud_local_scan.baseline</code>, the same comparison the plugin's <code>--baseline</code>
+spends on staying quiet between runs and <code>check-opencloud-scanner diff</code>
+prints, reached through <code>workflows.compare_documents</code> - the function the
+<code>compare_scans</code> MCP tool calls too. A reader, an agent and an operator's own
+alerting therefore cannot be told different things about the same two scans.
+See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md">ADR 0029</a>.</p>
+<p><strong>Nothing is stored.</strong> The comparison is worked out from two results that both
+still exist and is written nowhere: this service keeps no scan history
+(<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0002-no-scan-result-caching.md">ADR 0002</a>) and a uuid is a capability
+with a TTL (<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0007-erasure-on-request.md">ADR 0007</a>). A stored
+comparison would be a scan result under another name, outliving the results it
+describes and exempt from their erasure.</p>
+<p>The answers it can give:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Both uuids resolve to finished scans</td>
+<td><strong>200</strong>, the comparison</td>
+</tr>
+<tr>
+<td>Either uuid is unknown or expired</td>
+<td><strong>404</strong>, naming <em>which</em> of the two is gone - "one of them has expired" sends somebody looking through both</td>
+</tr>
+<tr>
+<td>Either scan has not finished</td>
+<td><strong>409</strong>: there is nothing to compare yet, and 404 would send a reader to scan again while their scan is still running</td>
+</tr>
+<tr>
+<td>The same uuid twice</td>
+<td><strong>422</strong>. An empty diff of a scan against itself reads as "nothing is wrong"</td>
+</tr>
+<tr>
+<td>The two scans describe different instances</td>
+<td><strong>200</strong>, compared and said so. Staging against production is a fair question; answering it silently is not</td>
+</tr>
+</tbody>
+</table>
+<p>Like <code>/scan/{uuid}</code> and for the same reason, the page renders results and is
+therefore never indexed and never in the OpenAPI schema, and each uuid remains
+the whole of the authorisation for the result behind it.</p>
 <h2 id="the-ssrf-guard">The SSRF guard</h2>
 <p>A public scan service forwards requests by definition, so the target is
 checked before anything connects:</p>
@@ -1068,7 +1124,9 @@ from the module the library tests cover, and a second implementation of that
 in JavaScript is the one thing on the page that must not exist. The explanations the landing page used to carry sit on
 their own pages - <code>GET /how-it-works</code>, <code>GET /grades</code>, <code>GET /documentation</code>,
 <code>GET /search</code>, <code>GET /api</code>, <code>GET /ai</code>, <code>GET /privacy</code> and <code>GET /about</code> - which
-are HTML only and stay out of the OpenAPI schema. <code>/grades</code> explains the
+are HTML only and stay out of the OpenAPI schema. So does <code>GET /compare</code>,
+for a second reason: it renders two results and is therefore never
+indexable, exactly as <code>/scan/{uuid}</code> is not. <code>/grades</code> explains the
 plugin's real 0-5 map and its remediation ceilings; <code>/documentation</code> is the
 local CLI quick reference and guide index, and it is also the page that points
 away from this service: the Docker one-liners that run the same scan on the

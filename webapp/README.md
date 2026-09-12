@@ -145,6 +145,7 @@ A small surface, and this is all of it.
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
 | `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/compare` | Two finished scans compared, from `?baseline=` and `?current=`; HTML only, and never in the schema because it renders results |
 | `GET` | `/cli` | **301** to `/documentation#oneliner`; the Docker one-liners moved onto that page |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |

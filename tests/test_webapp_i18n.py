@@ -29,6 +29,7 @@ FRONTEND_PATHS = (
     "/catalogue",
     "/documentation",
     "/search",
+    "/compare",
     "/api",
     "/ai",
     "/privacy",
