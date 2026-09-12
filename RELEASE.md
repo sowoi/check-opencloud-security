@@ -94,6 +94,17 @@
     terms. A waiver or track the catalogue no longer lists is simply not
     applied.
 
+### Changed
+
+- **On a phone, the address field is the first thing on the page.** Stacked
+  into one column, the eyebrow, the two-line headline and the lede filled
+  most of the screen before the form, so a visitor had to scroll to find the
+  one field the service exists for. Below 640px the form is now painted at
+  the top, with the headline and introduction, the artwork and the promises
+  following it. Only the painting order changes: the markup still puts the
+  heading first, so screen readers and the tab order are unaffected, and
+  wider screens look exactly as before.
+
 ### Fixed
 
 - **A comparison shows when each scan ran, instead of calling both times
