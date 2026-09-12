@@ -12,6 +12,7 @@
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
 * [Machine-readable output for CI (json/sarif/junit)](#machine-readable-output-for-ci-jsonsarifjunit)
+* [Checkmk](#checkmk)
 * [GitHub Action](#github-action)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
@@ -235,7 +236,7 @@ The handful you will actually type most days:
 | `-d, --debug` | Explain the rating and every finding, at length |
 | `--check-hardening` | Also report missing hardening measures and security headers |
 | `-w, --warning` / `-c, --critical` | The ratings (0-5) at or below which the check warns or goes critical |
-| `--format` | `nagios`, `prometheus`, `json`, `sarif` or `junit` |
+| `--format` | `nagios`, `prometheus`, `checkmk`, `json`, `sarif` or `junit` |
 | `--ignore-hardening` | Accept a finding you are not going to fix, by name |
 | `--baseline` / `--warn-on-new` | Alert only on findings that are new or worse than last run |
 
@@ -329,6 +330,38 @@ check-opencloud-security --host opencloud.example.com --format sarif \
 value, including `nagios` and `prometheus`, and
 [Running the check from CI](docs/ci.md) has the GitHub Actions and GitLab CI
 steps that upload the file.
+
+# Checkmk
+
+Checkmk runs this plugin either way round, and which one you want depends on
+where it should run from:
+
+- **As an active check on the Checkmk server.** Nothing here is needed:
+  Checkmk reads the Nagios line and its performance data natively. Add the
+  command line under *Setup > Services > Other services > Integrate Nagios
+  plugins*.
+- **As a local check on an agent host**, which is what you want when the
+  instance is only reachable from inside a network the Checkmk server is not
+  on. `--format checkmk` writes the agent's own line - state, service name,
+  metrics, detail - one per host in `--host`:
+
+  ```shell
+  check-opencloud-security --host opencloud.example.com --format checkmk
+  ```
+
+  ```text
+  0 "OpenCloud_Security_opencloud.example.com" rating=5|vulnerabilities=0|… OK: Server is up to date…
+  ```
+
+  [`contrib/checkmk/opencloud_security`](contrib/checkmk/opencloud_security) is
+  that call as a ready-to-install script.
+
+The scanned instance names the service, because the host running the agent is
+rarely the instance being scanned. **Install the local check in a numeric
+subdirectory** - `local/3600/` - or it runs on every agent call, once a
+minute, against somebody's production instance.
+[`docs/checkmk.md`](docs/checkmk.md) has both routes in full, the metrics and
+what the states mean.
 
 # GitHub Action
 

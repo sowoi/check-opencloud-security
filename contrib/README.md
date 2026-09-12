@@ -7,10 +7,14 @@ retypes a dashboard.
 - `cron/` - a `cron.d` drop-in file.
 - `prometheus/alerts.yml` - alerting rules for the plugin's own exporter.
 - `grafana/dashboard.json` - a dashboard for the same metrics.
+- `checkmk/opencloud_security` - a Checkmk local check, for an agent host that
+  can reach an instance the Checkmk server cannot.
 
 See the "Scheduling without Icinga2 / Nagios" section in the main
-[README.md](../README.md) for the two scheduling examples, and
-[Prometheus and Grafana](../docs/prometheus.md) for the other two.
+[README.md](../README.md) for the two scheduling examples,
+[Prometheus and Grafana](../docs/prometheus.md) for the next two, and
+[Checkmk](../docs/checkmk.md) for the last one - including why it is installed
+in a `local/3600/` subdirectory rather than in `local/` itself.
 
 The scheduling examples rely on the `COS_*` environment variables documented
 in the main README instead of command-line flags, so the same plugin

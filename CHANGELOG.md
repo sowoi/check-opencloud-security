@@ -12,6 +12,41 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **Checkmk runs this check from either side now.** Checkmk speaks Nagios, so
+  a Checkmk server has always been able to run the plugin as an active check
+  and read its line - but that route needs the server to reach the instance,
+  and the deployments where it cannot are exactly the ones an agent already
+  sits inside. The agent's own protocol is not the Nagios line: metrics are
+  separated by `|` rather than spaces, every value has to parse as a number
+  (the `s` on `time=4.120s` does not), the service name is quoted, and the
+  detail follows the summary as a literal `\n`, because a real newline starts
+  another service. `--format checkmk` writes that line - one per host in
+  `--host`, since one line is one service - and
+  `contrib/checkmk/opencloud_security` is it as a script ready to install.
+
+  **The scanned instance names the service**, not the host the agent runs on:
+  this plugin probes an instance from outside, so the natural place to run it
+  is a monitoring host watching several instances, each of which needs a
+  service of its own.
+
+  **The state stays the plugin's.** A local check's thresholds are only
+  evaluated when the state field is `P`, which hands the verdict to Checkmk,
+  and deciding is this plugin's whole job - thresholds, waivers, the rules
+  end of life and a baseline add on top. So the line carries the state it
+  already reached and the metrics carry values alone, with no second opinion
+  for Checkmk to disagree with. A measurement that was not taken is left out
+  rather than sent as a zero: without `--check-hardening` there is no
+  `hardenings_missing`, because an empty list of missing measures would
+  otherwise be indistinguishable from a perfect one.
+
+  [`docs/checkmk.md`](docs/checkmk.md) has both routes, the metric table, and
+  why the local check is installed in a `local/3600/` subdirectory rather than
+  in `local/` itself - a script in the directory proper runs on every agent
+  call, once a minute, which is a full scan a minute against somebody's
+  production instance.
+
 ## [1.21.3] - 2026-09-11
 
 ### Fixed

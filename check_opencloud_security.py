@@ -533,7 +533,18 @@ def check_vulnerabilities(
     if not delivered:
         detail_lines.append("Webhook delivery failed (see debug log)")
 
-    _RESULT_PAYLOAD.set({"payload": payload, "scan": response_scan, "webhook_fires": fires})
+    # hardening_checked is not derivable from the payload: with
+    # --check-hardening off, missing_hardenings is empty for the same reason
+    # a perfectly hardened instance's is, and a format that reports a count
+    # has to tell those two apart (see _checkmk_metrics).
+    _RESULT_PAYLOAD.set(
+        {
+            "payload": payload,
+            "scan": response_scan,
+            "webhook_fires": fires,
+            "hardening_checked": context.check_hardening,
+        }
+    )
 
     safe_message = _safe_monitoring_text(msg)
     safe_details = [_safe_monitoring_text(line) for line in detail_lines]
@@ -2168,15 +2179,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     output.add_argument(
         "--format",
         dest="output_format",
-        choices=("nagios", "prometheus", "json", "sarif", "junit"),
+        choices=("nagios", "prometheus", "json", "sarif", "junit", "checkmk"),
         default=_env("FORMAT") or "nagios",
         help=(
             "Output format for a one-shot scan: 'nagios', Prometheus text "
-            "exposition, or a machine-readable document for every host "
-            "combined - 'json' (an array of the webhook payload shape), "
-            "'sarif' (2.1.0, for a code-scanning dashboard) or 'junit' XML "
-            "(one testsuite per host). The exit code keeps its Nagios "
-            "meaning under every format. "
+            "exposition, 'checkmk' (one Checkmk local check line per host), "
+            "or a machine-readable document for every host combined - 'json' "
+            "(an array of the webhook payload shape), 'sarif' (2.1.0, for a "
+            "code-scanning dashboard) or 'junit' XML (one testsuite per "
+            "host). The exit code keeps its Nagios meaning under every "
+            "format. "
             f"Default: nagios (env: {ENV_PREFIX}FORMAT)."
         ),
     )
@@ -2713,6 +2725,9 @@ def _run_multi_host_checks(hosts: list[str], args: argparse.Namespace) -> Nagios
 # is printed for the whole run (never one per host, even for a single one)
 # because concatenating N independent JSON/SARIF/XML documents the way the
 # nagios/text path concatenates blocks would not parse as one.
+#
+# --format checkmk shares this runner and not that rule: its protocol is a
+# line per service, so several hosts are several lines by definition.
 # --------------------------------------------------------------------------
 
 # SARIF has three levels that matter here, matching the mapping the webapp's
@@ -2733,7 +2748,8 @@ _SARIF_SCHEMA = (
 
 def _run_machine_format_checks(hosts: list[str], args: argparse.Namespace) -> int:
     """
-    Run every host and print one combined json/sarif/junit document.
+    Run every host and print one combined json/sarif/junit document, or the
+    Checkmk local check lines.
 
     Every other flag - baseline diffing, webhooks, --warn-on-new - keeps
     working exactly as it does for the nagios format, because this only
@@ -2756,6 +2772,8 @@ def _run_machine_format_checks(hosts: list[str], args: argparse.Namespace) -> in
         print(json.dumps([document["payload"] for document in documents], indent=2))
     elif args.output_format == "sarif":
         print(json.dumps(_render_sarif(documents), indent=2))
+    elif args.output_format == "checkmk":
+        print(_render_checkmk(documents, exit_codes))
     else:
         print(_render_junit(documents))
 
@@ -2940,6 +2958,136 @@ def _render_junit(documents: list[dict[str, Any]]) -> str:
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ElementTree.tostring(
         root, encoding="unicode"
     )
+
+
+# --------------------------------------------------------------------------
+# Checkmk local check output: --format checkmk. One line per host, in the
+# agent's own protocol:
+#
+#     <state> "<service name>" <metrics> <status detail>
+#
+# Checkmk reads the Nagios line above natively when the plugin is configured
+# as an active check on the site server, and that path needs nothing from
+# here. This format is for the other one - a local check run by the agent -
+# where three things differ enough that reformatting the Nagios line would
+# have been a parser, not a renderer:
+#
+# * metrics are separated by '|' rather than by spaces, and every value has
+#   to parse as a number, which the 's' on the Nagios 'time' metric does not.
+# * a metric's levels are evaluated only when the state field is 'P', which
+#   hands the verdict to Checkmk. Deciding is this plugin's whole job -
+#   thresholds, waivers, the rules end of life and a baseline add on top -
+#   so the state is the one it already reached and the metrics carry values
+#   alone rather than a second opinion Checkmk could disagree with.
+# * the detail follows the summary as a literal backslash-n, because a local
+#   check is one line per service and a real newline starts another service.
+#
+# The state numbers need no mapping at all: Checkmk inherited 0/1/2/3 from
+# Nagios, which is what NagiosExitCode already is.
+#
+# Format reference:
+# https://docs.checkmk.com/latest/en/localchecks.html
+# --------------------------------------------------------------------------
+
+_CHECKMK_SERVICE_PREFIX = "OpenCloud_Security"
+
+# Everything else in a host becomes '_'. The name is quoted on the line, so a
+# space would survive - but a Nagios core rejects a service name containing
+# any of ;~!$%^&*|\'"<>?,()= outright, and this set stays well inside that
+# for either core, so a URL target survives as a name rather than as a shape
+# nobody can write a rule condition against.
+_CHECKMK_NAME_SAFE = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-"
+)
+
+
+def _checkmk_service_name(host: str) -> str:
+    """
+    The Checkmk service name for one scanned instance.
+
+    The target is named in the service rather than left to the host the agent
+    runs on, because those are rarely the same machine: this plugin probes an
+    instance from outside, so the natural place to run it is a monitoring
+    host that scans several instances, each of which needs its own service.
+    """
+    cleaned = "".join(
+        character if character in _CHECKMK_NAME_SAFE else "_" for character in host
+    )
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    cleaned = cleaned.strip("_")
+    return f"{_CHECKMK_SERVICE_PREFIX}_{cleaned}" if cleaned else _CHECKMK_SERVICE_PREFIX
+
+
+def _checkmk_metrics(document: dict[str, Any]) -> str:
+    """
+    The metrics field for one host: the same measurements the Nagios perfdata
+    carries, under the same names, minus the thresholds and the unit suffix
+    Checkmk cannot read.
+
+    A measurement that was not taken is left out rather than sent as a zero,
+    which is why ``hardenings_missing`` needs the flag the document carries:
+    an empty list of missing measures means "none missing" with
+    ``--check-hardening`` and "none looked for" without it, and a graph flat
+    at zero cannot say which.
+    """
+    payload = document["payload"]
+    scan = document.get("scan") or {}
+    metrics: list[str] = []
+
+    rating = payload.get("rating")
+    if isinstance(rating, int) and rating in RATE_MAP:
+        metrics.append(f"rating={rating}")
+    if isinstance(payload.get("vulnerability_count"), int):
+        metrics.append(f"vulnerabilities={payload['vulnerability_count']}")
+    if document.get("hardening_checked"):
+        metrics.append(f"hardenings_missing={len(payload.get('missing_hardenings') or [])}")
+    if scan.get("extraChecks"):
+        metrics.append(f"extra_checks_failed={len(payload.get('failed_extra_checks') or [])}")
+
+    update = payload.get("update")
+    if isinstance(update, dict) and "available" in update:
+        metrics.append(f"update_available={int(bool(update['available']))}")
+
+    support_days = _support_days_left(scan)
+    if support_days is not None:
+        metrics.append(f"support_days_left={support_days}")
+    certificate_days = _certificate_days_left(scan)
+    if certificate_days is not None:
+        metrics.append(f"cert_days_left={certificate_days}")
+
+    duration = payload.get("duration_seconds")
+    if isinstance(duration, (int, float)):
+        metrics.append(f"execution_time={float(duration):.3f}")
+
+    return "|".join(metrics) if metrics else "-"
+
+
+def _render_checkmk(
+    documents: list[dict[str, Any]], exit_codes: list[NagiosExitCode]
+) -> str:
+    """
+    Render one Checkmk local check line per host.
+
+    The findings under the summary are the ones _host_findings already
+    derives for SARIF and JUnit, so the three formats cannot disagree about
+    what this run found.
+    """
+    lines: list[str] = []
+    for document, exit_code in zip(documents, exit_codes):
+        payload = document["payload"]
+        summary = _safe_monitoring_text(payload.get("message") or "")
+        details = [
+            _safe_monitoring_text(f"{finding['id']}: {finding['title']}")
+            for finding in _host_findings(document)
+        ]
+        text = "\\n".join([summary, *details])
+        service = _checkmk_service_name(str(payload.get("host") or "unknown"))
+        # Exactly one space between the four fields: agents up to 2.4.0p4
+        # split on a single space and read a second one as part of the next
+        # field.
+        lines.append(f'{int(exit_code)} "{service}" {_checkmk_metrics(document)} {text}')
+    return "\n".join(lines)
 
 
 def _prometheus_scan(context: ScanContext) -> str:
@@ -3178,7 +3326,7 @@ def main() -> None:
         print(_prometheus_metrics(hosts, args), end="")
         return
 
-    if args.output_format in {"json", "sarif", "junit"}:
+    if args.output_format in {"json", "sarif", "junit", "checkmk"}:
         sys.exit(_run_machine_format_checks(hosts, args))
 
     if len(hosts) == 1:

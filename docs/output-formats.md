@@ -21,6 +21,7 @@ produce is a separate, additional artifact, not a replacement for it.
   * [`json`](#json)
   * [`sarif`](#sarif)
   * [`junit`](#junit)
+  * [`checkmk`](#checkmk)
   * [Choosing a format](#choosing-a-format)
 <!-- TOC -->
 
@@ -83,6 +84,21 @@ The same pattern works for any CI system that turns a JUnit file into a
 check-run summary - the step just needs to point its JUnit reporter at the
 file this command produces.
 
+## `checkmk`
+
+One [Checkmk local check](checkmk.md) line per scanned host, for the agent to
+read: the state, the quoted service name, the metrics and the detail text.
+
+```shell
+check-opencloud-security --host opencloud.example.com --format checkmk
+```
+
+This is the one format that is *not* a single combined document, because the
+protocol it writes is a line per service - several hosts are several
+services. It is also only needed for the agent-side route: a Checkmk server
+running the plugin as an active check reads the default `nagios` output
+natively. [Checkmk](checkmk.md) has both, and the metric table.
+
 ## Choosing a format
 
 | Format     | Use it when...                                                          |
@@ -92,6 +108,7 @@ file this command produces.
 | `json`     | Something else parses the result programmatically                        |
 | `sarif`    | A code-scanning dashboard (GitHub, GitLab) should list the findings      |
 | `junit`    | A CI system renders test results and should render findings the same way |
+| `checkmk`  | A Checkmk agent runs the plugin as a local check - see [Checkmk](checkmk.md) |
 
 See [Running the check from CI](ci.md) for a fuller GitHub Actions and
 GitLab CI walkthrough, including gating a pipeline on a field of the JSON

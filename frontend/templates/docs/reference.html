@@ -25,6 +25,7 @@
   <a href="#checking-multiple-hosts" lang="en">Checking multiple hosts</a>
   <a href="#prometheus-kubernetes-integration" lang="en">Prometheus &amp; Kubernetes integration</a>
   <a href="#machine-readable-output-for-ci-jsonsarifjunit" lang="en">Machine-readable output for CI (json/sarif/junit)</a>
+  <a href="#checkmk" lang="en">Checkmk</a>
   <a href="#github-action" lang="en">GitHub Action</a>
   <a href="#environment-variables" lang="en">Environment variables</a>
   <a href="#the-built-in-scanner" lang="en">The built-in scanner</a>
@@ -211,7 +212,7 @@ lines you want can be found without reading the other forty.</p>
 </tr>
 <tr>
 <td><code>--format</code></td>
-<td><code>nagios</code>, <code>prometheus</code>, <code>json</code>, <code>sarif</code> or <code>junit</code></td>
+<td><code>nagios</code>, <code>prometheus</code>, <code>checkmk</code>, <code>json</code>, <code>sarif</code> or <code>junit</code></td>
 </tr>
 <tr>
 <td><code>--ignore-hardening</code></td>
@@ -297,6 +298,31 @@ artifact.</p>
 value, including <code>nagios</code> and <code>prometheus</code>, and
 <a href="/documentation/ci">Running the check from CI</a> has the GitHub Actions and GitLab CI
 steps that upload the file.</p>
+<h2 id="checkmk">Checkmk</h2>
+<p>Checkmk runs this plugin either way round, and which one you want depends on
+where it should run from:</p>
+<ul>
+<li><strong>As an active check on the Checkmk server.</strong> Nothing here is needed:
+  Checkmk reads the Nagios line and its performance data natively. Add the
+  command line under <em>Setup &gt; Services &gt; Other services &gt; Integrate Nagios
+  plugins</em>.</li>
+<li><strong>As a local check on an agent host</strong>, which is what you want when the
+  instance is only reachable from inside a network the Checkmk server is not
+  on. <code>--format checkmk</code> writes the agent's own line - state, service name,
+  metrics, detail - one per host in <code>--host</code>:</li>
+</ul>
+<p><code>shell
+  check-opencloud-security --host opencloud.example.com --format checkmk</code></p>
+<p><code>text
+  0 "OpenCloud_Security_opencloud.example.com" rating=5|vulnerabilities=0|… OK: Server is up to date…</code></p>
+<p><a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/checkmk/opencloud_security"><code>contrib/checkmk/opencloud_security</code></a> is
+  that call as a ready-to-install script.</p>
+<p>The scanned instance names the service, because the host running the agent is
+rarely the instance being scanned. <strong>Install the local check in a numeric
+subdirectory</strong> - <code>local/3600/</code> - or it runs on every agent call, once a
+minute, against somebody's production instance.
+<a href="/documentation/checkmk"><code>docs/checkmk.md</code></a> has both routes in full, the metrics and
+what the states mean.</p>
 <h2 id="github-action">GitHub Action</h2>
 <p><a href="https://github.com/sowoi/check-opencloud-security/blob/main/action.yml"><code>action.yml</code></a> runs the same check as a step, so a workflow can
 scan an instance on a schedule without installing anything itself. <strong>The

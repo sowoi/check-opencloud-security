@@ -15,6 +15,15 @@
 <p class="hint section-gap" lang="{{ locale }}">{{ t('docs.guide.english_notice') }}</p>
 {% endif %}
 
+<nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
+  <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#json" lang="en"><code>json</code></a>
+  <a href="#sarif" lang="en"><code>sarif</code></a>
+  <a href="#junit" lang="en"><code>junit</code></a>
+  <a href="#checkmk" lang="en"><code>checkmk</code></a>
+  <a href="#choosing-a-format" lang="en">Choosing a format</a>
+</nav>
+
 <article class="docs-article card section-gap" data-reveal lang="en">
 <p>The scanner's default output is a single Nagios-style line, because that is
 what a monitoring system expects. <code>--format</code> (<code>COS_FORMAT</code>) switches that
@@ -35,6 +44,7 @@ produce is a separate, additional artifact, not a replacement for it.</p>
 <li><a href="#json"><code>json</code></a></li>
 <li><a href="#sarif"><code>sarif</code></a></li>
 <li><a href="#junit"><code>junit</code></a></li>
+<li><a href="#checkmk"><code>checkmk</code></a></li>
 <li><a href="#choosing-a-format">Choosing a format</a></li>
 </ul>
 <!-- TOC -->
@@ -81,6 +91,16 @@ JUnit-reading tools treat as "nothing ran" rather than "nothing failed".</p>
 <p>The same pattern works for any CI system that turns a JUnit file into a
 check-run summary - the step just needs to point its JUnit reporter at the
 file this command produces.</p>
+<h2 id="checkmk"><code>checkmk</code></h2>
+<p>One <a href="/documentation/checkmk">Checkmk local check</a> line per scanned host, for the agent to
+read: the state, the quoted service name, the metrics and the detail text.</p>
+<pre><code class="language-shell">check-opencloud-security --host opencloud.example.com --format checkmk
+</code></pre>
+<p>This is the one format that is <em>not</em> a single combined document, because the
+protocol it writes is a line per service - several hosts are several
+services. It is also only needed for the agent-side route: a Checkmk server
+running the plugin as an active check reads the default <code>nagios</code> output
+natively. <a href="/documentation/checkmk">Checkmk</a> has both, and the metric table.</p>
 <h2 id="choosing-a-format">Choosing a format</h2>
 <table>
 <thead>
@@ -109,6 +129,10 @@ file this command produces.</p>
 <tr>
 <td><code>junit</code></td>
 <td>A CI system renders test results and should render findings the same way</td>
+</tr>
+<tr>
+<td><code>checkmk</code></td>
+<td>A Checkmk agent runs the plugin as a local check - see <a href="/documentation/checkmk">Checkmk</a></td>
 </tr>
 </tbody>
 </table>

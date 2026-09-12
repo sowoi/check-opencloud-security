@@ -45,7 +45,7 @@ check-opencloud-security --host <Hostname> --check-hardening
 | `--no-extra-checks`           | Only check product, version and security headers                                                                                             | *False*                                         | `COS_NO_EXTRA_CHECKS`           |
 | `--no-debug-ports`            | Skip probing the OpenCloud debug ports                                                                                                       | *False*                                         | `COS_NO_DEBUG_PORTS`            |
 | `--concurrency`               | Maximum parallel host workers; one is used per host up to this ceiling                                                                       | `5`                                             | `COS_CONCURRENCY`               |
-| `--format`                    | One-shot output format: `nagios`, `prometheus`, `json`, `sarif` or `junit`                                                                   | `nagios`                                        | `COS_FORMAT`                    |
+| `--format`                    | One-shot output format: `nagios`, `prometheus`, `checkmk`, `json`, `sarif` or `junit`                                                        | `nagios`                                        | `COS_FORMAT`                    |
 | `--prometheus-listen-port`    | Serve native `/metrics` on this port until stopped                                                                                           | disabled                                        | `COS_PROMETHEUS_LISTEN_PORT`    |
 | `--prometheus-listen-addr`    | Bind address for the native Prometheus exporter                                                                                              | `127.0.0.1`                                     | `COS_PROMETHEUS_LISTEN_ADDR`    |
 | `--scrape-interval`           | Seconds to cache exporter scan results (`0` scans on every scrape)                                                                           | `60`                                            | `COS_SCRAPE_INTERVAL`           |
@@ -94,5 +94,6 @@ lists every one of them with a comment.
 | [Main README](../README.md) | What each of these options is for, with worked examples |
 | [Configuration file and secrets](../README.md#configuration-file-and-secrets) | Setting the same things in a file instead |
 | [Machine-readable output](output-formats.md) | `--format json`, `sarif` and `junit` in depth |
+| [Checkmk](checkmk.md) | `--format checkmk`, and running the plugin from a Checkmk server instead |
 | [Checking a fleet of instances](many-instances.md) | `--host` with many targets, and one config file per instance |
 | [Troubleshooting](troubleshooting.md) | The exit-code reference |

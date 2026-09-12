@@ -57,6 +57,7 @@ internet; the page below is the rest of the job.
 |:-----|:---------------|
 | [CLI option reference](cli-reference.md) | Every flag, its default and the environment variable that sets the same thing |
 | [Icinga Director](icinga-director.md) | Creating the `CheckCommand`, data fields, service template and apply rule through the web UI |
+| [Checkmk](checkmk.md) | Both routes: an active check on the Checkmk server, or `--format checkmk` as a local check on an agent host that can reach an instance the server cannot |
 | [Automated deployment with Ansible](ansible.md) | The native and Docker roles, the variables, and deploying the Icinga2 objects without clicking |
 | [Scanning from the command line, in one line](docker-oneliner.md) | The published image as a single `docker run`, for whoever would rather not use the website: JSON output, private networks, waivers and a shell function |
 | [Scheduling](scheduling.md) | systemd timer and cron, for hosts with no Icinga2 or Nagios |

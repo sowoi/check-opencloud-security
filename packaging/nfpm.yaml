@@ -112,6 +112,12 @@ contents:
     dst: /usr/share/doc/check-opencloud-security/env.example
   - src: contrib/cron/check-opencloud-security.cron
     dst: /usr/share/doc/check-opencloud-security/check-opencloud-security.cron
+  # For a host that also runs a Checkmk agent. Shipped as an example rather
+  # than installed into /usr/lib/check_mk_agent/local/, which belongs to
+  # another package - and where landing unannounced would start scanning
+  # somebody's instance once a minute.
+  - src: contrib/checkmk/opencloud_security
+    dst: /usr/share/doc/check-opencloud-security/checkmk-local-check.sh
   - src: build/distro-stage/doc/README.md
     dst: /usr/share/doc/check-opencloud-security/README.md
   - src: CHANGELOG.md

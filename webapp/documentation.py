@@ -167,6 +167,12 @@ DOCUMENTATION_PAGES: tuple[DocumentationPage, ...] = (
         "Import OpenCloud security check commands, fields, and apply rules into Icinga Director.",
     ),
     DocumentationPage(
+        "checkmk",
+        "docs/checkmk.md",
+        "OpenCloud Security Scanner in Checkmk",
+        "Run the OpenCloud security check as a Checkmk active check on the server, or as a local check on an agent host.",
+    ),
+    DocumentationPage(
         "reverse-proxy",
         "docs/reverse-proxy.md",
         "Reverse proxy the OpenCloud Security Scanner",

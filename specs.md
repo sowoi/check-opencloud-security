@@ -251,8 +251,8 @@ line MAY belong to several tracks.
 
 ## 9. Output (`O`)
 
-- **O-1** `--format` MUST accept `nagios`, `prometheus`, `json`, `sarif` and
-  `junit`, defaulting to `nagios`.
+- **O-1** `--format` MUST accept `nagios`, `prometheus`, `json`, `sarif`,
+  `junit` and `checkmk`, defaulting to `nagios`.
 - **O-2** Performance data MUST always carry `rating` with its warning and
   critical thresholds and the range `0;5`, and `vulnerabilities` with a
   minimum of `0`. `hardenings_missing` MUST be emitted only when hardening
@@ -263,8 +263,16 @@ line MAY belong to several tracks.
   ones included.
 - **O-5** Machine-readable formats MUST combine every host of a multi-host run
   into one document, and MUST preserve the order the hosts were given.
+  `checkmk` is the one exception to the combining, never to the order: its
+  protocol is one line per service, so each host MUST get its own line.
 - **O-6** `--baseline` MUST NOT be able to hide a finding that is worse than
   the recorded one; a diff reports regressions, it does not suppress them.
+- **O-7** A `checkmk` line MUST carry the state the plugin itself decided -
+  never `P`, which would hand the verdict to Checkmk - followed by the quoted
+  service name, the metrics and the detail. Every metric value MUST parse as
+  a number and MUST carry no thresholds, and a metric whose measurement did
+  not run MUST be left out rather than sent as a zero. The detail MUST stay
+  on one line, because a newline in it starts another service.
 
 
 ## 10. The webhook (`H`)
