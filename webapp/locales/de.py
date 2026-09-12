@@ -383,6 +383,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Beide stammen aus demselben Scan.",
     "index.waivers.summary": "Bestimmte Prüfungen ignorieren (optional)",
     "index.waivers.selected": "Bestimmte Prüfungen ignorieren ({count} ausgewählt)",
+    "index.remember.summary": (
+        "Einstellungen deines letzten Scans in diesem Browser: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "keine ausgesetzten Prüfungen",
+    "index.remember.waivers.one": "1 ausgesetzte Prüfung",
+    "index.remember.waivers.many": "{count} ausgesetzte Prüfungen",
+    "index.remember.apply": "Wieder verwenden",
+    "index.remember.forget": "Vergessen",
     "index.waivers.hint": (
         "Eine ausgesetzte Prüfung bleibt im Bericht und wird weiterhin angezeigt "
         "- sie hört nur auf, die Note nach unten zu drücken. Nur Prüfungen, die "
@@ -1424,6 +1432,16 @@ MESSAGES: dict[str, str] = {
     "result.track.label": "{track}-Track",
     "result.another": "Eine weitere Instanz scannen",
     "result.compare": "Mit einem früheren Scan vergleichen",
+    "result.tab.queued": "In der Warteschlange: {target}",
+    "result.tab.queued.position": "Platz {position}: {target}",
+    "result.tab.running": "Wird gescannt: {target}",
+    "result.tab.ready": "Bericht fertig: {target}",
+    "result.tab.done": "Note {label}: {target}",
+    "result.tab.failed": "Scan fehlgeschlagen: {target}",
+    "result.compare.offer": (
+        "Du hast diese Instanz in diesem Tab schon um {time} gescannt."
+    ),
+    "result.compare.offer.link": "Sehen, was sich seitdem geändert hat",
     "result.progress.kicker": "In Bearbeitung",
     "result.progress.queued.title": "Wartet auf einen Scanner-Worker",
     "result.progress.queued.detail": (
@@ -1782,6 +1800,14 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "Diese Seite läuft in etwa {minutes} Minuten ab, danach funktioniert "
         "der Link nicht mehr und das Ergebnis ist weg."
+    ),
+    "result.expiry.warning.one": "Dieser Bericht verschwindet in etwa 1 Minute.",
+    "result.expiry.warning.many": (
+        "Dieser Bericht verschwindet in etwa {minutes} Minuten."
+    ),
+    "result.expiry.warning.action": "Lade eine Kopie herunter, um ihn zu behalten",
+    "result.expiry.gone": (
+        "Dieser Bericht ist abgelaufen. Der Link und seine Downloads funktionieren nicht mehr."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "TLS-Version",

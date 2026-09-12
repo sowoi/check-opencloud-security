@@ -16,7 +16,10 @@
   {# A result page is reachable only with its uuid, so only the pages that
      exist before anybody scans anything are ever offered to a crawler. #}
   <meta name="robots" content="{{ robots|default('noindex, nofollow', true) }}">
-  <title>{% block title %}{{ t('index.title') }}{% endblock %} &middot; {{ site_name|default('OpenCloud Security Scan', true) }}</title>
+  {# `tab_title` is the browser tab alone. A page may say more there than in
+     the `title` block, which is also its og:title and structured data - the
+     parts a link preview would show to everyone in a channel. #}
+  <title>{% block tab_title %}{% block title %}{{ t('index.title') }}{% endblock %}{% endblock %} &middot; {{ site_name|default('OpenCloud Security Scan', true) }}</title>
   <meta name="description" content="{% block description %}{{ t('index.description') }}{% endblock %}">
   {% if canonical_url %}
   <link rel="canonical" href="{{ canonical_url }}">

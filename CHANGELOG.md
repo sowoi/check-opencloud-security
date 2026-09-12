@@ -73,6 +73,39 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   call, once a minute, which is a full scan a minute against somebody's
   production instance.
 
+- **The web pages keep track of a scan while the reader is elsewhere.** Four
+  small things for the moments nobody is looking at the page, each running
+  entirely in the browser and each leaving the page exactly as it was without
+  scripting:
+
+  - **The tab title follows the scan.** `Queued: host`, `#2 in line: host`,
+    `Scanning: host`, and on a finished report `Grade B: host`, so a reader
+    who switched tabs sees the result from the tab strip. The server writes
+    the first reading and a finished page names its grade with no script at
+    all. The title never carries the uuid, and the grade goes into the tab
+    alone: the `title` block that also feeds `og:title` and the structured
+    data stays generic, through a new `tab_title` block in `base.html`, so a
+    link preview in a chat channel does not print somebody's grade.
+  - **A rescan offers the comparison with the scan before it.** A finished
+    report now says "You scanned this instance earlier in this tab, at 14:02 -
+    see what changed since then", linking `/compare` with both uuids filled
+    in. The earlier uuids are kept in the tab's `sessionStorage` only: never
+    sent to the server, gone when the tab closes, and dropped once their
+    result has expired rather than offered as a link to a 404.
+  - **A report warns before it disappears.** In its last five minutes a
+    finished report shows a warning near the top with a link to the
+    downloads, keeps the minutes current, and says so once the result has
+    gone. The server renders the warning already visible when a page is
+    loaded inside that window, so a reader without scripting is warned too,
+    and a failed scan, which has nothing to export, is offered no download.
+  - **The form offers back the last settings used.** After a scan, the next
+    visit to the form offers the release track, output format and waivers
+    that scan used - "use them again" or "forget them" - instead of applying
+    them unasked. They are kept in `localStorage`; the address is not, since
+    the browser's own autocomplete already remembers it on the visitor's
+    terms. A waiver or track the catalogue no longer lists is simply not
+    applied.
+
 ### Fixed
 
 - **A comparison shows when each scan ran, instead of calling both times

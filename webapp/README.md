@@ -73,6 +73,9 @@ frontend/
     ├── js/scan.js    polls /api/scans/{uuid} until the scan settles
     ├── js/rescan.js  counts down the wait before the same instance may be scanned again
     ├── js/fragment.js the picker over the rendered configuration fragments
+    ├── js/compare-offer.js offers the comparison with this tab's earlier scan of the same target
+    ├── js/expiry.js  keeps the expiry line current and warns before a report disappears
+    ├── js/remember.js offers back the last settings the form was submitted with
     └── img/*.svg     drawn for this project
 ```
 

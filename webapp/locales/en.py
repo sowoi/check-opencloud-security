@@ -395,6 +395,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Both come from the same scan.",
     "index.waivers.summary": "Ignore specific checks (optional)",
     "index.waivers.selected": "Ignore specific checks ({count} selected)",
+    "index.remember.summary": (
+        "Settings from your last scan in this browser: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "no waived checks",
+    "index.remember.waivers.one": "1 waived check",
+    "index.remember.waivers.many": "{count} waived checks",
+    "index.remember.apply": "Use them again",
+    "index.remember.forget": "Forget them",
     "index.waivers.hint": (
         "A waived check stays in the report and is still shown - it just stops "
         "holding the grade down. Only checks that actually failed can be waived."
@@ -1350,6 +1358,14 @@ MESSAGES: dict[str, str] = {
     "result.track.label": "{track} track",
     "result.another": "Scan another instance",
     "result.compare": "Compare with an earlier scan",
+    "result.tab.queued": "Queued: {target}",
+    "result.tab.queued.position": "#{position} in line: {target}",
+    "result.tab.running": "Scanning: {target}",
+    "result.tab.ready": "Report ready: {target}",
+    "result.tab.done": "Grade {label}: {target}",
+    "result.tab.failed": "Scan failed: {target}",
+    "result.compare.offer": "You scanned this instance earlier in this tab, at {time}.",
+    "result.compare.offer.link": "See what changed since then",
     "result.progress.kicker": "In progress",
     "result.progress.queued.title": "Waiting for a scanner worker",
     "result.progress.queued.detail": (
@@ -1681,6 +1697,12 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "This page expires in about {minutes} minutes, after which the link stops "
         "working and the result is gone."
+    ),
+    "result.expiry.warning.one": "This report disappears in about 1 minute.",
+    "result.expiry.warning.many": "This report disappears in about {minutes} minutes.",
+    "result.expiry.warning.action": "Download a copy to keep it",
+    "result.expiry.gone": (
+        "This report has expired. The link and its downloads no longer work."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "TLS version",

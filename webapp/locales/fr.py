@@ -392,6 +392,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Les deux proviennent de la même analyse.",
     "index.waivers.summary": "Ignorer certains contrôles (facultatif)",
     "index.waivers.selected": "Ignorer certains contrôles ({count} sélectionné(s))",
+    "index.remember.summary": (
+        "Réglages de votre dernière analyse dans ce navigateur : {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "aucun contrôle dérogé",
+    "index.remember.waivers.one": "1 contrôle dérogé",
+    "index.remember.waivers.many": "{count} contrôles dérogés",
+    "index.remember.apply": "Les réutiliser",
+    "index.remember.forget": "Les oublier",
     "index.waivers.hint": (
         "Un contrôle dérogé reste dans le rapport et continue d'être affiché - "
         "il cesse simplement de plomber la note. Seuls les contrôles "
@@ -1466,6 +1474,16 @@ MESSAGES: dict[str, str] = {
     "result.track.label": "Canal {track}",
     "result.another": "Analyser une autre instance",
     "result.compare": "Comparer avec une analyse antérieure",
+    "result.tab.queued": "En file d'attente : {target}",
+    "result.tab.queued.position": "N° {position} dans la file : {target}",
+    "result.tab.running": "Analyse en cours : {target}",
+    "result.tab.ready": "Rapport prêt : {target}",
+    "result.tab.done": "Note {label} : {target}",
+    "result.tab.failed": "Échec de l'analyse : {target}",
+    "result.compare.offer": (
+        "Vous avez déjà analysé cette instance dans cet onglet, à {time}."
+    ),
+    "result.compare.offer.link": "Voir ce qui a changé depuis",
     "result.progress.kicker": "En cours",
     "result.progress.queued.title": "En attente d'un travailleur de scan",
     "result.progress.queued.detail": (
@@ -1824,6 +1842,14 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "Cette page expire dans environ {minutes} minutes, après quoi le "
         "lien cesse de fonctionner et le résultat disparaît."
+    ),
+    "result.expiry.warning.one": "Ce rapport disparaît dans environ 1 minute.",
+    "result.expiry.warning.many": (
+        "Ce rapport disparaît dans environ {minutes} minutes."
+    ),
+    "result.expiry.warning.action": "Téléchargez une copie pour le conserver",
+    "result.expiry.gone": (
+        "Ce rapport a expiré. Le lien et ses téléchargements ne fonctionnent plus."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "Version TLS",

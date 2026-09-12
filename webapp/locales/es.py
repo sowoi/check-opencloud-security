@@ -370,6 +370,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Ambos provienen del mismo análisis.",
     "index.waivers.summary": "Ignorar comprobaciones específicas (opcional)",
     "index.waivers.selected": "Ignorar comprobaciones específicas ({count} seleccionadas)",
+    "index.remember.summary": (
+        "Ajustes de tu último análisis en este navegador: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "ninguna comprobación exceptuada",
+    "index.remember.waivers.one": "1 comprobación exceptuada",
+    "index.remember.waivers.many": "{count} comprobaciones exceptuadas",
+    "index.remember.apply": "Volver a usarlos",
+    "index.remember.forget": "Olvidarlos",
     "index.waivers.hint": (
         "Una comprobación exceptuada permanece en el informe y sigue "
         "mostrándose; simplemente deja de frenar la calificación. Solo se "
@@ -1402,6 +1410,16 @@ MESSAGES: dict[str, str] = {
     "result.track.label": "Canal {track}",
     "result.another": "Analizar otra instancia",
     "result.compare": "Comparar con un análisis anterior",
+    "result.tab.queued": "En cola: {target}",
+    "result.tab.queued.position": "Puesto {position} en la cola: {target}",
+    "result.tab.running": "Analizando: {target}",
+    "result.tab.ready": "Informe listo: {target}",
+    "result.tab.done": "Nota {label}: {target}",
+    "result.tab.failed": "Análisis fallido: {target}",
+    "result.compare.offer": (
+        "Ya analizaste esta instancia en esta pestaña a las {time}."
+    ),
+    "result.compare.offer.link": "Ver qué ha cambiado desde entonces",
     "result.progress.kicker": "En curso",
     "result.progress.queued.title": "Esperando un proceso de análisis disponible",
     "result.progress.queued.detail": (
@@ -1749,6 +1767,14 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "Esta página caduca en aproximadamente {minutes} minutos; a partir "
         "de entonces el enlace deja de funcionar y el resultado desaparece."
+    ),
+    "result.expiry.warning.one": "Este informe desaparece en aproximadamente 1 minuto.",
+    "result.expiry.warning.many": (
+        "Este informe desaparece en aproximadamente {minutes} minutos."
+    ),
+    "result.expiry.warning.action": "Descarga una copia para conservarlo",
+    "result.expiry.gone": (
+        "Este informe ha caducado. El enlace y sus descargas ya no funcionan."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "Versión de TLS",
