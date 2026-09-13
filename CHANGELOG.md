@@ -203,6 +203,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **The comparison test no longer depends on the order the machine resolves
+  `localhost` in.** It scans one fake instance under two names, and the
+  instance listens on `127.0.0.1` only; where the resolver lists `::1` first,
+  as macOS does, the second scan was pinned to an address where nothing
+  answered and the page correctly said the scan had not finished. The test now
+  resolves that name to IPv4 itself. Test-only; nothing shipped changes.
+
 - **A comparison shows when each scan ran, instead of calling both times
   "unparsable".** `scannedAt` is written by the scanner from its own clock and
   is not one of the fields a scanned host has any say in, but it was being run
