@@ -569,6 +569,32 @@ to 15 seconds.</p>
 service, and how <code>scanner.concurrency</code> shortens a run without changing a
 verdict, is in
 <a href="/documentation/scanner-checks#debug-ports">Debug ports</a>.</p>
+<h3 id="every-resolved-address">Every resolved address</h3>
+<p>A scan dials the name once and sees whichever address the resolver put first.
+Behind a pool of nodes that is one node: the one that missed a configuration
+rollout - no HSTS, demo accounts still signing in, an older release - serves
+some of your visitors and none of your scans. <code>tlsAddressParity</code> does not see
+it either, because it only compares the TLS identity of the IPv4 and IPv6
+endpoints.</p>
+<p><code>--all-addresses</code> (<code>COS_ALL_ADDRESSES</code>, <code>scanner.check_all_addresses</code>) repeats
+the version, header, hardening and demo-account checks against every address
+the name resolves to, and reports <code>addressParity</code> when they disagree:</p>
+<pre><code>addressParity (high): Differs from 198.51.100.1 - 198.51.100.4: version 7.1.0 (expected 7.2.3); headers Strict-Transport-Security fails
+</code></pre>
+<p>Every request still carries your hostname in <code>Host</code> and SNI; only the address
+the connection goes to changes, and the addresses come from the resolver's
+answer for that name and nothing else. The first address is the reference. The
+finding is as severe as the worst difference - demo accounts signing in on one
+node carry that finding's severity, another release is <code>high</code>, other drift is
+<code>medium</code> - and an address that resolves but does not answer fails it too.
+Waived headers and checks are left out of the comparison.</p>
+<p>It is off by default: it costs about a dozen requests per address, a demo
+sign-in among them, and a name with a single address - most deployments - has
+nothing to compare and gets no finding at all. It sees what DNS sees: nodes
+behind one load-balancer address, or a resolver that hands out a rotating
+subset of the pool, stay out of reach. IPv6 addresses are skipped when
+<code>scanner.ipv6_enabled</code> is off. The public web service never offers it; see
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md">ADR 0042</a>.</p>
 <h3 id="end-of-life-detection">End-of-life detection</h3>
 <p>A version number on its own does not tell you whether an OpenCloud instance is
 still receiving security fixes, because OpenCloud maintains three kinds of

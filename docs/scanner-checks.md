@@ -17,6 +17,7 @@ paragraph; the individual checks are explained one group at a time in
   * [What the scanner checks](#what-the-scanner-checks)
   * [Reading the version correctly](#reading-the-version-correctly)
   * [Debug ports](#debug-ports)
+  * [Every resolved address](#every-resolved-address)
 <!-- TOC -->
 
 
@@ -94,6 +95,7 @@ Plus the additional checks (`extraChecks` in the JSON, disable with
 | `tlsCipherSuite`                                                                                                                           | medium        | The cipher suite negotiated by this scan is weak or lacks forward secrecy                                   |
 | `tlsCertificatePolicy`                                                                                                                     | medium        | The certificate has a weak key or an MD5/SHA-1 signature                                                    |
 | `tlsAddressParity`                                                                                                                          | medium        | IPv4 and IPv6 present different TLS services, or one is unreachable                                          |
+| `addressParity`                                                                                                                             | high/medium   | With `--all-addresses`: the resolved addresses serve a different release, headers, hardening or demo-account state, or one does not answer|
 | `tlsCaaRecord`                                                                                                                             | low           | No DNS CAA record restricts which certificate authorities may issue for this name                            |
 | `tlsDnssec`                                                                                                                                | low           | The zone answering for this name is not signed, so a forged address cannot be detected - absent, never failed, when the resolver used does not speak DNSSEC |
 | `companionAdminConsole`                                                                                                                    | high          | A collaboration backend published on this origin answers on its administration console path                  |
@@ -364,3 +366,49 @@ lists the same findings in the same order whatever the value is. Values above
 scanner:
   concurrency: 8
 ```
+
+## Every resolved address
+
+A scan dials the name once and sees whichever address the resolver put first.
+For a name behind a pool of nodes that is one node, and the node that missed a
+configuration rollout - no HSTS, demo accounts still signing in, an older
+release - is invisible. [`tlsAddressParity`](tls.md) compares only the TLS
+identity of one IPv4 and one IPv6 address, which several nodes behind one
+certificate share whatever they serve.
+
+`--all-addresses` (`COS_ALL_ADDRESSES`, `scanner.check_all_addresses`)
+repeats the part of the scan a rollout changes against each resolved address,
+one after another:
+
+- the release in `/status.php` (or the capabilities document),
+- the graded security headers, compared by verdict rather than value, so a CSP
+  nonce is not a difference,
+- the hardening measures read from the root page, capabilities, the
+  authentication challenge and the identity provider,
+- whether a documented demo account signs in.
+
+What the nodes share - certificate chain, CAA, DNSSEC, debug ports - is not
+asked again. Each request keeps the hostname in `Host` and SNI; only the
+address the connection goes to changes, and the addresses are the resolver's
+answer for that name, never anything the instance said. IPv6 addresses are
+skipped when `scanner.ipv6_enabled` is off.
+
+The result is `addressParity`, with the first address as the reference:
+
+| Difference on another address                  | Severity                                  |
+|:-----------------------------------------------|:------------------------------------------|
+| A demo account signs in where it did not       | as `demoUsersDisabled` on its own         |
+| A different release                            | high                                      |
+| A header or hardening measure passes/fails     | medium                                    |
+| The address resolves but does not answer       | medium                                    |
+
+Waived headers and checks are not compared. A name with one address gets no
+finding at all - an absence, not a pass - and no extra requests. What each
+address served is in the result document as `addressObservations`.
+
+It is off by default: about a dozen requests per address, a demo sign-in
+among them. It sees what DNS sees - nodes behind a single load-balancer
+address, a resolver returning a rotating subset, or GeoDNS answering for the
+monitoring host's location all limit what can be compared. The public web
+service never runs it
+([ADR 0042](../adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md)).

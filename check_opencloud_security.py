@@ -2064,6 +2064,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
             f"Default: False (env: {ENV_PREFIX}NO_DEBUG_PORTS)."
         ),
     )
+    scope.add_argument(
+        "--all-addresses",
+        action="store_true",
+        default=_env_bool("ALL_ADDRESSES"),
+        help=(
+            "Repeat the version, header, hardening and demo-account checks "
+            "against every address the name resolves to, and report "
+            "addressParity when they disagree. About a dozen requests per "
+            "address. "
+            f"Default: False (env: {ENV_PREFIX}ALL_ADDRESSES)."
+        ),
+    )
     updates.add_argument(
         "--update-source",
         choices=UPDATE_SOURCES,
@@ -2503,6 +2515,7 @@ def _build_context(host: str, args: argparse.Namespace) -> ScanContext:
         verify_tls=False if args.insecure else None,
         tls_ca_file=args.ca_file,
         check_debug_ports=False if args.no_debug_ports else None,
+        check_all_addresses=True if args.all_addresses else None,
         release_track=args.release_track,
         ignore_hardenings=_waiver_patterns(args.ignore_hardening),
     )

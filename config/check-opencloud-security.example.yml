@@ -78,6 +78,13 @@ scanner:
   # separate debug ports. They bind to loopback by default, so a reachable
   # debug port from the outside is a real finding.
   check_debug_ports: true
+  # A name behind several addresses answers from whichever one the resolver
+  # puts first, so a node that missed a configuration rollout is invisible to
+  # a scan that dials the name once. This repeats the version, header,
+  # hardening and demo-account checks against every resolved address and
+  # reports addressParity when they disagree. About a dozen requests per
+  # address, and nothing to compare when the name has only one.
+  # check_all_addresses: false
   # debug_ports: [9205, 9141, 9124, 9134, 9239]
   # debug_port_timeout: 3
   # A scan is almost entirely spent waiting for the instance to answer, so

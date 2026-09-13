@@ -32,6 +32,7 @@ paragraph; the individual checks are explained one group at a time in
 <li><a href="#what-the-scanner-checks">What the scanner checks</a></li>
 <li><a href="#reading-the-version-correctly">Reading the version correctly</a></li>
 <li><a href="#debug-ports">Debug ports</a></li>
+<li><a href="#every-resolved-address">Every resolved address</a></li>
 </ul>
 <!-- TOC -->
 
@@ -149,6 +150,11 @@ paragraph; the individual checks are explained one group at a time in
 <td><code>tlsAddressParity</code></td>
 <td>medium</td>
 <td>IPv4 and IPv6 present different TLS services, or one is unreachable</td>
+</tr>
+<tr>
+<td><code>addressParity</code></td>
+<td>high/medium</td>
+<td>With <code>--all-addresses</code>: the resolved addresses serve a different release, headers, hardening or demo-account state, or one does not answer</td>
 </tr>
 <tr>
 <td><code>tlsCaaRecord</code></td>
@@ -500,6 +506,65 @@ lists the same findings in the same order whatever the value is. Values above
 <pre><code class="language-yaml">scanner:
   concurrency: 8
 </code></pre>
+<h2 id="every-resolved-address">Every resolved address</h2>
+<p>A scan dials the name once and sees whichever address the resolver put first.
+For a name behind a pool of nodes that is one node, and the node that missed a
+configuration rollout - no HSTS, demo accounts still signing in, an older
+release - is invisible. <a href="/documentation/tls"><code>tlsAddressParity</code></a> compares only the TLS
+identity of one IPv4 and one IPv6 address, which several nodes behind one
+certificate share whatever they serve.</p>
+<p><code>--all-addresses</code> (<code>COS_ALL_ADDRESSES</code>, <code>scanner.check_all_addresses</code>)
+repeats the part of the scan a rollout changes against each resolved address,
+one after another:</p>
+<ul>
+<li>the release in <code>/status.php</code> (or the capabilities document),</li>
+<li>the graded security headers, compared by verdict rather than value, so a CSP
+  nonce is not a difference,</li>
+<li>the hardening measures read from the root page, capabilities, the
+  authentication challenge and the identity provider,</li>
+<li>whether a documented demo account signs in.</li>
+</ul>
+<p>What the nodes share - certificate chain, CAA, DNSSEC, debug ports - is not
+asked again. Each request keeps the hostname in <code>Host</code> and SNI; only the
+address the connection goes to changes, and the addresses are the resolver's
+answer for that name, never anything the instance said. IPv6 addresses are
+skipped when <code>scanner.ipv6_enabled</code> is off.</p>
+<p>The result is <code>addressParity</code>, with the first address as the reference:</p>
+<table>
+<thead>
+<tr>
+<th>Difference on another address</th>
+<th>Severity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A demo account signs in where it did not</td>
+<td>as <code>demoUsersDisabled</code> on its own</td>
+</tr>
+<tr>
+<td>A different release</td>
+<td>high</td>
+</tr>
+<tr>
+<td>A header or hardening measure passes/fails</td>
+<td>medium</td>
+</tr>
+<tr>
+<td>The address resolves but does not answer</td>
+<td>medium</td>
+</tr>
+</tbody>
+</table>
+<p>Waived headers and checks are not compared. A name with one address gets no
+finding at all - an absence, not a pass - and no extra requests. What each
+address served is in the result document as <code>addressObservations</code>.</p>
+<p>It is off by default: about a dozen requests per address, a demo sign-in
+among them. It sees what DNS sees - nodes behind a single load-balancer
+address, a resolver returning a rotating subset, or GeoDNS answering for the
+monitoring host's location all limit what can be compared. The public web
+service never runs it
+(<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md">ADR 0042</a>).</p>
 </article>
 
 {% include "_page-nav.html" %}

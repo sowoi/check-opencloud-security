@@ -60,6 +60,10 @@ def scanner_settings_for(
         extra_checks_affect_rating=True,
         ipv6_enabled=settings.ipv6_enabled,
         check_debug_ports=settings.check_debug_ports,
+        # Never every resolved address: a stranger's submission would buy a
+        # dozen requests and a demo sign-in per node of somebody else's pool
+        # (ADR 0042). Spelled out so no default can change it.
+        check_all_addresses=False,
         concurrency=settings.scan_concurrency,
         ignore_hardenings=ignore_hardenings,
         redirect_guard=redirect_guard(
