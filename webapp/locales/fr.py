@@ -110,6 +110,51 @@ MESSAGES: dict[str, str] = {
         "rien sur disque."
     ),
     "admin.surfaces.targets": "Cibles enregistrées en clair",
+    "admin.exclusions.kicker": "Exclusions",
+    "admin.exclusions.heading": "Adresses que ce service n'analysera pas",
+    "admin.exclusions.lede": (
+        "Une entrée prend effet dès la requête suivante, dans chaque "
+        "processus et sans redémarrage - et une analyse déjà en file "
+        "d'attente est refusée plutôt qu'exécutée. Rien ici ne fait analyser "
+        "quoi que ce soit : cette liste ne fait que refuser."
+    ),
+    "admin.exclusions.add.label": "Nom d'hôte, domaine .suffixe, adresse ou plage CIDR",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Exclure",
+    "admin.exclusions.add.hint": (
+        "Un domaine écrit avec un point initial exclut aussi tout ce qui se "
+        "trouve en dessous. Une plage est comparée à chaque adresse vers "
+        "laquelle un nom d'hôte se résout."
+    ),
+    "admin.exclusions.remove": "Retirer",
+    "admin.exclusions.empty": "Rien n'est exclu dans ce déploiement.",
+    "admin.exclusions.source.configured": "Depuis l'environnement",
+    "admin.exclusions.updated": "Dernière modification ici le {when}.",
+    "admin.exclusions.durability": (
+        "Les entrées ajoutées ici vivent dans Redis, que ce déploiement peut "
+        "vider. Celles qui doivent lui survivre vont dans "
+        "COS_WEB_BLOCKED_TARGETS, où cette page ne peut pas les retirer."
+    ),
+    "admin.exclusions.unreadable": (
+        "Le stockage n'a pas répondu : les exclusions ne peuvent être ni "
+        "lues ni modifiées pour l'instant. Elles restent en vigueur - une "
+        "analyse qui ne peut pas les vérifier est refusée, pas exécutée."
+    ),
+    "admin.blocklist.error.shape": (
+        "Ce n'est pas une entrée. Indiquez un nom d'hôte, un domaine "
+        "commençant par un point, une adresse ou une plage CIDR."
+    ),
+    "admin.blocklist.error.configured": (
+        "Cette entrée vient de COS_WEB_BLOCKED_TARGETS. Retirez-la là-bas "
+        "puis redémarrez, pour que le déploiement et cette liste ne se "
+        "contredisent pas."
+    ),
+    "admin.blocklist.error.full": (
+        "Cette liste est pleine. Déplacez les entrées permanentes vers "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.outcome.excluded": "Exclue. Refusée dès la requête suivante.",
+    "admin.outcome.withdrawn": "Retirée. Elle peut de nouveau être analysée.",
     "admin.actions.kicker": "Données de référence",
     "admin.actions.heading": "Mettre à jour ce sur quoi la note repose",
     "admin.actions.lede": (
@@ -1459,6 +1504,9 @@ MESSAGES: dict[str, str] = {
     "error.target.private": (
         "Cette adresse pointe vers un réseau privé, de bouclage ou local, "
         "que ce service n'analysera pas."
+    ),
+    "error.target.blocked": (
+        "Il a été demandé à ce service de ne pas analyser cette adresse."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Résultats de l'analyse",

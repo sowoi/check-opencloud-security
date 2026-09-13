@@ -87,6 +87,13 @@ from .audit import (
     configure_audit_file,
     install_recent_audit,
 )
+from .blocklist import (
+    EntryRejected,
+    add_exclusion,
+    effective_exclusions,
+    exclusions_or_none,
+    remove_exclusion,
+)
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
     SEVERITY_TAGS,
@@ -180,7 +187,7 @@ from .seo import (
     wants_robots_tag,
 )
 from .settings import WebSettings
-from .ssrf import TargetRejected, validate_target
+from .ssrf import TargetRejected, ensure_blocklist_ready, validate_target
 from .store import (
     QUEUE_KEY,
     STATE_COMPLETED,
@@ -890,6 +897,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # And before /admin is registered: an area whose sign-in cannot be
     # enforced must not be served at all.
     ensure_admin_ready(settings)
+    # And before a single submission is accepted: an exclusion nobody could
+    # parse would let this service scan exactly what it was told not to.
+    ensure_blocklist_ready(settings.blocked_targets)
     # The window the live audit view reads on a deployment that logs to
     # stdout. Attached only when both the trail and the area are on.
     app.state.recent_audit = install_recent_audit(settings)
@@ -1080,10 +1090,16 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
 
         try:
+            # Read per submission rather than held from startup: an operator
+            # who excludes a target in the area has excluded it for the next
+            # request, in every process, without a restart.
             target = validate_target(
                 target_url,
                 allow_private=settings.allow_private_targets,
                 allowed_hosts=settings.extra_hosts_allowed,
+                blocked_targets=await effective_exclusions(
+                    app.state.backend, settings
+                ),
             )
         except TargetRejected as exc:
             audit.submission_rejected(
@@ -1853,11 +1869,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         def admin_operator(request: Request) -> Operator | None:
             return operator_for(request, settings)
 
-        def admin_context(
+        async def admin_context(
             operator: Operator, outcome: dict[str, Any] | None
         ) -> dict[str, Any]:
             return {
                 "operator": operator,
+                # The one reading on this page that is not a setting read at
+                # startup: the exclusions, both halves, as they stand now.
+                # None where the store did not answer, so the card can say it
+                # could not read them rather than draw an empty list, which
+                # here would read as "nothing is excluded".
+                "exclusions": await exclusions_or_none(app.state.backend, settings),
                 "poll_interval": ADMIN_POLL_SECONDS,
                 "stream_minutes": ADMIN_STREAM_MAX_MINUTES,
                 # Past how long an unrefreshed reference document is worth
@@ -1914,7 +1936,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             operator = admin_operator(request)
             if operator is None:
                 return not_found(request)
-            return page(request, "admin.html", admin_context(operator, None))
+            return page(request, "admin.html", await admin_context(operator, None))
 
         @app.get(f"{ADMIN_PATH}/docs/{{slug}}", response_class=HTMLResponse,
                  include_in_schema=False)
@@ -1939,7 +1961,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             document = OPERATOR_DOCUMENTATION_BY_SLUG.get(slug)
             if document is None:
                 return not_found(request)
-            context = admin_context(operator, None)
+            context = await admin_context(operator, None)
             context["admin_tab"] = slug
             # Named so the page can say which repository file it is showing,
             # rather than leaving a reader to guess which document they are
@@ -1988,7 +2010,65 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "seconds": remaining,
             }
             if wants_html(request):
-                return page(request, "admin.html", admin_context(operator, answer))
+                return page(request, "admin.html", await admin_context(operator, answer))
+            return JSONResponse(answer)
+
+        @app.post(f"{ADMIN_PATH}/exclusions", include_in_schema=False)
+        async def admin_exclusions(
+            request: Request,
+            action: str = Form(default=""),
+            entry: str = Form(default=""),
+        ) -> Response:
+            """
+            Add or withdraw one exclusion, in force from the next request.
+
+            The one thing in this area that writes rather than reads
+            ([ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md)).
+            It is bounded on purpose: a list that only ever *refuses* a scan,
+            no target, uuid or result anywhere near it, and the environment's
+            own entries untouchable from here, so what the compose file
+            declares stays true whatever happens in a browser.
+            """
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            if cross_site_post(request, settings):
+                LOGGER.info("admin_cross_site")
+                return _cross_site_response(request, wants_html(request))
+            if action not in {"add", "remove"}:
+                return JSONResponse(
+                    {"state": "failed", "action": action}, status_code=422
+                )
+
+            try:
+                if action == "add":
+                    await add_exclusion(app.state.backend, settings, entry)
+                else:
+                    await remove_exclusion(app.state.backend, settings, entry)
+            except EntryRejected as exc:
+                answer = {
+                    "state": "refused",
+                    "action": f"exclusions.{action}",
+                    "seconds": 0,
+                    "reason": str(exc),
+                    "key": exc.key,
+                }
+                if wants_html(request):
+                    return page(
+                        request,
+                        "admin.html",
+                        await admin_context(operator, answer),
+                        status=422,
+                    )
+                return JSONResponse(answer, status_code=422)
+
+            answer = {
+                "state": "excluded" if action == "add" else "withdrawn",
+                "action": f"exclusions.{action}",
+                "seconds": 0,
+            }
+            if wants_html(request):
+                return page(request, "admin.html", await admin_context(operator, answer))
             return JSONResponse(answer)
 
         @app.post(f"{ADMIN_PATH}/probe", include_in_schema=False)
@@ -2013,7 +2093,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "seconds": remaining,
             }
             if wants_html(request):
-                return page(request, "admin.html", admin_context(operator, answer))
+                return page(request, "admin.html", await admin_context(operator, answer))
             return JSONResponse(answer)
 
         @app.get(f"{ADMIN_PATH}/audit/stream", include_in_schema=False)

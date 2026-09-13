@@ -50,6 +50,7 @@ from typing import Any
 
 from . import __version__
 from .advisories import advisory_state, probe_advisories, refresh_advisories
+from .blocklist import exclusion_counts
 from .i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, Translator
 from .redis_backend import RedisBackend, RedisUnavailable
 from .reference_data import (
@@ -376,6 +377,11 @@ async def statistics(
             "extraPaths": list(freshness.extra_paths),
             "changedPaths": list(freshness.changed_paths),
         },
+        # Counts, like everything else here. The entries are on the page,
+        # where an operator is reading their own configuration; this document
+        # gets pasted into issue reports, and the addresses somebody asked to
+        # be excluded are the one part of it that names other people.
+        "exclusions": await exclusion_counts(backend, settings),
         "audit": audit_surface(settings),
         "surfaces": surfaces(settings),
     }

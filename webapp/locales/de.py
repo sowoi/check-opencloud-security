@@ -110,6 +110,51 @@ MESSAGES: dict[str, str] = {
         "auf der Platte."
     ),
     "admin.surfaces.targets": "Ziele im Klartext protokolliert",
+    "admin.exclusions.kicker": "Ausschlüsse",
+    "admin.exclusions.heading": "Adressen, die dieser Dienst nicht scannt",
+    "admin.exclusions.lede": (
+        "Ein Eintrag gilt ab der nächsten Anfrage, in jedem Prozess, ohne "
+        "Neustart - und ein Scan, der bereits in der Warteschlange steht, "
+        "wird abgelehnt statt ausgeführt. Nichts hier bringt diesen Dienst "
+        "dazu, etwas zu scannen: die Liste lehnt ausschließlich ab."
+    ),
+    "admin.exclusions.add.label": "Hostname, .Suffix-Domain, Adresse oder CIDR-Bereich",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Ausschließen",
+    "admin.exclusions.add.hint": (
+        "Eine Domain mit führendem Punkt schließt auch alles darunter aus. "
+        "Ein Bereich wird gegen jede Adresse geprüft, zu der ein Hostname "
+        "auflöst."
+    ),
+    "admin.exclusions.remove": "Zurücknehmen",
+    "admin.exclusions.empty": "In dieser Installation ist nichts ausgeschlossen.",
+    "admin.exclusions.source.configured": "Aus der Umgebung",
+    "admin.exclusions.updated": "Zuletzt hier geändert am {when}.",
+    "admin.exclusions.durability": (
+        "Hier hinzugefügte Einträge liegen in Redis, das diese Installation "
+        "jederzeit leeren kann. Was dauerhaft gelten soll, gehört in "
+        "COS_WEB_BLOCKED_TARGETS - dort kann es auf dieser Seite nicht "
+        "zurückgenommen werden."
+    ),
+    "admin.exclusions.unreadable": (
+        "Der Speicher hat nicht geantwortet, die Ausschlüsse lassen sich "
+        "gerade weder lesen noch ändern. Sie gelten weiterhin: ein Scan, der "
+        "sie nicht prüfen kann, wird abgelehnt und nicht ausgeführt."
+    ),
+    "admin.blocklist.error.shape": (
+        "Das ist kein Eintrag. Bitte einen Hostnamen, eine Domain mit "
+        "führendem Punkt, eine Adresse oder einen CIDR-Bereich angeben."
+    ),
+    "admin.blocklist.error.configured": (
+        "Dieser Eintrag stammt aus COS_WEB_BLOCKED_TARGETS. Dort entfernen "
+        "und neu starten, damit Installation und Liste nicht auseinanderlaufen."
+    ),
+    "admin.blocklist.error.full": (
+        "Diese Liste ist voll. Dauerhafte Einträge gehören in "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.outcome.excluded": "Ausgeschlossen. Ab der nächsten Anfrage abgelehnt.",
+    "admin.outcome.withdrawn": "Zurückgenommen. Kann wieder gescannt werden.",
     "admin.actions.kicker": "Referenzdaten",
     "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
     "admin.actions.lede": (
@@ -1417,6 +1462,9 @@ MESSAGES: dict[str, str] = {
     "error.target.private": (
         "Diese Adresse zeigt in ein privates, lokales oder link-lokales "
         "Netzwerk, das dieser Dienst nicht scannt."
+    ),
+    "error.target.blocked": (
+        "Dieser Dienst wurde gebeten, diese Adresse nicht zu scannen."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan-Ergebnisse",

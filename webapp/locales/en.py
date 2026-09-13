@@ -137,6 +137,50 @@ MESSAGES: dict[str, str] = {
         "disk."
     ),
     "admin.surfaces.targets": "Targets recorded in the clear",
+    "admin.exclusions.kicker": "Exclusions",
+    "admin.exclusions.heading": "Addresses this service will not scan",
+    "admin.exclusions.lede": (
+        "An entry takes effect from the next request, in every process, "
+        "without a restart - and a scan already waiting in the queue is "
+        "refused rather than run. Nothing here can make this service scan "
+        "something: the list only ever refuses."
+    ),
+    "admin.exclusions.add.label": "Hostname, .suffix domain, address or CIDR range",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Exclude",
+    "admin.exclusions.add.hint": (
+        "A domain written with a leading dot excludes everything under it "
+        "as well. A range is matched against every address a hostname "
+        "resolves to."
+    ),
+    "admin.exclusions.remove": "Withdraw",
+    "admin.exclusions.empty": "Nothing is excluded in this deployment.",
+    "admin.exclusions.source.configured": "From the environment",
+    "admin.exclusions.updated": "Last changed here {when}.",
+    "admin.exclusions.durability": (
+        "Entries added here live in Redis, which this deployment is free to "
+        "flush. Put the ones that must outlive it in COS_WEB_BLOCKED_TARGETS, "
+        "where they cannot be withdrawn from this page."
+    ),
+    "admin.exclusions.unreadable": (
+        "The store did not answer, so the exclusions cannot be read or "
+        "changed right now. They are still in force: a scan that cannot "
+        "check them is refused, not run."
+    ),
+    "admin.blocklist.error.shape": (
+        "That is not an entry. Give a hostname, a domain starting with a dot, "
+        "an address or a CIDR range."
+    ),
+    "admin.blocklist.error.configured": (
+        "That entry comes from COS_WEB_BLOCKED_TARGETS. Remove it there and "
+        "restart, so the deployment and this list cannot disagree."
+    ),
+    "admin.blocklist.error.full": (
+        "This list is full. Move the standing entries into "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.outcome.excluded": "Excluded. It is refused from the next request.",
+    "admin.outcome.withdrawn": "Withdrawn. It can be scanned again.",
     "admin.actions.kicker": "Reference data",
     "admin.actions.heading": "Refresh what the scanner rates against",
     "admin.actions.lede": (
@@ -1346,6 +1390,9 @@ MESSAGES: dict[str, str] = {
     "error.target.private": (
         "That address points into a private, loopback or link-local network, "
         "which this service will not scan."
+    ),
+    "error.target.blocked": (
+        "This service has been asked not to scan that address."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan results",

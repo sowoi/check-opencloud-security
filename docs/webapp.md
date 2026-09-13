@@ -228,6 +228,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_VERIFY_TLS` | `true` | Verify the target's certificate. An untrusted chain becomes a finding either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | Allow private, loopback and link-local targets. On-premise deployments only |
 | `COS_WEB_ALLOWED_HOSTS` | *(empty)* | Hostnames exempt from the SSRF guard, separated by `;` |
+| `COS_WEB_BLOCKED_TARGETS` | *(empty)* | Addresses this deployment will not scan, separated by `;`. Hostnames, `.suffix` domains and CIDR ranges. Outranks both settings above; an entry that does not parse refuses startup |
 | `COS_WEB_CHECK_DEBUG_PORTS` | `false` | Probe extra ports. Off in public: it is a port scan of somebody else's host |
 | `COS_WEB_IP_RATE_LIMIT` | `10` | Scans per client address per window. `0` disables |
 | `COS_WEB_IP_RATE_WINDOW` | `60` | The window, in seconds |
@@ -443,6 +444,66 @@ free.
 `COS_WEB_ALLOW_PRIVATE_TARGETS=true` turns all of this off. It exists for an
 on-premise deployment scanning its own estate. Do not set it on anything a
 stranger can reach.
+
+### Addresses this deployment will not scan
+
+Everything above is a property of the address. `COS_WEB_BLOCKED_TARGETS` is a
+decision somebody made - an instance owner who asked to be left alone, a host
+somebody keeps submitting so the service hammers it, a range that is not a
+scanning target here however public it looks:
+
+```bash
+COS_WEB_BLOCKED_TARGETS="opencloud.example.com;.example.org;203.0.113.0/24"
+```
+
+- an entry is a **hostname**, a **domain suffix** written with a leading dot
+  (`.example.org`, or `*.example.org` - both mean the domain *and* everything
+  under it, and neither matches `notexample.org`), an **address**, or a
+  **CIDR range**;
+- hostnames are matched on the name, ranges on **every address the name
+  resolves to**. A hostname entry therefore refuses that name and not a second
+  name pointing at the same machine - exclude the range when the promise has
+  to hold whatever the instance is called;
+- it is checked at submission, again in the worker before the scan, and on
+  every redirect hop, so a target excluded while its job sat in the queue is
+  refused rather than scanned;
+- it **outranks `COS_WEB_ALLOWED_HOSTS` and `COS_WEB_ALLOW_PRIVATE_TARGETS`**.
+  Those exist to loosen the guard; this one answers whether the service scans
+  that address at all, and loosening must not reopen it. See
+  [ADR 0043](../adr/0043-an-operators-exclusion-outranks-every-allowance.md);
+- an entry that is none of those four shapes **refuses startup**, in the web
+  process and in the worker alike. A typo here is otherwise invisible: the
+  service comes up, answers normally, and scans exactly what it was told not
+  to.
+
+The refusal a visitor sees says only that the service has been asked not to
+scan that address. Which entry matched is operator configuration, and echoing
+it would make every refusal a read of the list.
+
+**The list has a second half that can be changed while the service runs.** The
+request that produces most exclusions - somebody writing to ask not to be
+scanned - rarely arrives at a convenient moment, and "after the next
+deployment window" is not an answer to it. So the operator's area at `/admin`
+has an *Exclusions* card that adds and withdraws entries, and:
+
+- an entry takes effect **from the next request, in every process**, with
+  nothing restarted: the API reads the list on each submission and the worker
+  when each job starts, so a scan already waiting in the queue is refused
+  rather than run;
+- what `COS_WEB_BLOCKED_TARGETS` declares **cannot be withdrawn there**. Those
+  entries are shown with no control beside them, and an attempt to remove one
+  is refused with a pointer to the environment - your compose file stays the
+  truth about what it declares;
+- entries added in the area live in **Redis**, so they are as durable as your
+  Redis is. Anything that must outlive a flush belongs in the environment
+  variable;
+- if the store cannot be read, a submission is **refused rather than scanned**
+  without the list.
+
+The card is the one thing in that area that writes; see
+[ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md) for the
+four properties that made it acceptable there, and
+[ADMIN.md](../ADMIN.md#the-operators-area-at-admin) for the area itself.
 
 ## Rate limiting
 

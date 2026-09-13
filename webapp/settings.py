@@ -215,6 +215,17 @@ class WebSettings:
     extra_hosts_allowed: tuple[str, ...] = field(default_factory=tuple)
     """Hostnames exempted from the SSRF guard, for on-premise deployments."""
 
+    blocked_targets: tuple[str, ...] = field(default_factory=tuple)
+    """Addresses this deployment will not scan, whoever asks.
+
+    Hostnames, ``.suffix`` domains and CIDR ranges, checked against the name
+    *and* against every address it resolves to. Unlike every other setting
+    here it only ever refuses: an entry outranks ``extra_hosts_allowed`` and
+    ``allow_private_targets``, because "we do not scan that" is an answer the
+    settings that loosen the guard have no business reopening. The list is
+    what an operator points at when an instance owner asks to be left alone.
+    """
+
     ip_rate_limit: int = DEFAULT_IP_RATE_LIMIT
     ip_rate_window: int = DEFAULT_IP_RATE_WINDOW_SECONDS
     target_cooldown: int = DEFAULT_TARGET_COOLDOWN_SECONDS
@@ -523,6 +534,7 @@ class WebSettings:
             check_debug_ports=_env_bool("CHECK_DEBUG_PORTS", False),
             ipv6_enabled=_env_bool("IPV6_ENABLED", False),
             extra_hosts_allowed=_env_list("ALLOWED_HOSTS"),
+            blocked_targets=_env_list("BLOCKED_TARGETS"),
             ip_rate_limit=_env_int("IP_RATE_LIMIT", DEFAULT_IP_RATE_LIMIT),
             ip_rate_window=_env_int(
                 "IP_RATE_WINDOW", DEFAULT_IP_RATE_WINDOW_SECONDS, minimum=1

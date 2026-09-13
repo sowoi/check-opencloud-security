@@ -269,6 +269,72 @@
     color: var(--admin-accent);
 }
 
+/* -------------------------------------------------------- the exclusions */
+/* The one list on this page that somebody edits, so it is built like a list
+   of things rather than a table of readings: the entry in the mono face it
+   was typed in, and its one control at the end of the row. */
+.admin-exclusion-add {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    margin: 1.25rem 0 0;
+}
+
+.admin-exclusion-label { font-size: .92rem; }
+
+.admin-exclusion-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+}
+
+.admin-exclusion-input {
+    flex: 1 1 260px;
+    min-width: 0;
+    padding: .55rem .7rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: .88rem;
+}
+
+.admin-exclusions {
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+}
+
+.admin-exclusion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .9rem;
+    padding: .6rem .2rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.admin-exclusion form { margin: 0; }
+
+.admin-exclusion-entry {
+    font-family: var(--mono);
+    font-size: .86rem;
+    overflow-wrap: anywhere;
+}
+
+/* An entry from the environment has no control beside it, so the pill is
+   what says why: it is not missing a button, it is not editable here. */
+.admin-exclusion[data-source="empty"] .admin-exclusion-entry {
+    font-family: inherit;
+    color: var(--ink-soft);
+}
+
+.admin-outcome[data-outcome="excluded"] { border-color: var(--good); }
+.admin-outcome[data-outcome="withdrawn"] { border-color: var(--admin-accent-line); }
+.admin-outcome[data-outcome="refused"] { border-color: var(--bad); }
+
 /* ----------------------------------------------------------- the actions */
 .admin-actions {
     display: flex;

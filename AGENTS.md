@@ -433,12 +433,25 @@ list, and an empty one with the area on **refuses to start** rather than
 being read as "anybody the provider authenticated". Every refusal - no
 secret, wrong secret, no name, unlisted name - is the same 404.
 
-**It reads state and borrows the worker's two refreshes. Nothing else.** The
-buttons call `refresh_schedule` and `refresh_advisories`, the same functions
-with the same acceptance rules, behind a per-action cooldown so a button
-cannot be held down against somebody else's documentation site. Statistics
-are counts and configured limits; **no target, uuid, result or client address
-is reachable from `webapp/admin.py`**, and a test asserts it.
+**It reads state, borrows the worker's two refreshes, and writes exactly one
+thing.** The buttons call `refresh_schedule` and `refresh_advisories`, the same
+functions with the same acceptance rules, behind a per-action cooldown so a
+button cannot be held down against somebody else's documentation site.
+Statistics are counts and configured limits; **no target, uuid, result or
+client address is reachable from `webapp/admin.py`**, and a test asserts it.
+
+**The one control that writes is the exclusions**, and the four properties
+that made it acceptable are the bar for any future one - not precedent. It can
+only ever *refuse* a scan, so a stolen session cannot point this service at
+anything; `COS_WEB_BLOCKED_TARGETS` is a floor the area cannot withdraw, so
+compose stays true; a change takes effect from the next request in every
+process, because the API reads the list per submission and the worker per job
+rather than holding it from startup; and a store that cannot be read refuses
+the scan instead of proceeding without the list. Do not extend this into
+settings generally - concurrency, limits and TLS policy stay environment-only,
+which is what keeps "can a visitor make this service noisier?" out of a
+browser. See [ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md)
+and [ADR 0043](adr/0043-an-operators-exclusion-outranks-every-allowance.md).
 
 **The search index is reported, never rebuilt.** The index stays a release
 artefact - the generator is not in the deployed bundle and the container is

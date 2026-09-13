@@ -527,6 +527,7 @@ What the area does:
 |:--|:--|
 | Service state | Worker liveness, queue depth, the configured limits, and how long ago each reference document was last read - relative (`checked 6h ago`), with the exact stamp on the element, turning the accent past two daily cycles and naming which failure has been stopping it. The worker tile has three answers, not two: the heartbeat it reads is a key in Redis, so **Cannot tell** means the store did not answer and nothing was learned about the worker either way |
 | What this deployment offers | `/mcp` and whether a token is required, `/docs`, indexing, private-network targets, encryption at rest, and what the audit trail keeps and where. Settings rather than readings, so the card is rendered once and never polled - a value that changed did so in a process the open page is no longer talking to |
+| Exclusions | The addresses this service will not scan. The **one card that writes**: an entry added here refuses the next submission in every process without a restart, and a scan already waiting in the queue is refused rather than run. Entries from `COS_WEB_BLOCKED_TARGETS` are shown and cannot be withdrawn here |
 | Reference data | Runs the same daily `refresh_schedule` / `refresh_advisories` the worker does, with the same guards, behind a 60-second per-action cooldown |
 | Search index | **Reports** whether the shipped index still matches this build. It never rebuilds - that stays the release workflow's job. Three verdicts, not two: an index that does not name the release it was built for is **Cannot tell**, because its pages and languages could be compared and its copy could not |
 | Audit | Streams the audit records as they are written, from the log file when one is configured and otherwise from a bounded in-memory ring |
@@ -550,7 +551,31 @@ from, which the line above each of them does.
 What it deliberately cannot do: name a target, a uuid, a result or a client
 address. The statistics are counts and settings, and the audit view shows the
 pseudonymised records the log already wrote - a fingerprint is a truncated
-HMAC under a salt the process holds, and nothing maps one back.
+HMAC under a salt the process holds, and nothing maps one back. The exclusions
+card is the one place addresses appear, and they are the operator's own
+configuration rather than anybody's traffic; `/admin/state`, the document you
+copy into an issue report, carries only how many there are.
+
+**About the one control that writes.** Adding an exclusion is the only thing
+in the area that changes what the service does, and it is deliberately the
+safest possible shape of that:
+
+- it can only ever **refuse** a scan. Nothing here makes this service scan
+  something, reach a target, or widen a limit, so the worst a stolen operator
+  session achieves is a deployment that scans less than it could;
+- `COS_WEB_BLOCKED_TARGETS` is a **floor**. Those entries appear in the list
+  with no control beside them, and trying to withdraw one is refused with a
+  pointer to the environment rather than quietly doing nothing - so your
+  compose file stays the truth about what it declares;
+- **entries added here live in Redis**, which means they are exactly as
+  durable as your Redis. Anything that must outlive a flush belongs in
+  `COS_WEB_BLOCKED_TARGETS`; the card says so under the list;
+- **a store that cannot be read refuses the scan** rather than proceeding
+  without the list, because a missing exclusion is the failure that scans
+  somebody who asked not to be.
+
+See [ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md) for why
+the area is allowed to write this and nothing else.
 
 **The readings say how old they are.** They are polled every ten seconds, and
 a poll that stops answering would otherwise be indistinguishable from a

@@ -319,6 +319,11 @@ somebody could.</p>
 <td>Hostnames exempt from the SSRF guard, separated by <code>;</code></td>
 </tr>
 <tr>
+<td><code>COS_WEB_BLOCKED_TARGETS</code></td>
+<td><em>(empty)</em></td>
+<td>Addresses this deployment will not scan, separated by <code>;</code>. Hostnames, <code>.suffix</code> domains and CIDR ranges. Outranks both settings above; an entry that does not parse refuses startup</td>
+</tr>
+<tr>
 <td><code>COS_WEB_CHECK_DEBUG_PORTS</code></td>
 <td><code>false</code></td>
 <td>Probe extra ports. Off in public: it is a port scan of somebody else's host</td>
@@ -720,6 +725,61 @@ free.</p>
 <p><code>COS_WEB_ALLOW_PRIVATE_TARGETS=true</code> turns all of this off. It exists for an
 on-premise deployment scanning its own estate. Do not set it on anything a
 stranger can reach.</p>
+<h3 id="addresses-this-deployment-will-not-scan">Addresses this deployment will not scan</h3>
+<p>Everything above is a property of the address. <code>COS_WEB_BLOCKED_TARGETS</code> is a
+decision somebody made - an instance owner who asked to be left alone, a host
+somebody keeps submitting so the service hammers it, a range that is not a
+scanning target here however public it looks:</p>
+<pre><code class="language-bash">COS_WEB_BLOCKED_TARGETS=&quot;opencloud.example.com;.example.org;203.0.113.0/24&quot;
+</code></pre>
+<ul>
+<li>an entry is a <strong>hostname</strong>, a <strong>domain suffix</strong> written with a leading dot
+  (<code>.example.org</code>, or <code>*.example.org</code> - both mean the domain <em>and</em> everything
+  under it, and neither matches <code>notexample.org</code>), an <strong>address</strong>, or a
+  <strong>CIDR range</strong>;</li>
+<li>hostnames are matched on the name, ranges on <strong>every address the name
+  resolves to</strong>. A hostname entry therefore refuses that name and not a second
+  name pointing at the same machine - exclude the range when the promise has
+  to hold whatever the instance is called;</li>
+<li>it is checked at submission, again in the worker before the scan, and on
+  every redirect hop, so a target excluded while its job sat in the queue is
+  refused rather than scanned;</li>
+<li>it <strong>outranks <code>COS_WEB_ALLOWED_HOSTS</code> and <code>COS_WEB_ALLOW_PRIVATE_TARGETS</code></strong>.
+  Those exist to loosen the guard; this one answers whether the service scans
+  that address at all, and loosening must not reopen it. See
+  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0043-an-operators-exclusion-outranks-every-allowance.md">ADR 0043</a>;</li>
+<li>an entry that is none of those four shapes <strong>refuses startup</strong>, in the web
+  process and in the worker alike. A typo here is otherwise invisible: the
+  service comes up, answers normally, and scans exactly what it was told not
+  to.</li>
+</ul>
+<p>The refusal a visitor sees says only that the service has been asked not to
+scan that address. Which entry matched is operator configuration, and echoing
+it would make every refusal a read of the list.</p>
+<p><strong>The list has a second half that can be changed while the service runs.</strong> The
+request that produces most exclusions - somebody writing to ask not to be
+scanned - rarely arrives at a convenient moment, and "after the next
+deployment window" is not an answer to it. So the operator's area at <code>/admin</code>
+has an <em>Exclusions</em> card that adds and withdraws entries, and:</p>
+<ul>
+<li>an entry takes effect <strong>from the next request, in every process</strong>, with
+  nothing restarted: the API reads the list on each submission and the worker
+  when each job starts, so a scan already waiting in the queue is refused
+  rather than run;</li>
+<li>what <code>COS_WEB_BLOCKED_TARGETS</code> declares <strong>cannot be withdrawn there</strong>. Those
+  entries are shown with no control beside them, and an attempt to remove one
+  is refused with a pointer to the environment - your compose file stays the
+  truth about what it declares;</li>
+<li>entries added in the area live in <strong>Redis</strong>, so they are as durable as your
+  Redis is. Anything that must outlive a flush belongs in the environment
+  variable;</li>
+<li>if the store cannot be read, a submission is <strong>refused rather than scanned</strong>
+  without the list.</li>
+</ul>
+<p>The card is the one thing in that area that writes; see
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0044-the-operator-area-may-write-the-exclusions.md">ADR 0044</a> for the
+four properties that made it acceptable there, and
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/ADMIN.md#the-operators-area-at-admin">ADMIN.md</a> for the area itself.</p>
 <h2 id="rate-limiting">Rate limiting</h2>
 <p>Two independent limits, both in Redis, both expiring on their own:</p>
 <ul>

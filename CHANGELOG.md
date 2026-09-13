@@ -106,6 +106,62 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
     terms. A waiver or track the catalogue no longer lists is simply not
     applied.
 
+- **An operator can name the addresses this deployment will not scan.** Every
+  rule in the SSRF guard so far was a property of the address - private,
+  link-local, a metadata endpoint. None of them could express the request that
+  actually arrives: an instance owner asking to be left alone, a host somebody
+  keeps submitting so the service hammers it, a range that is not a scanning
+  target here however public it looks. `COS_WEB_BLOCKED_TARGETS` is that list -
+  hostnames, `.suffix` domains (`*.example.org` is accepted as the same thing)
+  and CIDR ranges, separated by `;`.
+
+  **It outranks every setting that loosens the guard**, `COS_WEB_ALLOWED_HOSTS`
+  and `COS_WEB_ALLOW_PRIVATE_TARGETS` included. Those answer whether a request
+  could be an attack, and an operator may reasonably say "not on my own
+  network"; an exclusion answers whether this service scans that address at
+  all, which is a promise made to somebody outside the deployment. See
+  [ADR 0043](adr/0043-an-operators-exclusion-outranks-every-allowance.md).
+
+  **A name is matched by name, a range against every address the name resolves
+  to**, so a second DNS record pointing at the same machine does not buy a
+  scan. It is checked at submission, again in the worker immediately before
+  the scan - a target excluded while its job waited in the queue is refused
+  rather than scanned - and on every redirect hop, so a scanned host cannot
+  name an excluded one in a `Location` header. Agents inherit it by calling
+  the same API.
+
+  **An entry that does not parse refuses startup**, in the web process and in
+  the worker alike, because a typo here is otherwise invisible: the service
+  comes up, answers normally, and scans exactly what it was told to leave
+  alone. The refusal a visitor sees says only that the service has been asked
+  not to scan that address; which entry matched is the operator's business.
+
+- **The exclusions can be changed without a deployment window.** The request
+  that produces most of them - somebody writing to ask not to be scanned -
+  rarely arrives at a convenient moment, and an environment variable read at
+  startup answers it with "after the next restart". The operator's area now
+  has an *Exclusions* card that adds and withdraws entries, and a change takes
+  effect **from the next request, in every process**: the API reads the list
+  on each submission and the worker when each job starts, so a scan already
+  waiting in the queue is refused rather than run.
+
+  **It is the one control in that area that writes**, and deliberately the
+  safest shape of one. It can only ever *refuse* a scan, so a stolen operator
+  session cannot point this service at anything. `COS_WEB_BLOCKED_TARGETS` is
+  a floor the page cannot withdraw - those entries are listed with no control
+  beside them, and an attempt to remove one is refused with a pointer to the
+  environment, so a compose file stays the truth about what it declares. And a
+  store that cannot be read refuses the scan rather than proceeding without
+  the list, which is the opposite of how this service treats every other piece
+  of runtime state and the right way round for a list whose absence means
+  scanning somebody who asked not to be. See
+  [ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md).
+
+  Entries added there live in Redis and are as durable as it is; the card says
+  so, and points at the environment variable for anything that must outlive a
+  flush. `/admin/state` - the document an operator copies into an issue report
+  - carries how many exclusions are in force and never which.
+
 ### Changed
 
 - **On a phone, the address field is the first thing on the page.** Stacked

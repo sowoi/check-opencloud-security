@@ -32,6 +32,7 @@ def scanner_settings_for(
     settings: WebSettings,
     release_track: str = DEFAULT_RELEASE_TRACK,
     release_schedule: ReleaseSchedule | None = None,
+    blocked_targets: tuple[str, ...] | None = None,
 ) -> ScannerSettings:
     """Build the frozen scanner settings for one web-submitted scan.
 
@@ -39,7 +40,15 @@ def scanner_settings_for(
     worker read from Redis; ``None`` means the scanner falls back to the one
     bundled in the wheel, which is what a deployment with the daily refresh
     switched off does on every scan.
+
+    ``blocked_targets`` is the effective exclusion list - the environment's
+    and the operator area's together - as it stood when this job started.
+    ``None`` means the environment's alone, which is what a caller outside
+    the worker has.
     """
+    exclusions = (
+        settings.blocked_targets if blocked_targets is None else blocked_targets
+    )
     return ScannerSettings(
         release_track=sanitize_release_track(release_track),
         release_schedule=release_schedule,
@@ -56,11 +65,13 @@ def scanner_settings_for(
         redirect_guard=redirect_guard(
             allow_private=settings.allow_private_targets,
             allowed_hosts=settings.extra_hosts_allowed,
+            blocked_targets=exclusions,
         ),
         pinned_addresses=((target.hostname, target.addresses),),
         redirect_pinner=redirect_pinner(
             allow_private=settings.allow_private_targets,
             allowed_hosts=settings.extra_hosts_allowed,
+            blocked_targets=exclusions,
         ),
     )
 
@@ -82,6 +93,7 @@ def execute_scan(
     release_track: str = DEFAULT_RELEASE_TRACK,
     release_schedule: ReleaseSchedule | None = None,
     database: VulnerabilityDatabase | None = None,
+    blocked_targets: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """
     Re-check the target, then run the scan and return the result document.
@@ -90,16 +102,30 @@ def execute_scan(
     request and running the job, the answer to the DNS query may have changed
     to a private address. Resolving again here is what makes that window a
     single lookup wide.
+
+    ``blocked_targets`` is read by the caller from Redis when the job starts,
+    so an exclusion added while this job waited in the queue is honoured here
+    - which is the whole of what "immediately" means for a scan that was
+    accepted before anybody typed it.
     """
+    exclusions = (
+        settings.blocked_targets if blocked_targets is None else blocked_targets
+    )
     checked = revalidate(
         target,
         allow_private=settings.allow_private_targets,
         allowed_hosts=settings.extra_hosts_allowed,
+        blocked_targets=exclusions,
     )
     return scan(
         checked.scan_host,
         settings=scanner_settings_for(
-            checked, ignore_hardenings, settings, release_track, release_schedule
+            checked,
+            ignore_hardenings,
+            settings,
+            release_track,
+            release_schedule,
+            exclusions,
         ),
         release_settings=release_settings_for(settings),
         # The advisory database the daily refresh last accepted; ``None``

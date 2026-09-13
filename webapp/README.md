@@ -187,7 +187,7 @@ given, which is why the form's input field is not `type="url"`.
 |:-------|:-----|
 | **202** | Accepted and queued, even when every worker is busy |
 | **303** | The same, for a browser: `Location: /scan/{uuid}` |
-| **400** | A target that cannot be scanned: private, loopback, unresolvable, malformed |
+| **400** | A target that cannot be scanned: private, loopback, unresolvable, malformed, or excluded by `COS_WEB_BLOCKED_TARGETS` |
 | **422** | A field the service does not accept, named in the message |
 | **429** | A rate limit, with `Retry-After` and a pointer to running it yourself |
 
@@ -616,6 +616,16 @@ The other standing restrictions:
   addresses are refused, hostnames are resolved and every address checked, and
   the target is validated again in the worker so a DNS answer that changed in
   between is caught rather than trusted.
+- **Whatever the operator excluded, on top.** `COS_WEB_BLOCKED_TARGETS` names
+  hostnames, `.suffix` domains and CIDR ranges this deployment will not scan
+  for anybody - the answer to an instance owner who asks to be left alone. It
+  is checked at submission, again in the worker and on every redirect hop, and
+  it outranks both `COS_WEB_ALLOWED_HOSTS` and `COS_WEB_ALLOW_PRIVATE_TARGETS`
+  ([ADR 0043](../adr/0043-an-operators-exclusion-outranks-every-allowance.md)).
+  The operator's area adds to the same list at runtime, in force from the next
+  request in every process and refusing a scan that is already queued; the
+  environment's own entries cannot be withdrawn from a browser
+  ([ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md)).
 - **One scan per target per cooldown**, and a per-client limit on top.
 - **No port scanning.** `COS_WEB_CHECK_DEBUG_PORTS` is off; connecting to
   extra ports on a host a stranger named is not something to do uninvited.
@@ -649,6 +659,7 @@ before the first deployment:
 | `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 `name=content` metadata tags on the landing page, separated by `;`. Rendered as escaped attributes; raw HTML, duplicate, and reserved metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Index the six public pages. A result page is `noindex` either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
+| `COS_WEB_BLOCKED_TARGETS` | *(empty)* | Addresses this deployment will not scan: hostnames, `.suffix` domains and CIDR ranges, separated by `;`. Outranks the allowlist and the private-target setting; an unparseable entry refuses startup |
 | `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |
 | `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp` and browser WebMCP tools, when the optional `mcp` extra is installed |
 | `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day, so a long-running deployment does not rate against the schedule its image shipped with |

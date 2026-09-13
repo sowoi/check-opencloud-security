@@ -786,12 +786,16 @@ def test_the_search_index_is_reported_and_never_rebuilt():
     assert "searchIndex" in state
     assert set(state["searchIndex"]) >= {"fresh", "builtFor", "running"}
 
-    # And no control offers to write one: the only actions the page submits
-    # are the two refreshes, which is asserted against the actual form fields
-    # rather than the prose, since the prose says the word "rebuild" in the
-    # course of explaining that it does not do it.
+    # And no control offers to write one. Asserted against the actual form
+    # fields rather than the prose, since the prose says the word "rebuild" in
+    # the course of explaining that it does not do it.
+    #
+    # The set is exhaustive on purpose: the area's actions are the two
+    # refreshes and the exclusions (ADR 0044, the one thing here that writes),
+    # and a third kind of write should have to come past this line. "remove"
+    # is absent only because this deployment has excluded nothing yet.
     offered = set(re.findall(r'name="action" value="(\w+)"', page))
-    assert offered == {"schedule", "advisories"}
+    assert offered == {"schedule", "advisories", "add"}
 
 
 def _shipped_index(root, *, built_for, extra=()):

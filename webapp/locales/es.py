@@ -109,6 +109,50 @@ MESSAGES: dict[str, str] = {
         "en disco."
     ),
     "admin.surfaces.targets": "Direcciones analizadas registradas en claro",
+    "admin.exclusions.kicker": "Exclusiones",
+    "admin.exclusions.heading": "Direcciones que este servicio no analizará",
+    "admin.exclusions.lede": (
+        "Una entrada surte efecto desde la siguiente petición, en todos los "
+        "procesos y sin reiniciar - y un análisis que ya esperaba en la cola "
+        "se rechaza en lugar de ejecutarse. Nada de aquí hace que este "
+        "servicio analice algo: la lista solo rechaza."
+    ),
+    "admin.exclusions.add.label": "Nombre de host, dominio .sufijo, dirección o rango CIDR",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Excluir",
+    "admin.exclusions.add.hint": (
+        "Un dominio escrito con un punto inicial excluye también todo lo que "
+        "haya bajo él. Un rango se comprueba contra todas las direcciones a "
+        "las que resuelve un nombre de host."
+    ),
+    "admin.exclusions.remove": "Retirar",
+    "admin.exclusions.empty": "En esta instalación no hay nada excluido.",
+    "admin.exclusions.source.configured": "Desde el entorno",
+    "admin.exclusions.updated": "Modificado aquí por última vez el {when}.",
+    "admin.exclusions.durability": (
+        "Las entradas añadidas aquí viven en Redis, que esta instalación "
+        "puede vaciar. Las que deban perdurar van en COS_WEB_BLOCKED_TARGETS, "
+        "donde no pueden retirarse desde esta página."
+    ),
+    "admin.exclusions.unreadable": (
+        "El almacén no respondió, así que las exclusiones no pueden leerse "
+        "ni cambiarse ahora mismo. Siguen vigentes: un análisis que no puede "
+        "comprobarlas se rechaza, no se ejecuta."
+    ),
+    "admin.blocklist.error.shape": (
+        "Eso no es una entrada. Indique un nombre de host, un dominio que "
+        "empiece por punto, una dirección o un rango CIDR."
+    ),
+    "admin.blocklist.error.configured": (
+        "Esa entrada viene de COS_WEB_BLOCKED_TARGETS. Quítela allí y "
+        "reinicie, para que la instalación y esta lista no se contradigan."
+    ),
+    "admin.blocklist.error.full": (
+        "Esta lista está llena. Pase las entradas permanentes a "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.outcome.excluded": "Excluida. Se rechaza desde la siguiente petición.",
+    "admin.outcome.withdrawn": "Retirada. Puede volver a analizarse.",
     "admin.actions.kicker": "Datos de referencia",
     "admin.actions.heading": "Actualizar aquello contra lo que se califica",
     "admin.actions.lede": (
@@ -1397,6 +1441,9 @@ MESSAGES: dict[str, str] = {
     "error.target.private": (
         "Esa dirección apunta a una red privada, de loopback o de enlace "
         "local, y este servicio no la analizará."
+    ),
+    "error.target.blocked": (
+        "A este servicio se le ha pedido que no analice esa dirección."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Resultados del análisis",
