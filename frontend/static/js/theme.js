@@ -28,7 +28,7 @@
         if (stored === "light" || stored === "dark") {
             root.setAttribute("data-theme", stored);
         }
-    } catch (error) {
+    } catch (_error) {
         // Storage can be unavailable outright - private windows, storage
         // turned off, a browser that throws rather than returns null. The
         // system preference still applies, so there is nothing to recover

@@ -29,13 +29,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Read version
-        id: version
-        run: echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+        run: echo "VERSION=$(uv version --short)" >> "$GITHUB_ENV"
 
       # The release falls back to commit subjects when there are no written
       # notes; the rehearsal refuses that fallback, so a release whose notes
@@ -44,7 +45,7 @@ jobs:
       - name: Prepare the release notes
         run: >
           python scripts/release_notes.py
-          --version "${{ steps.version.outputs.version }}"
+          --version "$VERSION"
           --require-unreleased
 
       - name: Build package
@@ -71,8 +72,56 @@ jobs:
       - name: Build the .deb and the .rpm
         run: python scripts/build_distro_packages.py --output-dir distro-packages
 
+      - name: Keep the packages for the install test
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: distro-packages
+          path: distro-packages/
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Build the web application bundle
         run: python scripts/build_web_bundle.py --output-dir web-bundle
+
+  install:
+    name: Install the ${{ matrix.packager }} on ${{ matrix.image }}
+    needs: artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12
+            packager: deb
+          - image: ubuntu:24.04
+            packager: deb
+          - image: fedora:43
+            packager: rpm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Fetch the packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: distro-packages
+          path: distro-packages
+
+      # A package that builds can still fail to install: a dependency name the
+      # distribution does not have, a launcher that cannot find its payload, a
+      # postinstall script that exits non-zero as root. This installs it with
+      # the distribution's own package manager, runs both commands and the
+      # Nagios plugin path, and removes it again.
+      - name: Install, run and remove
+        env:
+          IMAGE: ${{ matrix.image }}
+          PACKAGER: ${{ matrix.packager }}
+        run: |
+          cp packaging/tests/install-smoke.sh distro-packages/
+          docker run --rm -v "$PWD/distro-packages:/pkgs" -w /pkgs "$IMAGE" \
+            sh install-smoke.sh "$PACKAGER"
 
   images:
     name: Build ${{ matrix.dockerfile }}
@@ -86,6 +135,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4

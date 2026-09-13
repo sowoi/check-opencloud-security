@@ -774,7 +774,16 @@ uvx ruff check .                       # linting, as CI runs it
 uv run mypy --config-file mypy.ini     # type checking
 cd ansible && ansible-lint             # must be run from ansible/
 python scripts/security_advisories.py --check   # every Security entry decided
+python scripts/check_pull_request.py --base origin/main  # changelog and version guard
+npx @biomejs/biome@2.5.13 lint                  # frontend scripts, rules in biome.jsonc
+uvx zizmor@1.30.1 .github/workflows             # workflow security audit
 ```
+
+CI also runs actionlint, shellcheck on every tracked `*.sh`, hadolint on the
+Dockerfiles, `docker compose config` and CodeQL. Suppress a deliberate zizmor
+finding inline with `# zizmor: ignore[<audit>]` and a comment saying why, and
+keep `persist-credentials: false` on every checkout whose job does not push -
+`tests/test_workflow_hardening.py` fails otherwise.
 
 Notes that will otherwise cost you time:
 

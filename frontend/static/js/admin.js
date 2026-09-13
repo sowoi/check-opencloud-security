@@ -76,7 +76,7 @@
 
     function seconds(iso) {
         var moment = Date.parse(iso);
-        return isNaN(moment)
+        return Number.isNaN(moment)
             ? null
             : Math.max(0, Math.round((Date.now() - moment) / 1000));
     }
@@ -97,7 +97,7 @@
     function exactly(iso) {
         try {
             return new Date(iso).toLocaleString();
-        } catch (error) {
+        } catch (_error) {
             return iso;
         }
     }

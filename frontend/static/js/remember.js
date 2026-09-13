@@ -76,7 +76,7 @@
         var raw;
         try {
             raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-        } catch (error) {
+        } catch (_error) {
             return null;
         }
         if (!raw || typeof raw !== "object") {
@@ -127,7 +127,7 @@
     form.addEventListener("submit", function () {
         try {
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current()));
-        } catch (error) {
+        } catch (_error) {
             // Storage refused: the scan is submitted exactly as it would be
             // without this file.
         }
@@ -176,7 +176,7 @@
     forget.addEventListener("click", function () {
         try {
             window.localStorage.removeItem(STORAGE_KEY);
-        } catch (error) {
+        } catch (_error) {
             // Nothing to remove, or nothing allowed to: either way it is gone
             // from the page.
         }

@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -49,8 +51,10 @@ jobs:
         with:
           node-version: "24"
 
+      # Pinned by version in MERMAID_CLI_VERSION; a package.json and lockfile
+      # would bring Node into a repository where nothing else is.
       - name: Install mermaid-cli
-        run: npm install --no-save "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
+        run: npm install --no-save "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}" # zizmor: ignore[adhoc-packages]
 
       - name: Extract diagram sources and point ARCHITECTURE.md at their PNGs
         run: uv run python scripts/render_architecture_diagrams.py --diagrams-dir .diagrams

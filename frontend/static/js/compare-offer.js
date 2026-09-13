@@ -46,7 +46,7 @@
         try {
             var parsed = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || "{}");
             return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-        } catch (error) {
+        } catch (_error) {
             return {};
         }
     }
@@ -54,7 +54,7 @@
     function save(history) {
         try {
             window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-        } catch (error) {
+        } catch (_error) {
             // Storage refused (a private window, a full quota): the page is
             // exactly what it was without this script.
         }
@@ -118,7 +118,7 @@
             document.documentElement.lang || undefined,
             { hour: "2-digit", minute: "2-digit" }
         );
-    } catch (error) {
+    } catch (_error) {
         time = new Date(earlier.seen).toLocaleTimeString();
     }
 

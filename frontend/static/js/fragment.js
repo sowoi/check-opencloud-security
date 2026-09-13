@@ -40,7 +40,7 @@
     function stored() {
         try {
             return window.localStorage.getItem(STORAGE_KEY);
-        } catch (error) {
+        } catch (_error) {
             // Private windows and blocked site data both throw on access
             // rather than answering null, so this is a catch and not a check.
             return null;
@@ -50,7 +50,7 @@
     function remember(value) {
         try {
             window.localStorage.setItem(STORAGE_KEY, value);
-        } catch (error) {
+        } catch (_error) {
             // A preference that cannot be saved is still a preference that
             // works for this page.
         }

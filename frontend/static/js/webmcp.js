@@ -38,7 +38,7 @@
             return answer;
         }
         var retryAfter = parseInt(response.headers.get("retry-after"), 10);
-        if (!isNaN(retryAfter)) {
+        if (!Number.isNaN(retryAfter)) {
             answer.retryAfter = retryAfter;
         } else if (answer.retryable && policy.fallbackRetrySeconds) {
             answer.retryAfter = policy.fallbackRetrySeconds;
@@ -108,7 +108,7 @@
         }
 
         if (config.action === "status") {
-            return function (input, options) {
+            return function (_input, options) {
                 return jsonRequest(config.endpoint, {
                     signal: options && options.signal
                 }, config.retry);

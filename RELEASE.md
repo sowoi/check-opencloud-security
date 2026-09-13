@@ -200,6 +200,37 @@
 
 ### Changed
 
+- **The workflows, shell scripts, Dockerfiles, compose files and frontend
+  scripts are linted.** `workflow-lint.yml` runs actionlint and zizmor over
+  `.github/workflows`; `static-analysis.yml` runs shellcheck on every tracked
+  shell script, hadolint on both Dockerfiles, `docker compose config` on every
+  compose file and Biome on `frontend/static/js` (rules in `biome.jsonc`);
+  `codeql.yml` adds CodeQL for Python, JavaScript and the workflows. Every tool
+  is pinned by version, and the downloaded binaries by digest. What they found
+  is fixed: checkouts no longer leave the job token in `.git/config` unless the
+  job pushes, the release workflow reads its version from the environment
+  instead of pasting an expression into shell, the SBOM is generated from the
+  locked environment, a Docker Hub pin carried the wrong version comment, and
+  the plugin image runs as the numeric `USER 1000` - the uid it already had, so
+  mounted files keep their owner.
+
+- **The .deb and the .rpm are installed on every pull request.** The release
+  dry run now installs both packages in Debian 12, Ubuntu 24.04 and Fedora 43
+  with the distribution's own package manager, runs both commands and the
+  Nagios plugin path, and removes them again (`packaging/tests/install-smoke.sh`).
+
+- **A missed Homebrew formula regeneration opens a pull request.**
+  `homebrew-formula.yml` runs `build_homebrew_formula.py --check` daily and,
+  when the formula no longer pins the newest release on PyPI, regenerates it
+  and opens a pull request. The architecture diagram's image references are
+  checked on every pull request, and so are the documented OpenCloud links.
+
+- **CI is locked, cached and cancels what is superseded.** Every `uv sync` is
+  `--locked`; workflows that publish nothing cache uv's downloads, while those
+  that push, publish or sign never restore a cache; pull request runs cancel
+  the run they replace; and the nox suite runs as a five-job matrix, one per
+  Python. `tests/test_workflow_hardening.py` holds each of these.
+
 - **A release is built on the pull request, and publishes to PyPI last.** The
   release workflow uploaded to PyPI straight after building the wheel, and
   only then built the `.deb`, the `.rpm` and the web bundle - so a broken

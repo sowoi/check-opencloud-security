@@ -1,0 +1,66 @@
+name: CodeQL
+
+# Dataflow analysis for the three languages in this repository. Bandit reads
+# Python line by line and reports advisory findings; CodeQL follows a value
+# from where it enters to where it is used - a submitted URL into a request,
+# a result into the DOM - which is the shape of defect a public scan service
+# most needs caught. It also reads the frontend scripts and the workflows.
+#
+# Results land under the Security tab. The vendored Swagger and ReDoc bundles
+# and the test fixtures are excluded: a fixture is allowed to do what
+# production code may not, and a minified third-party bundle is not ours to fix.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "11 4 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # to upload the results
+      actions: read # to read the workflow run the upload belongs to
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+          - javascript-typescript
+          - actions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Interpreted languages: nothing to build, so no autobuild step.
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - frontend/static/vendor
+              - tests
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          category: "/language:${{ matrix.language }}"

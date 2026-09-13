@@ -1,0 +1,33 @@
+// Biome lints the frontend's own scripts - frontend/static/js, never the
+// vendored Swagger and ReDoc bundles. Only rules that catch defects are on:
+// the scripts are deliberately plain ES5-style classic scripts, loaded without
+// a build step, so the style and complexity groups (arrow functions, template
+// literals, optional chaining) would ask for a rewrite, not a fix.
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": { "includes": ["frontend/static/js/**/*.js"] },
+	"formatter": { "enabled": false },
+	"assist": { "enabled": false },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "none",
+			"correctness": {
+				"preset": "recommended",
+				// A `var` inside a block is hoisted to its function, which is how
+				// these scripts are written, not a mistake in them.
+				"noInnerDeclarations": "off"
+			},
+			"suspicious": {
+				"preset": "recommended",
+				// Classic scripts, not modules: "use strict" is what makes them strict.
+				"noRedundantUseStrict": "off",
+				// The scripts already call Object.prototype.hasOwnProperty.call; the
+				// rule's preferred Object.hasOwn is ES2022.
+				"noPrototypeBuiltins": "off"
+			},
+			"security": { "preset": "recommended" }
+		}
+	}
+}
