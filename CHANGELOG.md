@@ -212,6 +212,10 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Changed
 
+- **The architecture decision records have an index.** `adr/README.md` now
+  lists every record with its number, decision and status, so the one that
+  governs an area can be found without opening forty-odd files by name.
+
 - **On a phone, the address field is the first thing on the page.** Stacked
   into one column, the eyebrow, the two-line headline and the lede filled
   most of the screen before the form, so a visitor had to scroll to find the
