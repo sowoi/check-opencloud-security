@@ -116,15 +116,11 @@ jobs:
           subject-path: "dist/*.whl"
           sbom-path: "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
 
-      - name: Publish to PyPI
-        if: steps.check_tag.outputs.exists != 'true'
-        run: uv publish
-
       # The plugin's audience is monitoring hosts, where software arrives
       # through apt and dnf rather than through pip. nfpm turns the wheel that
       # was just published into a .deb and an .rpm from one recipe, without
       # needing dpkg-dev, rpmbuild or a matching distribution to build on.
-      # See adr/0039. They land outside dist/ because `uv publish` above
+      # See adr/0039. They land outside dist/ because `uv publish` below
       # uploads everything it finds there.
       #
       # nfpm is pinned by version and checked against the digest published with
@@ -170,6 +166,19 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: "web-bundle/*.tar.gz"
+
+      # Last of the builds, not first: PyPI never takes a version back, so
+      # everything that can still fail - the .deb and the .rpm, the web
+      # bundle, the attestations - has already succeeded by the time anything
+      # leaves this runner. See adr/0045.
+      #
+      # --check-url makes a second attempt safe. When the tag step below fails
+      # after this one succeeded, the next push to main finds no tag and runs
+      # again; uv then skips the files PyPI already holds with the same digest
+      # instead of failing on "File already exists".
+      - name: Publish to PyPI
+        if: steps.check_tag.outputs.exists != 'true'
+        run: uv publish --check-url https://pypi.org/simple/
 
       - name: Create Git tag and GitHub release
         if: steps.check_tag.outputs.exists != 'true'

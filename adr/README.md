@@ -51,6 +51,7 @@ project. Read the accepted records that affect an area before changing it.
 | [0042](0042-every-resolved-address-is-compared-only-when-the-operator-asks.md) | Every resolved address is compared only when the operator asks | Accepted |
 | [0043](0043-an-operators-exclusion-outranks-every-allowance.md) | An operator's exclusion outranks every allowance | Accepted |
 | [0044](0044-the-operator-area-may-write-the-exclusions.md) | The operator's area may write the exclusions, and nothing else | Accepted |
+| [0045](0045-a-release-is-rehearsed-on-the-pull-request-and-publishes-last.md) | A release is rehearsed on the pull request and publishes last | Accepted |
 
 ## Writing a new record
 

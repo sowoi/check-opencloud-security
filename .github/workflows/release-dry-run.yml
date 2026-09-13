@@ -1,0 +1,103 @@
+name: Release dry run
+
+# Everything publish-pypi.yml builds, built on the pull request instead of for
+# the first time on main after a version bump - where a broken nfpm recipe or
+# a missing file in the web bundle used to surface only once the release was
+# already under way. See adr/0045.
+#
+# It builds and checks; it publishes, tags, attests and pushes nothing, so the
+# token is read-only. The search index is deliberately not rebuilt here: only
+# the release workflow may refresh it (tests/test_webapp_search.py).
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  artifacts:
+    name: Release notes, wheel, packages and web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      - name: Read version
+        id: version
+        run: echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+
+      # The release falls back to commit subjects when there are no written
+      # notes; the rehearsal refuses that fallback, so a release whose notes
+      # were never written is caught while it is still a pull request. The
+      # rewritten files stay in this throwaway checkout.
+      - name: Prepare the release notes
+        run: >
+          python scripts/release_notes.py
+          --version "${{ steps.version.outputs.version }}"
+          --require-unreleased
+
+      - name: Build package
+        run: uv build
+
+      # What PyPI would reject - a README it cannot render, missing metadata -
+      # rejected here instead.
+      - name: Check the package metadata
+        run: uvx twine check --strict dist/*
+
+      # Same version and digest as publish-pypi.yml;
+      # tests/test_release_dry_run.py keeps the two in step.
+      - name: Install nfpm
+        env:
+          NFPM_VERSION: "2.47.0"
+          NFPM_SHA256: "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783"
+        run: |
+          curl -fsSL -o /tmp/nfpm.tar.gz \
+            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          echo "${NFPM_SHA256}  /tmp/nfpm.tar.gz" | sha256sum --check --strict
+          sudo tar -xzf /tmp/nfpm.tar.gz -C /usr/local/bin nfpm
+          nfpm --version
+
+      - name: Build the .deb and the .rpm
+        run: python scripts/build_distro_packages.py --output-dir distro-packages
+
+      - name: Build the web application bundle
+        run: python scripts/build_web_bundle.py --output-dir web-bundle
+
+  images:
+    name: Build ${{ matrix.dockerfile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - docker/Dockerfile
+          - docker/Dockerfile.web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      # One platform and no push: the question is whether the image builds,
+      # and arm64 under QEMU would multiply the time to answer the same one.
+      # The context is the repository root, as for every image here.
+      - name: Build without pushing
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
