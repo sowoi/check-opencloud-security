@@ -39,12 +39,15 @@ Fixes #
 - [ ] `uv run mypy --config-file mypy.ini` passes.
 - [ ] `ansible-lint` passes, run from inside `ansible/` - only if you touched
       that directory.
-- [ ] I added an entry under `## [Unreleased]` in `CHANGELOG.md`.
+- [ ] I added an entry under `## [Unreleased]` in `CHANGELOG.md` and the same
+      entry in `RELEASE.md`. CI checks this; a maintainer labels a change that
+      needs no notes `skip-changelog`.
 - [ ] If that entry is under `### Security`, I added a matching record in
       `security/advisories/` and
       `python scripts/security_advisories.py --check` passes. I did **not**
       publish an advisory.
-- [ ] I did **not** touch the `version` in `pyproject.toml`, and did not create
+- [ ] I did **not** touch the `version` in `pyproject.toml` (CI refuses a
+      change to it without the maintainer's `release` label), and did not create
       a tag or a release. That is the maintainer's call, and a bump publishes
       to PyPI as soon as it lands.
 - [ ] No real hostname, IP address, token or password appears anywhere in this

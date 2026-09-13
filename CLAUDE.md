@@ -34,6 +34,7 @@ python scripts/build_web_bundle.py                  # builds the web release tar
 uv build && python scripts/build_distro_packages.py # builds the .deb and .rpm (needs nfpm)
 python scripts/check_documentation_links.py         # re-checks documented OpenCloud links
 python scripts/security_advisories.py --check       # every ### Security entry is decided
+python scripts/check_pull_request.py --base origin/main  # changelog entries and the version guard, as CI runs it
 cd docker && docker compose up --build              # web + worker + redis, locally
 ```
 

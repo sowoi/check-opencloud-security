@@ -200,6 +200,28 @@
 
 ### Changed
 
+- **A release is built on the pull request, and publishes to PyPI last.** The
+  release workflow uploaded to PyPI straight after building the wheel, and
+  only then built the `.deb`, the `.rpm` and the web bundle - so a broken
+  packaging recipe left a version on PyPI with no tag and no GitHub release,
+  and the retry failed on "File already exists". Every artifact is now built
+  and attested before the upload, `uv publish --check-url` lets a repeated run
+  finish the release, and the new `release-dry-run.yml` builds the release
+  notes, the wheel (checked by `twine check --strict`), both distribution
+  packages, the web bundle and both images on every pull request, publishing
+  nothing. See
+  [ADR 0045](adr/0045-a-release-is-rehearsed-on-the-pull-request-and-publishes-last.md).
+
+- **The pull request checklist's two release rules are now checked.**
+  `scripts/check_pull_request.py`, run by `pull-request-policy.yml`, refuses a
+  change without a new `CHANGELOG.md` entry and a `RELEASE.md` under the
+  declared version (unless labelled `skip-changelog`, or opened by Dependabot
+  or the refresh bots), and a version change without the `release` label, one
+  that does not move past every tag, or a bump commit whose subject names a
+  different version. The README table of contents, the `docs/` index and the
+  `/documentation` manifest are held to their contents by
+  `tests/test_documentation_indexes.py`.
+
 - **The architecture decision records have an index.** `adr/README.md` now
   lists every record with its number, decision and status, so the one that
   governs an area can be found without opening forty-odd files by name.

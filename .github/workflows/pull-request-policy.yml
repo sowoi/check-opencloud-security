@@ -1,0 +1,51 @@
+name: Pull request policy
+
+# Two rules the pull request template used to be able only to ask for, now
+# answered by scripts/check_pull_request.py:
+#
+# - every change adds to CHANGELOG.md and RELEASE.md under the version in
+#   pyproject.toml (the `skip-changelog` label is the stated exception, and the
+#   refresh bots and Dependabot are exempt);
+# - a change to that version carries the `release` label, moves forward past
+#   every tag, and is not described in a commit subject as another number -
+#   because a bump that lands on main publishes to PyPI at once.
+#
+# It re-runs when a label is added or removed, since a label is half of the
+# answer.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Changelog and version
+    runs-on: ubuntu-latest
+    steps:
+      # The whole history and the tags: the check compares against the merge
+      # base and refuses a version some tag already names.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      # Labels and the author's login are passed through the environment, never
+      # interpolated into the script text.
+      - name: Check the pull request
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: >
+          python scripts/check_pull_request.py
+          --base "$BASE_SHA" --head "$HEAD_SHA"
+          --labels "$LABELS" --author "$AUTHOR"
