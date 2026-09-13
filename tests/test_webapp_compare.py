@@ -16,7 +16,6 @@ same answer for the same pair.
 from __future__ import annotations
 
 import asyncio
-import socket
 
 import pytest
 
@@ -208,7 +207,7 @@ def test_a_scan_that_has_not_finished_is_not_compared(improved_pair):
     assert "not finished" in page.text
 
 
-def test_two_different_instances_are_compared_but_said_so(monkeypatch):
+def test_two_different_instances_are_compared_but_said_so():
     """
     Staging against production is a fair question; answered silently it is not.
 
@@ -216,19 +215,6 @@ def test_two_different_instances_are_compared_but_said_so(monkeypatch):
     the same instance is the name that was scanned - two ports on one address
     are one target, and would not exercise this at all.
     """
-    # The fake server listens on 127.0.0.1 only, and a resolver that lists ::1
-    # first for localhost (macOS does) would pin the scan to an address where
-    # nothing answers. What this test is about is the second name, not the
-    # machine's address order.
-    real_getaddrinfo = socket.getaddrinfo
-
-    def ipv4_localhost(host, *args, **kwargs):
-        answers = real_getaddrinfo(host, *args, **kwargs)
-        if host == "localhost":
-            return [entry for entry in answers if entry[0] == socket.AF_INET]
-        return answers
-
-    monkeypatch.setattr(socket, "getaddrinfo", ipv4_localhost)
     configured = settings(allow_private_targets=True, verify_tls=False, scan_timeout=5)
     store = ScanStore(backend=memory_backend(MEMORY_URL), ttl=configured.result_ttl)
     with FakeOpenCloud() as instance:

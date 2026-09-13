@@ -203,12 +203,19 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
-- **The comparison test no longer depends on the order the machine resolves
-  `localhost` in.** It scans one fake instance under two names, and the
-  instance listens on `127.0.0.1` only; where the resolver lists `::1` first,
-  as macOS does, the second scan was pinned to an address where nothing
-  answered and the page correctly said the scan had not finished. The test now
-  resolves that name to IPv4 itself. Test-only; nothing shipped changes.
+- **A name pinned to several addresses no longer fails on the first one
+  alone.** The web service resolves a submitted name, vets every address and
+  pins the scan to them - and then only ever dialled the first. A dual-stack
+  instance whose AAAA record points at nothing, or a scan from a host without
+  an IPv6 route, answered "unreachable" where a visitor's browser simply used
+  IPv4. A connection now tries the vetted addresses in order and the one that
+  accepts is dialled first from then on; the TLS inspection and the debug-port
+  probes use that address too, so a dead first address no longer reports a
+  handshake failure or closed ports the instance does not have. Nothing
+  outside the pinned list is ever dialled, only a failure to connect moves on,
+  a single pinned address - the per-address comparison - is never widened, and
+  the result document still lists the addresses in the order they resolved.
+  The plugin, which does not pin, was not affected.
 
 - **A comparison shows when each scan ran, instead of calling both times
   "unparsable".** `scannedAt` is written by the scanner from its own clock and

@@ -58,6 +58,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
+from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 
 from .caa import check_caa_record
 from .dnssec import check_dnssec
@@ -518,6 +519,39 @@ class ScannerSettings:
         return max(1, min(int(self.concurrency), MAX_CONCURRENCY))
 
 
+class _PinnedFallback:
+    """
+    Dial a pinned name's validated addresses in order until one accepts.
+
+    Mixed into the connection class of a pool whose name is pinned to more
+    than one address. Only a failure to *connect* moves on - a refused or
+    unreachable address, a connect timeout - because that is the one failure
+    where nothing was said yet; an address that accepted and then answered
+    badly is the answer. Nothing outside the pin is ever dialled, so the
+    fallback is as narrow as the guard that produced the list.
+    """
+
+    _pin_manager: _PinnedPoolManager
+    _pin_name: str
+    _dns_host: str
+
+    def _new_conn(self) -> socket.socket:
+        failure: Exception | None = None
+        for address in self._pin_manager.addresses(self._pin_name):
+            self._dns_host = address
+            try:
+                sock: socket.socket = super()._new_conn()  # type: ignore[misc]
+            except (NewConnectionError, ConnectTimeoutError) as exc:
+                LOGGER.debug("Pinned address %s did not accept: %s", address, exc)
+                failure = exc
+                continue
+            self._pin_manager.prefer(self._pin_name, address)
+            return sock
+        if failure is None:
+            raise NewConnectionError(self, f"No address pinned for {self._pin_name}")  # type: ignore[arg-type]
+        raise failure
+
+
 class _PinnedPoolManager(PoolManager):
     """Route validated hostnames to their already-checked IP addresses."""
 
@@ -530,6 +564,24 @@ class _PinnedPoolManager(PoolManager):
         self._pins[hostname.lower().rstrip(".")] = addresses
         self.clear()
 
+    def addresses(self, name: str) -> tuple[str, ...]:
+        """A pinned name's addresses, the one that last accepted first."""
+        return self._pins.get(name, ())
+
+    def prefer(self, name: str, address: str) -> None:
+        """
+        Put the address that accepted a connection first for the next one.
+
+        A name whose first address is dead - an AAAA record nothing listens
+        on, a scanner without an IPv6 route - would otherwise pay a failed
+        connect, possibly a whole timeout, on every new connection. The pools
+        already open are left alone: the next request asks for the new first
+        address and gets a pool of its own.
+        """
+        addresses = self._pins.get(name, ())
+        if addresses and addresses[0] != address and address in addresses:
+            self._pins[name] = (address, *(entry for entry in addresses if entry != address))
+
     def connection_from_host(
         self,
         host: str | None,
@@ -538,14 +590,28 @@ class _PinnedPoolManager(PoolManager):
         pool_kwargs: dict[str, Any] | None = None,
     ):
         original = host or ""
-        addresses = self._pins.get(original.lower().rstrip("."))
+        name = original.lower().rstrip(".")
+        addresses = self._pins.get(name)
         if addresses:
             host = addresses[0]
             pool_kwargs = dict(pool_kwargs or {})
             if scheme == "https":
                 pool_kwargs.setdefault("assert_hostname", original)
                 pool_kwargs.setdefault("server_hostname", original)
-        return super().connection_from_host(host, port, scheme, pool_kwargs)
+        pool = super().connection_from_host(host, port, scheme, pool_kwargs)
+        # The pool still dials addresses[0] first, but a name with several
+        # validated addresses must not fail on the first one alone: the guard
+        # vetted all of them, and a visitor's browser would try the next.
+        # Exactly one pinned address - the per-address comparison - stays
+        # exactly that one.
+        if addresses and len(addresses) > 1 and getattr(pool, "_pin_name", None) != name:
+            pool.ConnectionCls = type(  # type: ignore[misc]
+                f"Pinned{pool.ConnectionCls.__name__}",
+                (_PinnedFallback, pool.ConnectionCls),
+                {"_pin_manager": self, "_pin_name": name},
+            )
+            pool._pin_name = name  # type: ignore[attr-defined]
+        return pool
 
 
 class _PinnedHTTPAdapter(HTTPAdapter):
@@ -627,6 +693,10 @@ class _Probe:
     # the thread that did not create the entry.
     _opened: list[requests.Session] = field(default_factory=list, repr=False)
     _opened_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # One pin mapping for every session this probe (and its derivations)
+    # opens, so the address that accepted in one worker is the one the next
+    # worker dials first rather than something each thread relearns.
+    _pins: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         """Mount the pinning adapter before the first request is made."""
@@ -668,10 +738,14 @@ class _Probe:
         the pool still holding its open connections would no longer be
         reachable from ``session.adapters`` for :meth:`close` to shut down.
         """
-        pins = dict(self.settings.pinned_addresses)
-        if not pins or isinstance(session.get_adapter("https://"), _PinnedHTTPAdapter):
+        if not self._pins:
+            self._pins.update(
+                (name.lower().rstrip("."), addresses)
+                for name, addresses in self.settings.pinned_addresses
+            )
+        if not self._pins or isinstance(session.get_adapter("https://"), _PinnedHTTPAdapter):
             return
-        adapter = _PinnedHTTPAdapter(pins)
+        adapter = _PinnedHTTPAdapter(self._pins)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
 
@@ -696,6 +770,11 @@ class _Probe:
     def derive(self, base_url: str) -> _Probe:
         """A probe for another base URL that reuses this one's connections."""
         return replace(self, base_url=base_url)
+
+    @property
+    def pinned_addresses(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        """The pins as this probe now dials them, the address that accepted first."""
+        return tuple(self._pins.items())
 
     @property
     def _session(self) -> requests.Session:
@@ -3246,6 +3325,14 @@ def scan(
         tls_untrusted,
         https_unavailable,
     ) = _open_instance(host, settings)
+    # What the name resolved to is reported in the order it was given; what
+    # the TLS inspection and the debug ports dial is the order the HTTP layer
+    # learned. A name pinned to several addresses whose first does not accept
+    # has just been reached on another one, and inspecting the dead one would
+    # report a handshake failure the instance does not have.
+    resolution_settings = settings
+    if probe.pinned_addresses != settings.pinned_addresses:
+        settings = replace(settings, pinned_addresses=probe.pinned_addresses)
 
     # The probe pools its connections; the scan owns them and closes them
     # on the way out, however it leaves.
@@ -3318,7 +3405,7 @@ def scan(
         # The TLS layer is inspected once, before the findings are assembled, so
         # that the full detail can be published beside them: the findings say what
         # is wrong, the `tls` block says what was actually observed.
-        addresses = _resolved_addresses(hostname, settings)
+        addresses = _resolved_addresses(hostname, resolution_settings)
         tls_inspection = (
             inspect_tls(
                 hostname,
