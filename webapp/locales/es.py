@@ -109,6 +109,54 @@ MESSAGES: dict[str, str] = {
         "en disco."
     ),
     "admin.surfaces.targets": "Direcciones analizadas registradas en claro",
+    "admin.exclusions.kicker": "Exclusiones",
+    "admin.exclusions.heading": "Direcciones que este servicio no analizará",
+    "admin.exclusions.lede": (
+        "Una entrada surte efecto desde la siguiente petición, en todos los "
+        "procesos y sin reiniciar - y un análisis que ya esperaba en la cola "
+        "se rechaza en lugar de ejecutarse. Nada de aquí hace que este "
+        "servicio analice algo: la lista solo rechaza."
+    ),
+    "admin.exclusions.add.label": "Nombre de host, dominio .sufijo, dirección o rango CIDR",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Excluir",
+    "admin.exclusions.add.hint": (
+        "Un dominio escrito con un punto inicial excluye también todo lo que "
+        "haya bajo él. Un rango se comprueba contra todas las direcciones a "
+        "las que resuelve un nombre de host."
+    ),
+    "admin.exclusions.remove": "Retirar",
+    "admin.exclusions.empty": "En esta instalación no hay nada excluido.",
+    "admin.exclusions.source.configured": "Desde el entorno",
+    "admin.exclusions.updated": "Modificado aquí por última vez el {when}.",
+    "admin.exclusions.durability": (
+        "Las entradas añadidas aquí viven en Redis, que esta instalación "
+        "puede vaciar. Las que deban perdurar van en COS_WEB_BLOCKED_TARGETS, "
+        "donde no pueden retirarse desde esta página."
+    ),
+    "admin.exclusions.unreadable": (
+        "El almacén no respondió, así que las exclusiones no pueden leerse "
+        "ni cambiarse ahora mismo. Siguen vigentes: un análisis que no puede "
+        "comprobarlas se rechaza, no se ejecuta."
+    ),
+    "admin.blocklist.error.shape": (
+        "Eso no es una entrada. Indique un nombre de host, un dominio que "
+        "empiece por punto, una dirección o un rango CIDR."
+    ),
+    "admin.blocklist.error.configured": (
+        "Esa entrada viene de COS_WEB_BLOCKED_TARGETS. Quítela allí y "
+        "reinicie, para que la instalación y esta lista no se contradigan."
+    ),
+    "admin.blocklist.error.full": (
+        "Esta lista está llena. Pase las entradas permanentes a "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.blocklist.error.long": (
+        "Esa entrada es más larga de lo que puede ser un nombre de host, así "
+        "que nada de lo que pretenda designar llegaría a este servicio."
+    ),
+    "admin.outcome.excluded": "Excluida. Se rechaza desde la siguiente petición.",
+    "admin.outcome.withdrawn": "Retirada. Puede volver a analizarse.",
     "admin.actions.kicker": "Datos de referencia",
     "admin.actions.heading": "Actualizar aquello contra lo que se califica",
     "admin.actions.lede": (
@@ -224,6 +272,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Catálogo",
     "nav.docs": "Documentación",
     "nav.search": "Buscar",
+    "nav.compare": "Comparar",
     "nav.api": "API",
     "nav.ai": "IA",
     "nav.privacy": "Privacidad",
@@ -369,6 +418,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Ambos provienen del mismo análisis.",
     "index.waivers.summary": "Ignorar comprobaciones específicas (opcional)",
     "index.waivers.selected": "Ignorar comprobaciones específicas ({count} seleccionadas)",
+    "index.remember.summary": (
+        "Ajustes de tu último análisis en este navegador: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "ninguna comprobación exceptuada",
+    "index.remember.waivers.one": "1 comprobación exceptuada",
+    "index.remember.waivers.many": "{count} comprobaciones exceptuadas",
+    "index.remember.apply": "Volver a usarlos",
+    "index.remember.forget": "Olvidarlos",
     "index.waivers.hint": (
         "Una comprobación exceptuada permanece en el informe y sigue "
         "mostrándose; simplemente deja de frenar la calificación. Solo se "
@@ -1195,6 +1252,93 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "En esta página",
     "docs.guide.toc.aria": "En esta página",
+    # ---------------------------------------------------------------- compare
+    "compare.title": "Comparar dos análisis",
+    "compare.description": (
+        "Compare dos análisis finalizados de la misma instancia y vea qué se "
+        "ha corregido, qué es nuevo y qué sigue abierto."
+    ),
+    "compare.eyebrow": "¿Funcionaron las correcciones?",
+    "compare.heading": "Comparar dos análisis",
+    "compare.lede": (
+        "Pegue el uuid de un análisis anterior y el de uno posterior. Ambos "
+        "resultados deben seguir existiendo: este servicio no guarda ningún "
+        "histórico en el que buscar un análisis caducado."
+    ),
+    "compare.form.baseline": "Análisis anterior",
+    "compare.form.current": "Análisis posterior",
+    "compare.form.placeholder": "El uuid de la dirección de una página de resultado",
+    "compare.form.submit": "Comparar",
+    "compare.form.hint": (
+        "El uuid es la parte que sigue a <code>/scan/</code> en la dirección "
+        "de una página de resultado. Es toda la autorización sobre ese "
+        "resultado, así que trátelo como una contraseña."
+    ),
+    "compare.error.unknown.baseline": (
+        "El análisis anterior es desconocido o ha caducado. Aquí no se puede "
+        "buscar: analice la instancia de nuevo y compare los dos resultados "
+        "más recientes."
+    ),
+    "compare.error.unknown.current": (
+        "El análisis posterior es desconocido o ha caducado. Aquí no se puede "
+        "buscar: analice la instancia de nuevo y compare los dos resultados "
+        "más recientes."
+    ),
+    "compare.error.unfinished.baseline": (
+        "El análisis anterior aún no ha terminado. Abra su página de "
+        "resultado, espere a que acabe y vuelva a comparar."
+    ),
+    "compare.error.unfinished.current": (
+        "El análisis posterior aún no ha terminado. Abra su página de "
+        "resultado, espere a que acabe y vuelva a comparar."
+    ),
+    "compare.error.same": (
+        "Ambos campos nombran el mismo análisis, así que no hay nada que "
+        "comparar. Analice la instancia de nuevo y compare el uuid nuevo con "
+        "este."
+    ),
+    "compare.different_targets": (
+        "Estos dos análisis describen instancias distintas. La comparación se "
+        "muestra igualmente - comparar preproducción con producción es una "
+        "pregunta legítima -, pero entonces cada cifra de abajo responde a "
+        "otra."
+    ),
+    "compare.verdict.kicker": "Entre los dos análisis",
+    "compare.verdict.improved": "Ha mejorado",
+    "compare.verdict.unchanged": "No ha cambiado nada",
+    "compare.verdict.regressed": "Ha empeorado",
+    "compare.rating.up": "La nota ha subido {points} punto(s).",
+    "compare.rating.down": "La nota ha bajado {points} punto(s).",
+    "compare.rating.same": (
+        "La nota no se ha movido. Eso por sí solo no es una corrección "
+        "fallida: los hallazgos de una misma gravedad comparten un único "
+        "tope, así que pueden aplicarse varias correcciones antes de que "
+        "cambie la letra. Lea las listas de abajo."
+    ),
+    "compare.side.baseline": "Anterior",
+    "compare.side.current": "Posterior",
+    "compare.side.target": "Instancia",
+    "compare.side.version": "Versión",
+    "compare.side.scanned": "Analizada",
+    "compare.side.unknown": "No determinado",
+    "compare.side.open": "Abrir este resultado",
+    "compare.introduced.heading": "Hallazgos nuevos ({count})",
+    "compare.introduced.none": "No hay nada nuevo desde el análisis anterior.",
+    "compare.resolved.heading": "Hallazgos resueltos ({count})",
+    "compare.resolved.none": (
+        "No ha desaparecido nada de lo que estaba abierto en el análisis "
+        "anterior."
+    ),
+    "compare.unchanged.heading": "Siguen abiertos ({count})",
+    "compare.unchanged.none": "No hay nada abierto en ambos análisis.",
+    "compare.changes.heading": "Lo que detalla la comparación",
+    "compare.changes.category": "Categoría",
+    "compare.changes.change": "Cambio",
+    "compare.nothing_stored": (
+        "Esta comparación se ha calculado a partir de los dos resultados y no "
+        "se ha guardado en ninguna parte. Al recargar se vuelve a calcular; si "
+        "caduca cualquiera de los dos resultados, ya no se podrá pedir."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Buscar",
     "search.description": (
@@ -1302,6 +1446,14 @@ MESSAGES: dict[str, str] = {
         "Esa dirección apunta a una red privada, de loopback o de enlace "
         "local, y este servicio no la analizará."
     ),
+    "error.target.blocked": (
+        "A este servicio se le ha pedido que no analice esa dirección."
+    ),
+    "error.store_unavailable": (
+        "Este servicio no puede acceder ahora mismo a su propia configuración "
+        "y no analizará sin saber qué se le ha pedido que deje en paz. "
+        "Inténtelo de nuevo dentro de unos minutos."
+    ),
     # ----------------------------------------------------------- result page
     "result.title": "Resultados del análisis",
     "result.description": (
@@ -1313,6 +1465,17 @@ MESSAGES: dict[str, str] = {
     "result.track.title": "El canal de publicación contra el que se calificó este análisis",
     "result.track.label": "Canal {track}",
     "result.another": "Analizar otra instancia",
+    "result.compare": "Comparar con un análisis anterior",
+    "result.tab.queued": "En cola: {target}",
+    "result.tab.queued.position": "Puesto {position} en la cola: {target}",
+    "result.tab.running": "Analizando: {target}",
+    "result.tab.ready": "Informe listo: {target}",
+    "result.tab.done": "Nota {label}: {target}",
+    "result.tab.failed": "Análisis fallido: {target}",
+    "result.compare.offer": (
+        "Ya analizaste esta instancia en esta pestaña a las {time}."
+    ),
+    "result.compare.offer.link": "Ver qué ha cambiado desde entonces",
     "result.progress.kicker": "En curso",
     "result.progress.queued.title": "Esperando un proceso de análisis disponible",
     "result.progress.queued.detail": (
@@ -1660,6 +1823,14 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "Esta página caduca en aproximadamente {minutes} minutos; a partir "
         "de entonces el enlace deja de funcionar y el resultado desaparece."
+    ),
+    "result.expiry.warning.one": "Este informe desaparece en aproximadamente 1 minuto.",
+    "result.expiry.warning.many": (
+        "Este informe desaparece en aproximadamente {minutes} minutos."
+    ),
+    "result.expiry.warning.action": "Descarga una copia para conservarlo",
+    "result.expiry.gone": (
+        "Este informe ha caducado. El enlace y sus descargas ya no funcionan."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "Versión de TLS",

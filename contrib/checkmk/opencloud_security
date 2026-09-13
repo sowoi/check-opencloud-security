@@ -1,0 +1,47 @@
+#!/bin/sh
+# Checkmk local check: rate an OpenCloud instance from the agent host.
+#
+# Install (see ../../docs/checkmk.md for the whole walkthrough):
+#
+#   sudo install -m 0755 opencloud_security \
+#       /usr/lib/check_mk_agent/local/3600/opencloud_security
+#
+# The 3600 is not decoration. A local check in the directory itself runs on
+# every agent call - once a minute - and a scan makes around twenty HTTP
+# requests and five TCP connects to somebody's instance. The numeric
+# subdirectory is the agent's cache interval in seconds: the scan then runs
+# hourly and every call in between is answered from the cached line.
+#
+# Configuration is by COS_ environment variable, like the cron and systemd
+# examples beside this file, so this script needs no editing. Set them here
+# or in an environment file the agent reads.
+
+set -eu
+
+COS_HOST="${COS_HOST:-opencloud.example.com}"
+export COS_HOST
+
+# Report the measures an instance is missing, not just what it is exposing.
+export COS_CHECK_HARDENING="${COS_CHECK_HARDENING:-true}"
+
+# OpenCloud self-signs its certificate unless a reverse proxy terminates TLS.
+#export COS_SCANNER_VERIFY_TLS=false
+#export COS_PROXY=http://proxy.example.com:3128
+
+PLUGIN="${COS_PLUGIN:-check-opencloud-security}"
+
+# --format checkmk writes one local check line per host in COS_HOST, and
+# writes one for a failed scan too, so a service that has ever existed keeps
+# existing. The exit code carries the state and is deliberately ignored here:
+# it is already on the line, and a non-zero status must not stop the agent.
+output="$("$PLUGIN" --format checkmk 2>/dev/null)" || true
+
+if [ -n "$output" ]; then
+    printf '%s\n' "$output"
+    exit 0
+fi
+
+# Nothing at all came back: the plugin is missing, not executable, or was
+# killed by the agent's own timeout. Say so as a service rather than letting
+# the real one vanish from the host without explanation.
+printf '%s\n' "3 \"OpenCloud_Security\" - UNKNOWN: ${PLUGIN} produced no output - not installed, not on the agent's PATH, or killed by a timeout"

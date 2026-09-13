@@ -25,6 +25,7 @@ from typing import Any, ClassVar
 from opencloud_local_scan import ScanError
 
 from .advisories import refresh_advisories, stored_database
+from .blocklist import effective_exclusions
 from .catalog import sanitize_release_track
 from .encryption import ensure_encryption_ready
 from .queue import redis_settings
@@ -32,7 +33,7 @@ from .redis_backend import RedisBackend, create_backend
 from .runner import execute_scan
 from .schedule import refresh_schedule, stored_schedule
 from .settings import WebSettings
-from .ssrf import TargetRejected, validate_target
+from .ssrf import TargetRejected, ensure_blocklist_ready, validate_target
 from .store import WORKER_HEARTBEAT_KEY, ScanStore
 
 LOGGER = logging.getLogger("check_opencloud.web.worker")
@@ -74,10 +75,16 @@ async def run_scan(ctx: dict[str, Any], uuid: str) -> str:
     LOGGER.info("scan_started %s", uuid)
 
     try:
+        # Read when the job starts rather than taken from startup: a target
+        # excluded in the operator's area while this job sat in the queue is
+        # refused here, which is what the area promises when it says a change
+        # takes effect immediately.
+        exclusions = await effective_exclusions(store.backend, settings)
         target = validate_target(
             str(record.metadata.get("target") or ""),
             allow_private=settings.allow_private_targets,
             allowed_hosts=settings.extra_hosts_allowed,
+            blocked_targets=exclusions,
         )
         ignore = tuple(str(name) for name in record.metadata.get("ignoreHardenings") or ())
         track = sanitize_release_track(record.metadata.get("releaseTrack"))
@@ -92,7 +99,14 @@ async def run_scan(ctx: dict[str, Any], uuid: str) -> str:
         database = await stored_database(store.backend, settings)
         result = await asyncio.wait_for(
             asyncio.to_thread(
-                execute_scan, target, ignore, settings, track, schedule, database
+                execute_scan,
+                target,
+                ignore,
+                settings,
+                track,
+                schedule,
+                database,
+                exclusions,
             ),
             timeout=settings.job_timeout,
         )
@@ -153,6 +167,10 @@ async def startup(ctx: dict[str, Any]) -> None:
     # the configuration out here meant COS_WEB_ENCRYPT_RESULTS encrypted
     # nothing at all while looking like it did.
     ensure_encryption_ready(settings)
+    # For the same reason: the worker re-checks the target itself, so a
+    # deployment whose exclusions the API refused to start on must not have a
+    # worker that came up happily and scanned them anyway.
+    ensure_blocklist_ready(settings.blocked_targets)
     ctx["store"] = ScanStore(
         backend=ctx["backend"],
         ttl=settings.result_ttl,

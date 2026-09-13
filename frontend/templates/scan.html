@@ -33,7 +33,32 @@
   {%- endif -%}
 {%- endmacro %}
 
+{#
+  The tab says where the scan is, because a scan is something people wait for
+  in another tab. The host without its scheme, since a tab is narrow and the
+  scheme is the part every tab would share. It is the server's reading of the
+  state; scan.js keeps it current while the page polls, from the sentences the
+  progress card carries, and a finished page names the grade without any
+  script at all.
+
+  Never the uuid: a title is what a bookmark, a history entry and a screen
+  share show, and the uuid is the credential for the report. And only the
+  tab: `title` stays the generic one, because it is also the og:title a link
+  preview would print into a chat channel.
+#}
 {% block title %}{{ t('result.title') }}{% endblock %}
+{% block tab_title -%}
+  {%- set tab_host = (scan.get('target') or '').split('://')[-1].rstrip('/') -%}
+  {%- if scan.state == "completed" and summary -%}
+    {{ t('result.tab.done', label=summary.label, target=tab_host) }}
+  {%- elif scan.state == "failed" -%}
+    {{ t('result.tab.failed', target=tab_host) }}
+  {%- elif scan.state == "running" -%}
+    {{ t('result.tab.running', target=tab_host) }}
+  {%- else -%}
+    {{ t('result.tab.queued', target=tab_host) }}
+  {%- endif -%}
+{%- endblock %}
 {% block description %}{{ t('result.description') }}{% endblock %}
 
 {% block body_attrs %}data-scan-uuid="{{ scan.uuid }}" data-scan-state="{{ scan.state }}" data-expires-in="{{ scan.expiresIn }}"{% endblock %}
@@ -95,6 +120,17 @@
         </button>
       </form>
       {% endif %}
+      {#
+        The comparison a reader arrives at from here rather than by typing
+        two uuids: this one is already known, so only the earlier one has to
+        be pasted. Offered on a finished result only - there is nothing to
+        compare while the scan is still running.
+      #}
+      {% if can_rescan %}
+      <a class="btn btn-quiet" href="/compare?current={{ scan.uuid }}">
+        {{ t('result.compare') }}
+      </a>
+      {% endif %}
       <a class="btn btn-quiet" href="/">{{ t('result.another') }}</a>
     </div>
   </div>
@@ -118,6 +154,63 @@
     <a href="{{ project_url }}" rel="noopener noreferrer">{{ t('result.rescan.self_host') }}</a>.
   </p>
   {% endif %}
+
+  {#
+    "Did that fix it?", answered without pasting the earlier uuid.
+
+    compare-offer.js remembers, in this tab's sessionStorage and nowhere else,
+    the finished scans of each target this tab has shown. When the page is a
+    later scan of a target it has seen, this sentence is revealed and the link
+    gets the earlier uuid. The server is not told and keeps nothing: the
+    history is the reader's own, dies with the tab, and every uuid in it is
+    one they already held. A result that has expired is forgotten rather than
+    offered as a link to a 404.
+
+    Hidden in the markup, because without the script there is no earlier scan
+    to name - the "compare" button above still takes the reader there by hand.
+    Finished scans only; a failed one has nothing to compare.
+  #}
+  {% if scan.state == "completed" %}
+  <p class="hint section-gap flush" data-compare-offer hidden aria-live="polite"
+     data-compare-target="{{ scan.target }}"
+     data-compare-offer-text="{{ t.raw('result.compare.offer') }}">
+    <span data-compare-offer-sentence></span>
+    <a href="/compare?current={{ scan.uuid }}" data-compare-offer-link>{{ t('result.compare.offer.link') }}</a>
+  </p>
+  {% endif %}
+
+  {#
+    The warning before the report disappears, near the top where it will be
+    read rather than beside the expiry line at the foot of the page.
+
+    Rendered visible by the server when the page is already inside the last
+    minutes, so a reader without scripting is warned too; expiry.js reveals
+    it for everyone else when the moment arrives, keeps the minutes current,
+    and says so once the report has gone. The way to keep a copy is offered
+    only where there is one - a failed scan has no exports.
+  #}
+  {% set expiry_warn_seconds = 300 %}
+  {% set expiry_warn_now = scan.state in ("completed", "failed") and 0 < scan.expiresIn <= expiry_warn_seconds %}
+  {% set expiry_warn_minutes = ((scan.expiresIn + 59) // 60) or 1 %}
+  <div aria-live="polite">
+    <p class="hint share-warning" data-expiry-warning
+       {% if not expiry_warn_now %}hidden{% endif %}
+       data-expiry-warn-after="{{ expiry_warn_seconds }}"
+       data-expiry-warning-one="{{ t('result.expiry.warning.one') }}"
+       data-expiry-warning-many="{{ t.raw('result.expiry.warning.many') }}"
+       data-expiry-gone="{{ t('result.expiry.gone') }}">
+      <span data-expiry-warning-text>
+        {%- if expiry_warn_minutes == 1 -%}
+          {{ t('result.expiry.warning.one') }}
+        {%- else -%}
+          {{ t('result.expiry.warning.many', minutes=expiry_warn_minutes) }}
+        {%- endif -%}
+      </span>
+      {% if summary %}
+      <a href="#exports" data-expiry-warning-action>{{ t('result.expiry.warning.action') }}</a>
+      {% endif %}
+    </p>
+  </div>
 </section>
 
 {# --------------------------------------------------------------- progress #}
@@ -139,7 +232,15 @@
          data-queue-position="{{ t.raw('result.progress.queue.position') }}"
          data-queue-next="{{ t('result.progress.queue.next') }}"
          data-queue-waiting="{{ t('result.progress.queue.waiting') }}"
-         data-elapsed="{{ t.raw('result.progress.elapsed') }}">
+         data-elapsed="{{ t.raw('result.progress.elapsed') }}"
+         {#- The tab's wording for each state, host already filled in; only
+             the queue position is left for the script to substitute. #}
+         {%- set tab_host = (scan.get('target') or '').split('://')[-1].rstrip('/') %}
+         data-tab-queued="{{ t('result.tab.queued', target=tab_host) }}"
+         data-tab-queued-position="{{ t('result.tab.queued.position', target=tab_host, position='{position}') }}"
+         data-tab-running="{{ t('result.tab.running', target=tab_host) }}"
+         data-tab-done="{{ t('result.tab.ready', target=tab_host) }}"
+         data-tab-failed="{{ t('result.tab.failed', target=tab_host) }}">
   <p class="kicker">{{ t('result.progress.kicker') }}</p>
   <h2 id="progress-heading">
     <span class="pulse" aria-hidden="true"></span>
@@ -847,4 +948,6 @@
 <script src="/static/js/rescan.js" defer></script>
 <script src="/static/js/fragment.js" defer></script>
 <script src="/static/js/findings-filter.js" defer></script>
+<script src="/static/js/compare-offer.js" defer></script>
+<script src="/static/js/expiry.js" defer></script>
 {% endblock %}

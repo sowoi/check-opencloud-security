@@ -12,12 +12,14 @@
 * [Checking multiple hosts](#checking-multiple-hosts)
 * [Prometheus & Kubernetes integration](#prometheus--kubernetes-integration)
 * [Machine-readable output for CI (json/sarif/junit)](#machine-readable-output-for-ci-jsonsarifjunit)
+* [Checkmk](#checkmk)
 * [GitHub Action](#github-action)
 * [Environment variables](#environment-variables)
 * [The built-in scanner](#the-built-in-scanner)
   * [What the scanner checks](#what-the-scanner-checks)
   * [TLS and self-signed certificates](#tls-and-self-signed-certificates)
   * [Debug ports](#debug-ports)
+  * [Every resolved address](#every-resolved-address)
   * [End-of-life detection](#end-of-life-detection)
   * [Advisory database](#advisory-database)
   * [Running the scanner as a service](#running-the-scanner-as-a-service)
@@ -235,7 +237,7 @@ The handful you will actually type most days:
 | `-d, --debug` | Explain the rating and every finding, at length |
 | `--check-hardening` | Also report missing hardening measures and security headers |
 | `-w, --warning` / `-c, --critical` | The ratings (0-5) at or below which the check warns or goes critical |
-| `--format` | `nagios`, `prometheus`, `json`, `sarif` or `junit` |
+| `--format` | `nagios`, `prometheus`, `checkmk`, `json`, `sarif` or `junit` |
 | `--ignore-hardening` | Accept a finding you are not going to fix, by name |
 | `--baseline` / `--warn-on-new` | Alert only on findings that are new or worse than last run |
 
@@ -329,6 +331,38 @@ check-opencloud-security --host opencloud.example.com --format sarif \
 value, including `nagios` and `prometheus`, and
 [Running the check from CI](docs/ci.md) has the GitHub Actions and GitLab CI
 steps that upload the file.
+
+# Checkmk
+
+Checkmk runs this plugin either way round, and which one you want depends on
+where it should run from:
+
+- **As an active check on the Checkmk server.** Nothing here is needed:
+  Checkmk reads the Nagios line and its performance data natively. Add the
+  command line under *Setup > Services > Other services > Integrate Nagios
+  plugins*.
+- **As a local check on an agent host**, which is what you want when the
+  instance is only reachable from inside a network the Checkmk server is not
+  on. `--format checkmk` writes the agent's own line - state, service name,
+  metrics, detail - one per host in `--host`:
+
+  ```shell
+  check-opencloud-security --host opencloud.example.com --format checkmk
+  ```
+
+  ```text
+  0 "OpenCloud_Security_opencloud.example.com" rating=5|vulnerabilities=0|… OK: Server is up to date…
+  ```
+
+  [`contrib/checkmk/opencloud_security`](contrib/checkmk/opencloud_security) is
+  that call as a ready-to-install script.
+
+The scanned instance names the service, because the host running the agent is
+rarely the instance being scanned. **Install the local check in a numeric
+subdirectory** - `local/3600/` - or it runs on every agent call, once a
+minute, against somebody's production instance.
+[`docs/checkmk.md`](docs/checkmk.md) has both routes in full, the metrics and
+what the states mean.
 
 # GitHub Action
 
@@ -520,6 +554,39 @@ Turn them off entirely with `--no-debug-ports`. Which port belongs to which
 service, and how `scanner.concurrency` shortens a run without changing a
 verdict, is in
 [Debug ports](docs/scanner-checks.md#debug-ports).
+
+## Every resolved address
+
+A scan dials the name once and sees whichever address the resolver put first.
+Behind a pool of nodes that is one node: the one that missed a configuration
+rollout - no HSTS, demo accounts still signing in, an older release - serves
+some of your visitors and none of your scans. `tlsAddressParity` does not see
+it either, because it only compares the TLS identity of the IPv4 and IPv6
+endpoints.
+
+`--all-addresses` (`COS_ALL_ADDRESSES`, `scanner.check_all_addresses`) repeats
+the version, header, hardening and demo-account checks against every address
+the name resolves to, and reports `addressParity` when they disagree:
+
+```
+addressParity (high): Differs from 198.51.100.1 - 198.51.100.4: version 7.1.0 (expected 7.2.3); headers Strict-Transport-Security fails
+```
+
+Every request still carries your hostname in `Host` and SNI; only the address
+the connection goes to changes, and the addresses come from the resolver's
+answer for that name and nothing else. The first address is the reference. The
+finding is as severe as the worst difference - demo accounts signing in on one
+node carry that finding's severity, another release is `high`, other drift is
+`medium` - and an address that resolves but does not answer fails it too.
+Waived headers and checks are left out of the comparison.
+
+It is off by default: it costs about a dozen requests per address, a demo
+sign-in among them, and a name with a single address - most deployments - has
+nothing to compare and gets no finding at all. It sees what DNS sees: nodes
+behind one load-balancer address, or a resolver that hands out a rotating
+subset of the pool, stay out of reach. IPv6 addresses are skipped when
+`scanner.ipv6_enabled` is off. The public web service never offers it; see
+[ADR 0042](adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md).
 
 ## End-of-life detection
 

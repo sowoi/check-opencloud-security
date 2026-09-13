@@ -58,6 +58,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
+from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 
 from .caa import check_caa_record
 from .dnssec import check_dnssec
@@ -290,6 +291,8 @@ DEMO_USER_PATH = "/ocs/v1.php/cloud/user?format=json"
 # this scan gets: it is not a weakness that might be exploitable, it is an
 # open door with the key printed in the manual.
 DEMO_USER_SEVERITY = "critical"
+# The tail of a demoUsersDisabled detail that passed without asking anything.
+DEMO_USERS_UNTESTED = "so the demo accounts could not be tested"
 
 # Content types an OCS answer can have. A catch-all single page application
 # answers text/html, so anything else is the service itself replying.
@@ -418,7 +421,27 @@ class ScannerSettings:
     cannot reach that address at all, and reporting the resulting timeout as
     a finding would penalise the rating for a limitation of the scanner
     rather than of the target. False skips the probe instead - the address
-    is still listed under ``addresses``, just not dialled a second time.
+    is still listed under ``addresses``, just not dialled a second time, and
+    :attr:`check_all_addresses` leaves the IPv6 addresses out for the same
+    reason.
+    """
+    check_all_addresses: bool = False
+    """Whether to dial every address the name resolves to, not just the first.
+
+    A name behind a pool answers from whichever node the resolver put first,
+    so a node that missed a configuration rollout is invisible to a scan that
+    dials the name once - and ``tlsAddressParity`` does not see it either,
+    because it compares only the TLS identity of the two DNS families. True
+    repeats the node-dependent part of the scan against each resolved address
+    - the version, the graded headers, the hardening measures and the demo
+    accounts - and reports ``addressParity`` when they disagree.
+
+    Off by default because it costs about a dozen requests per address,
+    including a sign-in attempt with each documented demo account, and a
+    single-address deployment - most of them - has nothing to compare. The
+    addresses come from the caller's pin when there is one, so a pinned scan
+    can never be widened past what was vetted; the web application leaves
+    this off regardless (ADR 0042).
     """
     tls_min_days: int = DEFAULT_TLS_MIN_DAYS
     check_debug_ports: bool = True
@@ -496,6 +519,39 @@ class ScannerSettings:
         return max(1, min(int(self.concurrency), MAX_CONCURRENCY))
 
 
+class _PinnedFallback:
+    """
+    Dial a pinned name's validated addresses in order until one accepts.
+
+    Mixed into the connection class of a pool whose name is pinned to more
+    than one address. Only a failure to *connect* moves on - a refused or
+    unreachable address, a connect timeout - because that is the one failure
+    where nothing was said yet; an address that accepted and then answered
+    badly is the answer. Nothing outside the pin is ever dialled, so the
+    fallback is as narrow as the guard that produced the list.
+    """
+
+    _pin_manager: _PinnedPoolManager
+    _pin_name: str
+    _dns_host: str
+
+    def _new_conn(self) -> socket.socket:
+        failure: Exception | None = None
+        for address in self._pin_manager.addresses(self._pin_name):
+            self._dns_host = address
+            try:
+                sock: socket.socket = super()._new_conn()  # type: ignore[misc]
+            except (NewConnectionError, ConnectTimeoutError) as exc:
+                LOGGER.debug("Pinned address %s did not accept: %s", address, exc)
+                failure = exc
+                continue
+            self._pin_manager.prefer(self._pin_name, address)
+            return sock
+        if failure is None:
+            raise NewConnectionError(self, f"No address pinned for {self._pin_name}")  # type: ignore[arg-type]
+        raise failure
+
+
 class _PinnedPoolManager(PoolManager):
     """Route validated hostnames to their already-checked IP addresses."""
 
@@ -508,6 +564,24 @@ class _PinnedPoolManager(PoolManager):
         self._pins[hostname.lower().rstrip(".")] = addresses
         self.clear()
 
+    def addresses(self, name: str) -> tuple[str, ...]:
+        """A pinned name's addresses, the one that last accepted first."""
+        return self._pins.get(name, ())
+
+    def prefer(self, name: str, address: str) -> None:
+        """
+        Put the address that accepted a connection first for the next one.
+
+        A name whose first address is dead - an AAAA record nothing listens
+        on, a scanner without an IPv6 route - would otherwise pay a failed
+        connect, possibly a whole timeout, on every new connection. The pools
+        already open are left alone: the next request asks for the new first
+        address and gets a pool of its own.
+        """
+        addresses = self._pins.get(name, ())
+        if addresses and addresses[0] != address and address in addresses:
+            self._pins[name] = (address, *(entry for entry in addresses if entry != address))
+
     def connection_from_host(
         self,
         host: str | None,
@@ -516,14 +590,28 @@ class _PinnedPoolManager(PoolManager):
         pool_kwargs: dict[str, Any] | None = None,
     ):
         original = host or ""
-        addresses = self._pins.get(original.lower().rstrip("."))
+        name = original.lower().rstrip(".")
+        addresses = self._pins.get(name)
         if addresses:
             host = addresses[0]
             pool_kwargs = dict(pool_kwargs or {})
             if scheme == "https":
                 pool_kwargs.setdefault("assert_hostname", original)
                 pool_kwargs.setdefault("server_hostname", original)
-        return super().connection_from_host(host, port, scheme, pool_kwargs)
+        pool = super().connection_from_host(host, port, scheme, pool_kwargs)
+        # The pool still dials addresses[0] first, but a name with several
+        # validated addresses must not fail on the first one alone: the guard
+        # vetted all of them, and a visitor's browser would try the next.
+        # Exactly one pinned address - the per-address comparison - stays
+        # exactly that one.
+        if addresses and len(addresses) > 1 and getattr(pool, "_pin_name", None) != name:
+            pool.ConnectionCls = type(  # type: ignore[misc]
+                f"Pinned{pool.ConnectionCls.__name__}",
+                (_PinnedFallback, pool.ConnectionCls),
+                {"_pin_manager": self, "_pin_name": name},
+            )
+            pool._pin_name = name  # type: ignore[attr-defined]
+        return pool
 
 
 class _PinnedHTTPAdapter(HTTPAdapter):
@@ -605,6 +693,10 @@ class _Probe:
     # the thread that did not create the entry.
     _opened: list[requests.Session] = field(default_factory=list, repr=False)
     _opened_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    # One pin mapping for every session this probe (and its derivations)
+    # opens, so the address that accepted in one worker is the one the next
+    # worker dials first rather than something each thread relearns.
+    _pins: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         """Mount the pinning adapter before the first request is made."""
@@ -646,10 +738,14 @@ class _Probe:
         the pool still holding its open connections would no longer be
         reachable from ``session.adapters`` for :meth:`close` to shut down.
         """
-        pins = dict(self.settings.pinned_addresses)
-        if not pins or isinstance(session.get_adapter("https://"), _PinnedHTTPAdapter):
+        if not self._pins:
+            self._pins.update(
+                (name.lower().rstrip("."), addresses)
+                for name, addresses in self.settings.pinned_addresses
+            )
+        if not self._pins or isinstance(session.get_adapter("https://"), _PinnedHTTPAdapter):
             return
-        adapter = _PinnedHTTPAdapter(pins)
+        adapter = _PinnedHTTPAdapter(self._pins)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
 
@@ -674,6 +770,11 @@ class _Probe:
     def derive(self, base_url: str) -> _Probe:
         """A probe for another base URL that reuses this one's connections."""
         return replace(self, base_url=base_url)
+
+    @property
+    def pinned_addresses(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        """The pins as this probe now dials them, the address that accepted first."""
+        return tuple(self._pins.items())
 
     @property
     def _session(self) -> requests.Session:
@@ -906,6 +1007,268 @@ def _address_parity_finding(inspections: Mapping[str, TlsInspection]) -> Finding
         "IPv4 and IPv6 present the same TLS identity"
         if not differences
         else "IPv4 and IPv6 differ in " + ", ".join(differences),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Every address the name resolves to, not just the one that answered.
+#
+# A scan dials a name once, and whichever address the resolver put first is
+# the whole of what it saw. Behind a pool of four nodes that is a quarter of
+# the deployment: the node that missed a configuration rollout - no HSTS
+# still, demo accounts still signing in, an older release - serves every
+# fourth visitor and no scan at all. tlsAddressParity does not see it either:
+# it compares the TLS identity of the two DNS families, and four nodes behind
+# one certificate present the same identity whatever they serve.
+#
+# This stays inside the rule that a probe is only ever aimed where the scan
+# was pointed (ADR 0036, ADR 0042): the addresses come from the resolver's
+# answer for that one name - or from the caller's pin, when there is one -
+# never from anything the instance said, and every request still carries the
+# same name in Host and SNI. What changes is which of the name's own
+# addresses the connection goes to.
+#
+# Off unless asked for: it repeats the part of the scan that can differ
+# between nodes - a dozen requests per address, a demo sign-in among them -
+# against somebody's production instance, to answer a question most
+# deployments do not have. The web application never asks for it (ADR 0042).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AddressObservation:
+    """What one resolved address served when it was dialled by itself."""
+
+    address: str
+    reachable: bool
+    version: str = ""
+    headers: Mapping[str, bool] = field(default_factory=dict)
+    """The graded security headers as pass/fail, which is what the comparison
+    is about - two nodes whose CSP differs only in a nonce are configured the
+    same, and reporting them as a difference would train people to ignore the
+    finding."""
+    hardenings: Mapping[str, bool] = field(default_factory=dict)
+    """:func:`derive_hardenings` for this address alone."""
+    demo_users_disabled: bool | None = None
+    """Whether no documented demo account signed in here; ``None`` where the
+    question was not asked - an external identity provider, or a sign-in
+    endpoint that answers without credentials."""
+    error: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        """Render the observation for the result document."""
+        return {
+            "address": self.address,
+            "reachable": self.reachable,
+            "version": self.version,
+            "headers": dict(self.headers),
+            "hardenings": dict(self.hardenings),
+            "demoUsersDisabled": self.demo_users_disabled,
+            "error": self.error,
+        }
+
+
+def _addresses_to_compare(
+    settings: ScannerSettings, addresses: Mapping[str, list[str]]
+) -> list[str]:
+    """
+    The addresses this scan may dial, in resolution order.
+
+    IPv6 is left out entirely when the scanner has no route of its own, for
+    the reason :attr:`ScannerSettings.ipv6_enabled` gives: a timeout that
+    belongs to the machine running the scan must not be reported as a fault
+    of the instance.
+    """
+    families = ("ipv4", "ipv6") if settings.ipv6_enabled else ("ipv4",)
+    return [address for family in families for address in addresses.get(family) or []]
+
+
+def _content_parity_may_run(
+    settings: ScannerSettings, addresses: Mapping[str, list[str]]
+) -> bool:
+    """Whether there is more than one address to compare, and consent to do it."""
+    return settings.check_all_addresses and len(_addresses_to_compare(settings, addresses)) > 1
+
+
+def _observe_address(
+    base_url: str, hostname: str, address: str, settings: ScannerSettings
+) -> AddressObservation:
+    """
+    Repeat the node-dependent part of the scan against one address only.
+
+    That part is what a configuration rollout changes: the release in
+    ``status.php``, the headers the proxy adds, the measures
+    :func:`derive_hardenings` reads from the root page, the capabilities, the
+    authentication challenge and the identity provider, and whether the demo
+    accounts still sign in. What every node shares - the certificate, the DNS
+    records, the debug ports of an address the scan does not choose - is not
+    asked again.
+
+    The probe gets its own settings and therefore its own pinned session: the
+    pin is what makes the connection go to this address while the request
+    still names the host, and a shared session would carry one address's pin
+    into the next address's request.
+    """
+    pinned = replace(
+        settings,
+        pinned_addresses=((hostname.strip("[]").lower().rstrip("."), (address,)),),
+    )
+    probe = _Probe(base_url=base_url, settings=pinned)
+    try:
+        try:
+            status = _fetch_status(probe)
+        except ScanError as exc:
+            return AddressObservation(address=address, reachable=False, error=str(exc))
+        opening: list[Callable[[], Any]] = [
+            partial(probe.get, "/", allow_redirects=True),
+            partial(_fetch_capabilities, probe),
+            partial(_authentication_challenge, probe),
+            partial(_identity_provider, probe, hostname),
+        ]
+        root_response, capabilities, challenge, identity_provider = _run_all(
+            pinned, opening
+        )
+        demo_users = _demo_user_finding(probe, identity_provider)
+        return AddressObservation(
+            address=address,
+            reachable=True,
+            version=select_version(status)
+            or select_version(_dig(capabilities, "version") or {})
+            or "",
+            headers=_check_headers(root_response),
+            hardenings=derive_hardenings(
+                root_response, capabilities, challenge, identity_provider
+            ),
+            # A finding that passed because the endpoint answers anybody says
+            # nothing about the accounts, so it is not an observation either.
+            demo_users_disabled=(
+                None
+                if demo_users is None or demo_users.detail.endswith(DEMO_USERS_UNTESTED)
+                else demo_users.passed
+            ),
+        )
+    finally:
+        probe.close()
+
+
+def _address_observations(
+    base_url: str,
+    hostname: str,
+    settings: ScannerSettings,
+    addresses: Mapping[str, list[str]],
+) -> list[AddressObservation]:
+    """
+    Observe every resolved address, in the order the resolver gave them.
+
+    One address after another rather than a pool of them: each observation
+    opens a pool of its own for the requests it makes, and call sites must
+    never nest.
+    """
+    return [
+        _observe_address(base_url, hostname, address, settings)
+        for address in _addresses_to_compare(settings, addresses)
+    ]
+
+
+def _content_parity_finding(
+    observations: Sequence[AddressObservation],
+    patterns: Sequence[str] = (),
+) -> Finding | None:
+    """
+    Every address a name answers on must serve the same instance.
+
+    The first address is the reference rather than a majority vote: with two
+    addresses there is no majority, and "these two disagree" is the finding
+    either way. Which of them is wrong is a question for whoever runs them.
+
+    A header or measure the operator waived is left out of the comparison:
+    they have said they will not act on it, and a node that differs only there
+    differs in nothing they want to hear about.
+
+    The severity follows the worst difference, because the scan's own rating
+    was built from whichever node answered first and may be the healthy one.
+    A node where the documented demo accounts still sign in is as serious as
+    that finding is on its own; a node on a different release may be the one
+    the advisories apply to; anything else is a configuration that drifted.
+    """
+    if len(observations) < 2:
+        return None
+    unreachable = [entry.address for entry in observations if not entry.reachable]
+    if unreachable:
+        return Finding(
+            "addressParity",
+            "medium",
+            False,
+            "Resolved but unreachable: " + ", ".join(unreachable),
+        )
+
+    def compared(name: str) -> bool:
+        return not _is_ignored(name, patterns)
+
+    reference, rest = observations[0], observations[1:]
+    severity = "medium"
+    differences: list[str] = []
+    for other in rest:
+        fields: list[str] = []
+        if other.version != reference.version and compared("version"):
+            fields.append(
+                f"version {other.version or 'unknown'} "
+                f"(expected {reference.version or 'unknown'})"
+            )
+            severity = _worse_severity(severity, "high")
+        for label, left, right in (
+            ("headers", reference.headers, other.headers),
+            ("hardenings", reference.hardenings, other.hardenings),
+        ):
+            # Only what both nodes measured: a hardening flag is absent where
+            # its header is, and the header difference already says so.
+            names = sorted(
+                name
+                for name in set(left) & set(right)
+                if left[name] != right[name] and compared(name)
+            )
+            if names:
+                fields.append(
+                    f"{label} "
+                    + ", ".join(
+                        f"{name} {'passes' if right[name] else 'fails'}" for name in names
+                    )
+                )
+        if (
+            reference.demo_users_disabled is not None
+            and other.demo_users_disabled is not None
+            and reference.demo_users_disabled != other.demo_users_disabled
+            and compared("demoUsersDisabled")
+        ):
+            fields.append(
+                "demo accounts "
+                + ("rejected" if other.demo_users_disabled else "still sign in")
+            )
+            severity = _worse_severity(severity, DEMO_USER_SEVERITY)
+        if fields:
+            differences.append(f"{other.address}: " + "; ".join(fields))
+    if not differences:
+        return Finding(
+            "addressParity",
+            "medium",
+            True,
+            f"All {len(observations)} addresses serve the same version, "
+            "headers and hardening",
+        )
+    return Finding(
+        "addressParity",
+        severity,
+        False,
+        f"Differs from {reference.address} - " + " | ".join(differences),
+    )
+
+
+def _worse_severity(current: str, candidate: str) -> str:
+    """The stricter of two severities, by the rating cap each one carries."""
+    return (
+        candidate
+        if SEVERITY_RATING_CAP.get(candidate, 5) < SEVERITY_RATING_CAP.get(current, 5)
+        else current
     )
 
 
@@ -1756,7 +2119,7 @@ def _demo_user_finding(
             DEMO_USER_SEVERITY,
             True,
             f"{DEMO_USER_PATH.split('?')[0]} answers without authentication, "
-            "so the demo accounts could not be tested",
+            + DEMO_USERS_UNTESTED,
         )
 
     accepted = [
@@ -2813,6 +3176,7 @@ def _collect_extra_findings(
     tls_inspection: TlsInspection | None = None,
     address_parity: Finding | None = None,
     dns_findings: Sequence[Finding] = (),
+    content_parity: Finding | None = None,
     *,
     verification_required: bool = True,
 ) -> list[Finding]:
@@ -2829,6 +3193,8 @@ def _collect_extra_findings(
     findings.extend(dns_findings)
     if address_parity is not None:
         findings.append(address_parity)
+    if content_parity is not None:
+        findings.append(content_parity)
     findings.extend(_cookie_findings(root_response))
     findings.extend(_authentication_findings(probe))
     findings.append(_basic_auth_finding(challenge, identity_provider))
@@ -2959,6 +3325,14 @@ def scan(
         tls_untrusted,
         https_unavailable,
     ) = _open_instance(host, settings)
+    # What the name resolved to is reported in the order it was given; what
+    # the TLS inspection and the debug ports dial is the order the HTTP layer
+    # learned. A name pinned to several addresses whose first does not accept
+    # has just been reached on another one, and inspecting the dead one would
+    # report a handshake failure the instance does not have.
+    resolution_settings = settings
+    if probe.pinned_addresses != settings.pinned_addresses:
+        settings = replace(settings, pinned_addresses=probe.pinned_addresses)
 
     # The probe pools its connections; the scan owns them and closes them
     # on the way out, however it leaves.
@@ -3031,7 +3405,7 @@ def scan(
         # The TLS layer is inspected once, before the findings are assembled, so
         # that the full detail can be published beside them: the findings say what
         # is wrong, the `tls` block says what was actually observed.
-        addresses = _resolved_addresses(hostname, settings)
+        addresses = _resolved_addresses(hostname, resolution_settings)
         tls_inspection = (
             inspect_tls(
                 hostname,
@@ -3056,6 +3430,14 @@ def scan(
             and probe.base_url.startswith("https://")
             and _address_parity_may_run(settings, addresses)
             else {}
+        )
+        # The same idea one layer up, and not gated on HTTPS: a version and a
+        # set of headers are answers to an HTTP request, so a plain-HTTP
+        # deployment behind a pool can disagree with itself just as well.
+        address_observations = (
+            _address_observations(probe.base_url, hostname, settings, addresses)
+            if settings.extra_checks and _content_parity_may_run(settings, addresses)
+            else []
         )
         # Neither of these is a TLS handshake property, but both answer
         # questions the findings above rest on - who may issue this instance a
@@ -3086,6 +3468,7 @@ def scan(
                 tls_inspection,
                 _address_parity_finding(address_tls),
                 dns_findings,
+                _content_parity_finding(address_observations, settings.ignore_hardenings),
                 verification_required=verification_required,
             )
             if settings.extra_checks
@@ -3151,6 +3534,7 @@ def scan(
             },
             "tls": tls_inspection.as_dict() if tls_inspection is not None else None,
             "tlsByAddress": {family: item.as_dict() for family, item in address_tls.items()},
+            "addressObservations": [entry.as_dict() for entry in address_observations],
             "identityProvider": identity_provider,
             "reverseProxy": reverse_proxy,
             "integrations": integrations,

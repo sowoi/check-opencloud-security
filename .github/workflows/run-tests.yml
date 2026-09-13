@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   uv-test:
     name: python
@@ -44,9 +48,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
 
       # The `signing` extra pulls in `sigstore`, which the tests in
       # test_data_signing.py that verify a real attestation bundle skip
@@ -57,6 +65,12 @@ jobs:
 
       - name: Check generated frontend documentation
         run: uv run python scripts/build_frontend_documentation.py --check
+
+      # The text half only: every Mermaid fence in ARCHITECTURE.md still has
+      # its image line. Rendering the PNG needs mmdc and stays in
+      # render-architecture-diagram.yml, after the merge.
+      - name: Check the architecture diagram references
+        run: uv run python scripts/render_architecture_diagrams.py --check
 
       # Coverage is measured here and nowhere else. `nox` runs the same suite
       # on five interpreters to prove the `requires-python` promise; measuring

@@ -137,6 +137,54 @@ MESSAGES: dict[str, str] = {
         "disk."
     ),
     "admin.surfaces.targets": "Targets recorded in the clear",
+    "admin.exclusions.kicker": "Exclusions",
+    "admin.exclusions.heading": "Addresses this service will not scan",
+    "admin.exclusions.lede": (
+        "An entry takes effect from the next request, in every process, "
+        "without a restart - and a scan already waiting in the queue is "
+        "refused rather than run. Nothing here can make this service scan "
+        "something: the list only ever refuses."
+    ),
+    "admin.exclusions.add.label": "Hostname, .suffix domain, address or CIDR range",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Exclude",
+    "admin.exclusions.add.hint": (
+        "A domain written with a leading dot excludes everything under it "
+        "as well. A range is matched against every address a hostname "
+        "resolves to."
+    ),
+    "admin.exclusions.remove": "Withdraw",
+    "admin.exclusions.empty": "Nothing is excluded in this deployment.",
+    "admin.exclusions.source.configured": "From the environment",
+    "admin.exclusions.updated": "Last changed here {when}.",
+    "admin.exclusions.durability": (
+        "Entries added here live in Redis, which this deployment is free to "
+        "flush. Put the ones that must outlive it in COS_WEB_BLOCKED_TARGETS, "
+        "where they cannot be withdrawn from this page."
+    ),
+    "admin.exclusions.unreadable": (
+        "The store did not answer, so the exclusions cannot be read or "
+        "changed right now. They are still in force: a scan that cannot "
+        "check them is refused, not run."
+    ),
+    "admin.blocklist.error.shape": (
+        "That is not an entry. Give a hostname, a domain starting with a dot, "
+        "an address or a CIDR range."
+    ),
+    "admin.blocklist.error.configured": (
+        "That entry comes from COS_WEB_BLOCKED_TARGETS. Remove it there and "
+        "restart, so the deployment and this list cannot disagree."
+    ),
+    "admin.blocklist.error.full": (
+        "This list is full. Move the standing entries into "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.blocklist.error.long": (
+        "That entry is longer than a hostname can be, so nothing it could be "
+        "meant to match would ever reach this service."
+    ),
+    "admin.outcome.excluded": "Excluded. It is refused from the next request.",
+    "admin.outcome.withdrawn": "Withdrawn. It can be scanned again.",
     "admin.actions.kicker": "Reference data",
     "admin.actions.heading": "Refresh what the scanner rates against",
     "admin.actions.lede": (
@@ -254,6 +302,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Catalogue",
     "nav.docs": "Docs",
     "nav.search": "Search",
+    "nav.compare": "Compare",
     "nav.api": "API",
     "nav.ai": "AI",
     "nav.privacy": "Privacy",
@@ -394,6 +443,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Both come from the same scan.",
     "index.waivers.summary": "Ignore specific checks (optional)",
     "index.waivers.selected": "Ignore specific checks ({count} selected)",
+    "index.remember.summary": (
+        "Settings from your last scan in this browser: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "no waived checks",
+    "index.remember.waivers.one": "1 waived check",
+    "index.remember.waivers.many": "{count} waived checks",
+    "index.remember.apply": "Use them again",
+    "index.remember.forget": "Forget them",
     "index.waivers.hint": (
         "A waived check stays in the report and is still shown - it just stops "
         "holding the grade down. Only checks that actually failed can be waived."
@@ -1152,6 +1209,91 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "On this page",
     "docs.guide.toc.aria": "On this page",
+    # ---------------------------------------------------------------- compare
+    # The page that answers "did the fixes work" for a reader, the way
+    # --baseline answers it for an operator's monitoring. Every number it
+    # shows was worked out before the page was rendered; these are labels.
+    "compare.title": "Compare two scans",
+    "compare.description": (
+        "Compare two finished scans of the same instance and see what was "
+        "fixed, what is new and what is still open."
+    ),
+    "compare.eyebrow": "Did the fixes work?",
+    "compare.heading": "Compare two scans",
+    "compare.lede": (
+        "Paste the uuid of an earlier scan and the uuid of a later one. Both "
+        "results have to still exist - this service keeps no history to look "
+        "an expired scan up in."
+    ),
+    "compare.form.baseline": "Earlier scan",
+    "compare.form.current": "Later scan",
+    "compare.form.placeholder": "The uuid from a result page address",
+    "compare.form.submit": "Compare",
+    "compare.form.hint": (
+        "A uuid is the part after <code>/scan/</code> in the address of a "
+        "result page. It is the whole of the authorisation for that result, "
+        "so treat it like a password."
+    ),
+    "compare.error.unknown.baseline": (
+        "The earlier scan is unknown or has expired. Nothing here can look it "
+        "up: scan the instance again and compare the two newest results."
+    ),
+    "compare.error.unknown.current": (
+        "The later scan is unknown or has expired. Nothing here can look it "
+        "up: scan the instance again and compare the two newest results."
+    ),
+    "compare.error.unfinished.baseline": (
+        "The earlier scan has not finished yet. Open its result page, wait "
+        "for it, and compare again."
+    ),
+    "compare.error.unfinished.current": (
+        "The later scan has not finished yet. Open its result page, wait for "
+        "it, and compare again."
+    ),
+    "compare.error.same": (
+        "Both fields name the same scan, so there is nothing to compare. Scan "
+        "the instance again and compare the new uuid with this one."
+    ),
+    "compare.different_targets": (
+        "These two scans describe different instances. The comparison is "
+        "still shown - staging against production is a fair question - but "
+        "every number below then answers a different one."
+    ),
+    "compare.verdict.kicker": "Between the two scans",
+    "compare.verdict.improved": "It got better",
+    "compare.verdict.unchanged": "Nothing changed",
+    "compare.verdict.regressed": "It got worse",
+    "compare.rating.up": "The grade rose by {points} point(s).",
+    "compare.rating.down": "The grade fell by {points} point(s).",
+    # Said plainly, because a grade that did not move is the case people
+    # misread as a failed remediation: findings of one severity share a single
+    # cap, so several fixes can land before the letter changes.
+    "compare.rating.same": (
+        "The grade did not move. That is not a failed remediation on its own - "
+        "findings of one severity share a single cap, so several fixes can "
+        "land before the letter changes. Read the lists below."
+    ),
+    "compare.side.baseline": "Earlier",
+    "compare.side.current": "Later",
+    "compare.side.target": "Instance",
+    "compare.side.version": "Version",
+    "compare.side.scanned": "Scanned",
+    "compare.side.unknown": "Not established",
+    "compare.side.open": "Open this result",
+    "compare.introduced.heading": "New findings ({count})",
+    "compare.introduced.none": "Nothing is new since the earlier scan.",
+    "compare.resolved.heading": "Resolved findings ({count})",
+    "compare.resolved.none": "Nothing that was open in the earlier scan is gone.",
+    "compare.unchanged.heading": "Still open ({count})",
+    "compare.unchanged.none": "Nothing is open in both scans.",
+    "compare.changes.heading": "What the comparison itemises",
+    "compare.changes.category": "Category",
+    "compare.changes.change": "Change",
+    "compare.nothing_stored": (
+        "This comparison was worked out from the two results and stored "
+        "nowhere. Reload the page and it is worked out again; let either "
+        "result expire and it can no longer be asked for at all."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Search",
     "search.description": (
@@ -1253,6 +1395,18 @@ MESSAGES: dict[str, str] = {
         "That address points into a private, loopback or link-local network, "
         "which this service will not scan."
     ),
+    "error.target.blocked": (
+        "This service has been asked not to scan that address."
+    ),
+    # Not about the address at all: this deployment could not read its own
+    # exclusions and refuses to scan without them. Said plainly, because the
+    # visitor has nothing to fix and the only useful next step is the one the
+    # self-host pointer beside it offers.
+    "error.store_unavailable": (
+        "This service cannot reach its own configuration right now, and will "
+        "not scan without knowing what it has been asked to leave alone. "
+        "Please try again in a few minutes."
+    ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan results",
     "result.description": (
@@ -1263,6 +1417,15 @@ MESSAGES: dict[str, str] = {
     "result.track.title": "The release track this scan was rated against",
     "result.track.label": "{track} track",
     "result.another": "Scan another instance",
+    "result.compare": "Compare with an earlier scan",
+    "result.tab.queued": "Queued: {target}",
+    "result.tab.queued.position": "#{position} in line: {target}",
+    "result.tab.running": "Scanning: {target}",
+    "result.tab.ready": "Report ready: {target}",
+    "result.tab.done": "Grade {label}: {target}",
+    "result.tab.failed": "Scan failed: {target}",
+    "result.compare.offer": "You scanned this instance earlier in this tab, at {time}.",
+    "result.compare.offer.link": "See what changed since then",
     "result.progress.kicker": "In progress",
     "result.progress.queued.title": "Waiting for a scanner worker",
     "result.progress.queued.detail": (
@@ -1594,6 +1757,12 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "This page expires in about {minutes} minutes, after which the link stops "
         "working and the result is gone."
+    ),
+    "result.expiry.warning.one": "This report disappears in about 1 minute.",
+    "result.expiry.warning.many": "This report disappears in about {minutes} minutes.",
+    "result.expiry.warning.action": "Download a copy to keep it",
+    "result.expiry.gone": (
+        "This report has expired. The link and its downloads no longer work."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "TLS version",

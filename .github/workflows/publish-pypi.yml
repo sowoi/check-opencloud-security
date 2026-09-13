@@ -20,7 +20,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
+        # This job pushes with git, so the checkout keeps its credentials.
+        with: # zizmor: ignore[artipacked]
           fetch-depth: 0
 
       - name: Install uv
@@ -28,13 +29,18 @@ jobs:
 
       - name: Read version
         id: version
-        run: echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+        # Also exported as $VERSION, so shell steps read it from the environment
+        # rather than having an expression pasted into the script text.
+        run: |
+          version="$(uv version --short)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
 
       - name: Check if tag already exists
         id: check_tag
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "Tag v${{ steps.version.outputs.version }} already exists. Skipping publish."
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists. Skipping publish."
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -61,7 +67,7 @@ jobs:
       # the notes of that version, and the same entry is written to RELEASE.md.
       - name: Update CHANGELOG.md and RELEASE.md
         if: steps.check_tag.outputs.exists != 'true'
-        run: python scripts/release_notes.py --version "${{ steps.version.outputs.version }}"
+        run: python scripts/release_notes.py --version "$VERSION"
 
       - name: Commit release notes
         if: steps.check_tag.outputs.exists != 'true'
@@ -77,8 +83,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "Release notes are already up to date."
           else
-            git commit -m "docs: release notes for v${{ steps.version.outputs.version }} [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            git commit -m "docs: release notes for v${VERSION} [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
       - name: Build package
@@ -93,10 +99,10 @@ jobs:
         if: steps.check_tag.outputs.exists != 'true'
         run: |
           mkdir -p sbom
-          uv sync --no-dev
+          uv sync --locked --no-dev
           uvx --from cyclonedx-bom cyclonedx-py environment .venv \
             --of JSON --pyproject pyproject.toml --mc-type application \
-            -o "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
+            -o "sbom/check-opencloud-security-${VERSION}.cdx.json"
 
       # Provenance ties each artifact to this workflow, this commit and this
       # runner. Signed with a short-lived Sigstore certificate, so there is no
@@ -116,15 +122,11 @@ jobs:
           subject-path: "dist/*.whl"
           sbom-path: "sbom/check-opencloud-security-${{ steps.version.outputs.version }}.cdx.json"
 
-      - name: Publish to PyPI
-        if: steps.check_tag.outputs.exists != 'true'
-        run: uv publish
-
       # The plugin's audience is monitoring hosts, where software arrives
       # through apt and dnf rather than through pip. nfpm turns the wheel that
       # was just published into a .deb and an .rpm from one recipe, without
       # needing dpkg-dev, rpmbuild or a matching distribution to build on.
-      # See adr/0039. They land outside dist/ because `uv publish` above
+      # See adr/0039. They land outside dist/ because `uv publish` below
       # uploads everything it finds there.
       #
       # nfpm is pinned by version and checked against the digest published with
@@ -171,18 +173,31 @@ jobs:
         with:
           subject-path: "web-bundle/*.tar.gz"
 
+      # Last of the builds, not first: PyPI never takes a version back, so
+      # everything that can still fail - the .deb and the .rpm, the web
+      # bundle, the attestations - has already succeeded by the time anything
+      # leaves this runner. See adr/0045.
+      #
+      # --check-url makes a second attempt safe. When the tag step below fails
+      # after this one succeeded, the next push to main finds no tag and runs
+      # again; uv then skips the files PyPI already holds with the same digest
+      # instead of failing on "File already exists".
+      - name: Publish to PyPI
+        if: steps.check_tag.outputs.exists != 'true'
+        run: uv publish --check-url https://pypi.org/simple/
+
       - name: Create Git tag and GitHub release
         if: steps.check_tag.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git tag "v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
 
           # --notes-file provides the body, --generate-notes appends GitHub's
           # own "What's Changed" section below it.
-          gh release create "v${{ steps.version.outputs.version }}" \
+          gh release create "v${VERSION}" \
             dist/* sbom/* web-bundle/* distro-packages/* \
-            --title "v${{ steps.version.outputs.version }}" \
+            --title "v${VERSION}" \
             --notes-file RELEASE.md \
             --generate-notes

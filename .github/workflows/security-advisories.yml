@@ -11,7 +11,11 @@ name: Security advisories
 # range and cannot be taken back, so the last step is a person running
 # `--publish <slug>`, or pressing Publish in the Security tab.
 
-on:
+# zizmor flags workflow_run because it usually runs code from a fork with a
+# privileged token. Here it only reacts to this repository's own "Publish to
+# PyPI" run, checks out `main` rather than the triggering head, and reads no
+# artifact from the run that triggered it.
+on: # zizmor: ignore[dangerous-triggers]
   pull_request:
     branches:
       - main
@@ -36,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -63,7 +69,8 @@ jobs:
       # none rather than failing a release that otherwise succeeded.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
+        # This job pushes with git, so the checkout keeps its credentials.
+        with: # zizmor: ignore[artipacked]
           ref: main
 
       - name: Install uv

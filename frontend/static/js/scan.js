@@ -84,6 +84,37 @@
         });
     }
 
+    /*
+     * The tab title follows the state, so a reader who went elsewhere while
+     * the scan runs can see from the tab strip when it is done. Only the
+     * part before the site name is replaced; the server wrote the first
+     * reading, and a finished page writes its own with the grade in it.
+     */
+    var SEPARATOR = " · ";
+    var siteSuffix = (function () {
+        var index = document.title.lastIndexOf(SEPARATOR);
+        return index === -1 ? "" : document.title.slice(index);
+    }());
+
+    function describeTab(payload) {
+        var text = "";
+        if (payload.state === "queued") {
+            var queue = payload.queue || {};
+            text = queue.position
+                ? fill(phrase(card, "tab-queued-position"), { position: queue.position })
+                : phrase(card, "tab-queued");
+        } else if (payload.state === "running") {
+            text = phrase(card, "tab-running");
+        } else if (payload.state === "completed") {
+            text = phrase(card, "tab-done");
+        } else if (payload.state === "failed") {
+            text = phrase(card, "tab-failed");
+        }
+        if (text) {
+            document.title = text + siteSuffix;
+        }
+    }
+
     function describeQueue(payload) {
         if (!note) {
             return;
@@ -221,6 +252,7 @@
             setSteps(payload.state);
             describeState(payload);
             describeQueue(payload);
+            describeTab(payload);
             countdown(payload.expiresIn);
             if (terminal(payload.state)) {
                 finish(payload.state);

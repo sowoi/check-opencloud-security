@@ -7,8 +7,13 @@ name: OpenCloud documentation links
 # single commit landing here, and a finding that explains itself with a dead
 # link is a finding nobody can act on. So every merge into main re-checks
 # them, and a weekly run catches the rot that happens while nothing is merged.
+# A pull request runs it too, so a mistyped new link is caught before the
+# merge; main has no required checks, so a red run informs rather than blocks.
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -19,6 +24,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   links:
     name: Check documented OpenCloud links
@@ -26,6 +35,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Check that every documented OpenCloud link still resolves
         # A redirect is reported but does not fail the run: opencloud.eu

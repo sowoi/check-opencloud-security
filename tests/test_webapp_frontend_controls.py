@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -284,3 +285,47 @@ def test_the_progress_card_times_the_wait_without_interrupting_the_reader():
     assert 'aria-live="off"' in elapsed
     # The estimate does not depend on the script having run.
     assert "progress-timing" in page
+
+
+# ------------------------------------------------------- the remembered settings
+
+
+def _remember_offer(page: str) -> str:
+    start = page.index("data-remember ")
+    return page[page.rindex("<p", 0, start) : page.index("</p>", start)]
+
+
+def test_the_last_settings_are_offered_by_a_line_hidden_until_its_script_fills_it():
+    """Without the script nothing is remembered, so nothing may be offered."""
+    page = _landing()
+    offer = _remember_offer(page)
+
+    assert "hidden" in offer[: offer.index(">")]
+    for placeholder in ("{track}", "{format}", "{waivers}", "{count}"):
+        assert placeholder in offer, "the sentences are the server's"
+    assert "data-remember-apply" in offer and "data-remember-forget" in offer
+    assert '<script src="/static/js/remember.js" defer></script>' in page
+
+
+def test_the_remembered_settings_add_no_inline_script_handler_or_style():
+    """The CSP drops anything inline, and the buttons would silently do nothing."""
+    offer = _remember_offer(_landing())
+
+    assert "onclick" not in offer.lower()
+    assert "style=" not in offer
+    assert "<script" not in offer.lower()
+
+
+def test_the_address_is_never_among_the_remembered_settings():
+    """The instance scanned is the browser's to remember on the visitor's terms, not a second copy."""
+    source = (
+        Path(__file__).resolve().parents[1] / "frontend" / "static" / "js" / "remember.js"
+    ).read_text()
+    stored = source[source.index("function current()") : source.index("function load()")]
+
+    assert "target_url" not in stored
+    assert "track:" in stored and "waivers:" in stored
+    # Offered, never applied unasked: the only assignments sit behind the click.
+    before_click = source[: source.index('apply.addEventListener("click"')]
+    assert "track.value =" not in before_click
+    assert ".checked =" not in before_click

@@ -630,6 +630,32 @@ available.
 The same handlers are also probed on the main address, where they must never
 appear at all (`debugEndpoint:` findings).
 
+## Every resolved address
+
+`check_all_addresses=True` (`--all-addresses` on `scan`) repeats the
+node-dependent part of a scan - `status.php`, the root page's graded headers,
+capabilities, the authentication challenge, the identity provider and the demo
+accounts - against each address the name resolved to, one after another, and
+emits `addressParity`. Each request keeps the hostname in `Host` and SNI and is
+pinned to one address through its own session. The addresses are the
+resolver's answer, or `pinned_addresses` when given, so a pinned scan never
+widens past what the caller vetted; IPv6 is skipped when `ipv6_enabled` is
+false. What each address served is listed under `addressObservations`:
+
+```json
+{"addressObservations": [
+  {"address": "198.51.100.1", "reachable": true, "version": "7.2.3",
+   "headers": {"Strict-Transport-Security": true}, "hardenings": {},
+   "demoUsersDisabled": true, "error": ""}
+]}
+```
+
+The first address is the reference; severity follows the worst difference
+(demo accounts as `demoUsersDisabled`, another release `high`, anything else
+`medium`); waived names are not compared. With one address, or with the
+setting off (the default), there is no finding and the list is empty. See
+[ADR 0042](../adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md).
+
 ## Concurrency
 
 A scan is dominated by waiting: around twenty HTTP requests plus the debug-port

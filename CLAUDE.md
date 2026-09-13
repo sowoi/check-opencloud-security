@@ -34,6 +34,9 @@ python scripts/build_web_bundle.py                  # builds the web release tar
 uv build && python scripts/build_distro_packages.py # builds the .deb and .rpm (needs nfpm)
 python scripts/check_documentation_links.py         # re-checks documented OpenCloud links
 python scripts/security_advisories.py --check       # every ### Security entry is decided
+python scripts/check_pull_request.py --base origin/main  # changelog entries and the version guard, as CI runs it
+npx @biomejs/biome@2.5.13 lint                     # frontend scripts (biome.jsonc)
+uvx zizmor@1.30.1 .github/workflows                 # workflow security audit
 cd docker && docker compose up --build              # web + worker + redis, locally
 ```
 

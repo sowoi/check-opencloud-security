@@ -141,7 +141,8 @@ never bump the number: a bump landing on `main` publishes to PyPI.
 
 **Document every change in both `CHANGELOG.md` and `RELEASE.md` under the
 version declared in `pyproject.toml`.** Never invent or bump a version number;
-the user decides that number.
+the user decides that number. `scripts/check_pull_request.py` enforces both on
+every pull request; see ADR 0045.
 
 **Some hardening findings can never be fixed.** Flags OpenCloud hardcodes are
 marked `actionable=False` in `hardening.py`: they stay in the result document

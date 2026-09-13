@@ -1020,6 +1020,21 @@ def test_the_scanner_the_web_service_builds_carries_that_guard():
     assert ScannerSettings().redirect_guard is None
 
 
+def test_a_web_scan_never_dials_every_address_even_when_the_environment_asks(monkeypatch):
+    """The per-address pass is the plugin's; a stranger's URL must not buy it (ADR 0042)."""
+    monkeypatch.setenv("COS_SCANNER_CHECK_ALL_ADDRESSES", "true")
+    target = validate_target("opencloud.example.com")
+
+    assert scanner_settings_for(target, (), settings()).check_all_addresses is False
+    assert client().post(
+        "/api/scans", json={"target_url": "opencloud.example.com"}
+    ).status_code == 202
+    assert client().post(
+        "/api/scans",
+        json={"target_url": "opencloud.example.com", "check_all_addresses": True},
+    ).status_code == 422
+
+
 def test_a_path_that_is_not_a_uuid_is_a_404_and_never_a_redis_lookup():
     """
     The identifier is interpolated into a Redis key, so it must be an uuid.

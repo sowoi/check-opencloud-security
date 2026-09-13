@@ -225,6 +225,85 @@
   </ul>
 </section>
 
+{# ------------------------------------------------------------ exclusions #}
+{#
+  The one card that writes. Everything else here reads a setting or presses a
+  refresh; this changes what the service will do, from the next request, in
+  every process - because both the API and the worker read the list where it
+  is kept rather than where they started (ADR 0044).
+
+  The two halves are shown apart because they are governed apart: what the
+  compose file names cannot be withdrawn here, so the deployment's own promise
+  survives a browser, and an operator can see at a glance which entries will
+  still be there after a restart.
+
+  Ordinary forms again, so this works with no scripting at all.
+#}
+<section class="card section-gap" aria-labelledby="admin-exclusions" data-reveal>
+  <p class="kicker">{{ t('admin.exclusions.kicker') }}</p>
+  <h2 id="admin-exclusions">{{ t('admin.exclusions.heading') }}</h2>
+  <p class="lede">{{ t('admin.exclusions.lede') }}</p>
+
+  {# The answer to the last form posted here, said in this card rather than
+     in the refresh card's outcome line - a refusal carries its own sentence,
+     and "that is not an entry" belongs beside the field it was typed in. #}
+  {% if outcome and outcome.action and outcome.action.startswith('exclusions.') %}
+  <p class="admin-outcome" data-outcome="{{ outcome.state }}" aria-live="polite">
+    {% if outcome.key %}{{ t(outcome.key) }}{% else %}{{ t('admin.outcome.' ~ outcome.state) }}{% endif %}
+  </p>
+  {% endif %}
+
+  {% if exclusions is none %}
+  <p class="admin-outcome" data-outcome="failed">{{ t('admin.exclusions.unreadable') }}</p>
+  {% else %}
+  <form class="admin-exclusion-add" method="post" action="/admin/exclusions">
+    <input type="hidden" name="action" value="add">
+    <label class="admin-exclusion-label" for="admin-exclusion-entry">
+      {{ t('admin.exclusions.add.label') }}
+    </label>
+    <div class="admin-exclusion-row">
+      <input class="admin-exclusion-input" id="admin-exclusion-entry" type="text"
+             name="entry" required maxlength="253" autocomplete="off" spellcheck="false"
+             placeholder="{{ t('admin.exclusions.add.placeholder') }}">
+      <button class="btn btn-primary" type="submit">{{ t('admin.exclusions.add.action') }}</button>
+    </div>
+    <span class="hint">{{ t('admin.exclusions.add.hint') }}</span>
+  </form>
+
+  <ul class="admin-exclusions">
+    {% for entry in exclusions.configured %}
+    <li class="admin-exclusion" data-source="configured">
+      <span class="admin-exclusion-entry">{{ entry }}</span>
+      <span class="admin-surface-pill">{{ t('admin.exclusions.source.configured') }}</span>
+    </li>
+    {% endfor %}
+    {# stored_only, not stored: an entry the environment also names is listed
+       under its own half above and cannot be withdrawn here, so a remove
+       button beside it would be a button that answers with a refusal. #}
+    {% for entry in exclusions.stored_only %}
+    <li class="admin-exclusion" data-source="stored">
+      <span class="admin-exclusion-entry">{{ entry }}</span>
+      <form method="post" action="/admin/exclusions">
+        <input type="hidden" name="action" value="remove">
+        <input type="hidden" name="entry" value="{{ entry }}">
+        <button class="btn btn-quiet" type="submit">{{ t('admin.exclusions.remove') }}</button>
+      </form>
+    </li>
+    {% endfor %}
+    {% if not exclusions.effective %}
+    <li class="admin-exclusion" data-source="empty">
+      <span class="admin-exclusion-entry">{{ t('admin.exclusions.empty') }}</span>
+    </li>
+    {% endif %}
+  </ul>
+
+  {% if exclusions.updated %}
+  <p class="hint">{{ t('admin.exclusions.updated', when=exclusions.updated) }}</p>
+  {% endif %}
+  <p class="hint">{{ t('admin.exclusions.durability') }}</p>
+  {% endif %}
+</section>
+
 {# --------------------------------------------------------------- actions #}
 <section class="card section-gap" aria-labelledby="admin-actions" data-reveal>
   <p class="kicker">{{ t('admin.actions.kicker') }}</p>
@@ -281,7 +360,7 @@
     </li>
     {% endfor %}
   </ul>
-  {% elif outcome %}
+  {% elif outcome and not (outcome.action and outcome.action.startswith('exclusions.')) %}
   <p class="admin-outcome" data-outcome="{{ outcome.state }}">
     {{ t('admin.outcome.' ~ outcome.state, action=outcome.action, seconds=outcome.seconds) }}
   </p>

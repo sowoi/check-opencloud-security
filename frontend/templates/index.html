@@ -163,6 +163,30 @@
     <p class="field-error" id="target-error">{{ t('index.field.invalid') }}</p>
     <p class="hint" id="target-hint">{{ t.html('index.field.hint') }}</p>
 
+    {#
+      The choices of the last scan submitted from this browser, offered back
+      rather than applied. Somebody who rescans the same instance every week
+      should not have to tick the same six waivers every week; somebody on a
+      shared machine should not find a stranger's choices already made.
+
+      remember.js keeps the release track, the output format and the waivers
+      in localStorage when the form is submitted - never the address, which
+      the browser's own autocomplete already remembers on the visitor's
+      terms. It reveals this line only when what it holds differs from what
+      the form shows, and "forget" removes it. Hidden in the markup: without
+      the script there is nothing remembered to offer.
+    #}
+    <p class="hint remember" data-remember hidden aria-live="polite"
+       data-remember-summary="{{ t.raw('index.remember.summary') }}"
+       data-remember-waivers-none="{{ t('index.remember.waivers.none') }}"
+       data-remember-waivers-one="{{ t('index.remember.waivers.one') }}"
+       data-remember-waivers-many="{{ t.raw('index.remember.waivers.many') }}">
+      <span data-remember-text></span>
+      <button type="button" class="filter-clear" data-remember-apply>{{ t('index.remember.apply') }}</button>
+      <span aria-hidden="true">&middot;</span>
+      <button type="button" class="filter-clear" data-remember-forget>{{ t('index.remember.forget') }}</button>
+    </p>
+
     <div class="field-row section-gap">
       <div class="field field-narrow">
         <label for="release_track">{{ t('index.track.label') }}</label>
@@ -277,4 +301,5 @@
 {% block scripts %}
 <script src="/static/js/app.js" defer></script>
 <script src="/static/js/waivers.js" defer></script>
+<script src="/static/js/remember.js" defer></script>
 {% endblock %}

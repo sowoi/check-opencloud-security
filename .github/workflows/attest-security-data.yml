@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       # One attestation per file: a monitoring host fetches and verifies each
       # document on its own, so each needs a statement naming its own digest.

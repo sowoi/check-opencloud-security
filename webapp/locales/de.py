@@ -110,6 +110,55 @@ MESSAGES: dict[str, str] = {
         "auf der Platte."
     ),
     "admin.surfaces.targets": "Ziele im Klartext protokolliert",
+    "admin.exclusions.kicker": "Ausschlüsse",
+    "admin.exclusions.heading": "Adressen, die dieser Dienst nicht scannt",
+    "admin.exclusions.lede": (
+        "Ein Eintrag gilt ab der nächsten Anfrage, in jedem Prozess, ohne "
+        "Neustart - und ein Scan, der bereits in der Warteschlange steht, "
+        "wird abgelehnt statt ausgeführt. Nichts hier bringt diesen Dienst "
+        "dazu, etwas zu scannen: die Liste lehnt ausschließlich ab."
+    ),
+    "admin.exclusions.add.label": "Hostname, .Suffix-Domain, Adresse oder CIDR-Bereich",
+    "admin.exclusions.add.placeholder": "opencloud.example.com",
+    "admin.exclusions.add.action": "Ausschließen",
+    "admin.exclusions.add.hint": (
+        "Eine Domain mit führendem Punkt schließt auch alles darunter aus. "
+        "Ein Bereich wird gegen jede Adresse geprüft, zu der ein Hostname "
+        "auflöst."
+    ),
+    "admin.exclusions.remove": "Zurücknehmen",
+    "admin.exclusions.empty": "In dieser Installation ist nichts ausgeschlossen.",
+    "admin.exclusions.source.configured": "Aus der Umgebung",
+    "admin.exclusions.updated": "Zuletzt hier geändert am {when}.",
+    "admin.exclusions.durability": (
+        "Hier hinzugefügte Einträge liegen in Redis, das diese Installation "
+        "jederzeit leeren kann. Was dauerhaft gelten soll, gehört in "
+        "COS_WEB_BLOCKED_TARGETS - dort kann es auf dieser Seite nicht "
+        "zurückgenommen werden."
+    ),
+    "admin.exclusions.unreadable": (
+        "Der Speicher hat nicht geantwortet, die Ausschlüsse lassen sich "
+        "gerade weder lesen noch ändern. Sie gelten weiterhin: ein Scan, der "
+        "sie nicht prüfen kann, wird abgelehnt und nicht ausgeführt."
+    ),
+    "admin.blocklist.error.shape": (
+        "Das ist kein Eintrag. Bitte einen Hostnamen, eine Domain mit "
+        "führendem Punkt, eine Adresse oder einen CIDR-Bereich angeben."
+    ),
+    "admin.blocklist.error.configured": (
+        "Dieser Eintrag stammt aus COS_WEB_BLOCKED_TARGETS. Dort entfernen "
+        "und neu starten, damit Installation und Liste nicht auseinanderlaufen."
+    ),
+    "admin.blocklist.error.full": (
+        "Diese Liste ist voll. Dauerhafte Einträge gehören in "
+        "COS_WEB_BLOCKED_TARGETS."
+    ),
+    "admin.blocklist.error.long": (
+        "Dieser Eintrag ist länger, als ein Hostname sein kann. Was damit "
+        "gemeint sein könnte, erreicht diesen Dienst ohnehin nie."
+    ),
+    "admin.outcome.excluded": "Ausgeschlossen. Ab der nächsten Anfrage abgelehnt.",
+    "admin.outcome.withdrawn": "Zurückgenommen. Kann wieder gescannt werden.",
     "admin.actions.kicker": "Referenzdaten",
     "admin.actions.heading": "Aktualisieren, wogegen der Scanner bewertet",
     "admin.actions.lede": (
@@ -228,6 +277,7 @@ MESSAGES: dict[str, str] = {
     "nav.catalogue": "Katalog",
     "nav.docs": "Doku",
     "nav.search": "Suche",
+    "nav.compare": "Vergleichen",
     "nav.api": "API",
     "nav.ai": "KI",
     "nav.privacy": "Datenschutz",
@@ -382,6 +432,14 @@ MESSAGES: dict[str, str] = {
     "index.format.hint": "Beide stammen aus demselben Scan.",
     "index.waivers.summary": "Bestimmte Prüfungen ignorieren (optional)",
     "index.waivers.selected": "Bestimmte Prüfungen ignorieren ({count} ausgewählt)",
+    "index.remember.summary": (
+        "Einstellungen deines letzten Scans in diesem Browser: {track} · {format} · {waivers}."
+    ),
+    "index.remember.waivers.none": "keine ausgesetzten Prüfungen",
+    "index.remember.waivers.one": "1 ausgesetzte Prüfung",
+    "index.remember.waivers.many": "{count} ausgesetzte Prüfungen",
+    "index.remember.apply": "Wieder verwenden",
+    "index.remember.forget": "Vergessen",
     "index.waivers.hint": (
         "Eine ausgesetzte Prüfung bleibt im Bericht und wird weiterhin angezeigt "
         "- sie hört nur auf, die Note nach unten zu drücken. Nur Prüfungen, die "
@@ -1205,6 +1263,91 @@ MESSAGES: dict[str, str] = {
     ),
     "docs.guide.toc.heading": "Auf dieser Seite",
     "docs.guide.toc.aria": "Auf dieser Seite",
+    # ---------------------------------------------------------------- compare
+    "compare.title": "Zwei Scans vergleichen",
+    "compare.description": (
+        "Zwei abgeschlossene Scans derselben Instanz vergleichen und sehen, "
+        "was behoben wurde, was neu ist und was weiterhin offen ist."
+    ),
+    "compare.eyebrow": "Haben die Korrekturen gewirkt?",
+    "compare.heading": "Zwei Scans vergleichen",
+    "compare.lede": (
+        "Fügen Sie die uuid eines früheren und eines späteren Scans ein. Beide "
+        "Ergebnisse müssen noch vorhanden sein - dieser Dienst führt keine "
+        "Historie, in der ein abgelaufener Scan nachgeschlagen werden könnte."
+    ),
+    "compare.form.baseline": "Früherer Scan",
+    "compare.form.current": "Späterer Scan",
+    "compare.form.placeholder": "Die uuid aus der Adresse einer Ergebnisseite",
+    "compare.form.submit": "Vergleichen",
+    "compare.form.hint": (
+        "Die uuid ist der Teil nach <code>/scan/</code> in der Adresse einer "
+        "Ergebnisseite. Sie ist die gesamte Berechtigung für dieses Ergebnis - "
+        "behandeln Sie sie wie ein Passwort."
+    ),
+    "compare.error.unknown.baseline": (
+        "Der frühere Scan ist unbekannt oder abgelaufen. Hier lässt er sich "
+        "nicht nachschlagen: Scannen Sie die Instanz erneut und vergleichen "
+        "Sie die beiden neuesten Ergebnisse."
+    ),
+    "compare.error.unknown.current": (
+        "Der spätere Scan ist unbekannt oder abgelaufen. Hier lässt er sich "
+        "nicht nachschlagen: Scannen Sie die Instanz erneut und vergleichen "
+        "Sie die beiden neuesten Ergebnisse."
+    ),
+    "compare.error.unfinished.baseline": (
+        "Der frühere Scan ist noch nicht abgeschlossen. Öffnen Sie seine "
+        "Ergebnisseite, warten Sie ihn ab und vergleichen Sie erneut."
+    ),
+    "compare.error.unfinished.current": (
+        "Der spätere Scan ist noch nicht abgeschlossen. Öffnen Sie seine "
+        "Ergebnisseite, warten Sie ihn ab und vergleichen Sie erneut."
+    ),
+    "compare.error.same": (
+        "Beide Felder nennen denselben Scan, es gibt also nichts zu "
+        "vergleichen. Scannen Sie die Instanz erneut und vergleichen Sie die "
+        "neue uuid mit dieser."
+    ),
+    "compare.different_targets": (
+        "Diese beiden Scans beschreiben verschiedene Instanzen. Der Vergleich "
+        "wird trotzdem gezeigt - Staging gegen Produktion ist eine berechtigte "
+        "Frage -, aber jede Zahl darunter beantwortet dann eine andere."
+    ),
+    "compare.verdict.kicker": "Zwischen den beiden Scans",
+    "compare.verdict.improved": "Es ist besser geworden",
+    "compare.verdict.unchanged": "Nichts hat sich geändert",
+    "compare.verdict.regressed": "Es ist schlechter geworden",
+    "compare.rating.up": "Die Note ist um {points} Punkt(e) gestiegen.",
+    "compare.rating.down": "Die Note ist um {points} Punkt(e) gefallen.",
+    "compare.rating.same": (
+        "Die Note hat sich nicht bewegt. Das allein ist keine gescheiterte "
+        "Behebung - Funde einer Schwere teilen sich eine einzige Deckelung, "
+        "also können mehrere Korrekturen landen, bevor sich der Buchstabe "
+        "ändert. Lesen Sie die Listen unten."
+    ),
+    "compare.side.baseline": "Früher",
+    "compare.side.current": "Später",
+    "compare.side.target": "Instanz",
+    "compare.side.version": "Version",
+    "compare.side.scanned": "Gescannt",
+    "compare.side.unknown": "Nicht ermittelt",
+    "compare.side.open": "Dieses Ergebnis öffnen",
+    "compare.introduced.heading": "Neue Funde ({count})",
+    "compare.introduced.none": "Seit dem früheren Scan ist nichts neu.",
+    "compare.resolved.heading": "Behobene Funde ({count})",
+    "compare.resolved.none": (
+        "Nichts, was im früheren Scan offen war, ist verschwunden."
+    ),
+    "compare.unchanged.heading": "Weiterhin offen ({count})",
+    "compare.unchanged.none": "In beiden Scans ist nichts offen.",
+    "compare.changes.heading": "Was der Vergleich einzeln aufführt",
+    "compare.changes.category": "Kategorie",
+    "compare.changes.change": "Änderung",
+    "compare.nothing_stored": (
+        "Dieser Vergleich wurde aus den beiden Ergebnissen berechnet und "
+        "nirgends gespeichert. Beim Neuladen wird er erneut berechnet; läuft "
+        "eines der Ergebnisse ab, lässt er sich gar nicht mehr erfragen."
+    ),
     # ----------------------------------------------------------------- search
     "search.title": "Suche",
     "search.description": (
@@ -1324,6 +1467,14 @@ MESSAGES: dict[str, str] = {
         "Diese Adresse zeigt in ein privates, lokales oder link-lokales "
         "Netzwerk, das dieser Dienst nicht scannt."
     ),
+    "error.target.blocked": (
+        "Dieser Dienst wurde gebeten, diese Adresse nicht zu scannen."
+    ),
+    "error.store_unavailable": (
+        "Dieser Dienst erreicht gerade seine eigene Konfiguration nicht und "
+        "scannt nicht, ohne zu wissen, was er auslassen soll. Bitte versuchen "
+        "Sie es in einigen Minuten erneut."
+    ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan-Ergebnisse",
     "result.description": (
@@ -1337,6 +1488,17 @@ MESSAGES: dict[str, str] = {
     ),
     "result.track.label": "{track}-Track",
     "result.another": "Eine weitere Instanz scannen",
+    "result.compare": "Mit einem früheren Scan vergleichen",
+    "result.tab.queued": "In der Warteschlange: {target}",
+    "result.tab.queued.position": "Platz {position}: {target}",
+    "result.tab.running": "Wird gescannt: {target}",
+    "result.tab.ready": "Bericht fertig: {target}",
+    "result.tab.done": "Note {label}: {target}",
+    "result.tab.failed": "Scan fehlgeschlagen: {target}",
+    "result.compare.offer": (
+        "Du hast diese Instanz in diesem Tab schon um {time} gescannt."
+    ),
+    "result.compare.offer.link": "Sehen, was sich seitdem geändert hat",
     "result.progress.kicker": "In Bearbeitung",
     "result.progress.queued.title": "Wartet auf einen Scanner-Worker",
     "result.progress.queued.detail": (
@@ -1695,6 +1857,14 @@ MESSAGES: dict[str, str] = {
     "result.expiry.many": (
         "Diese Seite läuft in etwa {minutes} Minuten ab, danach funktioniert "
         "der Link nicht mehr und das Ergebnis ist weg."
+    ),
+    "result.expiry.warning.one": "Dieser Bericht verschwindet in etwa 1 Minute.",
+    "result.expiry.warning.many": (
+        "Dieser Bericht verschwindet in etwa {minutes} Minuten."
+    ),
+    "result.expiry.warning.action": "Lade eine Kopie herunter, um ihn zu behalten",
+    "result.expiry.gone": (
+        "Dieser Bericht ist abgelaufen. Der Link und seine Downloads funktionieren nicht mehr."
     ),
     # ----------------------------------------- transport facts beside the grade
     "tls.fact.protocol": "TLS-Version",

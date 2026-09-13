@@ -733,33 +733,24 @@ def _compared_side(identifier: str, document: Mapping[str, Any]) -> dict[str, An
         "rating": document.get("rating"),
         "version": _safe_token(document.get("version")),
         "eol": bool(document.get("EOL")),
-        "scannedAt": _safe_token(
+        # _safe_text, not _safe_token: the scanner writes this from its own
+        # clock as "%Y-%m-%d %H:%M:%S.%f", and it is not in REMOTE_FIELDS
+        # because no scanned host has any say in it. The token allow-list has
+        # no ':' in it, so every timestamp came back as "unparsable" - a
+        # sanitiser applied to the one field it was not written for.
+        "scannedAt": _safe_text(
             scanned_at.get("date") if isinstance(scanned_at, Mapping) else None
         ),
     }
 
 
-async def compare_scans(
-    client: ApiClient,
-    baseline_identifier: str,
-    current_identifier: str,
-    *,
-    sleep: Sleeper | None = None,
-    wait: bool = True,
-) -> dict[str, Any]:
+def refuse_identical_scans(baseline_identifier: str, current_identifier: str) -> None:
     """
-    What changed between two scans of the same instance.
+    Refuse a comparison of a scan with itself.
 
-    The question after a remediation plan has been worked through: *did it
-    help?* Both scans have to still be here - a uuid outlives its result by
-    nothing, so this compares two live results and stores neither.
-
-    The arithmetic is the plugin's own baseline comparison, which is also what
-    ``--baseline`` spends on staying quiet and what
-    ``check-opencloud-scanner diff`` prints. Three surfaces, one definition of
-    "new finding": if this module decided for itself what counts as a
-    regression, an agent and an operator's own monitoring could disagree about
-    the same two scans.
+    Checked before anything is read, because the answer is the same whoever
+    asked and an empty diff of a scan against itself reads as "nothing is
+    wrong" - the one wrong answer worth spending a request to avoid.
     """
     if baseline_identifier == current_identifier:
         raise WorkflowError(
@@ -769,8 +760,29 @@ async def compare_scans(
             retryable=False,
         )
 
-    before = await _result_document(client, baseline_identifier, sleep=sleep, wait=wait)
-    after = await _result_document(client, current_identifier, sleep=sleep, wait=wait)
+
+def compare_documents(
+    baseline_identifier: str,
+    current_identifier: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    What changed between two whole scanner documents.
+
+    The comparison itself, with no reading in it, so that every surface that
+    can already get hold of two documents shares this one answer: the MCP
+    tool through :func:`compare_scans` below, and the page a reader arrives
+    at with two uuids of their own.
+
+    The arithmetic is the plugin's own baseline comparison, which is also what
+    ``--baseline`` spends on staying quiet and what
+    ``check-opencloud-scanner diff`` prints. One definition of "new finding"
+    across all of them: if this module decided for itself what counts as a
+    regression, an agent, a reader and an operator's own monitoring could
+    disagree about the same two scans.
+    """
+    refuse_identical_scans(baseline_identifier, current_identifier)
 
     baseline = Baseline(path=Path(os.devnull))
     host = str(after.get("domain") or "")
@@ -831,6 +843,34 @@ async def compare_scans(
         ],
         "untrusted": {"fields": list(REMOTE_FIELDS), "note": REMOTE_NOTE},
     }
+
+
+async def compare_scans(
+    client: ApiClient,
+    baseline_identifier: str,
+    current_identifier: str,
+    *,
+    sleep: Sleeper | None = None,
+    wait: bool = True,
+) -> dict[str, Any]:
+    """
+    What changed between two scans of the same instance, read by uuid.
+
+    The question after a remediation plan has been worked through: *did it
+    help?* Both scans have to still be here - a uuid outlives its result by
+    nothing, so this compares two live results and stores neither.
+
+    Both documents are read through the ordinary HTTP API in-process, as
+    every other workflow reads one (ADR 0011); the comparison itself is
+    :func:`compare_documents`.
+    """
+    refuse_identical_scans(baseline_identifier, current_identifier)
+
+    before = await _result_document(client, baseline_identifier, sleep=sleep, wait=wait)
+    after = await _result_document(client, current_identifier, sleep=sleep, wait=wait)
+    return compare_documents(
+        baseline_identifier, current_identifier, before, after
+    )
 
 
 async def export_scan(

@@ -37,6 +37,7 @@ translated.
 - [How a scan flows through it](#how-a-scan-flows-through-it)
 - [Queueing rather than refusing](#queueing-rather-than-refusing)
 - [Isolation between scans](#isolation-between-scans)
+- [Comparing two scans](#comparing-two-scans)
 - [The SSRF guard](#the-ssrf-guard)
 - [Rate limiting](#rate-limiting)
 - [What gets logged](#what-gets-logged)
@@ -227,6 +228,7 @@ Every setting is an environment variable, read once at startup.
 | `COS_WEB_VERIFY_TLS` | `true` | Verify the target's certificate. An untrusted chain becomes a finding either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | Allow private, loopback and link-local targets. On-premise deployments only |
 | `COS_WEB_ALLOWED_HOSTS` | *(empty)* | Hostnames exempt from the SSRF guard, separated by `;` |
+| `COS_WEB_BLOCKED_TARGETS` | *(empty)* | Addresses this deployment will not scan, separated by `;`. Hostnames, `.suffix` domains and CIDR ranges. Outranks both settings above; an entry that does not parse refuses startup |
 | `COS_WEB_CHECK_DEBUG_PORTS` | `false` | Probe extra ports. Off in public: it is a port scan of somebody else's host |
 | `COS_WEB_IP_RATE_LIMIT` | `10` | Scans per client address per window. `0` disables |
 | `COS_WEB_IP_RATE_WINDOW` | `60` | The window, in seconds |
@@ -375,6 +377,44 @@ The uuid is a capability: knowing it is the only way to reach the scan.
 - every key carries the TTL, including the one written while the scan is still
   queued. Nothing outlives the promise on the landing page.
 
+## Comparing two scans
+
+`GET /compare` answers the question that follows a remediation plan: *did it
+help?* It takes two uuids the reader already has - `?baseline=` for the
+earlier scan, `?current=` for the later one - and shows what was resolved,
+what is new, what is still open, and how the grade moved. A finished result
+page links to it with its own uuid already filled in, so only the earlier one
+has to be pasted.
+
+**The arithmetic is not this layer's.** It is
+`opencloud_local_scan.baseline`, the same comparison the plugin's `--baseline`
+spends on staying quiet between runs and `check-opencloud-scanner diff`
+prints, reached through `workflows.compare_documents` - the function the
+`compare_scans` MCP tool calls too. A reader, an agent and an operator's own
+alerting therefore cannot be told different things about the same two scans.
+See [ADR 0029](../adr/0029-a-comparison-is-two-live-results-and-one-arithmetic.md).
+
+**Nothing is stored.** The comparison is worked out from two results that both
+still exist and is written nowhere: this service keeps no scan history
+([ADR 0002](../adr/0002-no-scan-result-caching.md)) and a uuid is a capability
+with a TTL ([ADR 0007](../adr/0007-erasure-on-request.md)). A stored
+comparison would be a scan result under another name, outliving the results it
+describes and exempt from their erasure.
+
+The answers it can give:
+
+| Situation | Answer |
+|:----------|:-------|
+| Both uuids resolve to finished scans | **200**, the comparison |
+| Either uuid is unknown or expired | **404**, naming *which* of the two is gone - "one of them has expired" sends somebody looking through both |
+| Either scan has not finished | **409**: there is nothing to compare yet, and 404 would send a reader to scan again while their scan is still running |
+| The same uuid twice | **422**. An empty diff of a scan against itself reads as "nothing is wrong" |
+| The two scans describe different instances | **200**, compared and said so. Staging against production is a fair question; answering it silently is not |
+
+Like `/scan/{uuid}` and for the same reason, the page renders results and is
+therefore never indexed and never in the OpenAPI schema, and each uuid remains
+the whole of the authorisation for the result behind it.
+
 ## The SSRF guard
 
 A public scan service forwards requests by definition, so the target is
@@ -404,6 +444,75 @@ free.
 `COS_WEB_ALLOW_PRIVATE_TARGETS=true` turns all of this off. It exists for an
 on-premise deployment scanning its own estate. Do not set it on anything a
 stranger can reach.
+
+### Addresses this deployment will not scan
+
+Everything above is a property of the address. `COS_WEB_BLOCKED_TARGETS` is a
+decision somebody made - an instance owner who asked to be left alone, a host
+somebody keeps submitting so the service hammers it, a range that is not a
+scanning target here however public it looks:
+
+```bash
+COS_WEB_BLOCKED_TARGETS="opencloud.example.com;.example.org;203.0.113.0/24"
+```
+
+- an entry is a **hostname**, a **domain suffix** written with a leading dot
+  (`.example.org`, or `*.example.org` - both mean the domain *and* everything
+  under it, and neither matches `notexample.org`), an **address**, or a
+  **CIDR range**;
+- hostnames are matched on the name, ranges on **every address the name
+  resolves to**. A hostname entry therefore refuses that name and not a second
+  name pointing at the same machine - exclude the range when the promise has
+  to hold whatever the instance is called;
+- it is checked at submission, again in the worker before the scan, and on
+  every redirect hop, so a target excluded while its job sat in the queue is
+  refused rather than scanned;
+- it **outranks `COS_WEB_ALLOWED_HOSTS` and `COS_WEB_ALLOW_PRIVATE_TARGETS`**.
+  Those exist to loosen the guard; this one answers whether the service scans
+  that address at all, and loosening must not reopen it. See
+  [ADR 0043](../adr/0043-an-operators-exclusion-outranks-every-allowance.md);
+- an entry that is none of those four shapes **refuses startup**, in the web
+  process and in the worker alike. A typo here is otherwise invisible: the
+  service comes up, answers normally, and scans exactly what it was told not
+  to.
+
+The refusal a visitor sees says only that the service has been asked not to
+scan that address. Which entry matched is operator configuration, and echoing
+it would make every refusal a read of the list.
+
+**The list has a second half that can be changed while the service runs.** The
+request that produces most exclusions - somebody writing to ask not to be
+scanned - rarely arrives at a convenient moment, and "after the next
+deployment window" is not an answer to it. So the operator's area at `/admin`
+has an *Exclusions* card that adds and withdraws entries, and:
+
+- an entry takes effect **from the next request, in every process**, with
+  nothing restarted: the API reads the list on each submission and the worker
+  when each job starts, so a scan already waiting in the queue is refused
+  rather than run;
+- what `COS_WEB_BLOCKED_TARGETS` declares **cannot be withdrawn there**. Those
+  entries are shown with no control beside them, and an attempt to remove one
+  is refused with a pointer to the environment - your compose file stays the
+  truth about what it declares;
+- entries added in the area live in **Redis**, so they are as durable as your
+  Redis is. Anything that must outlive a flush belongs in the environment
+  variable;
+- an entry is at most **253 characters**, the longest a hostname can be, here
+  and in `COS_WEB_BLOCKED_TARGETS` alike. Anything longer could never match a
+  target the service accepts, so it is refused as the typo it is;
+- the two halves are compared **parsed, not as text**, so `Example.COM` in the
+  environment and `example.com` in the area are one exclusion rather than two:
+  the area declines to store what the environment already holds, and refuses
+  to withdraw it under any spelling;
+- if the store cannot be read, a submission is **refused rather than scanned**
+  without the list - `503`, with the reason in the visitor's language and the
+  pointer at self-hosting, and an `exclusions_unreadable` line in the audit
+  trail rather than a rejected target.
+
+The card is the one thing in that area that writes; see
+[ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md) for the
+four properties that made it acceptable there, and
+[ADMIN.md](../ADMIN.md#the-operators-area-at-admin) for the area itself.
 
 ## Rate limiting
 
@@ -906,7 +1015,9 @@ from the module the library tests cover, and a second implementation of that
 in JavaScript is the one thing on the page that must not exist. The explanations the landing page used to carry sit on
 their own pages - `GET /how-it-works`, `GET /grades`, `GET /documentation`,
 `GET /search`, `GET /api`, `GET /ai`, `GET /privacy` and `GET /about` - which
-are HTML only and stay out of the OpenAPI schema. `/grades` explains the
+are HTML only and stay out of the OpenAPI schema. So does `GET /compare`,
+for a second reason: it renders two results and is therefore never
+indexable, exactly as `/scan/{uuid}` is not. `/grades` explains the
 plugin's real 0-5 map and its remediation ceilings; `/documentation` is the
 local CLI quick reference and guide index, and it is also the page that points
 away from this service: the Docker one-liners that run the same scan on the

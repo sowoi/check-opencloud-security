@@ -261,8 +261,17 @@ it:
 - What you added, and why it matters to an operator.
 ```
 
+Add the same entry to [`RELEASE.md`](RELEASE.md), under its
+`## check-opencloud-security <version>` heading - the version currently in
+`pyproject.toml`.
+
 Do not write a `## [x.y.z]` heading and do not bump the version - the release
 picks your entry up under whichever number the maintainer chooses.
+
+CI checks both with `scripts/check_pull_request.py`. A pull request that
+genuinely needs no notes - a typo, a test-only change - is labelled
+`skip-changelog` by a maintainer; run the check locally with
+`python scripts/check_pull_request.py --base origin/main`.
 
 ### If your entry goes under `### Security`
 
@@ -315,6 +324,13 @@ derives `__version__` from it - from the installed package metadata, or from
 the file itself when running out of a checkout - and the plugin imports that.
 Nothing else needs editing.
 
+The pull request carrying the bump needs the `release` label - the
+[pull request policy](.github/workflows/pull-request-policy.yml) refuses a
+version change without it, and one that does not move past every tag. The
+[release dry run](.github/workflows/release-dry-run.yml) has by then built the
+notes, the wheel, the `.deb`, the `.rpm`, the web bundle and both images on
+that pull request.
+
 The workflow then:
 
 1. `scripts/release_notes.py` renames `## [Unreleased]` in
@@ -322,7 +338,11 @@ The workflow then:
    body to `RELEASE.md` (overwritten on every release) and leaves a fresh empty
    `## [Unreleased]` behind.
 2. Both files are committed back to `main` with `[skip ci]`.
-3. The package is built and published to PyPI.
+3. The wheel, the SBOM, the `.deb`, the `.rpm` and the web bundle are built and
+   attested, and only then is the package published to PyPI - so a failed
+   build never leaves a version on PyPI without a release. If a later step
+   fails, the next push to `main` finishes the release; files PyPI already
+   holds are skipped.
 4. The tag `v<version>` is created and a GitHub release is opened with
    `RELEASE.md` as its body, followed by GitHub's generated
    "What's Changed" section.

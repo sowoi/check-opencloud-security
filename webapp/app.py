@@ -77,6 +77,7 @@ from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
     REASON_BATCH_TOO_LARGE,
+    REASON_EXCLUSIONS_UNREADABLE,
     REASON_PURGE_UNAUTHORISED,
     REASON_RATE_LIMIT_CLIENT,
     REASON_RATE_LIMIT_PURGE,
@@ -87,14 +88,24 @@ from .audit import (
     configure_audit_file,
     install_recent_audit,
 )
+from .blocklist import (
+    EntryRejected,
+    add_exclusion,
+    effective_exclusions,
+    exclusions_or_none,
+    remove_exclusion,
+)
 from .catalog import (
     DEFAULT_RELEASE_TRACK,
     SEVERITY_TAGS,
     catalogue_anchor,
     catalogue_link,
     check_catalogue,
+    finding_id,
     grade_scale,
     open_findings,
+    rating_label,
+    rating_tone,
     release_track_options,
     sanitize_release_track,
     sanitize_waivers,
@@ -177,7 +188,7 @@ from .seo import (
     wants_robots_tag,
 )
 from .settings import WebSettings
-from .ssrf import TargetRejected, validate_target
+from .ssrf import TargetRejected, ensure_blocklist_ready, validate_target
 from .store import (
     QUEUE_KEY,
     STATE_COMPLETED,
@@ -201,6 +212,8 @@ from .workflows import (
     REMOTE_NOTE,
     RETRYABLE_STATUSES,
     UUID_NOTE,
+    WorkflowError,
+    compare_documents,
 )
 
 LOGGER = logging.getLogger("check_opencloud.web")
@@ -725,6 +738,15 @@ def build_templates(directory: Path | None = None) -> Jinja2Templates:
     # does not publish.
     templates.env.filters["catalogue_anchor"] = catalogue_anchor
     templates.env.filters["catalogue_link"] = catalogue_link
+    # A grade is the plugin's RATE_MAP, wherever it is drawn. The comparison
+    # page has two of them and no summary to read them from, so the same two
+    # functions the dashboard's summary already uses are available directly.
+    templates.env.filters["rating_label"] = rating_label
+    templates.env.filters["rating_tone"] = rating_tone
+    # A comparison names a finding by family - check:/hardening: - and the
+    # catalogue does not. Stripping it in one filter keeps the page's links
+    # pointing at entries that exist.
+    templates.env.filters["finding_id"] = finding_id
     # English is what a render falls back to when nobody negotiated a
     # language, so a template is never one missing context variable away from
     # an exception.
@@ -876,6 +898,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     # And before /admin is registered: an area whose sign-in cannot be
     # enforced must not be served at all.
     ensure_admin_ready(settings)
+    # And before a single submission is accepted: an exclusion nobody could
+    # parse would let this service scan exactly what it was told not to.
+    ensure_blocklist_ready(settings.blocked_targets)
     # The window the live audit view reads on a deployment that logs to
     # stdout. Attached only when both the trail and the area are on.
     app.state.recent_audit = install_recent_audit(settings)
@@ -1065,11 +1090,41 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 key="error.rate_limit.client",
             )
 
+        # Read per submission rather than held from startup: an operator who
+        # excludes a target in the area has excluded it for the next request,
+        # in every process, without a restart.
+        #
+        # A store that does not answer refuses the submission instead of
+        # falling back to the environment half (ADR 0044): losing an exclusion
+        # scans something this deployment was told not to touch. It is its own
+        # answer rather than an unhandled error, because the two differ in
+        # everything a visitor can act on - the address is fine, nothing they
+        # change will help, and the way through is to run the scanner
+        # themselves, which is exactly what `self_host` offers.
+        try:
+            exclusions = await effective_exclusions(app.state.backend, settings)
+        except RedisUnavailable as exc:
+            audit.submission_rejected(
+                client=address,
+                reason=REASON_EXCLUSIONS_UNREADABLE,
+                status=503,
+            )
+            LOGGER.warning("submission_refused_exclusions_unreadable")
+            raise _Rejected(
+                "This service cannot reach its own configuration right now, "
+                "and will not scan without knowing what it has been asked to "
+                "leave alone. Please try again in a few minutes.",
+                status=503,
+                self_host=True,
+                key="error.store_unavailable",
+            ) from exc
+
         try:
             target = validate_target(
                 target_url,
                 allow_private=settings.allow_private_targets,
                 allowed_hosts=settings.extra_hosts_allowed,
+                blocked_targets=exclusions,
             )
         except TargetRejected as exc:
             audit.submission_rejected(
@@ -1697,6 +1752,74 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             },
         )
 
+    @app.get("/compare", response_class=HTMLResponse, include_in_schema=False)
+    async def compare_page(request: Request) -> Response:
+        """
+        Did the fixes work? Two uuids a reader already holds, and one answer.
+
+        The same question `--baseline` answers for an operator's monitoring
+        and the `compare_scans` tool answers for an agent, for the person who
+        ran both scans in a browser and until now had no way to ask it. The
+        arithmetic is neither of theirs twice over: this route reads the two
+        result documents and hands them to `workflows.compare_documents`, so
+        a reader and their own alerting cannot disagree about the same pair.
+
+        Both uuids have to be presented and both results have to still exist.
+        Nothing is stored, nothing is listed, and each uuid remains the whole
+        of the authorisation for the result behind it - which is why an
+        unknown one is the same 404 here as anywhere else in the service.
+        """
+        translate = translator_for(request)
+        # Capped before anything is done with them, the form included: a uuid
+        # is 36 characters, the store refuses anything that is not one, and
+        # the value is echoed back into the field a reader types into.
+        def _submitted(name: str) -> str:
+            return (request.query_params.get(name) or "").strip()[:64]
+
+        baseline, current = _submitted("baseline"), _submitted("current")
+        context: dict[str, Any] = {
+            "t": translate,
+            "baseline": baseline,
+            "current": current,
+        }
+        if not baseline or not current:
+            return page(request, "compare.html", context)
+
+        documents: list[dict[str, Any]] = []
+        for side, identifier in (("baseline", baseline), ("current", current)):
+            record = await app.state.store.get(identifier)
+            if record is None:
+                # Which of the two is gone, because "one of your uuids has
+                # expired" sends somebody looking through both.
+                return page(
+                    request,
+                    "compare.html",
+                    {**context, "error": translate(f"compare.error.unknown.{side}")},
+                    status=404,
+                )
+            if record.state != STATE_COMPLETED or record.result is None:
+                return page(
+                    request,
+                    "compare.html",
+                    {**context, "error": translate(f"compare.error.unfinished.{side}")},
+                    status=409,
+                )
+            documents.append(record.result)
+
+        try:
+            comparison = compare_documents(baseline, current, *documents)
+        except WorkflowError as exc:
+            # The rule stays where every surface enforces it; only the wording
+            # is this layer's, because a reader gets the page in their own
+            # language and a workflow's message is English for an agent.
+            return page(
+                request,
+                "compare.html",
+                {**context, "error": translate("compare.error.same")},
+                status=exc.status or 422,
+            )
+        return page(request, "compare.html", {**context, "comparison": comparison})
+
     @app.get("/api/scans/{identifier}/export/{fmt}")
     async def scan_export(request: Request, identifier: str, fmt: str) -> Response:
         """
@@ -1771,11 +1894,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         def admin_operator(request: Request) -> Operator | None:
             return operator_for(request, settings)
 
-        def admin_context(
+        async def admin_context(
             operator: Operator, outcome: dict[str, Any] | None
         ) -> dict[str, Any]:
             return {
                 "operator": operator,
+                # The one reading on this page that is not a setting read at
+                # startup: the exclusions, both halves, as they stand now.
+                # None where the store did not answer, so the card can say it
+                # could not read them rather than draw an empty list, which
+                # here would read as "nothing is excluded".
+                "exclusions": await exclusions_or_none(app.state.backend, settings),
                 "poll_interval": ADMIN_POLL_SECONDS,
                 "stream_minutes": ADMIN_STREAM_MAX_MINUTES,
                 # Past how long an unrefreshed reference document is worth
@@ -1832,7 +1961,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             operator = admin_operator(request)
             if operator is None:
                 return not_found(request)
-            return page(request, "admin.html", admin_context(operator, None))
+            return page(request, "admin.html", await admin_context(operator, None))
 
         @app.get(f"{ADMIN_PATH}/docs/{{slug}}", response_class=HTMLResponse,
                  include_in_schema=False)
@@ -1857,7 +1986,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             document = OPERATOR_DOCUMENTATION_BY_SLUG.get(slug)
             if document is None:
                 return not_found(request)
-            context = admin_context(operator, None)
+            context = await admin_context(operator, None)
             context["admin_tab"] = slug
             # Named so the page can say which repository file it is showing,
             # rather than leaving a reader to guess which document they are
@@ -1906,7 +2035,65 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "seconds": remaining,
             }
             if wants_html(request):
-                return page(request, "admin.html", admin_context(operator, answer))
+                return page(request, "admin.html", await admin_context(operator, answer))
+            return JSONResponse(answer)
+
+        @app.post(f"{ADMIN_PATH}/exclusions", include_in_schema=False)
+        async def admin_exclusions(
+            request: Request,
+            action: str = Form(default=""),
+            entry: str = Form(default=""),
+        ) -> Response:
+            """
+            Add or withdraw one exclusion, in force from the next request.
+
+            The one thing in this area that writes rather than reads
+            ([ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md)).
+            It is bounded on purpose: a list that only ever *refuses* a scan,
+            no target, uuid or result anywhere near it, and the environment's
+            own entries untouchable from here, so what the compose file
+            declares stays true whatever happens in a browser.
+            """
+            operator = admin_operator(request)
+            if operator is None:
+                return not_found(request)
+            if cross_site_post(request, settings):
+                LOGGER.info("admin_cross_site")
+                return _cross_site_response(request, wants_html(request))
+            if action not in {"add", "remove"}:
+                return JSONResponse(
+                    {"state": "failed", "action": action}, status_code=422
+                )
+
+            try:
+                if action == "add":
+                    await add_exclusion(app.state.backend, settings, entry)
+                else:
+                    await remove_exclusion(app.state.backend, settings, entry)
+            except EntryRejected as exc:
+                answer = {
+                    "state": "refused",
+                    "action": f"exclusions.{action}",
+                    "seconds": 0,
+                    "reason": str(exc),
+                    "key": exc.key,
+                }
+                if wants_html(request):
+                    return page(
+                        request,
+                        "admin.html",
+                        await admin_context(operator, answer),
+                        status=422,
+                    )
+                return JSONResponse(answer, status_code=422)
+
+            answer = {
+                "state": "excluded" if action == "add" else "withdrawn",
+                "action": f"exclusions.{action}",
+                "seconds": 0,
+            }
+            if wants_html(request):
+                return page(request, "admin.html", await admin_context(operator, answer))
             return JSONResponse(answer)
 
         @app.post(f"{ADMIN_PATH}/probe", include_in_schema=False)
@@ -1931,7 +2118,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "seconds": remaining,
             }
             if wants_html(request):
-                return page(request, "admin.html", admin_context(operator, answer))
+                return page(request, "admin.html", await admin_context(operator, answer))
             return JSONResponse(answer)
 
         @app.get(f"{ADMIN_PATH}/audit/stream", include_in_schema=False)

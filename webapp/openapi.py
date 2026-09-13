@@ -118,7 +118,8 @@ def _schemas() -> dict[str, Any]:
                         "The OpenCloud instance to scan, as a URL or a bare "
                         "hostname. Must be publicly resolvable: private, "
                         "loopback and link-local addresses are refused with "
-                        "400."
+                        "400, as are any addresses this deployment has been "
+                        "asked not to scan."
                     ),
                     "examples": ["https://opencloud.example.com"],
                 },

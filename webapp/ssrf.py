@@ -16,6 +16,14 @@ to be checked before anything connects to it. The rules:
 - the cloud metadata addresses are refused by name as well, because they are
   the one target where a single successful request is already a breach.
 
+On top of those there is a list the operator writes: ``COS_WEB_BLOCKED_TARGETS``
+names hostnames, domain suffixes and address ranges this deployment will not
+scan, whoever asks. It is checked before anything else is decided, so it
+outranks both ``COS_WEB_ALLOWED_HOSTS`` and ``COS_WEB_ALLOW_PRIVATE_TARGETS``:
+the rules above answer "could this request be an attack", and the exclusion
+answers "does this service scan that at all", which nothing may override. See
+ADR 0043.
+
 The scanner appends only paths it knows to that base address and takes no
 instruction from the submission about *what* to request.
 
@@ -31,8 +39,9 @@ from __future__ import annotations
 import ipaddress
 import re
 import socket
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from urllib.parse import urlsplit
 
 ALLOWED_SCHEMES = ("https", "http")
@@ -88,6 +97,155 @@ BLOCKED_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
     ipaddress.ip_network("64:ff9b::/96"),
     ipaddress.ip_network("64:ff9b:1::/48"),
 )
+
+
+# ---------------------------------------------------------------------------
+# What this deployment has been asked not to scan.
+#
+# Everything above is a property of the address. This is a property of the
+# operator's agreement with the world: an instance whose owner asked to be
+# left alone, a host somebody keeps submitting to make this service hammer it,
+# a range that is not a scanning target however public it looks. None of that
+# is derivable from an address, so it is configuration - and being
+# configuration, it must survive the settings that exist to loosen the rules.
+# ---------------------------------------------------------------------------
+
+IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+EXCLUDED = "This service has been asked not to scan that address."
+
+
+@dataclass(frozen=True)
+class Denylist:
+    """The operator's exclusions, parsed once into the three shapes they take."""
+
+    hostnames: frozenset[str] = frozenset()
+    #: Stored with the leading dot, so ``.example.com`` matches the domain
+    #: itself as well as every name under it and never ``notexample.com``.
+    suffixes: tuple[str, ...] = ()
+    networks: tuple[IPNetwork, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.hostnames or self.suffixes or self.networks)
+
+    def blocks_hostname(self, hostname: str) -> bool:
+        """Whether the name alone is enough to refuse this target."""
+        return hostname in self.hostnames or any(
+            hostname == suffix[1:] or hostname.endswith(suffix)
+            for suffix in self.suffixes
+        )
+
+    def blocks_address(self, address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+        """
+        Whether an address the name resolved to is excluded.
+
+        Checked as well as the name, because an exclusion a second hostname
+        pointing at the same machine walks straight past is not an exclusion.
+        A v4-mapped or 6to4 address is unwrapped first, exactly as
+        :func:`_address_public` does, so a range cannot be re-entered by
+        spelling the address differently.
+        """
+        if isinstance(address, ipaddress.IPv6Address):
+            if address.ipv4_mapped is not None and self.blocks_address(address.ipv4_mapped):
+                return True
+            if address.sixtofour is not None and self.blocks_address(address.sixtofour):
+                return True
+        return any(
+            address in network
+            for network in self.networks
+            if network.version == address.version
+        )
+
+
+def _parse_entry(entry: str) -> str | IPNetwork | None:
+    """
+    One configured entry, or ``None`` when it is not a shape this understands.
+
+    A network comes back as a network, a suffix as a string keeping its
+    leading dot, and a plain hostname as itself - so what an entry *means* is
+    read off the value rather than carried beside it. ``*.example.com`` is
+    accepted as a spelling of ``.example.com``, because that is how most
+    people write a wildcard.
+
+    Length is part of the shape. A name longer than a hostname may be is one
+    :func:`validate_target` refuses as a target anyway, so an entry that long
+    can never match anything: it is a typo, and this is the function whose job
+    is to make a typo loud rather than let it sit in a list excluding nothing.
+    """
+    candidate = entry.strip().lower().rstrip(".")
+    if not candidate or len(candidate) > MAX_TARGET_LENGTH:
+        return None
+    if candidate.startswith("*."):
+        candidate = candidate[1:]
+    if "/" in candidate:
+        try:
+            return ipaddress.ip_network(candidate, strict=False)
+        except ValueError:
+            return None
+    try:
+        return ipaddress.ip_network(candidate.strip("[]"))
+    except ValueError:
+        pass
+    body = candidate.removeprefix(".")
+    return candidate if body and _hostname_shaped(body) else None
+
+
+def normalise_entry(entry: str) -> str | None:
+    """
+    One entry in the single spelling this project keeps it in, or ``None``.
+
+    Used where an entry is *written* rather than read - the operator's area -
+    so that ``Example.COM``, ``example.com.`` and ``example.com`` cannot sit
+    in the list as three exclusions, and so that removing one removes the one
+    that is there whichever way it is typed.
+    """
+    parsed = _parse_entry(entry)
+    if parsed is None:
+        return None
+    if isinstance(parsed, str):
+        return parsed
+    # A single address is written as an address. ``192.0.2.7/32`` is the same
+    # exclusion and nobody would recognise it as the line they added.
+    if parsed.num_addresses == 1:
+        return str(parsed.network_address)
+    return str(parsed)
+
+
+@lru_cache(maxsize=8)
+def denylist(entries: tuple[str, ...] = ()) -> Denylist:
+    """
+    Build the exclusions from what the operator configured.
+
+    Cached on the tuple because the redirect guard asks for it once per hop,
+    and an unparseable entry is simply absent here -
+    :func:`ensure_blocklist_ready` is what makes sure nobody ever runs with one.
+    """
+    parsed = [value for value in map(_parse_entry, entries) if value is not None]
+    names = [value for value in parsed if isinstance(value, str)]
+    return Denylist(
+        hostnames=frozenset(name for name in names if not name.startswith(".")),
+        suffixes=tuple(name for name in names if name.startswith(".")),
+        networks=tuple(value for value in parsed if not isinstance(value, str)),
+    )
+
+
+def ensure_blocklist_ready(entries: Iterable[str]) -> None:
+    """
+    Refuse to start a deployment whose exclusions do not all parse.
+
+    A typo in this list is invisible at runtime: the service comes up, answers
+    normally, and scans the instance somebody asked it never to touch. There
+    is no log line an operator would read in time, so the mistake is made
+    loudly at startup instead.
+    """
+    unparsed = [entry for entry in entries if entry.strip() and _parse_entry(entry) is None]
+    if unparsed:
+        raise ValueError(
+            "COS_WEB_BLOCKED_TARGETS contains entries that are neither a "
+            f"hostname, a .suffix, an address nor a CIDR range: {', '.join(unparsed)}. "
+            "An entry that does not parse excludes nothing, and a deployment "
+            "would go on scanning what it was told to leave alone."
+        )
 
 
 class TargetRejected(ValueError):
@@ -271,6 +429,7 @@ def validate_target(
     *,
     allow_private: bool = False,
     allowed_hosts: tuple[str, ...] = (),
+    blocked_targets: tuple[str, ...] = (),
     address_only: bool = True,
 ) -> Target:
     """
@@ -283,9 +442,16 @@ def validate_target(
     a port, and nothing appended to them. A redirect the scanned instance
     answers with is checked with it off, because that URL is the instance
     talking, not the visitor.
+
+    ``blocked_targets`` is the operator's exclusion list and is the one rule
+    neither ``allow_private`` nor ``allowed_hosts`` can open.
     """
     scheme, hostname, port, path = _split(raw, address_only=address_only)
     exempt = _hostname_allowed(hostname, allowed_hosts)
+    excluded = denylist(tuple(blocked_targets))
+
+    if excluded.blocks_hostname(hostname):
+        raise _reject(EXCLUDED, "error.target.blocked")
 
     if len(hostname) > MAX_TARGET_LENGTH and not hostname.startswith("["):
         raise _reject("That hostname is too long.", "error.target.hostname_long")
@@ -310,6 +476,13 @@ def validate_target(
     else:
         addresses = _resolve(hostname)
 
+    # Before the public-address rules, and outside the exemptions they honour:
+    # an excluded range stays excluded for an allowed host and on a deployment
+    # that scans its own private estate.
+    for address in addresses:
+        if excluded.blocks_address(address):
+            raise _reject(EXCLUDED, "error.target.blocked")
+
     if not (allow_private or exempt):
         for address in addresses:
             if not _address_public(address):
@@ -329,17 +502,21 @@ def validate_target(
 
 
 def revalidate(target: Target, *, allow_private: bool = False,
-               allowed_hosts: tuple[str, ...] = ()) -> Target:
+               allowed_hosts: tuple[str, ...] = (),
+               blocked_targets: tuple[str, ...] = ()) -> Target:
     """
     Check the target again, in the worker, right before the scan.
 
     Called from the job so that a DNS answer which changed since the request
-    was accepted is caught rather than trusted.
+    was accepted is caught rather than trusted. The exclusions are re-read
+    here too, so a target queued before an operator excluded it is refused
+    rather than scanned by a job that was already in flight.
     """
     return validate_target(
         target.display,
         allow_private=allow_private,
         allowed_hosts=allowed_hosts,
+        blocked_targets=blocked_targets,
     )
 
 
@@ -347,6 +524,7 @@ def redirect_guard(
     *,
     allow_private: bool = False,
     allowed_hosts: tuple[str, ...] = (),
+    blocked_targets: tuple[str, ...] = (),
 ) -> Callable[[str], bool]:
     """
     Build the check the scanner asks before following one redirect.
@@ -367,6 +545,7 @@ def redirect_guard(
                 url,
                 allow_private=allow_private,
                 allowed_hosts=allowed_hosts,
+                blocked_targets=blocked_targets,
                 address_only=False,
             )
         except TargetRejected:
@@ -380,6 +559,7 @@ def redirect_pinner(
     *,
     allow_private: bool = False,
     allowed_hosts: tuple[str, ...] = (),
+    blocked_targets: tuple[str, ...] = (),
 ) -> Callable[[str], tuple[str, ...] | None]:
     """Validate a redirect and return the exact addresses it may use."""
 
@@ -389,6 +569,7 @@ def redirect_pinner(
                 url,
                 allow_private=allow_private,
                 allowed_hosts=allowed_hosts,
+                blocked_targets=blocked_targets,
                 address_only=False,
             ).addresses
         except TargetRejected:

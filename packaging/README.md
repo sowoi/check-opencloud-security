@@ -14,6 +14,7 @@ what an operator does with them is
 | `check-opencloud-scanner.sh` | Becomes `/usr/bin/check-opencloud-scanner`. |
 | `scripts/postinstall.sh`, `scripts/postremove.sh` | `systemctl daemon-reload`, and nothing else. |
 | `homebrew/check-opencloud-security.rb` | The Homebrew formula, generated. See below. |
+| `tests/install-smoke.sh` | Installs a built package in a clean distribution container, runs it and removes it. The release dry run runs it on Debian, Ubuntu and Fedora for every pull request. |
 
 ## Building
 
@@ -64,7 +65,8 @@ which it installs as:
 brew install sowoi/tap/check-opencloud-security
 ```
 
-Nothing here pushes to that tap. A release workflow writing to a second
+`homebrew-formula.yml` runs `--check` daily and opens a pull request with the
+regenerated formula when a release was missed. Nothing here pushes to that tap. A release workflow writing to a second
 repository needs a token with write access to it, which is a decision about
 credentials rather than about packaging.
 

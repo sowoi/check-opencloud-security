@@ -70,6 +70,11 @@ EVENT_DATA_PURGED = "data_purged"
 
 REASON_UNSUPPORTED_FIELDS = "unsupported_fields"
 REASON_TARGET_REJECTED = "target_rejected"
+#: The exclusions could not be read, so the submission was refused rather
+#: than run without them. A fault of this deployment, not of the target, and
+#: recorded apart from `target_rejected` so that an operator reading the
+#: trail is not looking for a bad address that was never the problem.
+REASON_EXCLUSIONS_UNREADABLE = "exclusions_unreadable"
 REASON_RATE_LIMIT_CLIENT = "rate_limit_client"
 REASON_RATE_LIMIT_TARGET = "rate_limit_target"
 REASON_BATCH_TOO_LARGE = "batch_too_large"

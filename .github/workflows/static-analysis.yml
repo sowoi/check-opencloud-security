@@ -1,0 +1,113 @@
+name: Static analysis
+
+# The parts of the tree that ruff, mypy and Bandit never read:
+#
+# - shellcheck: the package's install scripts, which run as root on every
+#   host that installs the .deb or the .rpm, the two launchers on PATH, and
+#   the Authentik secret writer
+# - hadolint: both Dockerfiles
+# - docker compose config: every compose file parses and matches the schema
+# - Biome: the frontend's own scripts (rules in biome.jsonc)
+#
+# Every tool is pinned by version; the binaries by digest as well.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: "0.11.0"
+          SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+        run: |
+          curl -fsSL -o /tmp/shellcheck.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          echo "${SHELLCHECK_SHA256}  /tmp/shellcheck.tar.xz" | sha256sum --check --strict
+          tar -xJf /tmp/shellcheck.tar.xz -C /tmp
+          sudo install -m 0755 "/tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+
+      # Every tracked shell script, found by git rather than listed, so a new
+      # one is covered the moment it is committed.
+      - name: Run shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
+  hadolint:
+    name: hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install hadolint
+        env:
+          HADOLINT_VERSION: "2.15.1"
+          HADOLINT_SHA256: "c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507"
+        run: |
+          curl -fsSL -o /tmp/hadolint \
+            "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64"
+          echo "${HADOLINT_SHA256}  /tmp/hadolint" | sha256sum --check --strict
+          sudo install -m 0755 /tmp/hadolint /usr/local/bin/hadolint
+
+      - name: Run hadolint
+        run: git ls-files -z '*Dockerfile*' | xargs -0 hadolint
+
+  compose:
+    name: docker compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # --no-interpolate: the Authentik stack refuses to render without the
+      # secrets docker/authentik-env.sh writes into docker/.env, which a CI
+      # checkout rightly does not have. The structure is what is checked.
+      # Run from docker/, as the compose files are.
+      - name: Validate every compose file
+        working-directory: docker
+        run: |
+          for file in docker-compose*.yml; do
+            echo "::group::${file}"
+            docker compose -f "$file" config --quiet --no-interpolate
+            echo "::endgroup::"
+          done
+
+  biome:
+    name: Biome (frontend scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      # Pinned by version and run through npx rather than installed from a
+      # package.json: nothing else in this repository is Node.
+      - name: Run Biome
+        run: npx --yes @biomejs/biome@2.5.13 lint --error-on-warnings # zizmor: ignore[adhoc-packages]

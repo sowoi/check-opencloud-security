@@ -30,7 +30,7 @@
         try {
             var value = window.localStorage.getItem("theme");
             return value === "light" || value === "dark" ? value : null;
-        } catch (error) {
+        } catch (_error) {
             return null;
         }
     }
@@ -62,7 +62,7 @@
         paintBrowserChrome(theme);
         try {
             window.localStorage.setItem("theme", theme);
-        } catch (error) {
+        } catch (_error) {
             // A browser that will not remember it still honours it for this
             // page, which is better than refusing to switch at all.
         }

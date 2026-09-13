@@ -39,9 +39,12 @@ COPY --from=builder /dist/*.whl /tmp/
 # if some tool of yours needs it.
 RUN uv pip install --system --no-cache /tmp/*.whl \
     && rm -rf /tmp/*.whl /bin/uv \
-    && useradd --no-create-home --shell /usr/sbin/nologin nagios
+    && useradd --no-create-home --shell /usr/sbin/nologin --uid 1000 nagios
 
-USER nagios
+# Numeric, so a runtime that checks runAsNonRoot can tell without reading
+# /etc/passwd. 1000 is the uid useradd already assigned here, so files an
+# existing deployment mounted in keep their owner.
+USER 1000
 
 # Port of the optional scan service (`check-opencloud-scanner serve`).
 EXPOSE 8811

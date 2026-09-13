@@ -5,21 +5,31 @@ A dashboard is not documentation: nobody reads it, they import it, and a panel
 querying a metric that was renamed two releases ago renders an empty rectangle
 rather than an error. These tests derive the metric names from the exporter
 itself, so a rename breaks the suite instead of the operator's wall display.
+
+The Checkmk local check is the same bargain in the other direction: it is
+copied to an agent host and never read again, so it is run here - against a
+fake instance, and with the plugin taken away - rather than reviewed.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
 
 from opencloud_local_scan.prometheus import render
+from tests.fake_opencloud import FakeOpenCloud
+from tests.test_e2e_cli import PLUGIN, coverage_environment
 
 ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD = ROOT / "contrib" / "grafana" / "dashboard.json"
 ALERTS = ROOT / "contrib" / "prometheus" / "alerts.yml"
+LOCAL_CHECK = ROOT / "contrib" / "checkmk" / "opencloud_security"
 
 #: A result document that reaches every optional metric family. Written out
 #: rather than scanned, because the point is the *union* of what the exporter
@@ -143,3 +153,83 @@ def test_every_dashboard_panel_says_what_it_is_for():
 
     for panel in dashboard["panels"]:
         assert panel["description"].strip(), panel["title"]
+
+
+def _run_local_check(**environment: str) -> subprocess.CompletedProcess:
+    """Run the shipped local check the way the Checkmk agent runs it."""
+    return subprocess.run(
+        ["/bin/sh", str(LOCAL_CHECK)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(ROOT),
+            "COS_UPDATE_SOURCE": "off",
+            "COS_SCANNER_SCHEME": "http",
+            "COS_SCANNER_CHECK_DEBUG_PORTS": "false",
+            **coverage_environment(),
+            **environment,
+        },
+    )
+
+
+def _plugin_shim(tmp_path: Path) -> str:
+    """The plugin as an executable on PATH, which is how the agent host has it."""
+    shim = tmp_path / "check-opencloud-security"
+    shim.write_text(f'#!/bin/sh\nexec {sys.executable} {PLUGIN} "$@"\n', encoding="utf-8")
+    shim.chmod(0o755)
+    return str(shim)
+
+
+def test_the_checkmk_local_check_prints_one_line_the_agent_can_parse(tmp_path):
+    """
+    The shipped script is copied to an agent host and never read again.
+
+    Checkmk drops a local check line it cannot split into state, quoted
+    service name, metrics and detail - silently, as a service that never
+    appears - so the shape is asserted here rather than discovered there.
+    """
+    with FakeOpenCloud() as instance:
+        result = _run_local_check(
+            COS_HOST=instance.host, COS_PLUGIN=_plugin_shim(tmp_path)
+        )
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.strip().splitlines()
+    assert len(lines) == 1
+    state, rest = lines[0].split(" ", 1)
+    assert state in {"0", "1", "2", "3"}
+    service, rest = rest[1:].split('"', 1)
+    assert service.startswith("OpenCloud_Security_")
+    metrics, detail = rest.lstrip(" ").split(" ", 1)
+    names = dict(metric.split("=", 1) for metric in metrics.split("|"))
+    assert names["rating"] == "5"
+    # The script's own COS_CHECK_HARDENING default has to reach the plugin:
+    # without it the scan runs but reports none of the measures an instance
+    # is missing, and the metric is left out entirely.
+    assert "hardenings_missing" in names
+    assert detail
+
+
+def test_the_checkmk_local_check_reports_a_missing_plugin_as_unknown(tmp_path):
+    """
+    The negative case, and the one an agent host actually hits.
+
+    A local check that prints nothing removes its service from the host
+    instead of alerting, so an uninstalled plugin would look like a check
+    somebody had deliberately switched off.
+    """
+    result = _run_local_check(
+        COS_HOST="opencloud.example.com", COS_PLUGIN=str(tmp_path / "absent")
+    )
+
+    assert result.returncode == 0, result.stderr
+    line = result.stdout.strip()
+    assert line.startswith('3 "OpenCloud_Security" - UNKNOWN:')
+
+
+def test_the_checkmk_local_check_is_executable():
+    """It is installed with `install -m 0755`; a mode of 644 is a service that never runs."""
+    assert os.access(LOCAL_CHECK, os.X_OK)

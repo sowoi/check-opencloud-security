@@ -55,6 +55,17 @@ services:
       # not a discount: every target still counts against the client limit and
       # still claims its own cooldown.
       COS_WEB_MAX_BATCH_TARGETS: "10"
+      # Addresses this deployment will not scan, whoever asks: hostnames,
+      # .suffix domains and CIDR ranges, separated by ';'. Set it once in a
+      # .env file next to this one - the worker below reads the same variable,
+      # because it checks the target again before the scan:
+      #
+      #     COS_WEB_BLOCKED_TARGETS="opencloud.example.com;.example.org;203.0.113.0/24"
+      #
+      # It outranks COS_WEB_ALLOWED_HOSTS and COS_WEB_ALLOW_PRIVATE_TARGETS,
+      # and an entry that is none of those shapes refuses startup rather than
+      # excluding nothing quietly.
+      COS_WEB_BLOCKED_TARGETS: "${COS_WEB_BLOCKED_TARGETS:-}"
       # Only set this when a reverse proxy of your own is in front. The header
       # is then read from the right, COS_WEB_TRUSTED_PROXY_HOPS entries in,
       # because that end is the only part a proxy writes - nginx, Traefik and
@@ -230,6 +241,10 @@ services:
       # Refuse private, loopback and link-local targets. Turn this on only for
       # a deployment that is meant to scan its own network.
       COS_WEB_ALLOW_PRIVATE_TARGETS: "false"
+      # The same exclusions the API refuses submissions with. The worker
+      # resolves and checks the target once more immediately before scanning,
+      # so a list it did not have would be a list a queued job walks past.
+      COS_WEB_BLOCKED_TARGETS: "${COS_WEB_BLOCKED_TARGETS:-}"
       # Connecting to extra ports on a host a stranger submitted is a port
       # scan. Off unless the targets are your own.
       COS_WEB_CHECK_DEBUG_PORTS: "false"

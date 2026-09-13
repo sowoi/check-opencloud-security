@@ -846,6 +846,27 @@ CHECKS: dict[str, Hardening] = {
         ),
         reference=DOCS_TLS,
     ),
+    "addressParity": Hardening(
+        id="addressParity",
+        category="proxy",
+        title="The name's addresses do not all serve the same instance",
+        meaning=(
+            "The hostname resolves to several addresses, and they answer with "
+            "a different release, different security headers or hardening, or "
+            "still accept the documented demo accounts. Whoever reaches "
+            "the odd node gets the configuration nobody is watching - a scan "
+            "that dials the name once sees only whichever address the resolver "
+            "put first. Reported only when the scan was asked to dial every "
+            "address; unlike tlsAddressParity, which compares the TLS identity "
+            "of the two DNS families, this compares what each address serves."
+        ),
+        remediation=(
+            "Roll the same configuration out to every node behind the name, or "
+            "take the node that lags out of DNS until it has caught up. A node "
+            "serving an older release needs the upgrade the others already had."
+        ),
+        reference=DOCS_REVERSE_PROXY,
+    ),
     "cookieSecure": Hardening(
         id="cookieSecure",
         category="cookies",

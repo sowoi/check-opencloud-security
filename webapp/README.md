@@ -73,6 +73,9 @@ frontend/
     ├── js/scan.js    polls /api/scans/{uuid} until the scan settles
     ├── js/rescan.js  counts down the wait before the same instance may be scanned again
     ├── js/fragment.js the picker over the rendered configuration fragments
+    ├── js/compare-offer.js offers the comparison with this tab's earlier scan of the same target
+    ├── js/expiry.js  keeps the expiry line current and warns before a report disappears
+    ├── js/remember.js offers back the last settings the form was submitted with
     └── img/*.svg     drawn for this project
 ```
 
@@ -145,6 +148,7 @@ A small surface, and this is all of it.
 |:-------|:-----|:-------------|
 | `GET` | `/` | The landing page and the form |
 | `GET` | `/how-it-works`, `/grades`, `/documentation`, `/search`, `/api`, `/ai`, `/privacy`, `/about` | The content pages the landing page links to; HTML only, never in the schema |
+| `GET` | `/compare` | Two finished scans compared, from `?baseline=` and `?current=`; HTML only, and never in the schema because it renders results |
 | `GET` | `/cli` | **301** to `/documentation#oneliner`; the Docker one-liners moved onto that page |
 | `POST` | `/` | The form submission; **303** to `/scan/{uuid}` |
 | `POST` | `/api/scans` | The same handler for API clients; **202** with the uuid |
@@ -183,13 +187,17 @@ given, which is why the form's input field is not `type="url"`.
 |:-------|:-----|
 | **202** | Accepted and queued, even when every worker is busy |
 | **303** | The same, for a browser: `Location: /scan/{uuid}` |
-| **400** | A target that cannot be scanned: private, loopback, unresolvable, malformed |
+| **400** | A target that cannot be scanned: private, loopback, unresolvable, malformed, or excluded by `COS_WEB_BLOCKED_TARGETS` |
 | **422** | A field the service does not accept, named in the message |
 | **429** | A rate limit, with `Retry-After` and a pointer to running it yourself |
+| **503** | This deployment could not read its own exclusions, so it will not scan. Never a busy service |
 
 An overloaded service still answers **202**. Submissions past the worker count
-wait in FIFO order and the position is shown on the page; a valid submission
-never gets a **503**.
+wait in FIFO order and the position is shown on the page; **load is never a
+503**. The one submission that gets one is the deployment saying something
+about itself rather than about the request: it could not reach the store
+holding the exclusions, and scanning without knowing what it was asked to
+leave alone is the one failure worth refusing a valid target over.
 
 ### Polling a scan
 
@@ -612,6 +620,20 @@ The other standing restrictions:
   addresses are refused, hostnames are resolved and every address checked, and
   the target is validated again in the worker so a DNS answer that changed in
   between is caught rather than trusted.
+- **Whatever the operator excluded, on top.** `COS_WEB_BLOCKED_TARGETS` names
+  hostnames, `.suffix` domains and CIDR ranges this deployment will not scan
+  for anybody - the answer to an instance owner who asks to be left alone. It
+  is checked at submission, again in the worker and on every redirect hop, and
+  it outranks both `COS_WEB_ALLOWED_HOSTS` and `COS_WEB_ALLOW_PRIVATE_TARGETS`
+  ([ADR 0043](../adr/0043-an-operators-exclusion-outranks-every-allowance.md)).
+  The operator's area adds to the same list at runtime, in force from the next
+  request in every process and refusing a scan that is already queued; the
+  environment's own entries cannot be withdrawn from a browser, and the two
+  halves are compared parsed rather than as text, so one exclusion spelled two
+  ways is still one exclusion
+  ([ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md)).
+  A store that will not answer refuses the submission with **503** rather than
+  scanning without the list.
 - **One scan per target per cooldown**, and a per-client limit on top.
 - **No port scanning.** `COS_WEB_CHECK_DEBUG_PORTS` is off; connecting to
   extra ports on a host a stranger named is not something to do uninvited.
@@ -645,6 +667,7 @@ before the first deployment:
 | `COS_WEB_INDEX_META_TAG` | *(empty)* | Up to 10 `name=content` metadata tags on the landing page, separated by `;`. Rendered as escaped attributes; raw HTML, duplicate, and reserved metadata are refused |
 | `COS_WEB_ALLOW_INDEXING` | `true` | Index the six public pages. A result page is `noindex` either way |
 | `COS_WEB_ALLOW_PRIVATE_TARGETS` | `false` | On-premise deployments scanning their own network |
+| `COS_WEB_BLOCKED_TARGETS` | *(empty)* | Addresses this deployment will not scan: hostnames, `.suffix` domains and CIDR ranges, separated by `;`. Outranks the allowlist and the private-target setting; an unparseable entry refuses startup |
 | `COS_WEB_ENABLE_DOCS` | `false` | The browsable Swagger UI and ReDoc pages. The schema itself is public regardless |
 | `COS_WEB_ENABLE_MCP` | `true` | The MCP endpoint at `/mcp` and browser WebMCP tools, when the optional `mcp` extra is installed |
 | `COS_WEB_SCHEDULE_REFRESH` | `true` | Re-read the OpenCloud release lifecycle page once a day, so a long-running deployment does not rate against the schedule its image shipped with |

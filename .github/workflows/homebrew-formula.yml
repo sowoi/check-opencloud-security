@@ -1,0 +1,75 @@
+name: Homebrew formula
+
+# packaging/homebrew/check-opencloud-security.rb pins a release PyPI has
+# already published, so it can only be regenerated after a release - and
+# nothing did that: when this workflow was added the formula still pinned
+# 1.20.0 while 1.21.3 was out.
+#
+# Daily, it asks `build_homebrew_formula.py --check` whether the formula pins
+# the newest release and, when it does not, regenerates it and opens a pull
+# request. A schedule rather than a trigger on "Publish to PyPI": it gives
+# PyPI's index time to serve the new files, and a workflow_run trigger is one
+# more privileged event to reason about for a job that can wait a day.
+#
+# Only this repository's copy is updated. Copying it into the tap is a push
+# to a second repository, which needs a credential this workflow does not hold
+# (packaging/README.md).
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: Refresh the Homebrew formula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      - name: Install the locked test environment
+        run: uv sync --locked --group test
+
+      - name: Regenerate the formula if a release was missed
+        id: formula
+        run: |
+          if uv run python scripts/build_homebrew_formula.py --check; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          else
+            uv run python scripts/build_homebrew_formula.py
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate the regenerated formula
+        if: steps.formula.outputs.stale == 'true'
+        run: uv run pytest -q tests/test_homebrew_formula.py
+
+      - name: Open pull request on change
+        if: steps.formula.outputs.stale == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          add-paths: |
+            packaging/homebrew/check-opencloud-security.rb
+          branch: chore/homebrew-formula
+          commit-message: "chore: regenerate the Homebrew formula for the newest release"
+          title: "chore: regenerate the Homebrew formula for the newest release"
+          body: |
+            Automated regeneration of
+            `packaging/homebrew/check-opencloud-security.rb` by
+            `scripts/build_homebrew_formula.py`, because the committed formula
+            no longer pinned the newest release on PyPI.
+
+            Every URL and `sha256` in it was read from PyPI. After merging,
+            copy the file into the tap's `Formula/` directory - see
+            `packaging/README.md`.
+          delete-branch: true

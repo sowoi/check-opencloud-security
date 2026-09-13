@@ -253,6 +253,28 @@ def catalogue_link(name: object) -> str | None:
     return None if anchor is None else f"{CATALOGUE_PATH}#{anchor}"
 
 
+#: How the plugin's baseline names a finding in a snapshot: the family, then
+#: the identifier. It is written that way so that a hardening and a check of
+#: the same name cannot collide in one set.
+_FINDING_FAMILIES = ("check:", "hardening:")
+
+
+def finding_id(name: object) -> str:
+    """
+    The bare identifier inside a baseline finding name.
+
+    A comparison works on ``check:exposed:/opencloud.yaml``; the catalogue,
+    the result page and the reader all know it as ``exposed:/opencloud.yaml``.
+    Only the leading family is removed, because the rest of a path-shaped
+    identifier has colons of its own.
+    """
+    text = str(name)
+    for family in _FINDING_FAMILIES:
+        if text.startswith(family):
+            return text[len(family) :]
+    return text
+
+
 # Working the track out from the release the instance reports is right more
 # often than any fixed guess, and it is the answer the schedule gives when
 # nobody declares a track. A stranger's server is the case that matters here:
