@@ -30,15 +30,17 @@ from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
 from webapp.app import create_app
 from webapp.blocklist import (
     BLOCKLIST_KEY,
+    MAX_ENTRY_LENGTH,
     MAX_STORED_ENTRIES,
     EntryRejected,
     Exclusions,
     add_exclusion,
     effective_exclusions,
     read_exclusions,
+    remove_exclusion,
 )
 from webapp.runner import execute_scan
-from webapp.ssrf import TargetRejected, validate_target
+from webapp.ssrf import TargetRejected, ensure_blocklist_ready, validate_target
 
 SECRET = "b" * 48
 OPERATOR = "okko"
@@ -327,3 +329,75 @@ def test_an_empty_list_is_said_rather_than_drawn_as_nothing():
         page = client.get("/admin", headers=FORWARDED).text
 
     assert "Nothing is excluded" in page
+
+
+def test_the_two_halves_are_one_exclusion_however_each_is_spelled():
+    """
+    An entry is normalised on the way into the store and never on the way out
+    of the environment, because the card shows the compose file's own
+    characters. Comparing those two as strings made ``Example.COM`` and
+    ``example.com`` two exclusions where the guard, which parses both, only
+    ever saw one - so the area would store a duplicate, list it twice and
+    offer a remove button that does nothing an operator can see.
+    """
+    store = backend()
+    configured = _admin_settings(blocked_targets=("Example.COM",))
+
+    added = asyncio.run(add_exclusion(store, configured, "example.com."))
+
+    assert added.stored == (), "the environment already excludes it"
+    assert added.stored_only == ()
+    assert added.effective == ("Example.COM",)
+    # And the negative: a name the environment does not hold is still stored.
+    other = asyncio.run(add_exclusion(store, configured, "other.example.org"))
+    assert other.stored == ("other.example.org",)
+    assert other.stored_only == ("other.example.org",)
+
+
+def test_an_environment_entry_cannot_be_withdrawn_under_another_spelling():
+    """
+    The refusal has to survive the spelling, or it is a lock with one key
+    missing: an operator who types the name the way DNS writes it would be
+    told the entry was withdrawn while the deployment goes on excluding it.
+    """
+    store = backend()
+    configured = _admin_settings(blocked_targets=("Example.COM",))
+
+    with pytest.raises(EntryRejected) as refused:
+        asyncio.run(remove_exclusion(store, configured, "example.com"))
+
+    assert refused.value.key == "admin.blocklist.error.configured"
+
+
+def test_an_entry_longer_than_a_hostname_is_refused():
+    """
+    MAX_STORED_ENTRIES counts entries, so on its own it bounds nothing: 200
+    entries of any length is not a ceiling on what the area can write into
+    Redis. The length is also the honest answer - a name longer than this is
+    one validate_target refuses as a target, so the entry could never match.
+    """
+    store = backend()
+    configured = _admin_settings()
+    too_long = ".".join(["label"] * 60)
+    assert len(too_long) > MAX_ENTRY_LENGTH
+
+    with pytest.raises(EntryRejected) as refused:
+        asyncio.run(add_exclusion(store, configured, too_long))
+
+    assert refused.value.key == "admin.blocklist.error.long"
+    assert asyncio.run(read_exclusions(store, configured)).stored == ()
+    # And the negative: a name of exactly the permitted length is stored.
+    longest = ("a" * 61 + ".") * 4 + "a" * 5
+    assert len(longest) == MAX_ENTRY_LENGTH
+    assert asyncio.run(add_exclusion(store, configured, longest)).stored == (longest,)
+
+
+def test_an_over_long_environment_entry_refuses_startup():
+    """
+    The same ceiling on the half nobody can edit from a browser. An entry
+    that cannot match is a typo, and ensure_blocklist_ready exists so that a
+    typo here is loud at startup rather than a deployment quietly scanning
+    what it was told to leave alone.
+    """
+    with pytest.raises(ValueError, match="neither a hostname"):
+        ensure_blocklist_ready((".".join(["label"] * 60),))

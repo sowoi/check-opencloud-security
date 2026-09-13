@@ -277,8 +277,10 @@
       <span class="admin-surface-pill">{{ t('admin.exclusions.source.configured') }}</span>
     </li>
     {% endfor %}
-    {% for entry in exclusions.stored %}
-    {% if entry not in exclusions.configured %}
+    {# stored_only, not stored: an entry the environment also names is listed
+       under its own half above and cannot be withdrawn here, so a remove
+       button beside it would be a button that answers with a refusal. #}
+    {% for entry in exclusions.stored_only %}
     <li class="admin-exclusion" data-source="stored">
       <span class="admin-exclusion-entry">{{ entry }}</span>
       <form method="post" action="/admin/exclusions">
@@ -287,7 +289,6 @@
         <button class="btn btn-quiet" type="submit">{{ t('admin.exclusions.remove') }}</button>
       </form>
     </li>
-    {% endif %}
     {% endfor %}
     {% if not exclusions.effective %}
     <li class="admin-exclusion" data-source="empty">

@@ -234,3 +234,59 @@ def test_an_empty_list_changes_nothing():
     assert not denylist(())
     assert _submit(client(), "https://cloud.example.com").status_code == 202
     assert _submit(client(blocked_targets=("",)), "https://cloud.example.com").status_code == 202
+
+
+def test_a_store_that_cannot_be_read_refuses_the_scan_rather_than_running_it(
+    monkeypatch,
+):
+    """
+    Losing an exclusion scans something this deployment was told not to touch,
+    so this is the one reference document that does not fall back to what
+    shipped. What it must not do is fall over: the refusal is an answer, with
+    the sentence the visitor reads, the 503 a client can retry on, and the
+    pointer at running the scanner themselves - none of which an unhandled
+    error carries.
+    """
+    from webapp.redis_backend import RedisUnavailable
+
+    test_client = client()
+
+    async def unavailable(*_args, **_kwargs):
+        raise RedisUnavailable()
+
+    monkeypatch.setattr(test_client.app.state.backend, "get", unavailable)
+
+    refused = _submit(test_client)
+
+    assert refused.status_code == 503
+    payload = refused.json()
+    assert "configuration" in payload["detail"]
+    # A refusal the visitor cannot do anything about is exactly the one that
+    # should say the scanner runs at home without this service.
+    assert payload["selfHostUrl"]
+
+
+def test_the_store_being_unreadable_is_said_in_the_visitor_s_language(monkeypatch):
+    """
+    Most people submit in a browser, and a 503 body is not a page.
+
+    The same refusal has to arrive as the form again, with the sentence in
+    the language the page is in rather than the API's English.
+    """
+    from webapp.redis_backend import RedisUnavailable
+
+    test_client = client()
+
+    async def unavailable(*_args, **_kwargs):
+        raise RedisUnavailable()
+
+    monkeypatch.setattr(test_client.app.state.backend, "get", unavailable)
+
+    refused = test_client.post(
+        "/",
+        data={"target_url": "https://cloud.example.com"},
+        headers={"accept": "text/html", "accept-language": "de"},
+    )
+
+    assert refused.status_code == 503
+    assert "eigene Konfiguration" in refused.text

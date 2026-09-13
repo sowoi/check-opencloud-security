@@ -185,10 +185,30 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   scanning somebody who asked not to be. See
   [ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md).
 
+  **That refusal is an answer, not a stack trace**: HTTP 503 with a sentence
+  in the visitor's own language saying the service cannot reach its own
+  configuration, and - because there is nothing they can change to get past it
+  - the same pointer at running the scanner themselves that a rate limit
+  carries. The audit trail records it as `exclusions_unreadable` rather than
+  as a rejected target, so an operator reading the trail is not sent looking
+  for a bad address that was never the problem.
+
+  **The two halves are one list, however each is spelled.** An entry written
+  in the area is normalised; one from the environment is shown exactly as the
+  compose file spells it, so that card and file can be read side by side.
+  Comparing those two as text made `Example.COM` and `example.com` two
+  exclusions where the guard, which parses both, only ever saw one - so they
+  are now compared parsed: the area declines to store what the environment
+  already holds, and refuses to withdraw it under any spelling.
+
   Entries added there live in Redis and are as durable as it is; the card says
   so, and points at the environment variable for anything that must outlive a
-  flush. `/admin/state` - the document an operator copies into an issue report
-  - carries how many exclusions are in force and never which.
+  flush. An entry is capped at 253 characters, the longest a hostname can be,
+  in the area and in `COS_WEB_BLOCKED_TARGETS` alike - anything longer could
+  never match a target this service would accept, so it is a typo, and the
+  ceiling on the number of entries bounds nothing without it. `/admin/state` -
+  the document an operator copies into an issue report - carries how many
+  exclusions are in force and never which.
 
 ### Changed
 

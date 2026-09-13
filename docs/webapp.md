@@ -497,8 +497,17 @@ has an *Exclusions* card that adds and withdraws entries, and:
 - entries added in the area live in **Redis**, so they are as durable as your
   Redis is. Anything that must outlive a flush belongs in the environment
   variable;
+- an entry is at most **253 characters**, the longest a hostname can be, here
+  and in `COS_WEB_BLOCKED_TARGETS` alike. Anything longer could never match a
+  target the service accepts, so it is refused as the typo it is;
+- the two halves are compared **parsed, not as text**, so `Example.COM` in the
+  environment and `example.com` in the area are one exclusion rather than two:
+  the area declines to store what the environment already holds, and refuses
+  to withdraw it under any spelling;
 - if the store cannot be read, a submission is **refused rather than scanned**
-  without the list.
+  without the list - `503`, with the reason in the visitor's language and the
+  pointer at self-hosting, and an `exclusions_unreadable` line in the audit
+  trail rather than a rejected target.
 
 The card is the one thing in that area that writes; see
 [ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md) for the

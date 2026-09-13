@@ -166,9 +166,14 @@ def _parse_entry(entry: str) -> str | IPNetwork | None:
     read off the value rather than carried beside it. ``*.example.com`` is
     accepted as a spelling of ``.example.com``, because that is how most
     people write a wildcard.
+
+    Length is part of the shape. A name longer than a hostname may be is one
+    :func:`validate_target` refuses as a target anyway, so an entry that long
+    can never match anything: it is a typo, and this is the function whose job
+    is to make a typo loud rather than let it sit in a list excluding nothing.
     """
     candidate = entry.strip().lower().rstrip(".")
-    if not candidate:
+    if not candidate or len(candidate) > MAX_TARGET_LENGTH:
         return None
     if candidate.startswith("*."):
         candidate = candidate[1:]

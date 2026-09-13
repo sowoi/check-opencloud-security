@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 
 from .redis_backend import RedisBackend, RedisUnavailable
 from .settings import WebSettings
-from .ssrf import normalise_entry
+from .ssrf import MAX_TARGET_LENGTH, normalise_entry
 
 LOGGER = logging.getLogger("check_opencloud.web.blocklist")
 
@@ -47,6 +47,12 @@ BLOCKLIST_KEY = "cos:web:blocklist"
 #: the ceiling is here so that a control which writes to Redis cannot be used
 #: to fill it, and it is checked when adding rather than when reading.
 MAX_STORED_ENTRIES = 200
+
+#: How long one of them may be. MAX_STORED_ENTRIES counts entries, so without
+#: this the pair bounds nothing: 200 entries of any length is not a ceiling.
+#: The number is the longest hostname there is, which is also the longest
+#: target `validate_target` will take - anything above it could not match.
+MAX_ENTRY_LENGTH = MAX_TARGET_LENGTH
 
 
 class EntryRejected(ValueError):
@@ -65,19 +71,57 @@ class Exclusions:
     """Both halves of the list, kept apart because they are governed apart."""
 
     configured: tuple[str, ...] = ()
-    """From ``COS_WEB_BLOCKED_TARGETS``. Shown, never editable here."""
+    """From ``COS_WEB_BLOCKED_TARGETS``, verbatim.
+
+    Shown, never editable here - and shown the way the compose file spells it,
+    so that an operator comparing this card with the file they wrote sees the
+    same characters. Comparison goes through :meth:`configured_holds`, which
+    is where the spelling stops mattering.
+    """
 
     stored: tuple[str, ...] = ()
-    """Written in the operator's area, and removable there."""
+    """Written in the operator's area, and removable there.
+
+    Always in this project's single spelling: :func:`normalise_entry` is
+    applied on the way in and again on the way out.
+    """
 
     updated: str = ""
     """When the written half last changed, ISO-8601, or empty if never."""
 
+    def configured_holds(self, candidate: str) -> bool:
+        """
+        Whether the environment already excludes this, however it is spelled.
+
+        The two halves reach this class differently - one normalised, one as
+        the operator typed it into a compose file - so comparing them as
+        strings makes ``Example.COM`` and ``example.com`` two exclusions where
+        the guard, which parses both, only ever saw one. Everything that asks
+        "is this already excluded" asks here instead.
+        """
+        normalised = normalise_entry(candidate)
+        return any(
+            normalise_entry(entry) == normalised
+            for entry in self.configured
+            if normalised is not None
+        )
+
+    @property
+    def stored_only(self) -> tuple[str, ...]:
+        """The written half, less whatever the environment already excludes.
+
+        What the area may withdraw, and so what it draws a remove button
+        beside: an entry the environment also names is not removable here and
+        is already listed under its own half.
+        """
+        return tuple(
+            entry for entry in self.stored if not self.configured_holds(entry)
+        )
+
     @property
     def effective(self) -> tuple[str, ...]:
         """What the guard is actually given: both halves, configured first."""
-        stored = tuple(entry for entry in self.stored if entry not in self.configured)
-        return self.configured + stored
+        return self.configured + self.stored_only
 
 
 def _document(exclusions: Exclusions) -> str:
@@ -159,6 +203,17 @@ async def add_exclusion(
     satisfied either way, and a refusal would only invite them to work out
     which of the two halves already had it.
     """
+    # Length before shape, so that an entry which is only too long is told so
+    # rather than being called the wrong shape. _parse_entry holds the same
+    # ceiling and is what stops one arriving by any other route; this is here
+    # for the sentence.
+    if len(entry.strip()) > MAX_ENTRY_LENGTH:
+        raise EntryRejected(
+            f"An entry is at most {MAX_ENTRY_LENGTH} characters, which is as "
+            "long as a hostname can be. Nothing longer could ever match a "
+            "target this service would accept.",
+            "admin.blocklist.error.long",
+        )
     candidate = normalise_entry(entry)
     if candidate is None:
         raise EntryRejected(
@@ -167,7 +222,7 @@ async def add_exclusion(
             "admin.blocklist.error.shape",
         )
     current = await read_exclusions(backend, settings)
-    if candidate in current.stored or candidate in current.configured:
+    if candidate in current.stored or current.configured_holds(candidate):
         return current
     if len(current.stored) >= MAX_STORED_ENTRIES:
         raise EntryRejected(
@@ -192,7 +247,7 @@ async def remove_exclusion(
     """
     candidate = normalise_entry(entry) or entry.strip().lower()
     current = await read_exclusions(backend, settings)
-    if candidate in current.configured:
+    if current.configured_holds(candidate):
         raise EntryRejected(
             "That entry comes from COS_WEB_BLOCKED_TARGETS. Remove it there "
             "and restart, so the deployment and this list cannot disagree.",

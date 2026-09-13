@@ -179,6 +179,10 @@ MESSAGES: dict[str, str] = {
         "This list is full. Move the standing entries into "
         "COS_WEB_BLOCKED_TARGETS."
     ),
+    "admin.blocklist.error.long": (
+        "That entry is longer than a hostname can be, so nothing it could be "
+        "meant to match would ever reach this service."
+    ),
     "admin.outcome.excluded": "Excluded. It is refused from the next request.",
     "admin.outcome.withdrawn": "Withdrawn. It can be scanned again.",
     "admin.actions.kicker": "Reference data",
@@ -1393,6 +1397,15 @@ MESSAGES: dict[str, str] = {
     ),
     "error.target.blocked": (
         "This service has been asked not to scan that address."
+    ),
+    # Not about the address at all: this deployment could not read its own
+    # exclusions and refuses to scan without them. Said plainly, because the
+    # visitor has nothing to fix and the only useful next step is the one the
+    # self-host pointer beside it offers.
+    "error.store_unavailable": (
+        "This service cannot reach its own configuration right now, and will "
+        "not scan without knowing what it has been asked to leave alone. "
+        "Please try again in a few minutes."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan results",

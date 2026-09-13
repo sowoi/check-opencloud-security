@@ -151,6 +151,10 @@ MESSAGES: dict[str, str] = {
         "Esta lista está llena. Pase las entradas permanentes a "
         "COS_WEB_BLOCKED_TARGETS."
     ),
+    "admin.blocklist.error.long": (
+        "Esa entrada es más larga de lo que puede ser un nombre de host, así "
+        "que nada de lo que pretenda designar llegaría a este servicio."
+    ),
     "admin.outcome.excluded": "Excluida. Se rechaza desde la siguiente petición.",
     "admin.outcome.withdrawn": "Retirada. Puede volver a analizarse.",
     "admin.actions.kicker": "Datos de referencia",
@@ -1444,6 +1448,11 @@ MESSAGES: dict[str, str] = {
     ),
     "error.target.blocked": (
         "A este servicio se le ha pedido que no analice esa dirección."
+    ),
+    "error.store_unavailable": (
+        "Este servicio no puede acceder ahora mismo a su propia configuración "
+        "y no analizará sin saber qué se le ha pedido que deje en paz. "
+        "Inténtelo de nuevo dentro de unos minutos."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Resultados del análisis",

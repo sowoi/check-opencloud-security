@@ -190,10 +190,14 @@ given, which is why the form's input field is not `type="url"`.
 | **400** | A target that cannot be scanned: private, loopback, unresolvable, malformed, or excluded by `COS_WEB_BLOCKED_TARGETS` |
 | **422** | A field the service does not accept, named in the message |
 | **429** | A rate limit, with `Retry-After` and a pointer to running it yourself |
+| **503** | This deployment could not read its own exclusions, so it will not scan. Never a busy service |
 
 An overloaded service still answers **202**. Submissions past the worker count
-wait in FIFO order and the position is shown on the page; a valid submission
-never gets a **503**.
+wait in FIFO order and the position is shown on the page; **load is never a
+503**. The one submission that gets one is the deployment saying something
+about itself rather than about the request: it could not reach the store
+holding the exclusions, and scanning without knowing what it was asked to
+leave alone is the one failure worth refusing a valid target over.
 
 ### Polling a scan
 
@@ -624,8 +628,12 @@ The other standing restrictions:
   ([ADR 0043](../adr/0043-an-operators-exclusion-outranks-every-allowance.md)).
   The operator's area adds to the same list at runtime, in force from the next
   request in every process and refusing a scan that is already queued; the
-  environment's own entries cannot be withdrawn from a browser
+  environment's own entries cannot be withdrawn from a browser, and the two
+  halves are compared parsed rather than as text, so one exclusion spelled two
+  ways is still one exclusion
   ([ADR 0044](../adr/0044-the-operator-area-may-write-the-exclusions.md)).
+  A store that will not answer refuses the submission with **503** rather than
+  scanning without the list.
 - **One scan per target per cooldown**, and a per-client limit on top.
 - **No port scanning.** `COS_WEB_CHECK_DEBUG_PORTS` is off; connecting to
   extra ports on a host a stranger named is not something to do uninvited.

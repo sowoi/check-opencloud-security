@@ -723,9 +723,19 @@ safest possible shape of that:</p>
 <li><strong>entries added here live in Redis</strong>, which means they are exactly as
   durable as your Redis. Anything that must outlive a flush belongs in
   <code>COS_WEB_BLOCKED_TARGETS</code>; the card says so under the list;</li>
+<li><strong>an entry is at most 253 characters</strong>, the longest a hostname can be, in
+  this card and in <code>COS_WEB_BLOCKED_TARGETS</code> alike. Nothing longer could match
+  a target the service would accept, so it is refused rather than stored as an
+  exclusion that excludes nothing;</li>
+<li><strong>the two halves are compared parsed, not as text.</strong> <code>Example.COM</code> in your
+  compose file and <code>example.com</code> typed here are one exclusion, not two: the
+  card declines to store what the environment already holds, and refuses to
+  withdraw it whichever way you spell it;</li>
 <li><strong>a store that cannot be read refuses the scan</strong> rather than proceeding
   without the list, because a missing exclusion is the failure that scans
-  somebody who asked not to be.</li>
+  somebody who asked not to be. A visitor gets <code>503</code> and a sentence in their
+  own language; the audit trail gets <code>exclusions_unreadable</code>, which is worth
+  grepping for - it means this deployment could not reach its own Redis.</li>
 </ul>
 <p>See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0044-the-operator-area-may-write-the-exclusions.md">ADR 0044</a> for why
 the area is allowed to write this and nothing else.</p>

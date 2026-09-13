@@ -77,6 +77,7 @@ from .advisories import advisory_catalogue, advisory_state, stored_database
 from .arazzo import arazzo_document
 from .audit import (
     REASON_BATCH_TOO_LARGE,
+    REASON_EXCLUSIONS_UNREADABLE,
     REASON_PURGE_UNAUTHORISED,
     REASON_RATE_LIMIT_CLIENT,
     REASON_RATE_LIMIT_PURGE,
@@ -1089,17 +1090,41 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 key="error.rate_limit.client",
             )
 
+        # Read per submission rather than held from startup: an operator who
+        # excludes a target in the area has excluded it for the next request,
+        # in every process, without a restart.
+        #
+        # A store that does not answer refuses the submission instead of
+        # falling back to the environment half (ADR 0044): losing an exclusion
+        # scans something this deployment was told not to touch. It is its own
+        # answer rather than an unhandled error, because the two differ in
+        # everything a visitor can act on - the address is fine, nothing they
+        # change will help, and the way through is to run the scanner
+        # themselves, which is exactly what `self_host` offers.
         try:
-            # Read per submission rather than held from startup: an operator
-            # who excludes a target in the area has excluded it for the next
-            # request, in every process, without a restart.
+            exclusions = await effective_exclusions(app.state.backend, settings)
+        except RedisUnavailable as exc:
+            audit.submission_rejected(
+                client=address,
+                reason=REASON_EXCLUSIONS_UNREADABLE,
+                status=503,
+            )
+            LOGGER.warning("submission_refused_exclusions_unreadable")
+            raise _Rejected(
+                "This service cannot reach its own configuration right now, "
+                "and will not scan without knowing what it has been asked to "
+                "leave alone. Please try again in a few minutes.",
+                status=503,
+                self_host=True,
+                key="error.store_unavailable",
+            ) from exc
+
+        try:
             target = validate_target(
                 target_url,
                 allow_private=settings.allow_private_targets,
                 allowed_hosts=settings.extra_hosts_allowed,
-                blocked_targets=await effective_exclusions(
-                    app.state.backend, settings
-                ),
+                blocked_targets=exclusions,
             )
         except TargetRejected as exc:
             audit.submission_rejected(

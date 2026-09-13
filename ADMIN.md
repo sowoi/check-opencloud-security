@@ -570,9 +570,19 @@ safest possible shape of that:
 - **entries added here live in Redis**, which means they are exactly as
   durable as your Redis. Anything that must outlive a flush belongs in
   `COS_WEB_BLOCKED_TARGETS`; the card says so under the list;
+- **an entry is at most 253 characters**, the longest a hostname can be, in
+  this card and in `COS_WEB_BLOCKED_TARGETS` alike. Nothing longer could match
+  a target the service would accept, so it is refused rather than stored as an
+  exclusion that excludes nothing;
+- **the two halves are compared parsed, not as text.** `Example.COM` in your
+  compose file and `example.com` typed here are one exclusion, not two: the
+  card declines to store what the environment already holds, and refuses to
+  withdraw it whichever way you spell it;
 - **a store that cannot be read refuses the scan** rather than proceeding
   without the list, because a missing exclusion is the failure that scans
-  somebody who asked not to be.
+  somebody who asked not to be. A visitor gets `503` and a sentence in their
+  own language; the audit trail gets `exclusions_unreadable`, which is worth
+  grepping for - it means this deployment could not reach its own Redis.
 
 See [ADR 0044](adr/0044-the-operator-area-may-write-the-exclusions.md) for why
 the area is allowed to write this and nothing else.

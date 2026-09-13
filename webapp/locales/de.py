@@ -153,6 +153,10 @@ MESSAGES: dict[str, str] = {
         "Diese Liste ist voll. Dauerhafte Einträge gehören in "
         "COS_WEB_BLOCKED_TARGETS."
     ),
+    "admin.blocklist.error.long": (
+        "Dieser Eintrag ist länger, als ein Hostname sein kann. Was damit "
+        "gemeint sein könnte, erreicht diesen Dienst ohnehin nie."
+    ),
     "admin.outcome.excluded": "Ausgeschlossen. Ab der nächsten Anfrage abgelehnt.",
     "admin.outcome.withdrawn": "Zurückgenommen. Kann wieder gescannt werden.",
     "admin.actions.kicker": "Referenzdaten",
@@ -1465,6 +1469,11 @@ MESSAGES: dict[str, str] = {
     ),
     "error.target.blocked": (
         "Dieser Dienst wurde gebeten, diese Adresse nicht zu scannen."
+    ),
+    "error.store_unavailable": (
+        "Dieser Dienst erreicht gerade seine eigene Konfiguration nicht und "
+        "scannt nicht, ohne zu wissen, was er auslassen soll. Bitte versuchen "
+        "Sie es in einigen Minuten erneut."
     ),
     # ----------------------------------------------------------- result page
     "result.title": "Scan-Ergebnisse",
