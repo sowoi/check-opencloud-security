@@ -125,6 +125,12 @@ listener - an old certificate, a forgotten reverse-proxy config, or nothing
 answering at all - can bypass whatever TLS configuration is actually
 maintained on IPv4.
 
+It compares one address per family, and only the TLS identity. Several nodes
+behind one certificate present the same identity whatever they serve, so a
+node that missed a configuration rollout is caught by `addressParity` with
+`--all-addresses` instead - see
+[Every resolved address](scanner-checks.md#every-resolved-address).
+
 ## 9. Is certificate issuance restricted: `tlsCaaRecord`
 
 A DNS **CAA** (Certification Authority Authorization) record names which

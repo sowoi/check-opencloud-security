@@ -106,6 +106,34 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
     terms. A waiver or track the catalogue no longer lists is simply not
     applied.
 
+- **A name behind several addresses can be checked on every one of them.** A
+  scan dials the name once and sees whichever node the resolver put first, so
+  in a pool where one node missed a configuration rollout - no HSTS, demo
+  accounts still signing in, an older release - that node served some of the
+  visitors and none of the scans. `tlsAddressParity` could not catch it: it
+  compares only the TLS identity of the two address families, and nodes behind
+  one certificate share it whatever they serve. `--all-addresses`
+  (`COS_ALL_ADDRESSES`, `scanner.check_all_addresses`, and the same flag on
+  `check-opencloud-scanner scan`) repeats the version, header, hardening and
+  demo-account checks against each resolved address and reports
+  `addressParity` when they disagree; the result document lists what each
+  address served under `addressObservations`.
+
+  **It stays aimed where the scan was pointed.** Every request keeps the
+  hostname in `Host` and SNI, and the addresses are the resolver's answer for
+  that name - or the caller's pin, which a pinned scan never widens. The
+  finding is as severe as the worst difference, because the rating was built
+  from whichever node answered first: a demo sign-in on another node counts
+  like `demoUsersDisabled`, another release is `high`, other drift `medium`,
+  and an address that resolves but does not answer fails too. Waived names are
+  not compared.
+
+  **Off by default, and never in the web service.** It costs about a dozen
+  requests per address and a single-address name has nothing to compare; the
+  web application sets it off explicitly and offers no field for it, since a
+  request there chooses what to scan and never how hard. See
+  [ADR 0042](adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md).
+
 ### Changed
 
 - **On a phone, the address field is the first thing on the page.** Stacked

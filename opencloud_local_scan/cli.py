@@ -113,6 +113,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Skip probing the OpenCloud debug ports.",
     )
+    scan_parser.add_argument(
+        "--all-addresses",
+        dest="check_all_addresses",
+        action="store_true",
+        default=None,
+        help=(
+            "Repeat the version, header, hardening and demo-account checks "
+            "against every address the name resolves to, and report when "
+            "they disagree."
+        ),
+    )
     scan_parser.add_argument("--port", type=int, help="Override the target port.")
     scan_parser.add_argument(
         "--concurrency",
@@ -570,6 +581,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tls_ca_file=getattr(args, "ca_file", None),
         extra_checks=getattr(args, "extra_checks", None),
         check_debug_ports=getattr(args, "check_debug_ports", None),
+        check_all_addresses=getattr(args, "check_all_addresses", None),
         port=getattr(args, "port", None) if args.command == "scan" else None,
         scheme=getattr(args, "scheme", None),
         concurrency=getattr(args, "concurrency", None),

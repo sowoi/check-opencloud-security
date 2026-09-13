@@ -468,6 +468,25 @@ def optional_groups() -> list[Group]:
                     cast=lambda value: value.strip().lower() in YES,
                 ),
                 Question(
+                    key="scanner.check_all_addresses",
+                    prompt="Dial every address the name resolves to",
+                    explain=(
+                        "A name behind a pool of nodes answers from whichever "
+                        "address the resolver puts first, so a node that "
+                        "missed a configuration rollout - an older release, a "
+                        "header nobody restored - is invisible to a scan that "
+                        "dials the name once. This repeats the version, "
+                        "header, hardening and demo-account checks against "
+                        "each address and reports when they disagree. About "
+                        "a dozen requests per address; nothing to compare "
+                        "when the name has only one."
+                    ),
+                    example="no",
+                    default="no",
+                    validate=_choice(tuple(YES | NO)),
+                    cast=lambda value: value.strip().lower() in YES,
+                ),
+                Question(
                     key="scanner.ignore_hardenings",
                     prompt="Waived measures and checks",
                     explain=(

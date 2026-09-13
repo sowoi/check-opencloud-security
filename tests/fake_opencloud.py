@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import json
+import socket
 import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -533,12 +534,26 @@ def _make_handler(behaviour: InstanceBehaviour):
     return _Handler
 
 
+class _IPv6Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
 class FakeOpenCloud:
     """A fake OpenCloud instance listening on localhost."""
 
-    def __init__(self, behaviour: InstanceBehaviour | None = None) -> None:
+    def __init__(
+        self,
+        behaviour: InstanceBehaviour | None = None,
+        *,
+        address: str = "127.0.0.1",
+        port: int = 0,
+    ) -> None:
+        # ``address`` and ``port`` exist for a pool: two instances on one port,
+        # one on 127.0.0.1 and one on ::1, are two nodes behind one name.
         self.behaviour = behaviour or InstanceBehaviour()
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), _make_handler(self.behaviour))
+        self.address = address
+        server_class = _IPv6Server if ":" in address else ThreadingHTTPServer
+        self._server = server_class((address, port), _make_handler(self.behaviour))
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
     @property
@@ -549,7 +564,9 @@ class FakeOpenCloud:
     @property
     def host(self) -> str:
         """'host:port' string that can be handed to the scanner."""
-        return f"127.0.0.1:{self.port}"
+        if ":" in self.address:
+            return f"[{self.address}]:{self.port}"
+        return f"{self.address}:{self.port}"
 
     def __enter__(self) -> FakeOpenCloud:  # noqa: PYI034 - Self needs 3.11
         self._thread.start()

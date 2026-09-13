@@ -26,6 +26,7 @@
   <a href="#vulnerabilities" lang="en">Vulnerabilities</a>
   <a href="#hardenings" lang="en">Hardenings</a>
   <a href="#debug-ports" lang="en">Debug ports</a>
+  <a href="#every-resolved-address" lang="en">Every resolved address</a>
   <a href="#concurrency" lang="en">Concurrency</a>
   <a href="#tls" lang="en">TLS</a>
   <a href="#what-this-package-does-not-do" lang="en">What this package does not do</a>
@@ -749,6 +750,27 @@ costs up to fifteen seconds per scan. <code>check_debug_ports: false</code>,
 available.</p>
 <p>The same handlers are also probed on the main address, where they must never
 appear at all (<code>debugEndpoint:</code> findings).</p>
+<h2 id="every-resolved-address">Every resolved address</h2>
+<p><code>check_all_addresses=True</code> (<code>--all-addresses</code> on <code>scan</code>) repeats the
+node-dependent part of a scan - <code>status.php</code>, the root page's graded headers,
+capabilities, the authentication challenge, the identity provider and the demo
+accounts - against each address the name resolved to, one after another, and
+emits <code>addressParity</code>. Each request keeps the hostname in <code>Host</code> and SNI and is
+pinned to one address through its own session. The addresses are the
+resolver's answer, or <code>pinned_addresses</code> when given, so a pinned scan never
+widens past what the caller vetted; IPv6 is skipped when <code>ipv6_enabled</code> is
+false. What each address served is listed under <code>addressObservations</code>:</p>
+<pre><code class="language-json">{&quot;addressObservations&quot;: [
+  {&quot;address&quot;: &quot;198.51.100.1&quot;, &quot;reachable&quot;: true, &quot;version&quot;: &quot;7.2.3&quot;,
+   &quot;headers&quot;: {&quot;Strict-Transport-Security&quot;: true}, &quot;hardenings&quot;: {},
+   &quot;demoUsersDisabled&quot;: true, &quot;error&quot;: &quot;&quot;}
+]}
+</code></pre>
+<p>The first address is the reference; severity follows the worst difference
+(demo accounts as <code>demoUsersDisabled</code>, another release <code>high</code>, anything else
+<code>medium</code>); waived names are not compared. With one address, or with the
+setting off (the default), there is no finding and the list is empty. See
+<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md">ADR 0042</a>.</p>
 <h2 id="concurrency">Concurrency</h2>
 <p>A scan is dominated by waiting: around twenty HTTP requests plus the debug-port
 connects, issued one after the other. <code>concurrency</code> runs the independent ones

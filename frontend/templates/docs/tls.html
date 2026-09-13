@@ -150,6 +150,11 @@ TLS endpoints agree. Visitors may reach either address, so a stale IPv6
 listener - an old certificate, a forgotten reverse-proxy config, or nothing
 answering at all - can bypass whatever TLS configuration is actually
 maintained on IPv4.</p>
+<p>It compares one address per family, and only the TLS identity. Several nodes
+behind one certificate present the same identity whatever they serve, so a
+node that missed a configuration rollout is caught by <code>addressParity</code> with
+<code>--all-addresses</code> instead - see
+<a href="/documentation/scanner-checks#every-resolved-address">Every resolved address</a>.</p>
 <h2 id="9-is-certificate-issuance-restricted-tlscaarecord">9. Is certificate issuance restricted: <code>tlsCaaRecord</code></h2>
 <p>A DNS <strong>CAA</strong> (Certification Authority Authorization) record names which
 certificate authorities may issue for a domain at all. Without one, any

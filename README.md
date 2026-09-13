@@ -19,6 +19,7 @@
   * [What the scanner checks](#what-the-scanner-checks)
   * [TLS and self-signed certificates](#tls-and-self-signed-certificates)
   * [Debug ports](#debug-ports)
+  * [Every resolved address](#every-resolved-address)
   * [End-of-life detection](#end-of-life-detection)
   * [Advisory database](#advisory-database)
   * [Running the scanner as a service](#running-the-scanner-as-a-service)
@@ -553,6 +554,39 @@ Turn them off entirely with `--no-debug-ports`. Which port belongs to which
 service, and how `scanner.concurrency` shortens a run without changing a
 verdict, is in
 [Debug ports](docs/scanner-checks.md#debug-ports).
+
+## Every resolved address
+
+A scan dials the name once and sees whichever address the resolver put first.
+Behind a pool of nodes that is one node: the one that missed a configuration
+rollout - no HSTS, demo accounts still signing in, an older release - serves
+some of your visitors and none of your scans. `tlsAddressParity` does not see
+it either, because it only compares the TLS identity of the IPv4 and IPv6
+endpoints.
+
+`--all-addresses` (`COS_ALL_ADDRESSES`, `scanner.check_all_addresses`) repeats
+the version, header, hardening and demo-account checks against every address
+the name resolves to, and reports `addressParity` when they disagree:
+
+```
+addressParity (high): Differs from 198.51.100.1 - 198.51.100.4: version 7.1.0 (expected 7.2.3); headers Strict-Transport-Security fails
+```
+
+Every request still carries your hostname in `Host` and SNI; only the address
+the connection goes to changes, and the addresses come from the resolver's
+answer for that name and nothing else. The first address is the reference. The
+finding is as severe as the worst difference - demo accounts signing in on one
+node carry that finding's severity, another release is `high`, other drift is
+`medium` - and an address that resolves but does not answer fails it too.
+Waived headers and checks are left out of the comparison.
+
+It is off by default: it costs about a dozen requests per address, a demo
+sign-in among them, and a name with a single address - most deployments - has
+nothing to compare and gets no finding at all. It sees what DNS sees: nodes
+behind one load-balancer address, or a resolver that hands out a rotating
+subset of the pool, stay out of reach. IPv6 addresses are skipped when
+`scanner.ipv6_enabled` is off. The public web service never offers it; see
+[ADR 0042](adr/0042-every-resolved-address-is-compared-only-when-the-operator-asks.md).
 
 ## End-of-life detection
 
