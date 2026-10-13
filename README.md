@@ -773,11 +773,11 @@ Where the tracks stand today, straight from the bundled schedule:
 
 | Track | Current release | Line | Line opened | Supported until |
 |:------|:----------------|:-----|:------------|:----------------|
-| **Rolling** | `8.0.1` | `8.0` | 2026-09-15 | the next rolling release |
+| **Rolling** | `8.1.0` | `8.1` | 2026-10-05 | the next rolling release |
 | **Production** | `7.2.4` | `7.2` | 2026-06-25 | the next production release |
 | **LTS** | `4.0.8` | `4.0` | 2025-12-01 | 2027-12-01 |
 
-Read from the [OpenCloud release lifecycle][lifecycle] on 2026-09-21.
+Read from the [OpenCloud release lifecycle][lifecycle] on 2026-10-12.
 <!-- release-schedule:end -->
 
 A line that is out of support is rated `F` and reported as `CRITICAL`:
