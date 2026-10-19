@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-19
+
 ### Added
 
 - **Python 3.15 is supported and tested.** nox and the version matrix in CI
