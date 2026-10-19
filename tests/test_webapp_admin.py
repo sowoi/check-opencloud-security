@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import unescape
 from pathlib import Path
 from typing import Any
@@ -735,7 +735,7 @@ def test_a_refresh_that_has_stopped_landing_says_which_failure_it_was(monkeypatc
     assert network["scheduleAttempt"]["outcome"] == "failed"
     assert guards["scheduleAttempt"]["outcome"] == "rejected"
     assert guards["scheduleAttempt"]["at"].startswith(
-        datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+        datetime.now(tz=UTC).strftime("%Y-%m-%d")
     )
     # Neither attempt moved the stamp that says when a read was accepted,
     # which is exactly why the outcome had to be recorded beside it.

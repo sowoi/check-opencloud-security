@@ -256,12 +256,17 @@ allí es suyo.
 ### El intérprete que utiliza {#the-interpreter-it-uses}
 
 Los comandos instalados son pequeños lanzadores de shell que buscan por sí
-mismos un Python 3.10 o posterior: primero `$COS_PYTHON`, luego `python3` y
-después de `python3.14` a `python3.10`, comprobando la versión de cada uno en
-lugar de fiarse del nombre. Por eso el RPM no exige `python3 >= 3.10`: RHEL 9
+mismos un Python 3.11 o posterior: primero `$COS_PYTHON`, luego `python3` y
+después de `python3.15` a `python3.11`, comprobando la versión de cada uno en
+lugar de fiarse del nombre. Por eso el RPM no exige `python3 >= 3.11`: RHEL 9
 responde 3.9 a `python3` e incluye 3.11 y 3.12 como paquetes aparte, y una
 dependencia con versión impediría instalarlo en un host en el que funciona
 perfectamente.
+
+El `.deb`, en cambio, sí exige `python3 >= 3.11`, que Debian 12 y Ubuntu 24.04
+cumplen. En Ubuntu 22.04, `python3` es la versión 3.10, sin soporte desde
+octubre de 2026, así que apt rechaza el paquete; instale allí el complemento
+con pipx sobre un Python más reciente.
 
 Si no encuentra ninguno adecuado, la comprobación termina con **3 (UNKNOWN)**
 en lugar de notificar un veredicto que nunca ha medido. Apunte `COS_PYTHON` a

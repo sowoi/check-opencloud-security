@@ -56,7 +56,7 @@ Docker, ...) consulte [Instalación](#installation) más abajo.
 - Instalable con pipx/uv/pip, o como imagen de Docker lista para usar
 
 ## Requisitos previos {#prerequisites}
-- Python 3.10 o posterior, o Docker si prefiere la vía de contenedores.
+- Python 3.11 o posterior, o Docker si prefiere la vía de contenedores.
 - `requests` y `PyYAML`, que pipx/uv/pip instalan automáticamente.
 - Acceso de red desde el host de monitorización a la instancia de OpenCloud. A
   diferencia de un escáner alojado, este complemento necesita llegar a la

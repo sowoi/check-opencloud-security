@@ -43,7 +43,7 @@ sentence with backslashes.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from opencloud_local_scan import __version__, describe_hardening
@@ -275,7 +275,7 @@ def remediation_markdown(
     summary = summarise(result)
     findings = _findings(summary)
     names = open_findings(summary)
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
 
     lines = [f"# OpenCloud remediation bundle - {_md(summary.get('domain') or 'report')}", ""]
     for label, value in _header(summary, result, identifier):
@@ -388,7 +388,7 @@ def remediation_html(
     summary = summarise(result)
     findings = _findings(summary)
     names = open_findings(summary)
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
     sections: list[str] = []
 
     facts = "".join(

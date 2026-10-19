@@ -10,7 +10,7 @@ rather than from a list that goes stale the next time a check is added.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -335,7 +335,7 @@ def test_a_refreshed_release_schedule_is_what_a_queued_scan_is_rated_against():
 
     behaviour = InstanceBehaviour()
     behaviour.status_payload["productversion"] = "99.9.0"
-    published = with_extra_release("99.9.0", datetime.now(tz=timezone.utc).date() + timedelta(days=1), "rolling")
+    published = with_extra_release("99.9.0", datetime.now(tz=UTC).date() + timedelta(days=1), "rolling")
 
     # First without the refresh: the scanner says the schedule is behind.
     context, store = _worker_context(schedule_refresh=False)

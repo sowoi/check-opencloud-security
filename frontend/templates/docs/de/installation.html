@@ -172,7 +172,8 @@ sudo apt remove check-opencloud-security                   # or: dnf remove
 </code></pre>
 <p>Eigene Dateien unter <code>/etc/check-opencloud-security/</code> bleiben beim Entfernen erhalten.</p>
 <h3 id="the-interpreter-it-uses">Python-Interpreter</h3>
-<p>Die Startskripte suchen nach Python 3.10 oder neuer: zuerst über <code>$COS_PYTHON</code>, dann <code>python3</code>, anschließend <code>python3.14</code> bis <code>python3.10</code>. Jeder Kandidat wird anhand seiner tatsächlichen Version geprüft. So können etwa auf RHEL zusätzliche Python-Versionen verwendet werden, auch wenn <code>python3</code> noch auf eine ältere Version zeigt.</p>
+<p>Die Startskripte suchen nach Python 3.11 oder neuer: zuerst über <code>$COS_PYTHON</code>, dann <code>python3</code>, anschließend <code>python3.15</code> bis <code>python3.11</code>. Jeder Kandidat wird anhand seiner tatsächlichen Version geprüft. So können etwa auf RHEL zusätzliche Python-Versionen verwendet werden, auch wenn <code>python3</code> noch auf eine ältere Version zeigt.</p>
+<p>Das <code>.deb</code> verlangt dagegen <code>python3 &gt;= 3.11</code>; Debian 12 und Ubuntu 24.04 erfüllen das. Unter Ubuntu 22.04 ist <code>python3</code> die Version 3.10, die seit Oktober 2026 keine Updates mehr bekommt – apt lehnt das Paket dort ab. Installiere das Plugin dort mit pipx auf einem neueren Python.</p>
 <p>Ohne geeigneten Interpreter endet der Check mit <strong>3 (UNKNOWN)</strong>. Über <code>COS_PYTHON</code> kannst du einen Pfad vorgeben:</p>
 <pre><code class="language-shell">sudo dnf install python3.12
 COS_PYTHON=/usr/bin/python3.12 check-opencloud-security --host opencloud.example.com

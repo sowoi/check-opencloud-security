@@ -31,7 +31,7 @@ import json
 import logging
 import re
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import pairwise
 from typing import Any
 
@@ -224,7 +224,7 @@ def merge_document(
 
     LOGGER.debug("Advisory merge: %d fetched, %d new", len(entries), added)
     document["advisories"] = current
-    document["updated"] = datetime.now(tz=timezone.utc).date().isoformat()
+    document["updated"] = datetime.now(tz=UTC).date().isoformat()
     document["comment"] = DOCUMENT_COMMENT
     return document
 

@@ -19,7 +19,7 @@ uv run pytest -k "waiver and not rating"            # by expression
 uvx ruff check .                                    # linting, as CI runs it
 uv run mypy --config-file mypy.ini                  # type checking
 cd ansible && ansible-lint                          # must be run from ansible/
-uv run nox                                          # the suite on 3.10 - 3.14
+uv run nox                                          # the suite on 3.11 - 3.15
 uv run pytest tests/test_webapp_api.py              # the web application
 python scripts/build_web_bundle.py                  # the release tarball
 python scripts/check_documentation_links.py         # the documented OpenCloud links
@@ -31,8 +31,8 @@ cd docker && docker compose up --build              # web + worker + redis
   tree; a formatting-only diff will be rejected.
 - `ansible-lint` is clean only from inside `ansible/`. From the repository root
   it reports dozens of false positives.
-- `requires-python = ">=3.10"`. No `tomllib`, no 3.11+ syntax, and no
-  backslashes inside f-string expressions.
+- `requires-python = ">=3.11"`. `tomllib` is fine, but no 3.12+ syntax: no
+  backslashes inside f-string expressions, no `type` statements.
 - Bandit runs in CI. `subprocess` use carries `# nosec B404/B603` comments -
   follow the existing style in `secrets.py`, `selfupdate.py` and
   `scripts/release_notes.py`.

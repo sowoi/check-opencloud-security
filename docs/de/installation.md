@@ -187,7 +187,9 @@ Eigene Dateien unter `/etc/check-opencloud-security/` bleiben beim Entfernen erh
 
 ### Python-Interpreter {#the-interpreter-it-uses}
 
-Die Startskripte suchen nach Python 3.10 oder neuer: zuerst über `$COS_PYTHON`, dann `python3`, anschließend `python3.14` bis `python3.10`. Jeder Kandidat wird anhand seiner tatsächlichen Version geprüft. So können etwa auf RHEL zusätzliche Python-Versionen verwendet werden, auch wenn `python3` noch auf eine ältere Version zeigt.
+Die Startskripte suchen nach Python 3.11 oder neuer: zuerst über `$COS_PYTHON`, dann `python3`, anschließend `python3.15` bis `python3.11`. Jeder Kandidat wird anhand seiner tatsächlichen Version geprüft. So können etwa auf RHEL zusätzliche Python-Versionen verwendet werden, auch wenn `python3` noch auf eine ältere Version zeigt.
+
+Das `.deb` verlangt dagegen `python3 >= 3.11`; Debian 12 und Ubuntu 24.04 erfüllen das. Unter Ubuntu 22.04 ist `python3` die Version 3.10, die seit Oktober 2026 keine Updates mehr bekommt – apt lehnt das Paket dort ab. Installiere das Plugin dort mit pipx auf einem neueren Python.
 
 Ohne geeigneten Interpreter endet der Check mit **3 (UNKNOWN)**. Über `COS_PYTHON` kannst du einen Pfad vorgeben:
 

@@ -242,12 +242,17 @@ is yours.
 
 ### The interpreter it uses
 
-The installed commands are small shell launchers that find a Python 3.10 or
-newer for themselves - `$COS_PYTHON` first, then `python3`, then `python3.14`
-down to `python3.10`, checking the version of each rather than trusting the
-name. This is why the RPM does not demand `python3 >= 3.10`: RHEL 9 answers 3.9
+The installed commands are small shell launchers that find a Python 3.11 or
+newer for themselves - `$COS_PYTHON` first, then `python3`, then `python3.15`
+down to `python3.11`, checking the version of each rather than trusting the
+name. This is why the RPM does not demand `python3 >= 3.11`: RHEL 9 answers 3.9
 to `python3` and packages 3.11 and 3.12 beside it, and a versioned dependency
 would refuse to install on a host that runs this perfectly well.
+
+The `.deb` does demand `python3 >= 3.11`, which Debian 12 and Ubuntu 24.04
+meet. Ubuntu 22.04's `python3` is 3.10, out of support since October 2026, so
+apt refuses the package there; install the plugin with pipx on a newer Python
+instead.
 
 If nothing suitable is found, the check exits **3 (UNKNOWN)** rather than
 reporting a verdict it never measured. Point `COS_PYTHON` at an interpreter to

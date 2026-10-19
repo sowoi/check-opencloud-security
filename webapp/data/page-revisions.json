@@ -82,8 +82,8 @@
       "lastmod": "2026-09-17"
     },
     "docs/installation.html": {
-      "digest": "1367ac166aaefeb0ab750c6fce0a73afb6bdcf53e5384ae6444e2a371b680133",
-      "lastmod": "2026-09-21"
+      "digest": "b8d3915f26fe965d59becea613b79dc77f0b58dbce6fb5953f9b3b858c296bcb",
+      "lastmod": "2026-10-19"
     },
     "docs/kubernetes.html": {
       "digest": "9a00eb8b9e22d9f0a2eea842a3fd70d3e72d8a9b8b4d7dc7959de583b401f230",
@@ -118,7 +118,7 @@
       "lastmod": "2026-09-17"
     },
     "docs/reference.html": {
-      "digest": "99e03d804ddcbb40ae97851786af8899f1e8830dc7a55263720d45bb57f82330",
+      "digest": "b52d7c3852b59cdc56d5df82366035cba9cca703e7112825c27f2c50b1a2138e",
       "lastmod": "2026-10-19"
     },
     "docs/release-lifecycle.html": {

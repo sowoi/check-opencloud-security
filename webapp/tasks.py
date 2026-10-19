@@ -116,7 +116,7 @@ async def run_scan(ctx: dict[str, Any], uuid: str) -> str:
         await store.mark_failed(uuid, str(exc))
         LOGGER.info("scan_rejected %s", uuid)
         return "failed"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         await store.mark_failed(uuid, "The instance took too long to answer.")
         LOGGER.info("scan_timeout %s", uuid)
         await _count_non_opencloud(store, settings, prober, uuid)

@@ -8,11 +8,11 @@
 #
 #   docker build -f docker/Dockerfile -t check-opencloud-security .
 
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 # uv is this project's dependency manager and build front end; the same
 # command is used in CI (see .github/workflows/publish-pypi.yml).
-COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /bin/
 
 WORKDIR /src
 
@@ -28,14 +28,14 @@ RUN uv build --wheel --out-dir /dist \
         --format requirements-txt --output-file /dist/requirements.txt
 
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.title="check-opencloud-security" \
       org.opencontainers.image.description="Nagios/Icinga plugin and built-in scanner for OpenCloud instances" \
       org.opencontainers.image.source="https://github.com/sowoi/check-opencloud-security" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /bin/
 COPY --from=builder /dist/*.whl /dist/requirements.txt /tmp/
 
 # The locked set first, every hash checked, then the wheel with --no-deps, so

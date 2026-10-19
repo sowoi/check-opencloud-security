@@ -16,7 +16,7 @@ a maintainer approves its record. **You never set `status: approved` or
 
 Before anything else, check whether the need can be met without a new package:
 
-- the standard library (remember `requires-python = ">=3.10"`: no `tomllib`);
+- the standard library (`requires-python = ">=3.11"`, so `tomllib` is there);
 - a package already declared (`python scripts/check_dependencies.py --list`);
 - a few dozen lines of our own code.
 
@@ -33,7 +33,7 @@ finding and how you got it:
 | `known_vulnerabilities` | `uvx pip-audit --requirement <(echo "<name>==<version>")`; the project's GitHub security advisories; OSV (`https://osv.dev/list?ecosystem=PyPI&q=<name>`) |
 | `maintenance` | PyPI release history, number of maintainers, open security issues, whether a `SECURITY.md` exists |
 | `provenance` | PyPI "Verified details" / trusted publishing / attestations; the source repository matches the release |
-| `install_time` | Wheels for every Python 3.10-3.14 and platform we ship? sdist-only means code runs at install time - read its build backend |
+| `install_time` | Wheels for every Python 3.11-3.15 and platform we ship? sdist-only means code runs at install time - read its build backend |
 | `runtime_network` | Grep the package source for `requests`, `urllib`, `http`, `socket`, telemetry, update checks. Anything that contacts a third party is a blocker under AGENTS.md "Third parties" |
 | `native_code` | Compiled extensions, `subprocess`, `eval`/`exec`, `pickle`/`marshal` on untrusted input |
 | `transitive_dependencies` | Add it in a scratch environment (`uv add --dry-run` or `uv pip compile`) and list the new packages; glance at each the same way |

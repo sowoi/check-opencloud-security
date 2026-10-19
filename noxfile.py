@@ -1,7 +1,7 @@
 """
 The suite on every Python the project claims to support.
 
-`requires-python = ">=3.10"` is a promise, and the only thing that keeps it
+`requires-python = ">=3.11"` is a promise, and the only thing that keeps it
 honest is running the tests on each of those interpreters. The dependencies go
 *into the session's own environment* rather than being borrowed from the outer
 one: a `pytest` found on `PATH` runs on whatever interpreter created it, so
@@ -16,7 +16,7 @@ nox.options.default_venv_backend = "uv"
 # quietly. uv fetches the versions the machine does not already have.
 nox.options.error_on_missing_interpreters = True
 
-PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+PYTHON_VERSIONS = ["3.11", "3.12", "3.13", "3.14", "3.15"]
 
 
 @nox.session(python=PYTHON_VERSIONS)

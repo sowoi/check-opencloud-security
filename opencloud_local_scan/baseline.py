@@ -39,7 +39,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -562,7 +562,7 @@ def load_baseline(path: str | os.PathLike[str]) -> Baseline:
 
 def _now() -> str:
     """The current time, to the second, in UTC."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def _rating_label(rating: int) -> str:

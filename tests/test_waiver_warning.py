@@ -10,7 +10,7 @@ deadline counts, what it is counted from, and when it raises the state.
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -23,7 +23,7 @@ from opencloud_local_scan.waivers import days_left, next_expiry, scanned_at
 
 HOST = "opencloud.example.com"
 SCANNED = "2026-05-01 10:00:00.000000"
-NOW = datetime(2026, 5, 1, 10, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
 
 
 def record(pattern: str, expires: str | None, matched: list[str], state: str = "active"):

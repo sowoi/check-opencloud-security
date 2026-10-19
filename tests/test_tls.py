@@ -16,7 +16,7 @@ import sys
 import threading
 import warnings
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -41,7 +41,7 @@ def _certificate(
     not_after: datetime | None = None,
 ) -> tuple[Path, Path]:
     """Write a self-signed certificate and key, and return their paths."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     not_before = not_before or now - timedelta(days=1)
     not_after = not_after or now + timedelta(days=89)
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -228,7 +228,7 @@ def test_a_certificate_for_another_name_fails_the_hostname_check(tmp_path):
 
 def test_an_expired_certificate_says_expired_rather_than_a_negative_countdown(tmp_path):
     """"Expires in -4148 days" is a number; "expired 4148 days ago" is an answer."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     certificate_path, key_path = _certificate(
         tmp_path, not_before=now - timedelta(days=40), not_after=now - timedelta(days=10)
     )
@@ -249,7 +249,7 @@ def test_an_expired_certificate_says_expired_rather_than_a_negative_countdown(tm
 
 def test_a_certificate_issued_for_longer_than_the_public_maximum_is_flagged(tmp_path):
     """A key that stays valid for years stays compromised for years."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     long_lived = _certificate(
         tmp_path, not_before=now - timedelta(days=1), not_after=now + timedelta(days=800)
     )

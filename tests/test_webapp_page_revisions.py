@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from xml.dom import minidom  # nosec B408 - parses this server's own output
 
@@ -71,7 +71,7 @@ def test_a_dated_page_keeps_its_date_when_only_the_deployment_is_new():
     template = TEMPLATES / page.template
     before = last_modified(TEMPLATES, page)
 
-    future = datetime.now(tz=timezone.utc).timestamp() + 86_400
+    future = datetime.now(tz=UTC).timestamp() + 86_400
     stamp = template.stat()
     try:
         os.utime(template, (future, future))
@@ -133,4 +133,4 @@ def test_the_sitemap_serves_the_recorded_dates():
 
     assert served == [recorded[page.template]["lastmod"] for page in PUBLIC_PAGES]
     for value in served:
-        assert date.fromisoformat(value) <= datetime.now(tz=timezone.utc).date()
+        assert date.fromisoformat(value) <= datetime.now(tz=UTC).date()

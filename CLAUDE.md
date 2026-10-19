@@ -41,7 +41,7 @@ uv run pytest tests/test_webapp_browser_*.py        # the frontend in a real bro
 uvx ruff@0.17.1 check .                             # linting, as CI runs it
 uv run mypy --config-file mypy.ini                  # type checking
 cd ansible && ansible-lint                          # must be run from ansible/
-uv run nox                                          # full suite on Python 3.10-3.14
+uv run nox                                          # full suite on Python 3.11-3.15
 python scripts/build_web_bundle.py                  # builds the web release tarball
 python scripts/build_wizard_release.py              # builds the stamped setup-wizard.py a release attaches
 uv build && python scripts/build_distro_packages.py # builds the .deb and .rpm (needs nfpm)
@@ -64,7 +64,7 @@ Notes that will otherwise cost you time:
   MCP server in `.mcp.json` is the same reviewed package, loopback only.
 - Only `ruff check` is enforced, **never `ruff format`** — do not reformat the tree.
 - `ansible-lint` is clean only from inside `ansible/`; from the repo root it reports false positives.
-- `requires-python = ">=3.10"`: no `tomllib`, no 3.11+ syntax, no backslashes inside f-string expressions.
+- `requires-python = ">=3.11"`: `tomllib` is fine, but no 3.12+ syntax - no backslashes inside f-string expressions, no `type` statements.
 - Web tests need the `web` extra and the `test` dependency group, and run with `COS_WEB_REDIS_URL=memory://` (an in-process Redis stand-in) — no real Redis server needed.
 - `subprocess` calls carry `# nosec B404/B603` comments for Bandit (CI runs it) — follow the existing style in `secrets.py`, `selfupdate.py`, `scripts/release_notes.py`.
 

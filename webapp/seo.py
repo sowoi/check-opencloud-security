@@ -16,7 +16,7 @@ handful of ``<head>`` values from a fixed list of paths.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -232,8 +232,8 @@ def last_modified(templates_dir: Path, page: PublicPage) -> date:
     try:
         stamp = candidate.stat().st_mtime
     except OSError:
-        return datetime.now(timezone.utc).date()
-    return datetime.fromtimestamp(stamp, tz=timezone.utc).date()
+        return datetime.now(UTC).date()
+    return datetime.fromtimestamp(stamp, tz=UTC).date()
 
 
 def sitemap_xml(origin: str, templates_dir: Path) -> str:
@@ -345,7 +345,7 @@ def security_txt(
     self-hosted copy must not send its visitors' reports to somebody who
     cannot act on them.
     """
-    moment = now or datetime.now(timezone.utc)
+    moment = now or datetime.now(UTC)
     expires = moment + timedelta(days=SECURITY_TXT_VALIDITY_DAYS)
     lines = []
     if operator_contact:

@@ -19,7 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +31,7 @@ from webapp.seo import PUBLIC_PAGES
 
 
 def _today() -> str:
-    return datetime.now(tz=timezone.utc).date().isoformat()
+    return datetime.now(tz=UTC).date().isoformat()
 
 
 def current(known: dict[str, dict[str, str]], today: str) -> dict[str, dict[str, str]]:

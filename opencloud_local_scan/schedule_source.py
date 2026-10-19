@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
 
@@ -262,7 +262,7 @@ def build_document(schedule: dict[str, Any], source: str) -> dict[str, Any]:
             "scripts/update_release_schedule.py."
         ),
         "source": source,
-        "updated": datetime.now(tz=timezone.utc).date().isoformat(),
+        "updated": datetime.now(tz=UTC).date().isoformat(),
         "lifetime_days": dict(LIFETIME_DAYS),
         **schedule,
     }

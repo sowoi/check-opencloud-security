@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .redis_backend import RedisBackend, RedisUnavailable
 from .settings import WebSettings
@@ -187,7 +187,7 @@ async def _write(
     exclusions = Exclusions(
         configured=tuple(settings.blocked_targets),
         stored=entries,
-        updated=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        updated=datetime.now(UTC).replace(microsecond=0).isoformat(),
     )
     await backend.set(BLOCKLIST_KEY, _document(exclusions))
     return exclusions

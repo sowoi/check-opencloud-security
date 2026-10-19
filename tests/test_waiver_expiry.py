@@ -13,7 +13,7 @@ Every expiry here is decided against a clock the test supplies, so "before",
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -34,7 +34,7 @@ from opencloud_local_scan.waivers import (
 )
 from tests.test_e2e_cli import UNKNOWN, run_plugin
 
-DEADLINE = datetime(2026, 12, 31, 0, 0, tzinfo=timezone.utc)
+DEADLINE = datetime(2026, 12, 31, 0, 0, tzinfo=UTC)
 RECORD = f"debugPort:9205|{DEADLINE.isoformat()}|Firewall change scheduled"
 
 
@@ -57,7 +57,7 @@ def test_a_bare_pattern_is_still_a_permanent_waiver():
     assert waiver == Waiver("debugPort:*")
     assert waiver.expires_at is None
     assert waiver.temporary is False
-    assert waiver.active_at(datetime(2099, 1, 1, tzinfo=timezone.utc)) is True
+    assert waiver.active_at(datetime(2099, 1, 1, tzinfo=UTC)) is True
 
 
 def test_a_complete_record_carries_its_reason_and_deadline():

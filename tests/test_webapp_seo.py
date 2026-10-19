@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from xml.dom import minidom  # nosec B408 - parses this server's own output
 
 import pytest
@@ -535,7 +535,7 @@ def test_a_security_report_about_this_service_has_somewhere_to_go():
     moment = datetime.strptime(
         expires[0][len("Expires: ") :] + "+0000", "%Y-%m-%dT%H:%M:%SZ%z"
     )
-    assert moment > datetime.now(timezone.utc), (
+    assert moment > datetime.now(UTC), (
         "a document that has already expired is treated as no document at all"
     )
 

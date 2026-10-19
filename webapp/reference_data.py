@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .redis_backend import RedisBackend
@@ -78,7 +78,7 @@ async def write_document(
     backend: RedisBackend, key: str, checked_key: str, document: dict[str, Any]
 ) -> str:
     """Store a document and record the moment it was read. Returns that moment."""
-    checked = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+    checked = datetime.now(tz=UTC).isoformat(timespec="seconds")
     await backend.set(key, json.dumps(document))
     await backend.set(checked_key, checked)
     return checked
@@ -106,7 +106,7 @@ async def record_attempt(backend: RedisBackend, key: str, outcome: str) -> None:
         return
     attempt = {
         "outcome": outcome,
-        "at": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+        "at": datetime.now(tz=UTC).isoformat(timespec="seconds"),
     }
     try:
         await backend.set(key, json.dumps(attempt))

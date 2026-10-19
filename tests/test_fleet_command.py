@@ -11,7 +11,7 @@ from __future__ import annotations
 import copy
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -33,7 +33,7 @@ from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
 SETTINGS = ScannerSettings(
     scheme="http", timeout=3, check_debug_ports=False, include_bundled_db=True
 )
-NOW = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 
 
 @pytest.fixture(scope="module")
@@ -282,7 +282,7 @@ def test_waiver_deadlines_are_ordered_by_moment_not_by_their_spelling(tmp_path, 
     """
     berlin = timezone(timedelta(hours=2))
     first = datetime(2026, 9, 30, 10, 0, tzinfo=berlin)
-    second = datetime(2026, 9, 30, 9, 0, tzinfo=timezone.utc)
+    second = datetime(2026, 9, 30, 9, 0, tzinfo=UTC)
     summary = _summary(
         tmp_path,
         _as(scanned, "a.example.com", waivers=[_waiver("exposed:*", second, ["exposed:/.env"])]),

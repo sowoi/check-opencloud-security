@@ -91,7 +91,7 @@ uvx ruff check .
 uv run mypy --config-file mypy.ini
 ```
 
-Remember `requires-python >= 3.10`: no `tomllib`, no 3.11+ syntax. Only
+Remember `requires-python >= 3.11`: no 3.12+ syntax. Only
 `ruff check`, never `ruff format`.
 
 Finish by listing every file touched against the ten places above, marking any

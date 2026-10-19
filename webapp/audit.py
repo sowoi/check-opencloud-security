@@ -48,7 +48,7 @@ import os
 import threading
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .settings import (
@@ -219,7 +219,7 @@ def configure_audit_file(settings: WebSettings) -> str | None:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _clean_field(name: str) -> str:

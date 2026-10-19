@@ -233,12 +233,16 @@ sudo apt remove check-opencloud-security                   # or: dnf remove
 <p>Removal leaves <code>/etc/check-opencloud-security/</code> alone: whatever you put there
 is yours.</p>
 <h3 id="the-interpreter-it-uses">The interpreter it uses</h3>
-<p>The installed commands are small shell launchers that find a Python 3.10 or
-newer for themselves - <code>$COS_PYTHON</code> first, then <code>python3</code>, then <code>python3.14</code>
-down to <code>python3.10</code>, checking the version of each rather than trusting the
-name. This is why the RPM does not demand <code>python3 &gt;= 3.10</code>: RHEL 9 answers 3.9
+<p>The installed commands are small shell launchers that find a Python 3.11 or
+newer for themselves - <code>$COS_PYTHON</code> first, then <code>python3</code>, then <code>python3.15</code>
+down to <code>python3.11</code>, checking the version of each rather than trusting the
+name. This is why the RPM does not demand <code>python3 &gt;= 3.11</code>: RHEL 9 answers 3.9
 to <code>python3</code> and packages 3.11 and 3.12 beside it, and a versioned dependency
 would refuse to install on a host that runs this perfectly well.</p>
+<p>The <code>.deb</code> does demand <code>python3 &gt;= 3.11</code>, which Debian 12 and Ubuntu 24.04
+meet. Ubuntu 22.04's <code>python3</code> is 3.10, out of support since October 2026, so
+apt refuses the package there; install the plugin with pipx on a newer Python
+instead.</p>
 <p>If nothing suitable is found, the check exits <strong>3 (UNKNOWN)</strong> rather than
 reporting a verdict it never measured. Point <code>COS_PYTHON</code> at an interpreter to
 settle it:</p>
