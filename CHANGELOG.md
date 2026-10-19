@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.31.3] - 2026-10-19
+
 ### Security
 
 - **The container images ship urllib3 2.8.0.** `uv.lock` pinned urllib3

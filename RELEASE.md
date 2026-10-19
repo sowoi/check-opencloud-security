@@ -1,54 +1,48 @@
-## check-opencloud-security 1.31.2
+## check-opencloud-security 1.31.3
 
 ### Security
 
-- **The erasure credential throttle counts an IPv6 client by its /64.** Failed
-  guesses at the `DELETE /api/purge` token were counted per single address,
-  while every other limit counts an IPv6 client by the /64 it is handed - so
-  rotating the interface identifier bought five fresh guesses each time. The
-  32-character minimum on the token kept guessing impractical regardless.
-- **The scan service refuses a guessable token on a wide bind.** Serving
-  anywhere but loopback required a token but accepted any non-empty one -
-  `--token a`, or the placeholder `secrets/scanner_token.example` ships with -
-  and nothing counts failed attempts, so a short token let anybody who reached
-  the port make it scan whatever they named. Such a bind now needs a token of
-  at least 32 characters that is not that placeholder, or it refuses to start.
-  `openssl rand -hex 32`, which every guide already uses, is unaffected.
+- **The container images ship urllib3 2.8.0.** `uv.lock` pinned urllib3
+  2.7.0 (PYSEC-2026-4175, -4176, -4177), and since 1.31.1 the container
+  images install exactly what `uv.lock` pins. The PyPI package does not pin
+  urllib3 and picks up the fixed release on its own. The lock also moves
+  virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
+  development dependency that no image or package contains.
+
+### Changed
+
+- **Every locked dependency is on its newest release.** `uv lock --upgrade`
+  moved the whole set in `uv.lock`, which the container images install and
+  CI tests against - among them mcp 2.3.0, pydantic 2.14.1, starlette 1.7.0
+  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1 and mypy
+  2.4.0. The runtime ranges in `pyproject.toml` are unchanged, so a
+  `pip install` accepts the same versions as before. `pip-audit` finds no
+  known vulnerability in the new set. Only the test dependency playwright is
+  held below 1.64, in `pyproject.toml` and for Dependabot: the WebKit it
+  ships reports a Content-Security-Policy violation for the browser's own
+  stylesheet of every `<select>`, so every browser test of a page with a
+  language picker failed.
+- **The signed-in stack runs authentik 2026.8.4.** The setup wizard and
+  `docker/docker-compose.authentik.yml` pinned 2026.8.2; `AUTHENTIK_TAG`
+  still overrides it. Redis 8.10 and Postgres 18.6 were already current.
+- **Every GitHub Action is on its newest release, still pinned by commit.**
+  setup-uv 10.3.0, setup-node 7.1.0, upload-artifact 7.0.2,
+  download-artifact 8.0.2, setup-buildx-action 4.4.1 and codeql-action
+  4.39.0; the diagram workflow renders with mermaid-cli 12.0.0.
 
 ### Fixed
 
-- **A check only one of two scans made is no longer called new or resolved.**
-  Comparisons read a finding missing from the earlier scan as passing, so a
-  check added by a newer scanner - or by turning the extra checks on - was
-  reported as a regression of the instance, and a check the later scan no
-  longer made as fixed. The baseline, `check-opencloud-scanner diff`, the web
-  comparison and `compare_scans` now list these as newly measured or no
-  longer measured, based on each scan's coverage block, and the explanation
-  files them as scanner changes. A newly measured failure still alerts, and
-  `--warn-on-new` still does not suppress it. A report or baseline that does
-  not list its checks is compared as before. See ADR 0079.
-- Aligned the report expiry footer, warning and live countdown to round remaining
-  minutes up consistently in every language.
-- **A comparison page rounds its expiry up too.** It rounded the minutes
-  left down, so it announced one minute fewer than the result page would.
-
-### Documentation
-
-- Added German, Spanish and French operator architecture and operations documentation, including
-  localized document navigation and operator search. Section anchors and commands
-  remain aligned with English; ADRs and release-note bodies remain English.
-
-- Clarified grouped remediation, upgrade estimates, report expiry and operator
-  messages in English, German, Spanish and French. A simulated upgrade whose
-  grade is limited by findings no longer implies that the grade cannot improve.
-  Count labels also read correctly for a single finding.
-- Expanded all-language tests for remediation groups, upgrade estimates,
-  escaped version strings, singular and plural expiry warnings, and the
-  translated decision-record interface around English source documents.
-- **Decision records are never translated.** ADR 0077 records that every
-  record in `adr/` exists in English only, and once: the operator area shows
-  it untranslated in every locale, and translation work leaves `adr/` alone.
-- **Changelogs and release notes are never translated.** ADR 0078 records
-  that `CHANGELOG.md`, `RELEASE.md` and the GitHub release body exist in
-  English only, and that the operator area's Releases tab shows them
-  untranslated in every locale.
+- **An automated release-schedule pull request no longer fails CI.** The
+  weekly refresh rewrote the release table in `README.md` but not the
+  `/documentation` page generated from it, so the unit tests and every nox
+  session failed on a stale `reference.html`. The workflow now regenerates
+  that page and its sitemap revision and commits them with the refresh; the
+  architecture-diagram refresh likewise updates the copy the frontend serves.
+- **CI no longer breaks when a new ruff is released.** The workflow ran
+  whatever ruff was newest, and 0.17 flagged two `noqa` comments for a rule
+  the project never enables. The comments are gone and the workflow pins
+  `ruff@0.17.1`, like zizmor and Biome already are.
+- **A waiver test no longer expires with the calendar.** It built its waivers
+  from a fixed date but scanned with the real clock, so from 4 October 2026
+  one of them was already expired in the scan and the test failed on every
+  run.
