@@ -21,6 +21,23 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
   development dependency that no image or package contains.
 
+### Changed
+
+- **Every locked dependency is on its newest release.** `uv lock --upgrade`
+  moved the whole set in `uv.lock`, which the container images install and
+  CI tests against - among them mcp 2.3.0, pydantic 2.14.1, starlette 1.7.0
+  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1, mypy
+  2.4.0 and playwright 1.64.0. `pyproject.toml` is unchanged, so the ranges a
+  `pip install` accepts are the same as before. `pip-audit` finds no known
+  vulnerability in the new set.
+- **The signed-in stack runs authentik 2026.8.4.** The setup wizard and
+  `docker/docker-compose.authentik.yml` pinned 2026.8.2; `AUTHENTIK_TAG`
+  still overrides it. Redis 8.10 and Postgres 18.6 were already current.
+- **Every GitHub Action is on its newest release, still pinned by commit.**
+  setup-uv 10.3.0, setup-node 7.1.0, upload-artifact 7.0.2,
+  download-artifact 8.0.2, setup-buildx-action 4.4.1 and codeql-action
+  4.39.0; the diagram workflow renders with mermaid-cli 12.0.0.
+
 ### Fixed
 
 - **An automated release-schedule pull request no longer fails CI.** The

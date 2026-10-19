@@ -54,6 +54,23 @@
   virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
   development dependency that no image or package contains.</li>
 </ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Every locked dependency is on its newest release.</strong> <code>uv lock --upgrade</code>
+  moved the whole set in <code>uv.lock</code>, which the container images install and
+  CI tests against - among them mcp 2.3.0, pydantic 2.14.1, starlette 1.7.0
+  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1, mypy
+  2.4.0 and playwright 1.64.0. <code>pyproject.toml</code> is unchanged, so the ranges a
+  <code>pip install</code> accepts are the same as before. <code>pip-audit</code> finds no known
+  vulnerability in the new set.</li>
+<li><strong>The signed-in stack runs authentik 2026.8.4.</strong> The setup wizard and
+  <code>docker/docker-compose.authentik.yml</code> pinned 2026.8.2; <code>AUTHENTIK_TAG</code>
+  still overrides it. Redis 8.10 and Postgres 18.6 were already current.</li>
+<li><strong>Every GitHub Action is on its newest release, still pinned by commit.</strong>
+  setup-uv 10.3.0, setup-node 7.1.0, upload-artifact 7.0.2,
+  download-artifact 8.0.2, setup-buildx-action 4.4.1 and codeql-action
+  4.39.0; the diagram workflow renders with mermaid-cli 12.0.0.</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
 <li><strong>An automated release-schedule pull request no longer fails CI.</strong> The
@@ -129,7 +146,7 @@
   untranslated in every locale.</li>
 </ul>
 <h2 id="1311-2026-09-24">[1.31.1] - 2026-09-24</h2>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>The coverage warning's alert line is now covered by mutation testing.</strong>
   <code>tests/test_coverage_regression.py</code> drives <code>_apply_baseline</code> in process but
@@ -250,7 +267,7 @@
   tries the install once more before the release dry run fails.</li>
 </ul>
 <h2 id="1302-2026-09-24">[1.30.2] - 2026-09-24</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>Tests now cover code that no test reached before.</strong> The advisory refresh
   script <code>scripts/update_vulnerability_db.py</code> has tests. They prove that it
@@ -492,7 +509,7 @@
 </li>
 </ul>
 <h2 id="1291-2026-09-21">[1.29.1] - 2026-09-21</h2>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li>
 <p><strong>The <code>--policy</code> deployment gate is now covered by tests mutation testing

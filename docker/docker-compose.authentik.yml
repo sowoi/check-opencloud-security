@@ -294,7 +294,7 @@ services:
       - no-new-privileges:true
 
   authentik_server:
-    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.2}"
+    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.4}"
     container_name: opencloud-scan-authentik
     restart: unless-stopped
     command: server
@@ -373,7 +373,7 @@ services:
       - no-new-privileges:true
 
   authentik_worker:
-    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.2}"
+    image: "${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.8.4}"
     container_name: opencloud-scan-authentik-worker
     restart: unless-stopped
     command: worker
