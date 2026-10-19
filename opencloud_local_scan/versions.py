@@ -37,7 +37,7 @@ import logging
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -555,7 +555,7 @@ class ReleaseSchedule:
         operator can make deliberately, and calling it unsupported would raise
         a critical alert about a machine running the newest code there is.
         """
-        now = today or datetime.now(tz=timezone.utc).date()
+        now = today or datetime.now(tz=UTC).date()
         requested = track.strip().lower() if track else None
         if requested not in RELEASE_TRACK_CHOICES:
             requested = None

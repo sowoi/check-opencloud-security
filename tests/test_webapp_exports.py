@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC
 from types import SimpleNamespace
 
 import pytest
@@ -437,9 +438,9 @@ def test_a_certificate_that_has_expired_says_so_rather_than_printing_a_date(tmp_
     has the fact - the only question is whether a reader has to subtract two
     dates to notice it.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     inspection = _tls_scan(
         tmp_path, not_before=now - timedelta(days=60), not_after=now - timedelta(days=30)
     )

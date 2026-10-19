@@ -245,8 +245,8 @@ has the reasoning; `security/dependencies/README.md` has the record format;
 - **What counts:** every requirement in `pyproject.toml` - `[project]
   dependencies`, every extra, every dependency group, `[build-system]
   requires` - and every package a workflow runs with `uvx`.
-- **First ask whether it is needed.** The standard library (3.10, so no
-  `tomllib`), a package already declared, or a few lines of our own code
+- **First ask whether it is needed.** The standard library (3.11, so
+  `tomllib` is there), a package already declared, or a few lines of our own code
   usually are enough. Fewer packages is a security property here: the plugin
   runs on monitoring hosts and the web service fetches URLs strangers submit.
 - **The record** in `security/dependencies/<name>.yml` says why the package is

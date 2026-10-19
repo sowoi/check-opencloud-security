@@ -23,7 +23,7 @@ like every other machine-readable document here (ADR 0020).
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from typing import Any
 from xml.sax.saxutils import escape
 
@@ -51,10 +51,10 @@ def _timestamp(value: object) -> str:
     somebody every night about advisories they read months ago.
     """
     if isinstance(value, datetime):
-        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        return moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        moment = value if value.tzinfo else value.replace(tzinfo=UTC)
+        return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
     if isinstance(value, date):
-        return datetime.combine(value, time(), tzinfo=timezone.utc).isoformat().replace(
+        return datetime.combine(value, time(), tzinfo=UTC).isoformat().replace(
             "+00:00", "Z"
         )
     try:
@@ -216,6 +216,6 @@ def schedule_feed(schedule: ReleaseSchedule, *, origin: str) -> str:
         ),
         self_url=f"{origin}{SCHEDULE_PATH}",
         alternate_url=f"{origin}/grades",
-        updated=_timestamp(schedule.updated or datetime.now(timezone.utc).date()),
+        updated=_timestamp(schedule.updated or datetime.now(UTC).date()),
         entries=entries,
     )

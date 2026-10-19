@@ -37,7 +37,7 @@ import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -153,8 +153,8 @@ def _moment(document: Mapping[str, Any], path: Path) -> datetime:
         except ValueError:
             parsed = None
         if parsed is not None:
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
 
 
 def _files(paths: Iterable[Path]) -> list[Path]:
@@ -389,7 +389,7 @@ def _expiry(value: Any) -> datetime | None:
     # A waiver is refused without a timezone, so a naive value here is a
     # hand-edited report. It is read as UTC rather than dropped: a deadline
     # nobody is shown is the failure this whole section exists to prevent.
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
 def _waiver_deadlines(host: str, document: Mapping[str, Any], now: datetime) -> list[dict[str, Any]]:
@@ -470,7 +470,7 @@ def summarise(
     section is the one to act on. ``schedule`` of ``None`` keeps every report's
     own lifecycle verdict without placing it again.
     """
-    moment = now or datetime.now(timezone.utc)
+    moment = now or datetime.now(UTC)
     today = moment.date()
     latest, superseded = _latest(reports)
     expected_keys = {host_key(host): host for host in expected}
@@ -685,7 +685,7 @@ def _moment_text(value: str) -> str:
     except ValueError:
         return value
     if moment.tzinfo:
-        moment = moment.astimezone(timezone.utc)
+        moment = moment.astimezone(UTC)
     return moment.strftime("%Y-%m-%d %H:%M UTC")
 
 

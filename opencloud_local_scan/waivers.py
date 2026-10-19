@@ -34,7 +34,7 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from difflib import get_close_matches
 from typing import Any
 
@@ -175,7 +175,7 @@ def _parse_expiry(value: str, raw: str) -> datetime:
             "2026-12-31T00:00:00Z or with an offset, so that it means the "
             "same moment wherever the scan runs."
         )
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def parse_timestamp(text: str) -> datetime:
@@ -259,7 +259,7 @@ def scan_clock() -> datetime:
     Read once, at the start, in UTC. A scan that re-read the clock could
     waive a check in its first second and alert on it in its last.
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def report(
@@ -368,7 +368,7 @@ def scanned_at(result: Mapping[str, Any]) -> datetime | None:
     if not isinstance(date, str):
         return None
     try:
-        return datetime.strptime(date, "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
+        return datetime.strptime(date, "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=UTC)
     except ValueError:
         return None
 

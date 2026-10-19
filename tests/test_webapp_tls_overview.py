@@ -16,7 +16,7 @@ library's own rather than a fixture somebody typed.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -79,7 +79,7 @@ def test_an_expiring_certificate_is_marked_by_the_scanners_verdict_not_a_new_rul
     day an operator changed `--tls-min-days`, and the page would then contradict
     the alert the same scan produced.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     soon = _certificate(
         tmp_path, not_before=now - timedelta(days=40), not_after=now + timedelta(days=5)
     )
@@ -96,7 +96,7 @@ def test_an_expiring_certificate_is_marked_by_the_scanners_verdict_not_a_new_rul
 
 def test_an_expired_certificate_counts_the_days_the_right_way_round(tmp_path):
     """"-10 day(s) left" beside an expiry date is a puzzle, not a warning."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expired = _certificate(
         tmp_path, not_before=now - timedelta(days=40), not_after=now - timedelta(days=10)
     )

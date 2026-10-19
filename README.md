@@ -149,7 +149,7 @@ For a permanent setup (Icinga2, systemd timer, cron, Docker, ...) see
 - Installable with pipx/uv/pip - or as a ready-to-use Docker image
 
 # Prerequisites
-- Python 3.10 or newer - or Docker, if you prefer the containerised route.
+- Python 3.11 or newer - or Docker, if you prefer the containerised route.
 - `requests` and `PyYAML`, installed automatically by pipx/uv/pip.
 - Network access from the monitoring host to the OpenCloud instance. Unlike a
   hosted scanner, this plugin needs to reach the instance itself - which is

@@ -54,7 +54,7 @@ voir [Installation](#installation) ci-dessous.
 - Installable avec pipx/uv/pip - ou sous forme d’image Docker prête à l’emploi
 
 # Prérequis {#prerequisites}
-- Python 3.10 ou plus récent - ou Docker, si vous préférez la voie conteneurisée.
+- Python 3.11 ou plus récent - ou Docker, si vous préférez la voie conteneurisée.
 - `requests` et `PyYAML`, installés automatiquement par pipx/uv/pip.
 - Un accès réseau de l’hôte de supervision vers l’instance OpenCloud.
   Contrairement à un scanner hébergé, ce plugin doit atteindre l’instance

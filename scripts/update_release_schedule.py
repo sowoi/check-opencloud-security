@@ -49,7 +49,7 @@ import argparse
 import json
 import sys
 import urllib.error
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +128,7 @@ def _supported_until(track: str, entry: dict[str, Any], lifetimes: dict[str, Any
     released = parse_release_date(entry.get("released") or "") or entry.get("released")
     days = lifetimes.get("lts") or LIFETIME_DAYS["lts"]
     try:
-        start = datetime.strptime(str(released), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        start = datetime.strptime(str(released), "%Y-%m-%d").replace(tzinfo=UTC)
     except ValueError:
         return "2 years after the line opened"
     return (start + timedelta(days=int(days))).date().isoformat()

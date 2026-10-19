@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -156,7 +156,7 @@ def run(coro):
 
 def test_a_release_the_bundled_schedule_has_never_heard_of_reaches_a_scan():
     """The whole point: a new OpenCloud release without redeploying this one."""
-    tomorrow = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
+    tomorrow = datetime.now(tz=UTC).date() + timedelta(days=1)
     published = with_extra_release("99.9.0", tomorrow, "rolling")
     store = memory_backend(MEMORY_URL)
 
@@ -294,7 +294,7 @@ def test_the_refresh_writes_nothing_into_the_repository():
     """CI owns the checked-in schedule and the README; a running service does not."""
     readme = Path(RELEASE_SCHEDULE_FILE).resolve().parent.parent.parent / "README.md"
     before = (RELEASE_SCHEDULE_FILE.read_bytes(), readme.read_bytes())
-    tomorrow = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
+    tomorrow = datetime.now(tz=UTC).date() + timedelta(days=1)
     store = memory_backend(MEMORY_URL)
 
     with FakeLifecycleSite(lifecycle_page(with_extra_release("99.9.0", tomorrow, "rolling"))) as site:
@@ -328,7 +328,7 @@ def test_the_health_probe_reports_when_the_schedule_was_last_read():
     state = run(schedule_state(store, configured))
     assert state["refresh"] is True
     assert state["checked"] is not None
-    assert state["checked"].startswith(datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
+    assert state["checked"].startswith(datetime.now(tz=UTC).strftime("%Y-%m-%d"))
     assert run(store.get(SCHEDULE_CHECKED_KEY)) == state["checked"]
 
 
@@ -405,7 +405,7 @@ def test_the_dry_run_still_writes_absolutely_nothing():
 
 def test_a_refreshed_schedule_stops_calling_the_new_release_a_stale_database():
     """The notice a scan carries is the reason to refresh; it must clear."""
-    tomorrow = datetime.now(tz=timezone.utc).date() + timedelta(days=1)
+    tomorrow = datetime.now(tz=UTC).date() + timedelta(days=1)
     published = with_extra_release("99.9.0", tomorrow, "rolling")
     store = memory_backend(MEMORY_URL)
 

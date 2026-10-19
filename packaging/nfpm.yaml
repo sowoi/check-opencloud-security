@@ -53,8 +53,11 @@ recommends:
 overrides:
   deb:
     depends:
-      # Debian 12 and Ubuntu 22.04 onwards satisfy this from the base python3.
-      - python3 (>= 3.10)
+      # Debian 12 and Ubuntu 24.04 onwards satisfy this from the base python3.
+      # Ubuntu 22.04's python3 is 3.10, which reached end of life in October
+      # 2026; apt refuses the package there rather than install one that
+      # could only answer UNKNOWN.
+      - python3 (>= 3.11)
       - python3-requests
       - python3-yaml
       - python3-certifi
@@ -62,7 +65,7 @@ overrides:
     depends:
       # Deliberately unversioned. RHEL 9's python3 is 3.9 but it packages 3.11
       # and 3.12 beside it under their own names, and the launcher finds them.
-      # A `python3 >= 3.10` here would refuse to install on a host that can
+      # A `python3 >= 3.11` here would refuse to install on a host that can
       # run this perfectly well.
       - python3
       - python3-requests

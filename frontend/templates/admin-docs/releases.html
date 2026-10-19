@@ -31,6 +31,7 @@
 
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#1320-this-release" lang="en">[1.32.0] - this release</a>
   <a href="#1313-2026-10-19" lang="en">[1.31.3] - 2026-10-19</a>
   <a href="#1312-2026-09-25" lang="en">[1.31.2] - 2026-09-25</a>
   <a href="#1311-2026-09-24" lang="en">[1.31.1] - 2026-09-24</a>
@@ -40,10 +41,32 @@
   <a href="#1300-2026-09-22" lang="en">[1.30.0] - 2026-09-22</a>
   <a href="#1293-2026-09-22" lang="en">[1.29.3] - 2026-09-22</a>
   <a href="#1292-2026-09-22" lang="en">[1.29.2] - 2026-09-22</a>
-  <a href="#1291-2026-09-21" lang="en">[1.29.1] - 2026-09-21</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
+<h2 id="1320-this-release">[1.32.0] - this release</h2>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong>Python 3.15 is supported and tested.</strong> nox and the version matrix in CI
+  run the suite on 3.11 to 3.15, and the packaged launchers try
+  <code>python3.15</code> first after <code>python3</code>.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>The container images run Python 3.15.</strong> Both images are built from
+  <code>python:3.15-slim</code> and install with uv 0.13.1 instead of 0.11.31.</li>
+</ul>
+<h3 id="removed">Removed</h3>
+<ul>
+<li><strong>Python 3.10 is no longer supported.</strong> It reached end of life on
+  1 October 2026 and receives no security fixes, so <code>requires-python</code> is now
+  <code>&gt;=3.11</code>; a <code>pip install</code> on 3.10 keeps the last release that supported it,
+  1.31.3. The <code>.deb</code> depends on <code>python3 (&gt;= 3.11)</code>, which Debian 12 and
+  Ubuntu 24.04 meet; on Ubuntu 22.04, whose <code>python3</code> is 3.10, apt refuses it
+  and the plugin installs with pipx on a newer Python instead. The RPM stays
+  unversioned, and its launchers find RHEL 9's <code>python3.11</code> or <code>python3.12</code>.
+  See <a href="/documentation/installation#the-interpreter-it-uses">The interpreter it uses</a>.</li>
+</ul>
 <h2 id="1313-2026-10-19">[1.31.3] - 2026-10-19</h2>
 <h3 id="security">Security</h3>
 <ul>
@@ -54,7 +77,7 @@
   virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
   development dependency that no image or package contains.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>Every locked dependency is on its newest release.</strong> <code>uv lock --upgrade</code>
   moved the whole set in <code>uv.lock</code>, which the container images install and
@@ -150,7 +173,7 @@
   untranslated in every locale.</li>
 </ul>
 <h2 id="1311-2026-09-24">[1.31.1] - 2026-09-24</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>The coverage warning's alert line is now covered by mutation testing.</strong>
   <code>tests/test_coverage_regression.py</code> drives <code>_apply_baseline</code> in process but
@@ -203,7 +226,7 @@
   and report broken guide links at their original line numbers, ignoring
   links shown only in code examples. Added regression tests for both cases.</li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added_1">Added</h3>
 <ul>
 <li><strong>Coverage regression alerts.</strong> With <code>--baseline</code>, a check that an earlier
   run reached a conclusion on and that is <code>inconclusive</code> now raises an <code>OK</code> to
@@ -271,7 +294,7 @@
   tries the install once more before the release dry run fails.</li>
 </ul>
 <h2 id="1302-2026-09-24">[1.30.2] - 2026-09-24</h2>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li><strong>Tests now cover code that no test reached before.</strong> The advisory refresh
   script <code>scripts/update_vulnerability_db.py</code> has tests. They prove that it
@@ -310,7 +333,7 @@
   Before this fix, it named only one waiver but listed the checks of both.</li>
 </ul>
 <h2 id="1301-2026-09-23">[1.30.1] - 2026-09-23</h2>
-<h3 id="added_1">Added</h3>
+<h3 id="added_2">Added</h3>
 <ul>
 <li><code>--waiver-warning DAYS</code> (<code>COS_WAIVER_WARNING</code>, YAML <code>waiver_warning</code>)
   sets a warning window for <code>--waive-until</code> waivers. If a waiver that hides
@@ -367,7 +390,7 @@
   guides, including severity comparisons and missing measurements. Added
   regression cases for the awkward phrases found during review.</li>
 </ul>
-<h3 id="added_2">Added</h3>
+<h3 id="added_3">Added</h3>
 <ul>
 <li>
 <p><strong>The setup wizard exports the scheduled check, not just the configuration.</strong>
@@ -511,48 +534,6 @@
   searching for that page is searching for. All four strings now carry the
   names again; the search index is rebuilt with them.</p>
 </li>
-</ul>
-<h2 id="1291-2026-09-21">[1.29.1] - 2026-09-21</h2>
-<h3 id="changed_3">Changed</h3>
-<ul>
-<li>
-<p><strong>The <code>--policy</code> deployment gate is now covered by tests mutation testing
-  can run.</strong> Its behaviour was only ever exercised through the real CLI, which
-  runs the plugin as a subprocess, so mutation testing could delete the scan
-  document, the rating or the vulnerability list that <code>_apply_policy</code> is
-  handed - and drop the policy verdict from the webhook payload - without a
-  single test noticing. A violation that should fail a pipeline could have
-  stopped failing it silently. <code>tests/test_policy_gate.py</code> now drives the same
-  gate in process and is listed in the mutmut selection; the five surviving
-  mutants it was written for are killed.</p>
-</li>
-<li>
-<p><strong>A result list that no longer lines up with the checks that produced it is
-  now an error rather than a shorter report.</strong> Every place the scanner and the
-  plugin pair a list of checks with the results <code>_run_all</code> returned for them -
-  the exposed paths, the protected endpoints, the debug endpoints and ports,
-  the demo accounts, and the per-host rows of the <code>checkmk</code> and <code>summary</code>
-  output formats - zipped the two without asserting they were the same length.
-  The lengths match by construction today, so nothing changes for any scan that
-  runs; what changes is the failure mode if a later edit breaks that pairing.
-  Silently dropping the tail would have meant a report that omits checks
-  without saying so, which reads as an instance that passed them. The one
-  pairing deliberately left lenient is the lifecycle page parser, where the two
-  lists come from somebody else's HTML and a tab without a panel must be
-  dropped rather than raise.</p>
-</li>
-</ul>
-<h3 id="fixed_8">Fixed</h3>
-<ul>
-<li>The browser test for the severity filter no longer drops its own press in
-  WebKit on CI. Pressing a counter hides most of the list and reveals the
-  status line above it, so the page it leaves behind is a different height
-  from the one that was pressed; the test read the new count back with a
-  single sample and pressed <em>clear</em> straight away, on a control that was
-  still settling. WebKit dropped that press rather than delivering it, the
-  filter stayed on, and the run failed counting a list nobody had asked for.
-  Each press is now waited out for the count it asked for before the next one
-  is aimed, which still fails - loudly - if a press is ever genuinely lost.</li>
 </ul>
 </article>
 {% endblock %}

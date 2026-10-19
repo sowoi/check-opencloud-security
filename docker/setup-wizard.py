@@ -6575,8 +6575,10 @@ def backup_existing(
     credential file is created owner-readable only, exactly as the original.
     """
     # UTC, and said so in the name: a backup read on another host, or after a
-    # clock change, should not be an hour out of order.
-    stamp = stamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # clock change, should not be an hour out of order. timezone.utc, not
+    # datetime.UTC: the wizard runs on the Docker host's own python3, which
+    # can be older than the plugin's floor (Ubuntu 22.04 answers 3.10).
+    stamp = stamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")  # noqa: UP017
     directory = compose_path.parent
     candidates = [(path, False) for path, _ in _plain_files(setup, compose_path)]
     candidates.append((env_path, True))

@@ -12,7 +12,7 @@ uv run pytest                                   # full suite
 uv run pytest tests/test_waivers.py             # one file
 uv run pytest tests/test_waivers.py::test_name  # one test
 uv run pytest -k "waiver and not rating"        # by expression
-uv run nox                                      # Python 3.10-3.14
+uv run nox                                      # Python 3.11-3.15
 ```
 
 `pytest` is only available under `uv run`. The web application tests need the

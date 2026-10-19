@@ -195,8 +195,8 @@ pip install a second copy beside this one.
 
 ## Interpreter
 
-The launchers need Python 3.10 or newer and search for one: `python3` first,
-then `python3.14` down to `python3.10`. Set `COS_PYTHON` to override that.
+The launchers need Python 3.11 or newer and search for one: `python3` first,
+then `python3.15` down to `python3.11`. Set `COS_PYTHON` to override that.
 RHEL 9 answers 3.9 to `python3` and carries newer ones beside it, which is why
 the search exists.
 

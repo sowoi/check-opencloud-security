@@ -36,7 +36,7 @@ Für den dauerhaften Einsatz findest du unten Installations- und Monitoring-Anle
 
 ## Voraussetzungen {#prerequisites}
 
-Du benötigst Python ab 3.10 oder Docker. `requests` und `PyYAML` werden bei der
+Du benötigst Python ab 3.11 oder Docker. `requests` und `PyYAML` werden bei der
 Python-Installation automatisch mitinstalliert. Der Monitoring-Host muss die
 OpenCloud-Instanz erreichen können; diese muss dafür nicht öffentlich sein.
 

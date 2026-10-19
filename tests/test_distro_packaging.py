@@ -342,7 +342,7 @@ def test_a_host_without_a_usable_python_gets_unknown_rather_than_a_verdict():
     )
 
     assert completed.returncode == 3
-    assert "3.10" in completed.stderr
+    assert "3.11" in completed.stderr
     assert "COS_PYTHON" in completed.stderr
 
 
@@ -362,4 +362,4 @@ def test_the_launcher_prefers_an_interpreter_the_operator_named():
     candidates = [line for line in text.splitlines() if line.startswith("for candidate")]
     assert len(candidates) == 1
     assert candidates[0].index("COS_PYTHON") < candidates[0].index("python3")
-    assert "sys.version_info >= (3, 10)" in text
+    assert "sys.version_info >= (3, 11)" in text

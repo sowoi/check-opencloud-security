@@ -13,7 +13,7 @@ Every review is decided against a clock the test supplies.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -36,7 +36,7 @@ from opencloud_local_scan.waivers import (
 )
 from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
 
-NOW = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 AT = "2026-09-24T12:00:00Z"
 
 
@@ -199,7 +199,7 @@ def test_every_permanent_waiver_gets_a_temporary_replacement_to_copy():
     suggested = item.suggestion.split("'")[1]
     replacement = parse_waiver(suggested.replace("<why this is accepted>", "A reason"))
     assert replacement.pattern == "exposed:*"
-    assert replacement.expires_at == datetime(2026, 12, 23, tzinfo=timezone.utc)
+    assert replacement.expires_at == datetime(2026, 12, 23, tzinfo=UTC)
 
 
 def test_a_blanket_permanent_waiver_is_called_out():

@@ -47,7 +47,7 @@ import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
 LOGGER = logging.getLogger("check_opencloud.tls")
@@ -577,7 +577,7 @@ def _parse_date(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.strptime(value, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+        return datetime.strptime(value, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
     except ValueError:
         return None
 
@@ -588,7 +588,7 @@ def _certificate(
     """Build the certificate view, or nothing when there is no certificate."""
     if not peercert:
         return None
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     not_before_raw = peercert.get("notBefore")
     not_after_raw = peercert.get("notAfter")
     not_before = _parse_date(not_before_raw)

@@ -51,7 +51,7 @@ import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from typing import Any, TypeVar
 from urllib.parse import urljoin, urlsplit
@@ -4044,7 +4044,7 @@ def scan(
             use_release_schedule=settings.use_release_schedule,
         )
 
-        scanned_at = datetime.now(timezone.utc)
+        scanned_at = datetime.now(UTC)
         result: dict[str, Any] = {
             "domain": hostname,
             "addresses": addresses,

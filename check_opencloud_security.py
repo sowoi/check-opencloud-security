@@ -28,7 +28,7 @@ from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import IntEnum
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1202,7 +1202,7 @@ def _build_base_payload(
     return {
         "plugin": "check-opencloud-security",
         "plugin_version": __version__,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "host": context.host,
         "status": exit_code.name,
         "exit_code": int(exit_code),
@@ -1806,7 +1806,7 @@ def _build_digest_webhook_payload(payloads: list[dict[str, Any]]) -> dict[str, A
     return {
         "plugin": "check-opencloud-security",
         "plugin_version": __version__,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "status": overall.name,
         "exit_code": int(overall),
         "message": f"{len(payloads)} host(s) met the webhook trigger ({breakdown})",

@@ -22,7 +22,7 @@ import csv
 import hashlib
 import io
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
@@ -710,7 +710,7 @@ def pdf_report(result: dict[str, Any], *, identifier: str | None = None) -> byte
     scanned = _scanned_at(result)
     if scanned:
         doc.paragraph(f"Scanned at: {scanned}")
-    doc.paragraph(f"Report generated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
+    doc.paragraph(f"Report generated: {datetime.now(UTC).isoformat(timespec='seconds')}")
     if identifier:
         doc.paragraph(f"Scan reference: {identifier}")
     doc.paragraph(f"Produced by check-opencloud-security {__version__} - {PROJECT_URL}")
@@ -967,7 +967,7 @@ def html_report(result: dict[str, Any], *, identifier: str | None = None) -> str
     own document.
     """
     summary = summarise(result)
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
     tone = _GRADE_TONES.get(str(summary.get("tone")), "grade-fair")
     sections: list[str] = []
 

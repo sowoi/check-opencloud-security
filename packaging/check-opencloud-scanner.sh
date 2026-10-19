@@ -12,9 +12,9 @@ set -eu
 PAYLOAD="/usr/lib/check-opencloud-security"
 ENTRYPOINT="$PAYLOAD/check-opencloud-scanner.py"
 
-for candidate in ${COS_PYTHON:-} python3 python3.14 python3.13 python3.12 python3.11 python3.10; do
+for candidate in ${COS_PYTHON:-} python3 python3.15 python3.14 python3.13 python3.12 python3.11; do
     command -v "$candidate" >/dev/null 2>&1 || continue
-    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' \
+    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' \
         >/dev/null 2>&1 || continue
     # exec only returns if it failed to start the interpreter, and then the
     # next candidate is exactly what should be tried.
@@ -22,6 +22,6 @@ for candidate in ${COS_PYTHON:-} python3 python3.14 python3.13 python3.12 python
     exec "$candidate" "$ENTRYPOINT" "$@"
 done
 
-echo "check-opencloud-scanner: no Python 3.10 or newer found on PATH." >&2
+echo "check-opencloud-scanner: no Python 3.11 or newer found on PATH." >&2
 echo "Install one (python3.12 on RHEL 9, python3 elsewhere), or point COS_PYTHON at it." >&2
 exit 3

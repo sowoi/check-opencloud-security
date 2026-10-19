@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from typing import Any
 
@@ -385,7 +385,7 @@ def verify(
     return {
         "domain": hostname,
         "url": probe.base_url,
-        "verifiedAt": datetime.now(timezone.utc).isoformat(),
+        "verifiedAt": datetime.now(UTC).isoformat(),
         "probeGroups": list(measured),
         "results": results,
     }

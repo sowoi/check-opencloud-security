@@ -34,7 +34,7 @@ import json
 import re
 import uuid as uuid_module
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -258,7 +258,7 @@ def build_receipt(
     """Assemble and sign the receipt for one completed purge."""
     receipt = PurgeReceipt(
         receipt_id=str(uuid_module.uuid4()),
-        issued_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        issued_at=datetime.now(UTC).isoformat(timespec="seconds"),
         target=target,
         target_fingerprint=fingerprint(target, signing_key),
         report=report,

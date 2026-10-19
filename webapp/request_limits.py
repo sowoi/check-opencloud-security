@@ -36,7 +36,7 @@ class RequestBodyLimit:
         try:
             if not await asyncio.wait_for(collect(), timeout=REQUEST_BODY_SECONDS):
                 return
-        except (OverflowError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OverflowError) as exc:
             status = 413 if isinstance(exc, OverflowError) else 408
             response = JSONResponse(
                 {"detail": "The request body is too large." if status == 413 else "The request body took too long."},
