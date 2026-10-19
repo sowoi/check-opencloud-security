@@ -270,7 +270,7 @@ We use Ruff for linting and code formatting checks.
 
 To run the linting check:
 ```
-uvx ruff check
+uvx ruff@0.17.1 check
 ```
 
 ## Changelog entries

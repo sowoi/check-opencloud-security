@@ -1,0 +1,56 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: container-urllib3-2-7-0
+state: declined
+changelog_version: "1.31.3"
+changelog_entry: "The container images ship urllib3 2.8.0."
+shipped: true
+declined_because: |
+  A dependency update, not a defect in this project. The vulnerabilities are
+  urllib3's own (PYSEC-2026-4175, -4176, -4177) and urllib3's advisories
+  already reach everyone whose dependency scanner sees it, including the
+  SBOM of these images. An advisory here would repeat theirs for a package
+  this project does not write. The PyPI package never pinned urllib3, so a
+  `pip install check-opencloud-security` resolved the fixed release as soon
+  as it existed. An operator on an affected image picks up the fix by
+  pulling the next one.
+package: web
+severity: medium
+cwe_ids:
+  - CWE-1395
+introduced: "1.31.1"
+fixed: "1.31.3"
+summary: >-
+  The container images installed urllib3 2.7.0, which has known
+  vulnerabilities, from uv.lock
+verified: |
+  git show v1.31.2:uv.lock | grep -A1 '^name = "urllib3"' -> version = "2.7.0"
+  (the same in v1.31.1 and v1.31.0).
+  git show v1.31.2:docker/Dockerfile.web -> uv export --frozen ... then
+  uv pip install --require-hashes -r requirements.txt, so the image installs
+  the locked urllib3.
+  git show v1.30.3:docker/Dockerfile.web | grep -c require-hashes -> 0: before
+  1.31.1 the images resolved urllib3 from PyPI rather than the lock.
+  CI pip-audit run 39234234337 (2026-10-19) reported the three PYSEC IDs
+  against urllib3 2.7.0 with 2.8.0 as the fix.
+description: |
+  ### Impact
+
+  The container images built from 1.31.1 and 1.31.2 install the dependency
+  set `uv.lock` pins, and that lock pinned urllib3 2.7.0, which is affected
+  by PYSEC-2026-4175, PYSEC-2026-4176 and PYSEC-2026-4177. urllib3 is the
+  HTTP library under `requests`, which the scanner uses for every probe.
+
+  PyPI installations are unaffected: the package does not pin urllib3.
+
+  ### Patches
+
+  Fixed in **1.31.3**, whose `uv.lock` pins urllib3 2.8.0.
+
+  ### Workarounds
+
+  Pull the 1.31.3 image, or rebuild an older checkout after
+  `uv lock --upgrade-package urllib3`.

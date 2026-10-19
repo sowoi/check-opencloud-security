@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Install the locked test environment
         run: uv sync --locked --group test
@@ -39,10 +39,20 @@ jobs:
       - name: Refresh the release schedule and the README table
         run: uv run python scripts/update_release_schedule.py
 
+      # The browser-facing /documentation pages are generated from README.md,
+      # and CI fails a pull request whose generated pages or page revisions
+      # are stale - so a refresh that only rewrote the README table could
+      # never pass. The search index is left to search-index.yml (ADR 0050).
+      - name: Regenerate the documentation built from README.md
+        run: |
+          uv run python scripts/build_frontend_documentation.py
+          uv run python scripts/update_page_revisions.py
+
       - name: Validate refreshed release data
         run: >-
           uv run pytest -q tests/test_update_script.py tests/test_release_schedule.py
-          tests/test_webapp_schedule.py
+          tests/test_webapp_schedule.py tests/test_frontend_documentation.py
+          tests/test_webapp_page_revisions.py
 
       - name: Open pull request on change
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
@@ -50,6 +60,8 @@ jobs:
           add-paths: |
             opencloud_local_scan/data/release_schedule.json
             README.md
+            frontend/templates/docs/
+            webapp/data/page-revisions.json
           branch: chore/release-schedule
           commit-message: "chore: refresh the OpenCloud release schedule"
           title: "chore: refresh the OpenCloud release schedule"

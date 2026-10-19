@@ -32,6 +32,7 @@ from opencloud_local_scan.waivers import (
     next_expiry,
     parse_waiver,
     review,
+    scan_clock,
 )
 from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
 
@@ -217,7 +218,13 @@ def test_items_are_ordered_by_kind():
 
 def test_the_next_expiry_agrees_with_the_plugins_warning(tmp_path):
     """The review and --waiver-warning must never disagree about a deadline."""
-    waivers = (_temporary("exposed:/.env", 10), _temporary("reverseProxyDetected", 20))
+    # The scan judges its waivers by the real clock, so a fixed NOW would let
+    # the ten-day waiver expire in the scan once the calendar passes it.
+    now = scan_clock()
+    waivers = (
+        Waiver("exposed:/.env", now + timedelta(days=10), "Accepted for now"),
+        Waiver("reverseProxyDetected", now + timedelta(days=20), "Accepted for now"),
+    )
     settings = ScannerSettings(
         scheme="http",
         timeout=3,
@@ -230,7 +237,7 @@ def test_the_next_expiry_agrees_with_the_plugins_warning(tmp_path):
             instance.host, settings=settings, release_settings=ReleaseSettings(mode="off")
         )
 
-    outcome = review(waivers, NOW, result=document)
+    outcome = review(waivers, now, result=document)
 
     assert {"exposed:/.env", "reverseProxyDetected"} <= set(failing_checks(document))
     assert outcome.upcoming == next_expiry(document["waivers"])

@@ -38,7 +38,7 @@ uv run pytest                                       # full suite (~75s)
 uv run pytest tests/test_webapp_api.py              # the web application (no Redis needed)
 uv run playwright install webkit                    # once: the browser for the tests below and the MCP server
 uv run pytest tests/test_webapp_browser_*.py        # the frontend in a real browser (ADR 0061)
-uvx ruff check .                                    # linting, as CI runs it
+uvx ruff@0.17.1 check .                             # linting, as CI runs it
 uv run mypy --config-file mypy.ini                  # type checking
 cd ansible && ansible-lint                          # must be run from ansible/
 uv run nox                                          # full suite on Python 3.10-3.14

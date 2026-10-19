@@ -110,7 +110,7 @@ DOCKERHUB_IMAGE = "okxo/opencloud-scanner:latest"
 # `docker-compose.authentik.yml` pins. Keep the two together: a wizard that
 # generates a different version from the file next to it is a support case.
 AUTHENTIK_IMAGE = "ghcr.io/goauthentik/server"
-AUTHENTIK_TAG = "2026.8.2"
+AUTHENTIK_TAG = "2026.8.4"
 BLUEPRINT_DIRECTORY = Path("authentik") / "blueprints"
 BLUEPRINT_RELATIVE = BLUEPRINT_DIRECTORY / "opencloud-scanner.yaml"
 
@@ -3140,7 +3140,7 @@ def check_errors(setup: Setup, base_dir: Path | None = None) -> list[str]:
 
 
 def _authentik_release(tag: str) -> tuple[int, int, int] | None:
-    """``2026.8.2`` as a comparable tuple, or ``None`` for anything else."""
+    """``2026.8.4`` as a comparable tuple, or ``None`` for anything else."""
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", tag.strip())
     return (int(match[1]), int(match[2]), int(match[3])) if match else None
 

@@ -28,7 +28,7 @@ permissions:
   pull-requests: write
 
 env:
-  MERMAID_CLI_VERSION: "11.16.0"
+  MERMAID_CLI_VERSION: "12.0.0"
 
 jobs:
   render:
@@ -41,13 +41,13 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Install the locked test environment
         run: uv sync --locked --group test
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
 
@@ -78,12 +78,18 @@ jobs:
       - name: Validate that every diagram still has its image reference
         run: uv run python scripts/render_architecture_diagrams.py --check
 
+      # The frontend serves its own copy of the diagram; CI fails a pull
+      # request in which that copy differs from the freshly rendered one.
+      - name: Refresh the copy the frontend serves
+        run: uv run python scripts/build_frontend_documentation.py
+
       - name: Open pull request on change
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           add-paths: |
             ARCHITECTURE.md
             img/architecture-*.png
+            frontend/static/img/architecture-*.png
           branch: chore/architecture-diagram
           commit-message: "chore: re-render the architecture diagram"
           title: "chore: re-render the architecture diagram"

@@ -31,6 +31,7 @@
 
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#1313-this-release" lang="en">[1.31.3] - this release</a>
   <a href="#1312-2026-09-25" lang="en">[1.31.2] - 2026-09-25</a>
   <a href="#1311-2026-09-24" lang="en">[1.31.1] - 2026-09-24</a>
   <a href="#1310-2026-09-24" lang="en">[1.31.0] - 2026-09-24</a>
@@ -40,12 +41,59 @@
   <a href="#1293-2026-09-22" lang="en">[1.29.3] - 2026-09-22</a>
   <a href="#1292-2026-09-22" lang="en">[1.29.2] - 2026-09-22</a>
   <a href="#1291-2026-09-21" lang="en">[1.29.1] - 2026-09-21</a>
-  <a href="#1290-2026-09-21" lang="en">[1.29.0] - 2026-09-21</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
-<h2 id="1312-2026-09-25">[1.31.2] - 2026-09-25</h2>
+<h2 id="1313-this-release">[1.31.3] - this release</h2>
 <h3 id="security">Security</h3>
+<ul>
+<li><strong>The container images ship urllib3 2.8.0.</strong> <code>uv.lock</code> pinned urllib3
+  2.7.0 (PYSEC-2026-4175, -4176, -4177), and since 1.31.1 the container
+  images install exactly what <code>uv.lock</code> pins. The PyPI package does not pin
+  urllib3 and picks up the fixed release on its own. The lock also moves
+  virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
+  development dependency that no image or package contains.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Every locked dependency is on its newest release.</strong> <code>uv lock --upgrade</code>
+  moved the whole set in <code>uv.lock</code>, which the container images install and
+  CI tests against - among them mcp 2.3.0, pydantic 2.14.1, starlette 1.7.0
+  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1 and mypy
+  2.4.0. The runtime ranges in <code>pyproject.toml</code> are unchanged, so a
+  <code>pip install</code> accepts the same versions as before. <code>pip-audit</code> finds no
+  known vulnerability in the new set. Only the test dependency playwright is
+  held below 1.64, in <code>pyproject.toml</code> and for Dependabot: the WebKit it
+  ships reports a Content-Security-Policy violation for the browser's own
+  stylesheet of every <code>&lt;select&gt;</code>, so every browser test of a page with a
+  language picker failed.</li>
+<li><strong>The signed-in stack runs authentik 2026.8.4.</strong> The setup wizard and
+  <code>docker/docker-compose.authentik.yml</code> pinned 2026.8.2; <code>AUTHENTIK_TAG</code>
+  still overrides it. Redis 8.10 and Postgres 18.6 were already current.</li>
+<li><strong>Every GitHub Action is on its newest release, still pinned by commit.</strong>
+  setup-uv 10.3.0, setup-node 7.1.0, upload-artifact 7.0.2,
+  download-artifact 8.0.2, setup-buildx-action 4.4.1 and codeql-action
+  4.39.0; the diagram workflow renders with mermaid-cli 12.0.0.</li>
+</ul>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong>An automated release-schedule pull request no longer fails CI.</strong> The
+  weekly refresh rewrote the release table in <code>README.md</code> but not the
+  <code>/documentation</code> page generated from it, so the unit tests and every nox
+  session failed on a stale <code>reference.html</code>. The workflow now regenerates
+  that page and its sitemap revision and commits them with the refresh; the
+  architecture-diagram refresh likewise updates the copy the frontend serves.</li>
+<li><strong>CI no longer breaks when a new ruff is released.</strong> The workflow ran
+  whatever ruff was newest, and 0.17 flagged two <code>noqa</code> comments for a rule
+  the project never enables. The comments are gone and the workflow pins
+  <code>ruff@0.17.1</code>, like zizmor and Biome already are.</li>
+<li><strong>A waiver test no longer expires with the calendar.</strong> It built its waivers
+  from a fixed date but scanned with the real clock, so from 4 October 2026
+  one of them was already expired in the scan and the test failed on every
+  run.</li>
+</ul>
+<h2 id="1312-2026-09-25">[1.31.2] - 2026-09-25</h2>
+<h3 id="security_1">Security</h3>
 <ul>
 <li><strong>The erasure credential throttle counts an IPv6 client by its /64.</strong> Failed
   guesses at the <code>DELETE /api/purge</code> token were counted per single address,
@@ -60,7 +108,7 @@
   at least 32 characters that is not that placeholder, or it refuses to start.
   <code>openssl rand -hex 32</code>, which every guide already uses, is unaffected.</li>
 </ul>
-<h3 id="fixed">Fixed</h3>
+<h3 id="fixed_1">Fixed</h3>
 <ul>
 <li><strong>A check only one of two scans made is no longer called new or resolved.</strong>
   Comparisons read a finding missing from the earlier scan as passing, so a
@@ -102,7 +150,7 @@
   untranslated in every locale.</li>
 </ul>
 <h2 id="1311-2026-09-24">[1.31.1] - 2026-09-24</h2>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>The coverage warning's alert line is now covered by mutation testing.</strong>
   <code>tests/test_coverage_regression.py</code> drives <code>_apply_baseline</code> in process but
@@ -111,7 +159,7 @@
   It is now listed, and its test asserts the whole alert line: three of those
   mutants left <code>OK:</code> inside the WARNING message without a test noticing.</li>
 </ul>
-<h3 id="fixed_1">Fixed</h3>
+<h3 id="fixed_2">Fixed</h3>
 <ul>
 <li><strong>The web report no longer offers "What gets you to A+" under an A+.</strong> When
   no step in the remediation plan raises the grade, because the instance
@@ -129,7 +177,7 @@
   <code>ratingExplanation.base</code> is <code>null</code>.</strong> The update step's detail is then left
   empty, instead of <code>remediation_plan()</code> raising.</li>
 </ul>
-<h3 id="security_1">Security</h3>
+<h3 id="security_2">Security</h3>
 <ul>
 <li><strong>An empty listen address no longer counts as loopback for the scan
   service.</strong> Binding <code>""</code> listens on every interface, but the check that
@@ -215,7 +263,7 @@
   printed a summary. See
   <a href="/documentation/scanner-cli#fleet---a-dashboard-from-saved-results">the scanner command</a>.</li>
 </ul>
-<h3 id="fixed_2">Fixed</h3>
+<h3 id="fixed_3">Fixed</h3>
 <ul>
 <li><strong>The <code>.deb</code> install smoke test survives a mirror caught mid-sync.</strong> When
   the Ubuntu or Debian mirror lists a dependency it no longer serves (a
@@ -223,7 +271,7 @@
   tries the install once more before the release dry run fails.</li>
 </ul>
 <h2 id="1302-2026-09-24">[1.30.2] - 2026-09-24</h2>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>Tests now cover code that no test reached before.</strong> The advisory refresh
   script <code>scripts/update_vulnerability_db.py</code> has tests. They prove that it
@@ -248,7 +296,7 @@
   duplicate catalogue keys, repeated placeholders, and formatting and HTML
   escaping across every language, including messages on conditional pages.</li>
 </ul>
-<h3 id="fixed_3">Fixed</h3>
+<h3 id="fixed_4">Fixed</h3>
 <ul>
 <li><code>--waiver-warning</code> and <code>waiver_days_left</code> no longer count a waiver that
   only covers a flag OpenCloud hardcodes, such as
@@ -399,7 +447,7 @@
   release ends the window.</p>
 </li>
 </ul>
-<h3 id="fixed_4">Fixed</h3>
+<h3 id="fixed_5">Fixed</h3>
 <ul>
 <li>
 <p><strong>The French scanner CLI guide no longer ships the newly added comparison
@@ -414,7 +462,7 @@
 </li>
 </ul>
 <h2 id="1293-2026-09-22">[1.29.3] - 2026-09-22</h2>
-<h3 id="fixed_5">Fixed</h3>
+<h3 id="fixed_6">Fixed</h3>
 <ul>
 <li><strong>Sloppy generated wording was removed from the English, German and French&lt;
   documentation.</strong> Replaced vague promotional phrases and awkward literal
@@ -423,7 +471,7 @@
   regression cases for these patterns.</li>
 </ul>
 <h2 id="1292-2026-09-22">[1.29.2] - 2026-09-22</h2>
-<h3 id="fixed_6">Fixed</h3>
+<h3 id="fixed_7">Fixed</h3>
 <ul>
 <li>
 <p><strong><code>/llms.txt</code> and <code>/llms-full.txt</code> described an older version of the
@@ -465,7 +513,7 @@
 </li>
 </ul>
 <h2 id="1291-2026-09-21">[1.29.1] - 2026-09-21</h2>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li>
 <p><strong>The <code>--policy</code> deployment gate is now covered by tests mutation testing
@@ -494,7 +542,7 @@
   dropped rather than raise.</p>
 </li>
 </ul>
-<h3 id="fixed_7">Fixed</h3>
+<h3 id="fixed_8">Fixed</h3>
 <ul>
 <li>The browser test for the severity filter no longer drops its own press in
   WebKit on CI. Pressing a counter hides most of the list and reveals the
@@ -505,61 +553,6 @@
   filter stayed on, and the run failed counting a list nobody had asked for.
   Each press is now waited out for the count it asked for before the next one
   is aimed, which still fails - loudly - if a press is ever genuinely lost.</li>
-</ul>
-<h2 id="1290-2026-09-21">[1.29.0] - 2026-09-21</h2>
-<h3 id="added_3">Added</h3>
-<ul>
-<li><strong>A scan fingerprints the configuration it measured, so drift is visible
-  without the grade moving.</strong> A rewritten content security policy, a replaced
-  reverse proxy, public links that stopped requiring a password, a certificate
-  at a different issuer - none of that has to change a grade, and an operator
-  watching only the grade saw none of it. The result document now carries a
-  <code>configuration</code> block: grouped digests for transport, headers, sharing,
-  authentication and proxy, plus one over all five. <strong>Digests only, never the
-  configuration</strong> - a policy, an issuer and a server banner go in and a hash
-  comes out, so the block is safe on a public page, in a webhook and in an
-  uploaded report. The plugin prints <code>Configuration fingerprint: 9e3c4428</code>,
-  <code>--baseline</code> reports <code>No new findings, but the configuration changed
-  (headers)</code>, <code>check-opencloud-scanner diff</code> adds a <code>configurationChanged</code>
-  change, and the web application shows the groups under <em>Has this deployment
-  changed?</em>. Routine churn is deliberately excluded: a renewed certificate and
-  a proxy's new build number are not drift, and a group the two scans looked
-  at differently is reported as not comparable rather than as a change.
-  Nothing in it touches a rating, an exit code or an alert line. See
-  <a href="{{ admin_path }}/decisions/0073-a-result-fingerprints-the-configuration-it-measured">ADR 0073</a>.</li>
-<li><strong><code>--policy</code> fails a deployment on explicit requirements, not on a grade.</strong>
-  <code>-w</code>/<code>-c</code> and <code>--profile</code> judge an instance by its rating, which is the
-  wrong shape for a CI gate: a team that requires HTTPS enforcement and no
-  demo accounts cannot express that as a number. A policy file states it
-  directly - <code>minimum_rating</code>, <code>required_hardenings</code> and <code>forbidden</code> (a
-  missing measure, a failed check or a vulnerability id) - and anything it
-  asks for that an instance does not meet ends the run CRITICAL. A policy
-  only ever makes a verdict worse, a waiver does not excuse a requirement,
-  and an unknown key or measure is a usage error rather than a rule that
-  quietly requires nothing. <code>--format json</code> and the webhook payload carry the
-  verdict under <code>policy</code>. See <a href="/documentation/reference#ci-policy-mode">CI policy mode</a> and
-  <a href="https://github.com/sowoi/check-opencloud-security/blob/main/config/policy.example.yml"><code>config/policy.example.yml</code></a>.</li>
-<li><strong><code>--format summary</code> reads a whole fleet in one table.</strong> Checking a dozen
-  instances printed a dozen result blocks written for a monitoring system,
-  which is a lot to read when the question is just "which of these needs me
-  today". The new format prints one aligned row per host instead - host,
-  grade, version, end-of-life state, how many advisories apply, and how much
-  moved since <code>--baseline</code> - followed by the same tally the Nagios output
-  starts with. Rows keep the order the hosts were given and the exit code is
-  unchanged, so it works from a cron job that mails its output. The <code>NEW</code>
-  column distinguishes "no baseline given" (<code>-</code>) from "no new findings" (<code>0</code>),
-  and a host whose scan failed shows its Nagios status where the grade would
-  be. See <a href="/documentation/reference#reading-a-fleet-in-one-table">Reading a fleet in one table</a>.</li>
-<li><strong>The output says how much it could actually measure.</strong> A check that
-  passed and one that never ran left the same trace in the plugin's output -
-  nothing - so the plugin now prints a <code>Coverage:</code> line such as <code>84 checks
-  evaluated, 6 skipped, 2 indeterminate, 1 network-limited</code>, and the webhook
-  payload and <code>--format json</code> carry the same counts under <code>coverage</code>. The web
-  application's <em>What this scan did not measure</em> section shows the same four
-  numbers. <code>network_limited</code> is split out of the skipped and indeterminate
-  counts because a timeout or a missing route - DNSSEC, an external identity
-  provider, an optional endpoint - is the gap another vantage point might
-  close. Nothing in it changes a grade, an exit code or an alert line.</li>
 </ul>
 </article>
 {% endblock %}
