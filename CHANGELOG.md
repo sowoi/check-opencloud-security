@@ -26,10 +26,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 - **Every locked dependency is on its newest release.** `uv lock --upgrade`
   moved the whole set in `uv.lock`, which the container images install and
   CI tests against - among them mcp 2.3.0, pydantic 2.14.1, starlette 1.7.0
-  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1, mypy
-  2.4.0 and playwright 1.64.0. `pyproject.toml` is unchanged, so the ranges a
-  `pip install` accepts are the same as before. `pip-audit` finds no known
-  vulnerability in the new set.
+  (1.9.0 on newer Pythons), uvicorn 0.54.0, idna 3.20, pyjwt 2.15.1 and mypy
+  2.4.0. The runtime ranges in `pyproject.toml` are unchanged, so a
+  `pip install` accepts the same versions as before. `pip-audit` finds no
+  known vulnerability in the new set. Only the test dependency playwright is
+  held below 1.64, in `pyproject.toml` and for Dependabot: the WebKit it
+  ships reports a Content-Security-Policy violation for the browser's own
+  stylesheet of every `<select>`, so every browser test of a page with a
+  language picker failed.
 - **The signed-in stack runs authentik 2026.8.4.** The setup wizard and
   `docker/docker-compose.authentik.yml` pinned 2026.8.2; `AUTHENTIK_TAG`
   still overrides it. Redis 8.10 and Postgres 18.6 were already current.

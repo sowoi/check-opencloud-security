@@ -11,6 +11,11 @@ updates:
       interval: "monthly"
     cooldown:
       default-days: 7
+    # pyproject.toml holds playwright below 1.64, whose WebKit reports a CSP
+    # violation for every <select>; a pull request past it could only fail.
+    ignore:
+      - dependency-name: "playwright"
+        versions: [">=1.64"]
 
   # Pinned actions go stale quietly, and the way that surfaces is a runner
   # deprecation warning on every job. Let Dependabot raise it instead.

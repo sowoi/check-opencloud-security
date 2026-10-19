@@ -130,8 +130,10 @@ test = [
     # real rendering, JavaScript and the Content-Security-Policy, which the
     # ASGI test client never executes. Test-only, and the tests skip when the
     # package or its Firefox build is missing. Reviewed in
-    # security/dependencies/playwright.yml; ADR 0061.
-    "playwright>=1.63.0",
+    # security/dependencies/playwright.yml; ADR 0061. Held below 1.64: its
+    # WebKit reports a CSP violation for the user-agent stylesheet of every
+    # <select>, which fails every browser test on a page with one.
+    "playwright>=1.63.0,<1.64",
     # Property-based tests of the parsers that take text from outside:
     # version strings, security headers, the SSRF guard and the ';'-joined
     # configuration lists (tests/test_properties.py). Test-only; reviewed in
