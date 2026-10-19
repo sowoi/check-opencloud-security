@@ -872,7 +872,7 @@ the operator said yes.
 uv run pytest                          # full suite
 uv run pytest tests/test_waivers.py    # one file
 uv run pytest tests/test_webapp_api.py # the web application
-uvx ruff check .                       # linting, as CI runs it
+uvx ruff@0.17.1 check .                # linting, as CI runs it
 uv run mypy --config-file mypy.ini     # type checking
 cd ansible && ansible-lint             # must be run from ansible/
 python scripts/security_advisories.py --check   # every Security entry decided

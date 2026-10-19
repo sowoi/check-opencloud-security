@@ -78,12 +78,18 @@ jobs:
       - name: Validate that every diagram still has its image reference
         run: uv run python scripts/render_architecture_diagrams.py --check
 
+      # The frontend serves its own copy of the diagram; CI fails a pull
+      # request in which that copy differs from the freshly rendered one.
+      - name: Refresh the copy the frontend serves
+        run: uv run python scripts/build_frontend_documentation.py
+
       - name: Open pull request on change
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           add-paths: |
             ARCHITECTURE.md
             img/architecture-*.png
+            frontend/static/img/architecture-*.png
           branch: chore/architecture-diagram
           commit-message: "chore: re-render the architecture diagram"
           title: "chore: re-render the architecture diagram"

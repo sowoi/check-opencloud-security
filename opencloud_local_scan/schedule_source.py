@@ -171,7 +171,7 @@ def parse_release_date(text: str) -> str | None:
         try:
             # A calendar date without a time of day; the timezone is
             # irrelevant and attaching one would only be misleading.
-            return datetime.strptime(cleaned, pattern).date().isoformat()  # noqa: DTZ007
+            return datetime.strptime(cleaned, pattern).date().isoformat()
         except ValueError:
             continue
     return None

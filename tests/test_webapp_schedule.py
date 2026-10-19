@@ -56,7 +56,7 @@ BUNDLED = json.loads(RELEASE_SCHEDULE_FILE.read_text(encoding="utf-8"))
 
 def _page_date(iso: str) -> str:
     """'2026-08-03' as the documentation writes it: '2026 August 3'."""
-    parsed = datetime.strptime(iso, "%Y-%m-%d").date()  # noqa: DTZ007
+    parsed = datetime.strptime(iso, "%Y-%m-%d").date()
     return f"{parsed.year} {parsed.strftime('%B')} {parsed.day}"
 
 

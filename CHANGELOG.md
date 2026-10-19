@@ -12,6 +12,32 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Security
+
+- **The container images ship urllib3 2.8.0.** `uv.lock` pinned urllib3
+  2.7.0 (PYSEC-2026-4175, -4176, -4177), and since 1.31.1 the container
+  images install exactly what `uv.lock` pins. The PyPI package does not pin
+  urllib3 and picks up the fixed release on its own. The lock also moves
+  virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
+  development dependency that no image or package contains.
+
+### Fixed
+
+- **An automated release-schedule pull request no longer fails CI.** The
+  weekly refresh rewrote the release table in `README.md` but not the
+  `/documentation` page generated from it, so the unit tests and every nox
+  session failed on a stale `reference.html`. The workflow now regenerates
+  that page and its sitemap revision and commits them with the refresh; the
+  architecture-diagram refresh likewise updates the copy the frontend serves.
+- **CI no longer breaks when a new ruff is released.** The workflow ran
+  whatever ruff was newest, and 0.17 flagged two `noqa` comments for a rule
+  the project never enables. The comments are gone and the workflow pins
+  `ruff@0.17.1`, like zizmor and Biome already are.
+- **A waiver test no longer expires with the calendar.** It built its waivers
+  from a fixed date but scanned with the real clock, so from 4 October 2026
+  one of them was already expired in the scan and the test failed on every
+  run.
+
 ## [1.31.2] - 2026-09-25
 
 ### Security

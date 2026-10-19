@@ -36,7 +36,7 @@ A tool that is not installed is reported as **skipped**, never as passed. Use
 |:--|:--|:--|
 | 1 | Tests | `uv run --group test --extra signing pytest -q` (web tests use `COS_WEB_REDIS_URL=memory://` automatically via fixtures; set it if they complain) |
 | 1a | Browser tests | `uv run pytest tests/test_webapp_browser_ux.py tests/test_webapp_browser_e2e.py -q` (part of check 1; report them separately, and as **skipped** - not passed - when WebKit is not installed: `uv run playwright install webkit`) |
-| 2 | Ruff | `uvx ruff check .` |
+| 2 | Ruff | `uvx ruff@0.17.1 check .` |
 | 3 | mypy | `uv run --group test mypy --config-file mypy.ini` |
 | 4 | Bandit | `uvx bandit --recursive . --severity-level medium --confidence-level medium --exclude ./tests,./secrets,./.venv -q` (advisory in CI - report findings, do not fail) |
 | 5 | Frontend documentation | `uv run python scripts/build_frontend_documentation.py --check` |
