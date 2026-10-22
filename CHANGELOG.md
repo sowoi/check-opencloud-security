@@ -12,6 +12,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Documentation
+
+- **`GUIDELINE.md` collects the rules behind this repository's agent setup.**
+  Fifty-one tool-agnostic best practices for repositories where AI coding
+  agents do much of the work: one authoritative rule file, hooks that enforce
+  the hard rules, skills for many-file changes, read-only checking agents,
+  generator `--check` modes, records for decisions, security fixes and
+  dependencies, and tests that keep the instruction files in agreement.
+
 ## [1.32.0] - 2026-10-19
 
 ### Added
