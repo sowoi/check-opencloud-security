@@ -31,6 +31,7 @@
 
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#1321-this-release" lang="en">[1.32.1] - this release</a>
   <a href="#1320-2026-10-19" lang="en">[1.32.0] - 2026-10-19</a>
   <a href="#1313-2026-10-19" lang="en">[1.31.3] - 2026-10-19</a>
   <a href="#1312-2026-09-25" lang="en">[1.31.2] - 2026-09-25</a>
@@ -40,10 +41,35 @@
   <a href="#1301-2026-09-23" lang="en">[1.30.1] - 2026-09-23</a>
   <a href="#1300-2026-09-22" lang="en">[1.30.0] - 2026-09-22</a>
   <a href="#1293-2026-09-22" lang="en">[1.29.3] - 2026-09-22</a>
-  <a href="#1292-2026-09-22" lang="en">[1.29.2] - 2026-09-22</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
+<h2 id="1321-this-release">[1.32.1] - this release</h2>
+<h3 id="security">Security</h3>
+<ul>
+<li><strong>The web container image no longer ships pyasn1 0.6.4.</strong> sigstore, which
+  the <code>signing</code> extra installs in <code>docker/Dockerfile.web</code>, pulled in pyasn1
+  0.6.4 (CVE-2026-119194 to -119197) through <code>uv.lock</code> since 1.31.1. sigstore
+  4.5.1 no longer depends on pyasn1, so the lock no longer contains it. The
+  PyPI package never pinned pyasn1, and the plugin image does not install the
+  <code>signing</code> extra.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Dependabot updates every <code>github/codeql-action</code> step in one pull
+  request.</strong> The <code>init</code>, <code>analyze</code> and <code>upload-sarif</code> steps must run the same
+  version; bumped one at a time, each pull request failed CodeQL until the
+  other two were merged too.</li>
+</ul>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li><strong><code>GUIDELINE.md</code> collects the rules behind this repository's agent setup.</strong>
+  Fifty-one tool-agnostic best practices for repositories where AI coding
+  agents do much of the work: one authoritative rule file, hooks that enforce
+  the hard rules, skills for many-file changes, read-only checking agents,
+  generator <code>--check</code> modes, records for decisions, security fixes and
+  dependencies, and tests that keep the instruction files in agreement.</li>
+</ul>
 <h2 id="1320-2026-10-19">[1.32.0] - 2026-10-19</h2>
 <h3 id="added">Added</h3>
 <ul>
@@ -51,7 +77,7 @@
   run the suite on 3.11 to 3.15, and the packaged launchers try
   <code>python3.15</code> first after <code>python3</code>.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>The container images run Python 3.15.</strong> Both images are built from
   <code>python:3.15-slim</code> and install with uv 0.13.1 instead of 0.11.31.</li>
@@ -68,7 +94,7 @@
   See <a href="/documentation/installation#the-interpreter-it-uses">The interpreter it uses</a>.</li>
 </ul>
 <h2 id="1313-2026-10-19">[1.31.3] - 2026-10-19</h2>
-<h3 id="security">Security</h3>
+<h3 id="security_1">Security</h3>
 <ul>
 <li><strong>The container images ship urllib3 2.8.0.</strong> <code>uv.lock</code> pinned urllib3
   2.7.0 (PYSEC-2026-4175, -4176, -4177), and since 1.31.1 the container
@@ -77,7 +103,7 @@
   virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
   development dependency that no image or package contains.</li>
 </ul>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>Every locked dependency is on its newest release.</strong> <code>uv lock --upgrade</code>
   moved the whole set in <code>uv.lock</code>, which the container images install and
@@ -116,7 +142,7 @@
   run.</li>
 </ul>
 <h2 id="1312-2026-09-25">[1.31.2] - 2026-09-25</h2>
-<h3 id="security_1">Security</h3>
+<h3 id="security_2">Security</h3>
 <ul>
 <li><strong>The erasure credential throttle counts an IPv6 client by its /64.</strong> Failed
   guesses at the <code>DELETE /api/purge</code> token were counted per single address,
@@ -148,7 +174,7 @@
 <li><strong>A comparison page rounds its expiry up too.</strong> It rounded the minutes
   left down, so it announced one minute fewer than the result page would.</li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation_1">Documentation</h3>
 <ul>
 <li>
 <p>Added German, Spanish and French operator architecture and operations documentation, including
@@ -173,7 +199,7 @@
   untranslated in every locale.</li>
 </ul>
 <h2 id="1311-2026-09-24">[1.31.1] - 2026-09-24</h2>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li><strong>The coverage warning's alert line is now covered by mutation testing.</strong>
   <code>tests/test_coverage_regression.py</code> drives <code>_apply_baseline</code> in process but
@@ -200,7 +226,7 @@
   <code>ratingExplanation.base</code> is <code>null</code>.</strong> The update step's detail is then left
   empty, instead of <code>remediation_plan()</code> raising.</li>
 </ul>
-<h3 id="security_2">Security</h3>
+<h3 id="security_3">Security</h3>
 <ul>
 <li><strong>An empty listen address no longer counts as loopback for the scan
   service.</strong> Binding <code>""</code> listens on every interface, but the check that
@@ -214,7 +240,7 @@
   that CI, <code>pip-audit</code> and the SBOM never saw.</li>
 </ul>
 <h2 id="1310-2026-09-24">[1.31.0] - 2026-09-24</h2>
-<h3 id="documentation_1">Documentation</h3>
+<h3 id="documentation_2">Documentation</h3>
 <ul>
 <li>Polished scan progress, errors, downloads and sharing text in English,
   German, Spanish and French. Corrected informal Spanish instructions and
@@ -294,7 +320,7 @@
   tries the install once more before the release dry run fails.</li>
 </ul>
 <h2 id="1302-2026-09-24">[1.30.2] - 2026-09-24</h2>
-<h3 id="changed_3">Changed</h3>
+<h3 id="changed_4">Changed</h3>
 <ul>
 <li><strong>Tests now cover code that no test reached before.</strong> The advisory refresh
   script <code>scripts/update_vulnerability_db.py</code> has tests. They prove that it
@@ -310,7 +336,7 @@
   hardening flag of a full scan verifies to the same answer, not only three of
   them.</li>
 </ul>
-<h3 id="documentation_2">Documentation</h3>
+<h3 id="documentation_3">Documentation</h3>
 <ul>
 <li>Clarified operator status, comparison results, monitoring instructions and
   TLS explanations in English, German, Spanish and French. Corrected Spanish
@@ -353,7 +379,7 @@
   <code>opencloud_security_coverage_inconclusive_total</code> and
   <code>opencloud_security_coverage_not_checked_total</code>. The grade does not change.</li>
 </ul>
-<h3 id="documentation_3">Documentation</h3>
+<h3 id="documentation_4">Documentation</h3>
 <ul>
 <li>Replaced vague and literal wording in the interface, scanner guides and
   README. Aligned English, German, Spanish and French explanations and
@@ -367,7 +393,7 @@
   reviewed plain-language alternatives so they no longer produce warnings.</li>
 </ul>
 <h2 id="1300-2026-09-22">[1.30.0] - 2026-09-22</h2>
-<h3 id="documentation_4">Documentation</h3>
+<h3 id="documentation_5">Documentation</h3>
 <ul>
 <li>
 <p>Listed <code>tests/test_monitoring_export.py</code> in the test index, so the
@@ -492,48 +518,6 @@
   translations in the Kubernetes, scanner and reference-data guides, rebuilt
   their frontend pages, and expanded the translation-quality tests with
   regression cases for these patterns.</li>
-</ul>
-<h2 id="1292-2026-09-22">[1.29.2] - 2026-09-22</h2>
-<h3 id="fixed_7">Fixed</h3>
-<ul>
-<li>
-<p><strong><code>/llms.txt</code> and <code>/llms-full.txt</code> described an older version of the
-  service.</strong> They are the map an agent reads before deciding what this
-  service can do, and four of their facts had fallen behind the code:
-  <code>/mcp</code> was described as six tools and six prompts where it registers seven
-  of each, <code>compare_scans</code> was missing from the tool list in the long form,
-  the export formats omitted <code>html</code>, and the endpoint summary never mentioned
-  <code>GET /api/scans/{uuid}/badge.svg</code>. An agent that trusts the map would have
-  concluded the badge and the HTML export do not exist. All four now match
-  what <code>webapp/mcp_server.py</code>, <code>wf.EXPORT_FORMATS</code> and <code>webapp/openapi.py</code>
-  actually serve.</p>
-</li>
-<li>
-<p><strong>A page's <code>&lt;lastmod&gt;</code> in <code>sitemap.xml</code> now moves only when the page really
-  changed.</strong> The date came from the modification time of the template that
-  renders the page, and a checkout, a container build and an unpacked release
-  tarball all write every template at once - so every public page claimed to
-  have changed on release day, and a crawler told that everything changed
-  learns nothing from the file. Each public page's date is now recorded next
-  to a digest of its template in <code>webapp/data/page-revisions.json</code>, and
-  <code>scripts/update_page_revisions.py</code> moves a date only when that digest does.
-  A page the record has never seen, or one edited since it was written, still
-  falls back to the modification time rather than publishing a date that is
-  no longer true. CI checks the record with <code>--check</code>, as it does for the
-  generated documentation.</p>
-</li>
-<li>
-<p><strong>The German, Spanish and French pages no longer drop names the English
-  text uses to say what this is.</strong> The translated "About" paragraph called the
-  plugin a generic monitoring plugin, so a reader of those pages never learned
-  it plugs into Nagios and Icinga, and it also lost the English sentence's
-  point that running it yourself has no rate limit or queue. The German and
-  French descriptions of the method page said "what the scanner checks"
-  without naming an OpenCloud instance, and the Spanish search summary for the
-  API page dropped OpenAPI, Arazzo and MCP - the three things somebody
-  searching for that page is searching for. All four strings now carry the
-  names again; the search index is rebuilt with them.</p>
-</li>
 </ul>
 </article>
 {% endblock %}
