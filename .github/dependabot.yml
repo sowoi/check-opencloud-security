@@ -25,6 +25,12 @@ updates:
       interval: "monthly"
     cooldown:
       default-days: 7
+    # init, analyze and upload-sarif must run the same version; separate
+    # pull requests for them can only fail CodeQL one at a time.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
 
   # The web application's images: the Python base and the uv stage of
   # docker/Dockerfile.web, and the Redis image in docker/docker-compose.yml.
