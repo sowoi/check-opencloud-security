@@ -12,6 +12,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The workflow lint passes again.** The Docker Hub workflow pinned
+  `docker/login-action` by commit but labelled it with the floating `# v4`;
+  once `v4` moved on to v4.7.0, zizmor flagged the comment as no longer
+  matching the pinned commit. The comment now names the exact release the
+  commit belongs to, `v4.6.0`; the pinned action itself is unchanged.
+
 ### Documentation
 
 - **`GUIDELINE.md` collects the rules behind this repository's agent setup.**
