@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.32.1] - 2026-11-04
+
 ### Security
 
 - **The web container image no longer ships pyasn1 0.6.4.** sigstore, which

@@ -1,23 +1,26 @@
-## check-opencloud-security 1.32.0
+## check-opencloud-security 1.32.1
 
-### Added
+### Security
 
-- **Python 3.15 is supported and tested.** nox and the version matrix in CI
-  run the suite on 3.11 to 3.15, and the packaged launchers try
-  `python3.15` first after `python3`.
+- **The web container image no longer ships pyasn1 0.6.4.** sigstore, which
+  the `signing` extra installs in `docker/Dockerfile.web`, pulled in pyasn1
+  0.6.4 (CVE-2026-119194 to -119197) through `uv.lock` since 1.31.1. sigstore
+  4.5.1 no longer depends on pyasn1, so the lock no longer contains it. The
+  PyPI package never pinned pyasn1, and the plugin image does not install the
+  `signing` extra.
 
 ### Changed
 
-- **The container images run Python 3.15.** Both images are built from
-  `python:3.15-slim` and install with uv 0.13.1 instead of 0.11.31.
+- **Dependabot updates every `github/codeql-action` step in one pull
+  request.** The `init`, `analyze` and `upload-sarif` steps must run the same
+  version; bumped one at a time, each pull request failed CodeQL until the
+  other two were merged too.
 
-### Removed
+### Documentation
 
-- **Python 3.10 is no longer supported.** It reached end of life on
-  1 October 2026 and receives no security fixes, so `requires-python` is now
-  `>=3.11`; a `pip install` on 3.10 keeps the last release that supported it,
-  1.31.3. The `.deb` depends on `python3 (>= 3.11)`, which Debian 12 and
-  Ubuntu 24.04 meet; on Ubuntu 22.04, whose `python3` is 3.10, apt refuses it
-  and the plugin installs with pipx on a newer Python instead. The RPM stays
-  unversioned, and its launchers find RHEL 9's `python3.11` or `python3.12`.
-  See [The interpreter it uses](docs/installation.md#the-interpreter-it-uses).
+- **`GUIDELINE.md` collects the rules behind this repository's agent setup.**
+  Fifty-one tool-agnostic best practices for repositories where AI coding
+  agents do much of the work: one authoritative rule file, hooks that enforce
+  the hard rules, skills for many-file changes, read-only checking agents,
+  generator `--check` modes, records for decisions, security fixes and
+  dependencies, and tests that keep the instruction files in agreement.
