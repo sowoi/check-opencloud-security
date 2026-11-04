@@ -5,7 +5,7 @@
 
 slug: container-pyasn1-0-6-4
 state: declined
-changelog_version: "1.32.0"
+changelog_version: "1.32.1"
 changelog_entry: "The web container image no longer ships pyasn1 0.6.4."
 shipped: true
 declined_because: |
