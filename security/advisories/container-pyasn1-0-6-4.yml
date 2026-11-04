@@ -1,0 +1,57 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: container-pyasn1-0-6-4
+state: declined
+changelog_version: "1.32.0"
+changelog_entry: "The web container image ships pyasn1 0.6.5."
+shipped: true
+declined_because: |
+  A dependency update, not a defect in this project. The vulnerabilities are
+  pyasn1's own (CVE-2026-119194 to -119197) and pyasn1's advisories already
+  reach everyone whose dependency scanner sees it, including the SBOM of the
+  web image. An advisory here would repeat theirs for a package this project
+  does not write. The PyPI package never pinned pyasn1, so a `pip install`
+  resolved the fixed release as soon as it existed. An operator on an
+  affected image picks up the fix by pulling the next one.
+package: web
+severity: medium
+cwe_ids:
+  - CWE-1395
+introduced: "1.31.1"
+fixed: "1.32.1"
+summary: >-
+  The web container image installed pyasn1 0.6.4, which has known
+  vulnerabilities, from uv.lock
+verified: |
+  git show v1.32.0:uv.lock | grep -A1 '^name = "pyasn1"' -> version = "0.6.4"
+  (the same in v1.31.0 to v1.31.3).
+  git show v1.32.0:docker/Dockerfile.web | grep -c 'extra signing' -> 1; the
+  same in v1.31.1 to v1.31.3 and 0 in v1.31.0 and earlier, so the web image
+  installs the locked pyasn1 (pulled in by sigstore) since 1.31.1.
+  uv tree --invert --package pyasn1 -> pyasn1 <- sigstore <- the `signing`
+  extra only; docker/Dockerfile (the plugin image) does not install it.
+  CI pip-audit (Supply-chain checks, 2026-11-01 and 2026-11-02) reported
+  CVE-2026-119194, -119195, -119196, -119197 against pyasn1 0.6.4 with 0.6.5
+  as the fix; after `uv lock --upgrade-package pyasn1` pip-audit finds none.
+description: |
+  ### Impact
+
+  The web container images built from 1.31.1 up to 1.32.0 install the
+  dependency set `uv.lock` pins, and that lock pinned pyasn1 0.6.4, which is
+  affected by CVE-2026-119194, CVE-2026-119195, CVE-2026-119196 and
+  CVE-2026-119197. sigstore pulls pyasn1 in for the `signing` extra.
+
+  PyPI installations are unaffected: the package does not pin pyasn1. The
+  plugin image does not install the `signing` extra.
+
+  ### Patches
+
+  Fixed in the next release, whose `uv.lock` pins pyasn1 0.6.5.
+
+  ### Workarounds
+
+  Rebuild the web image from a checkout after
+  `uv lock --upgrade-package pyasn1`.

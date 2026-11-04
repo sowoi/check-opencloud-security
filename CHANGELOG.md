@@ -12,6 +12,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Security
+
+- **The web container image ships pyasn1 0.6.5.** `uv.lock` pinned pyasn1
+  0.6.4 (CVE-2026-119194 to -119197), which sigstore pulls in for the
+  `signing` extra that `docker/Dockerfile.web` installs. The PyPI package does
+  not pin pyasn1 and picks up the fixed release on its own; the plugin image
+  does not install the `signing` extra.
+
 ### Fixed
 
 - **The workflow lint passes again.** The Docker Hub workflow pinned
