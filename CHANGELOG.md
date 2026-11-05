@@ -12,6 +12,26 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **The CI tools are current again.** On its first run,
+  `scripts/check_tool_pins.py` found six pins behind their latest release.
+  All six are raised wherever they are written (workflows, `CLAUDE.md`,
+  `AGENTS.md`, `CONTRIBUTING.md`, the preflight skill):
+  - ruff 0.17.1 → 0.17.3
+  - zizmor 1.30.1 → 1.32.0
+  - Biome 2.5.13 → 2.6.5, including the schema in `biome.jsonc`
+  - mermaid-cli 12.0.0 → 12.2.0
+  - nfpm 2.47.0 → 2.48.0, with the SHA-256 of its Linux tarball from the
+    release's `checksums.txt`, checked against the downloaded file
+  - uv 0.13.1 → 0.13.7, as `required-version` and in the `docker/` images
+    alike
+
+  The new ruff, zizmor and Biome find nothing in the repository. nfpm 2.48.0
+  replaces its RPM writer, so the `.rpm` built on the pull request is
+  installed on Fedora before a release relies on it. A local uv older than
+  0.13.7 now refuses to run here.
+
 ## [1.32.2] - 2026-11-05
 
 ### Changed

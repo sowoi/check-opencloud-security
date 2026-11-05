@@ -36,7 +36,7 @@ A tool that is not installed is reported as **skipped**, never as passed. Use
 |:--|:--|:--|
 | 1 | Tests | `uv run --group test --extra signing pytest -q` (web tests use `COS_WEB_REDIS_URL=memory://` automatically via fixtures; set it if they complain) |
 | 1a | Browser tests | `uv run pytest tests/test_webapp_browser_ux.py tests/test_webapp_browser_e2e.py -q` (part of check 1; report them separately, and as **skipped** - not passed - when WebKit is not installed: `uv run playwright install webkit`) |
-| 2 | Ruff | `uvx ruff@0.17.1 check .` |
+| 2 | Ruff | `uvx ruff@0.17.3 check .` |
 | 3 | mypy | `uv run --group test mypy --config-file mypy.ini` |
 | 4 | Bandit | `git ls-files -z -- '*.py' ':!:tests/' ':!:secrets/' \| xargs -0 uvx bandit@1.9.4 --severity-level medium --confidence-level medium -q` - the tracked files CI's checkout holds, never `.nox/`, `mutants/` or other local trees (advisory in CI - report findings, do not fail) |
 | 5 | Frontend documentation | `uv run python scripts/build_frontend_documentation.py --check` |
@@ -47,8 +47,8 @@ A tool that is not installed is reported as **skipped**, never as passed. Use
 | 10 | Security advisories | `python scripts/security_advisories.py --check` |
 | 11 | Changelog and version guard | `python scripts/check_pull_request.py --base origin/main` |
 | 11a | Dependency policy | `uv run python scripts/check_dependencies.py --check --base origin/main` (a `proposed` record is a **warning** - it awaits the maintainer's approval - anything else fails) |
-| 12 | Biome | `npx --yes @biomejs/biome@2.5.13 lint --error-on-warnings` (needs Node) |
-| 13 | zizmor | `uvx zizmor@1.30.1 .github/workflows` |
+| 12 | Biome | `npx --yes @biomejs/biome@2.6.5 lint --error-on-warnings` (needs Node) |
+| 13 | zizmor | `uvx zizmor@1.32.0 .github/workflows` |
 | 14 | ansible-lint | `cd ansible && uvx ansible-lint` (**only** from inside `ansible/`; skip unless `ansible/` changed) |
 | 15 | actionlint | `actionlint -color` (skip unless `.github/workflows/` changed) |
 | 16 | shellcheck | `git ls-files '*.sh' \| xargs shellcheck` |

@@ -110,4 +110,4 @@ jobs:
       # Pinned by version and run through npx rather than installed from a
       # package.json: nothing else in this repository is Node.
       - name: Run Biome
-        run: npx --yes @biomejs/biome@2.5.13 lint --error-on-warnings # zizmor: ignore[adhoc-packages]
+        run: npx --yes @biomejs/biome@2.6.5 lint --error-on-warnings # zizmor: ignore[adhoc-packages]

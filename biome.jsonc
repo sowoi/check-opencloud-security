@@ -4,7 +4,7 @@
 // a build step, so the style and complexity groups (arrow functions, template
 // literals, optional chaining) would ask for a rewrite, not a fix.
 {
-	"$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
 	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
 	"files": { "includes": ["frontend/static/js/**/*.js"] },
 	"formatter": { "enabled": false },
