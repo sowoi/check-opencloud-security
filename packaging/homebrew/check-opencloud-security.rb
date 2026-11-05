@@ -8,15 +8,15 @@ class CheckOpencloudSecurity < Formula
 
   desc "Check the security level of your OpenCloud instance with a built-in scanner"
   homepage "https://github.com/sowoi/check-opencloud-security"
-  url "https://files.pythonhosted.org/packages/8a/18/b571a22a7b65a4240936fffa105504b6e12ab5af6a4ad19895a9702b6c87/check_opencloud_security-1.32.0.tar.gz"
-  sha256 "f7d161a85c09100f257a8e09e129c43e5dd021810659ff209bd313a9e41a797f"
+  url "https://files.pythonhosted.org/packages/19/71/959bf6dd3fbaefad0923327447133fde0f62b8a4ce4300637b9b1b4c7f2a/check_opencloud_security-1.32.1.tar.gz"
+  sha256 "7438d0450615d6f314e729a83010e90a1d1618c1d5048ebaba51f51ff7e6dad9"
   license "GPL-3.0-or-later"
 
   depends_on "python@3.13"
 
   resource "certifi" do
-    url "https://files.pythonhosted.org/packages/a6/bd/1436c50cc46699de0230fbaacc1d1de7bfec413176099949e9d5112e88f2/certifi-2026.10.19.tar.gz"
-    sha256 "035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae"
+    url "https://files.pythonhosted.org/packages/fd/11/b524cbd9bbdaca58608e4cf4053fd463417549e1959fa8d3aa18319f9555/certifi-2026.10.23.tar.gz"
+    sha256 "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd"
   end
 
   resource "charset-normalizer" do
@@ -52,7 +52,7 @@ class CheckOpencloudSecurity < Formula
     # Two assertions, because either alone passes for the wrong reason: the
     # first proves the entry point runs at all, the second that the version it
     # reports is the one this formula built rather than another copy on PATH.
-    assert_match "1.32.0", shell_output("#{bin}/check-opencloud-security --version")
+    assert_match "1.32.1", shell_output("#{bin}/check-opencloud-security --version")
 
     # A check that cannot reach its instance must still be a check: it exits 3
     # (UNKNOWN), the Nagios code for "measured nothing", rather than crashing
