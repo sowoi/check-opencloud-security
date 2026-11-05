@@ -14,6 +14,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Changed
 
+- **A failed browser test leaves a Playwright trace.** In CI a Firefox
+  run once timed out loading `/api`, a page the same run had just loaded
+  cleanly, and the log could not say which request hung. With
+  `PLAYWRIGHT_TRACE_DIR` set, the `page` fixture in
+  `tests/browser_support.py` records each test and keeps the trace only
+  when the test fails. `browser-tests.yml` sets it and uploads the traces as
+  `playwright-traces-<browser>` for seven days. Open one with
+  `uv run playwright show-trace`. Locally nothing is recorded unless the
+  variable is set; with it, the browser suite took 66 s instead of 64 s.
 - **A version bump is the whole release pull request.** Releasing 1.32.1
   took three extra commits and two red CI runs. Three changes remove that
   (ADR 0080):
@@ -54,6 +63,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **A browser test no longer fails because it moved on while a font was
+  loading.** A web font is fetched when text first needs it, which can be
+  after the load event. When a test reloaded in that moment, Firefox aborted
+  the download and logged `downloadable font: download failed …
+  status=2152398850` (`NS_BINDING_ABORTED`) as a console error, and the
+  page watch failed the test. The first CI trace showed this for
+  `test_garbage_in_storage_is_ignored`. The watch now ignores exactly that
+  status. A font that fails for any other reason is still an error, and
+  `tests/test_browser_support.py` checks both cases.
 - **The browser tests cache their system packages too.** Today the
   runners' Ubuntu mirror served packages at a few hundred kB/s, and
   `playwright install-deps` timed out for WebKit (114 MB) and Firefox
