@@ -39,7 +39,7 @@ jobs:
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -68,7 +68,7 @@ jobs:
       # therefore runs on SECURITY_ADVISORY_TOKEN, and skips when there is
       # none rather than failing a release that otherwise succeeded.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         # This job pushes with git, so the checkout keeps its credentials.
         with: # zizmor: ignore[artipacked]
           ref: main

@@ -23,6 +23,12 @@ silent loss :mod:`webapp.schedule` exists to prevent.
 
 from __future__ import annotations
 
+import urllib.error
+import urllib.request
+from collections.abc import Iterator
+from contextlib import contextmanager
+from http.client import HTTPResponse
+
 #: Both documents are tens of kilobytes. A megabyte is room for the lifecycle
 #: page to grow a decade of releases and for OSV to answer with every advisory
 #: ``MAX_ADVISORIES`` allows, and is still small enough that a hostile answer
@@ -56,3 +62,24 @@ def decode_capped(response: object, limit: int = MAX_DOCUMENT_BYTES) -> str:
     """The same, decoded with whatever charset the response declared."""
     charset = response.headers.get_content_charset() or "utf-8"  # type: ignore[attr-defined]
     return read_capped(response, limit).decode(charset, errors="replace")
+
+
+@contextmanager
+def open_document(request: urllib.request.Request, timeout: float) -> Iterator[HTTPResponse]:
+    """
+    ``urlopen`` for a reference document, closing an error answer as well.
+
+    An HTTP error status arrives as an :class:`urllib.error.HTTPError` that
+    holds the open response. The callers turn it into their own error and
+    chain it, which keeps it - and its socket - alive until the garbage
+    collector gets round to it, in a web service that refreshes every day.
+    It is closed here before it travels on; its status and reason stay
+    readable. The caller validates the scheme.
+    """
+    try:
+        response = urllib.request.urlopen(request, timeout=timeout)  # nosec B310 - the caller validates the scheme
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise
+    with response:
+        yield response

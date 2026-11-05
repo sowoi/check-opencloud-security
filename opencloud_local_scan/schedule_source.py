@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
 
-from .fetch import DocumentTooLarge, decode_capped
+from .fetch import DocumentTooLarge, decode_capped, open_document
 from .versions import LIFECYCLE_DOCUMENTATION_URL
 
 #: The page every release schedule in this project comes from.
@@ -142,7 +142,7 @@ def fetch(url: str, timeout: int = 30) -> str:
     if not url.startswith(("http://", "https://")):
         raise ExtractionError(f"Refusing to fetch a non-HTTP URL: {url}")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - scheme validated above
+    with open_document(request, timeout) as response:
         try:
             return decode_capped(response)
         except DocumentTooLarge as exc:

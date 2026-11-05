@@ -363,6 +363,7 @@ def test_webhook_still_fires_alongside_a_machine_format(monkeypatch):
             )
     finally:
         server.shutdown()
+        server.server_close()
         thread.join(timeout=5)
 
     assert result.returncode == WARNING, result.stdout

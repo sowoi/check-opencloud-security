@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import json
 import socket
+import sys
 import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -553,6 +554,14 @@ class _Server(ThreadingHTTPServer):
     # The default backlog of five can drop bursts from the 32-worker scanner,
     # making a test of identical findings depend on TCP retransmission timing.
     request_queue_size = 64
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        # A scanner that stops reading at its response cap hangs up mid-answer
+        # on purpose; the traceback socketserver prints for that is noise in
+        # the test log, not a failure. Anything else is still reported.
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class _IPv6Server(_Server):

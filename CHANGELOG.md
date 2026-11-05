@@ -36,9 +36,51 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   cached, keyed on the locked Playwright version, and the install step has
   its own 10-minute limit. The system libraries are still installed through
   apt on every run.
+- **A test takes the release through every step on a copy of the
+  repository.** `tests/test_release_flow.py` copies the tracked files, adds
+  an `[Unreleased]` security entry with its `unreleased` record, and bumps
+  the version. It runs the real generators and `check_pull_request.py`,
+  then does what `publish-pypi.yml` does: `release_notes.py`, both
+  generators again, the advisory check and the `--check` modes. It also
+  fails if the release rewrites a file that the workflow's release commit
+  does not stage. Each script already had its own tests; this one catches
+  the steps drifting apart.
+- **Bandit is pinned, and `/preflight` scans what CI scans.** The workflow
+  runs `bandit@1.9.4` with `bandit-sarif-formatter==1.1.1` instead of
+  whatever is newest. The preflight skill used `--recursive .` on the
+  working tree, which also took in `.nox/` and `mutants/` (about 3.3 million
+  lines and hundreds of findings in third-party code). It now passes the
+  tracked Python files, which is what CI's checkout holds.
 
 ### Fixed
 
+- **The test suite no longer leaks HTTP error answers.** In
+  `tests/test_service.py`, each `HTTPError` a test caught kept its response
+  open until the garbage collector closed it. That close came after the
+  socket was gone and sometimes ended a full run with two
+  `PytestUnraisableExceptionWarning`s (`ValueError: I/O operation on closed
+  file`), reported in whatever test happened to be running. A helper now
+  reads the status and body and closes the answer. The fake OpenCloud also
+  stops printing a traceback when the scanner deliberately hangs up at its
+  response cap, and the webhook test in `tests/test_output_formats.py`
+  closes its listening socket.
+- **Every pinned action names its exact release.** Several actions were
+  pinned to a commit hash but commented only with the major tag
+  (`actions/checkout # v7`, `actions/attest-build-provenance # v4`,
+  `actions/attest # v4`, `docker/login-action # v4`). zizmor, running
+  online in the workflow lint, compares that comment with where the tag
+  points now. When `docker/login-action` v4.8.0 moved `v4`, every pull
+  request failed on a file it never touched. The comments now name the tag
+  each hash is (`v7.0.1`, `v4.2.2`, `v4.2.2`, `v4.7.0`); the hashes are
+  unchanged.
+- **A failed advisory or release-schedule refresh no longer leaks its
+  connection.** When the OSV feed, the GitHub advisory API or the lifecycle
+  page answered with an HTTP error status, the fetch wrapped the
+  `HTTPError` in its own error and never closed the response it holds. Each
+  failed daily refresh in the web service kept a socket open until the
+  garbage collector reached it. `opencloud_local_scan/fetch.py` now opens
+  all three through one helper, `open_document`, which closes an error
+  answer before passing it on. Its status and reason stay readable.
 - **A deliberate hook refusal no longer also says the hook "could not run".**
   The wrappers in `.claude/settings.json` printed that message on every exit
   that was not 0, including the deliberate exit 2, so a decision read like a

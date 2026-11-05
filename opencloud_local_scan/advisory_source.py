@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from itertools import pairwise
 from typing import Any
 
-from .fetch import DocumentTooLarge, decode_capped
+from .fetch import DocumentTooLarge, decode_capped, open_document
 from .versions import normalise_version, parse_version
 from .vulndb import Advisory, parse_document
 from .vulndb import _is_opencloud_package as is_opencloud_package
@@ -112,7 +112,7 @@ def fetch_records(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - scheme validated above
+        with open_document(request, timeout) as response:
             document = json.loads(decode_capped(response))
     except OSError as exc:  # URLError and friends are all OSError
         raise AdvisoryFetchError(f"Could not read {url}: {exc}") from exc
@@ -270,7 +270,7 @@ def fetch_repository_records(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 - scheme validated above
+        with open_document(request, timeout) as response:
             document = json.loads(decode_capped(response))
     except OSError as exc:
         raise AdvisoryFetchError(f"Could not read {url}: {exc}") from exc

@@ -38,7 +38,7 @@ A tool that is not installed is reported as **skipped**, never as passed. Use
 | 1a | Browser tests | `uv run pytest tests/test_webapp_browser_ux.py tests/test_webapp_browser_e2e.py -q` (part of check 1; report them separately, and as **skipped** - not passed - when WebKit is not installed: `uv run playwright install webkit`) |
 | 2 | Ruff | `uvx ruff@0.17.1 check .` |
 | 3 | mypy | `uv run --group test mypy --config-file mypy.ini` |
-| 4 | Bandit | `uvx bandit --recursive . --severity-level medium --confidence-level medium --exclude ./tests,./secrets,./.venv -q` (advisory in CI - report findings, do not fail) |
+| 4 | Bandit | `git ls-files -z -- '*.py' ':!:tests/' ':!:secrets/' \| xargs -0 uvx bandit@1.9.4 --severity-level medium --confidence-level medium -q` - the tracked files CI's checkout holds, never `.nox/`, `mutants/` or other local trees (advisory in CI - report findings, do not fail) |
 | 5 | Frontend documentation | `uv run python scripts/build_frontend_documentation.py --check` |
 | 6 | Search index | `python scripts/build_search_index.py --check` (CI rebuilds it on the PR, so stale is a warning) |
 | 7 | Release schedule block | `uv run pytest tests/test_update_script.py -q` |
