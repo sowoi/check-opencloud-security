@@ -54,6 +54,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **The browser tests cache their system packages too.** Today the
+  runners' Ubuntu mirror served packages at a few hundred kB/s, and
+  `playwright install-deps` timed out for WebKit (114 MB) and Firefox
+  (49 MB) on almost every run; only Chromium (21 MB) got through. The
+  downloaded `.deb` files are now cached per browser, Playwright version and
+  runner image, and saved right after the install, so a failing test does
+  not discard them. apt checks each cached package against the fresh index
+  and downloads only what changed. The install has 20 minutes, enough to
+  fill the cache once over a slow mirror, and the job limit rose from 20 to
+  35 minutes.
 - **The CI tool downloads retry a passing server error.** A `504` from
   GitHub's release downloads failed the hadolint install on main. The same
   single attempt fetched shellcheck, actionlint and nfpm, and nfpm is
