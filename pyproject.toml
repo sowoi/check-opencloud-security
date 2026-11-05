@@ -64,6 +64,10 @@ Issues = "https://github.com/sowoi/check-opencloud-security/issues"
 
 [tool.uv]
 package = true
+# A floor, so a newer local uv still runs. Every setup-uv step in CI sets
+# `resolution-strategy: lowest` and so installs exactly this version - the one
+# the docker/ images copy in. Raise it on purpose; nothing bumps it for you.
+required-version = ">=0.13.1"
 
 [tool.hatch.build.targets.wheel]
 only-include = [

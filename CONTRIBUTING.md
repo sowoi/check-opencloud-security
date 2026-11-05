@@ -52,6 +52,9 @@ If you haven't already, install the `uv` package manager (or your preferred inst
 pipx install uv
 ```
 
+It needs to be uv 0.13.1 or newer, the `required-version` in `pyproject.toml`.
+An older uv refuses to run in this repository. CI installs exactly that floor.
+
 ### 2. Register the merge drivers
 
 Once per clone:

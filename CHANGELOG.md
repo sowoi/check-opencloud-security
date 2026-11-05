@@ -60,6 +60,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   working tree, which also took in `.nox/` and `mutants/` (about 3.3 million
   lines and hundreds of findings in third-party code). It now passes the
   tracked Python files, which is what CI's checkout holds.
+- **CI runs a pinned uv.** Every job logged "Could not determine uv version
+  … Falling back to latest", so a new uv release could change what
+  `uv sync --locked` does without a commit in this repository.
+  `pyproject.toml` now sets `required-version = ">=0.13.1"` under
+  `[tool.uv]`, and every `setup-uv` step takes the lowest match, so CI
+  installs exactly 0.13.1, the uv the Docker images copy in. It is a floor
+  and not an exact pin, so a newer local uv still runs. Nothing raises it
+  automatically; a test fails if a `setup-uv` step floats or a Docker image
+  falls below it.
 
 ### Fixed
 

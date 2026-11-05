@@ -14,6 +14,7 @@ workflow added later is covered the moment it exists.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -214,3 +215,60 @@ def test_both_workflows_install_the_same_shellcheck():
         return dict(re.findall(r"(SHELLCHECK_(?:VERSION|SHA256)):\s*\"([^\"]+)\"", text))
 
     assert pins("workflow-lint.yml") == pins("static-analysis.yml") != {}
+
+
+def _setup_uv_steps(workflow: Path) -> list[dict]:
+    """Every astral-sh/setup-uv step in one workflow."""
+    return [
+        step
+        for job in _document(workflow)["jobs"].values()
+        for step in job.get("steps") or []
+        if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")
+    ]
+
+
+def _uv_floor() -> str:
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        required = tomllib.load(handle)["tool"]["uv"]["required-version"]
+    match = re.fullmatch(r">=(\d+\.\d+\.\d+)", required)
+    assert match, f"required-version must be a plain floor, not {required!r}"
+    return match.group(1)
+
+
+def test_there_are_setup_uv_steps_to_check():
+    """The guard on the test below: no step found would pass it."""
+    assert sum(len(_setup_uv_steps(w)) for w in WORKFLOWS) > 0
+
+
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: p.name)
+def test_every_setup_uv_installs_the_pinned_floor(workflow: Path):
+    """
+    `required-version` is a floor so a newer local uv still runs; CI must take
+    the lowest match, or setup-uv installs whatever uv was released last night.
+    """
+    for step in _setup_uv_steps(workflow):
+        options = step.get("with") or {}
+        assert options.get("resolution-strategy") == "lowest", f"{workflow.name}: {step.get('name')}"
+        assert "version" not in options, f"{workflow.name}: the version belongs in pyproject.toml"
+
+
+def test_a_setup_uv_step_without_the_strategy_is_refused(tmp_path: Path):
+    """The negative case: the default `highest` strategy floats."""
+    workflow = tmp_path / "floating.yml"
+    workflow.write_text(
+        "jobs:\n  a:\n    steps:\n      - uses: astral-sh/setup-uv@" + "0" * 40 + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError):
+        test_every_setup_uv_installs_the_pinned_floor(workflow)
+
+
+def test_the_docker_images_run_at_least_the_ci_uv():
+    """The images copy uv from a Dependabot-bumped tag; it must not fall below the floor CI runs."""
+    floor = tuple(int(part) for part in _uv_floor().split("."))
+    tags = []
+    for dockerfile in (ROOT / "docker").glob("Dockerfile*"):
+        tags += re.findall(r"ghcr\.io/astral-sh/uv:(\d+\.\d+\.\d+)", dockerfile.read_text(encoding="utf-8"))
+    assert tags, "no uv image tag found in docker/"
+    for tag in tags:
+        assert tuple(int(part) for part in tag.split(".")) >= floor, tag
