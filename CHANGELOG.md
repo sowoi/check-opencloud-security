@@ -79,6 +79,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   open while any is behind. It only reports: a new binary needs its SHA-256
   checked by hand. A new `*_VERSION` variable without a known release source
   fails the script, so a pin added later is watched from the start.
+- **CI runs the test suite in slices.** The coverage run took 19 minutes
+  and each nox interpreter 15, almost all of it pytest on a single runner.
+  `pytest --shard INDEX/COUNT` (`tests/sharding.py`) runs one slice. A test's
+  slice is a stable SHA-256 of its node id, because the slowest test takes 7
+  of 507 seconds and no weights file would stay current. The coverage run
+  is now four jobs (`python 1/4` to `python 4/4`). A `python` job combines
+  their data and applies `fail_under` to the whole suite, after checking
+  that the slices ran every test exactly once. nox runs three slices per
+  interpreter. A failing slice reproduces locally with the same `--shard`.
+  The generated-file checks moved into their own `generated files` job.
 
 ### Fixed
 
