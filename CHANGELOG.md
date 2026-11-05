@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.32.2] - 2026-11-05
+
 ### Changed
 
 - **A failed browser test leaves a Playwright trace.** In CI a Firefox
