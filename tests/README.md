@@ -254,6 +254,7 @@ using the `page` fixture. CI sets it and uploads the traces as the
 | File | Purpose |
 |---|---|
 | [`test_check_pull_request.py`](test_check_pull_request.py) | `scripts/check_pull_request.py`: a changelog entry is present, and version bumps only move forward. |
+| [`test_check_tool_pins.py`](test_check_tool_pins.py) | `scripts/check_tool_pins.py`: every CI tool pin Dependabot cannot see is found, an unmapped `*_VERSION` is refused, and versions compare as numbers. |
 | [`test_claude_hooks.py`](test_claude_hooks.py) | The Claude Code hooks in `.claude/hooks/` keep refusing merges, force-pushes, hand edits to generated files, and real hosts, scan output or personal data in commits, and refuse when they cannot run. |
 | [`test_mutation_testing.py`](test_mutation_testing.py) | The manual mutation-testing setup stays consistent: mutmut only in its own group and with a record, its test files in-process, `mutants/` ignored, and `/mutation-test` running in the read-only agent. |
 | [`test_dependency_policy.py`](test_dependency_policy.py) | `scripts/check_dependencies.py`: every Python dependency has an approved, tested and reviewed record, or predates the policy, and the grandfather list never grows. |
@@ -262,7 +263,7 @@ using the `page` fixture. CI sets it and uploads the traces as the
 | [`test_release_dry_run.py`](test_release_dry_run.py) | The release rehearsal matches the release, and publishing to PyPI happens last. |
 | [`test_security_advisories.py`](test_security_advisories.py) | Every `### Security` changelog entry has a decided record in `security/advisories/`. |
 | [`test_update_script.py`](test_update_script.py) | `scripts/update_release_schedule.py` and the generated README schedule. |
-| [`test_workflow_hardening.py`](test_workflow_hardening.py) | GitHub workflows use least-privilege tokens and pinned action references. |
+| [`test_workflow_hardening.py`](test_workflow_hardening.py) | GitHub workflows use least-privilege tokens, pinned action references and the pinned uv floor. |
 | [`test_documentation_indexes.py`](test_documentation_indexes.py) | The hand-maintained indexes (README contents, `docs/README.md`, the documentation manifest, this page) match what they index. |
 | [`test_documentation_links.py`](test_documentation_links.py) | Which documented OpenCloud links the post-merge check verifies. |
 | [`test_render_architecture_diagrams.py`](test_render_architecture_diagrams.py) | Each Mermaid diagram in `ARCHITECTURE.md` has a matching PNG. |

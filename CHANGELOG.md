@@ -69,6 +69,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   and not an exact pin, so a newer local uv still runs. Nothing raises it
   automatically; a test fails if a `setup-uv` step floats or a Docker image
   falls below it.
+- **A weekly report names the CI tool pins that fell behind.** Dependabot
+  updates actions, locked packages and Docker images. It does not update
+  the `uvx`/`npx` versions (ruff, zizmor, Bandit, Biome), the binaries
+  downloaded against a SHA-256 (shellcheck, hadolint, actionlint, nfpm),
+  mermaid-cli or uv's `required-version`. On its first run six of them were
+  behind. `scripts/check_tool_pins.py` finds them in the workflows and
+  compares each with its latest release, and `tool-pins.yml` keeps one issue
+  open while any is behind. It only reports: a new binary needs its SHA-256
+  checked by hand. A new `*_VERSION` variable without a known release source
+  fails the script, so a pin added later is watched from the start.
 
 ### Fixed
 
