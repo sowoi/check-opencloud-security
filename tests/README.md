@@ -214,6 +214,10 @@ locally; `.github/workflows/browser-tests.yml` runs every
 `test_webapp_browser_*.py` in all three with `PLAYWRIGHT_TESTS_REQUIRED=1`.
 `PLAYWRIGHT_BROWSER=firefox` or `chromium` picks another engine; Chromium is
 Google's build, allowed behind the dead proxy (ADR 0068).
+`PLAYWRIGHT_TRACE_DIR=<dir>` records a trace for each test that fails while
+using the `page` fixture. CI sets it and uploads the traces as the
+`playwright-traces-<browser>` artifact. Open one with
+`uv run playwright show-trace <file>`.
 
 | File | Purpose |
 |---|---|

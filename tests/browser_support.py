@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -55,6 +57,12 @@ from webapp.settings import WebSettings
 
 BROWSERS = ("webkit", "firefox", "chromium")
 BROWSER = os.environ.get("PLAYWRIGHT_BROWSER", "webkit")
+
+#: Where a failed test's Playwright trace goes. Unset - the default, and every
+#: local run - records nothing. The CI job sets it and uploads the directory
+#: when a test fails, so a page that hung on the runner can be replayed with
+#: `playwright show-trace` instead of guessed at.
+TRACE_DIR = os.environ.get("PLAYWRIGHT_TRACE_DIR", "")
 MEMORY_URL = "memory://browser-tests"
 # Nothing listens on the discard port; only loopback bypasses the proxy.
 DEAD_PROXY = {"server": "http://127.0.0.1:9", "bypass": "127.0.0.1,localhost,[::1]"}
@@ -284,11 +292,28 @@ def watch_fixture() -> PageWatch:
     return PageWatch()
 
 
+def trace_path(directory: str, nodeid: str) -> Path:
+    """One file per test, named after it, safe on any file system."""
+    return Path(directory) / (re.sub(r"[^\w.-]+", "_", nodeid).strip("_") + ".zip")
+
+
 @pytest.fixture(name="page")
-def page_fixture(browser: Any, watch: PageWatch) -> Iterator[Any]:
+def page_fixture(browser: Any, watch: PageWatch, request: pytest.FixtureRequest) -> Iterator[Any]:
     """A desktop page whose console, errors and requests are watched."""
     page = new_page(browser, watch)
+    # The call phase's report is logged before teardown runs, so a failure of
+    # this test has already been counted when the trace is stopped below.
+    failures_before = request.session.testsfailed
+    if TRACE_DIR:
+        page.context.tracing.start(screenshots=True, snapshots=True)
     yield page
+    if TRACE_DIR:
+        if request.session.testsfailed > failures_before:
+            path = trace_path(TRACE_DIR, request.node.nodeid)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            page.context.tracing.stop(path=str(path))
+        else:
+            page.context.tracing.stop()
     page.context.close()
 
 

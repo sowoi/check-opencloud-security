@@ -115,5 +115,20 @@ jobs:
         timeout-minutes: 10
         run: uv run playwright install "$PLAYWRIGHT_BROWSER"
 
+      # A failed test leaves its Playwright trace (tests/browser_support.py):
+      # every request, the DOM at each step and screenshots, replayable with
+      # `uv run playwright show-trace <file>`. The pages are this repository's
+      # own, served from loopback to fake targets - nothing else is in them.
       - name: Run the browser tests
+        env:
+          PLAYWRIGHT_TRACE_DIR: ${{ runner.temp }}/playwright-traces
         run: uv run pytest tests/test_webapp_browser_*.py -q
+
+      - name: Upload the traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces-${{ matrix.browser }}
+          path: ${{ runner.temp }}/playwright-traces
+          if-no-files-found: ignore
+          retention-days: 7

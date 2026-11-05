@@ -14,6 +14,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Changed
 
+- **A failed browser test leaves a Playwright trace.** In CI a Firefox
+  run once timed out loading `/api`, a page the same run had just loaded
+  cleanly, and the log could not say which request hung. With
+  `PLAYWRIGHT_TRACE_DIR` set, the `page` fixture in
+  `tests/browser_support.py` records each test and keeps the trace only
+  when the test fails. `browser-tests.yml` sets it and uploads the traces as
+  `playwright-traces-<browser>` for seven days. Open one with
+  `uv run playwright show-trace`. Locally nothing is recorded unless the
+  variable is set; with it, the browser suite took 66 s instead of 64 s.
 - **A version bump is the whole release pull request.** Releasing 1.32.1
   took three extra commits and two red CI runs. Three changes remove that
   (ADR 0080):
