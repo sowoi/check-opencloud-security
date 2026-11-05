@@ -76,6 +76,20 @@ def _request(url, data=None, headers=None, method=None):
         return response.status, json.loads(response.read())
 
 
+def _refusal(url, data=None, headers=None, method=None):
+    """The status and body of an error answer, with the answer closed.
+
+    An HTTPError holds the open response. Left to the garbage collector, it is
+    closed whenever a later collection runs - after its socket is gone - and
+    the ValueError that close raises surfaces as an unraisable-exception
+    warning in whichever test happens to be running.
+    """
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        _request(url, data=data, headers=headers, method=method)
+    with excinfo.value as error:
+        return error.code, error.read()
+
+
 def test_healthz_needs_no_token(server):
     """A liveness probe must work without credentials."""
     base, _ = server(token="s3cret")
@@ -95,9 +109,8 @@ def test_healthz_needs_no_token(server):
 def test_browser_pages_cannot_borrow_the_loopback_scanner(server, fake_scan, headers, post):
     base, _ = server()
     url = f"{base}/api/queue" if post else f"{base}/api/scan?url=opencloud.example.com"
-    with pytest.raises(urllib.error.HTTPError) as error:
-        _request(url, data="url=opencloud.example.com" if post else None, headers=headers)
-    assert error.value.code == 403
+    code, _ = _refusal(url, data="url=opencloud.example.com" if post else None, headers=headers)
+    assert code == 403
     assert fake_scan == []
 
 
@@ -161,21 +174,19 @@ def test_missing_url_parameter_is_a_bad_request(server):
     """A malformed request must be answered, not crash the service."""
     base, _ = server()
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(f"{base}/api/queue", data="")
+    code, _ = _refusal(f"{base}/api/queue", data="")
 
-    assert excinfo.value.code == 400
+    assert code == 400
 
 
 def test_failed_scan_is_reported_as_a_bad_request(server):
     """A target that is not an OpenCloud is the client's problem, not ours."""
     base, _ = server()
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(f"{base}/api/queue", data="url=broken.example.com")
+    code, body = _refusal(f"{base}/api/queue", data="url=broken.example.com")
 
-    assert excinfo.value.code == 400
-    assert "status document" in json.loads(excinfo.value.read())["error"]
+    assert code == 400
+    assert "status document" in json.loads(body)["error"]
 
 
 def test_a_newline_in_a_failed_host_cannot_forge_a_log_line(server, monkeypatch, caplog):
@@ -189,13 +200,12 @@ def test_a_newline_in_a_failed_host_cannot_forge_a_log_line(server, monkeypatch,
     forged = "INFO opencloud_local_scan.service: Scan of admin succeeded"
     caplog.set_level("INFO", logger=service_module.LOGGER.name)
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(
-            f"{base}/api/queue",
-            data=urllib.parse.urlencode({"url": f"bad.example.com\n{forged}"}),
-        )
+    code, _ = _refusal(
+        f"{base}/api/queue",
+        data=urllib.parse.urlencode({"url": f"bad.example.com\n{forged}"}),
+    )
 
-    assert excinfo.value.code == 400
+    assert code == 400
     messages = [r.getMessage() for r in caplog.records if "failed" in r.getMessage()]
     assert messages, "the failed scan is still logged"
     assert all("\n" not in message for message in messages)
@@ -206,30 +216,27 @@ def test_unknown_uuid_is_a_not_found(server):
     """Asking for a scan that never happened returns 404."""
     base, _ = server()
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(f"{base}/api/result/does-not-exist")
+    code, _ = _refusal(f"{base}/api/result/does-not-exist")
 
-    assert excinfo.value.code == 404
+    assert code == 404
 
 
 def test_unknown_endpoint_is_a_not_found(server):
     """The service exposes exactly the documented routes."""
     base, _ = server()
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(f"{base}/api/nonsense")
+    code, _ = _refusal(f"{base}/api/nonsense")
 
-    assert excinfo.value.code == 404
+    assert code == 404
 
 
 def test_token_is_required_when_configured(server):
     """A shared scanner must not be usable by anyone who can reach it."""
     base, _ = server(token="s3cret")
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(f"{base}/api/queue", data="url=cloud.example.com")
+    code, _ = _refusal(f"{base}/api/queue", data="url=cloud.example.com")
 
-    assert excinfo.value.code == 401
+    assert code == 401
 
 
 def test_correct_token_is_accepted_in_both_forms(server):
@@ -254,21 +261,21 @@ def test_wrong_token_is_rejected(server):
     """A near miss is still a miss."""
     base, _ = server(token="s3cret")
 
-    with pytest.raises(urllib.error.HTTPError) as excinfo:
-        _request(
-            f"{base}/api/queue",
-            data="url=cloud.example.com",
-            headers={"X-Auth-Token": "s3cre"},
-        )
+    code, _ = _refusal(
+        f"{base}/api/queue",
+        data="url=cloud.example.com",
+        headers={"X-Auth-Token": "s3cre"},
+    )
 
-    assert excinfo.value.code == 401
+    assert code == 401
 
 
 def _status(url, headers):
     try:
         return _request(url, headers=headers)[0]
     except urllib.error.HTTPError as error:
-        return error.code
+        with error:
+            return error.code
 
 
 def test_a_page_rebound_onto_loopback_cannot_use_a_service_without_a_token(server):
@@ -310,16 +317,14 @@ def test_a_rebound_page_cannot_queue_a_scan_either(server, fake_scan):
     """POST is refused the same way, before anything reaches the scanner."""
     base, _ = server()
 
-    request = urllib.request.Request(
+    code, _ = _refusal(
         f"{base}/api/queue",
-        data=b"url=cloud.example.com",
+        data="url=cloud.example.com",
         headers={"Host": "rebind.example.net"},
         method="POST",
     )
-    with pytest.raises(urllib.error.HTTPError) as refused:
-        urllib.request.urlopen(request, timeout=5)
 
-    assert refused.value.code == 403
+    assert code == 403
     assert fake_scan == []
 
 

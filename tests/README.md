@@ -253,6 +253,7 @@ Google's build, allowed behind the dead proxy (ADR 0068).
 | [`test_mutation_testing.py`](test_mutation_testing.py) | The manual mutation-testing setup stays consistent: mutmut only in its own group and with a record, its test files in-process, `mutants/` ignored, and `/mutation-test` running in the read-only agent. |
 | [`test_dependency_policy.py`](test_dependency_policy.py) | `scripts/check_dependencies.py`: every Python dependency has an approved, tested and reviewed record, or predates the policy, and the grandfather list never grows. |
 | [`test_release_notes.py`](test_release_notes.py) | `scripts/release_notes.py` turns `## [Unreleased]` into the release section. |
+| [`test_release_flow.py`](test_release_flow.py) | A release end to end on a copy of the tracked files: the bump passes `check_pull_request.py`, the release workflow's steps leave every check green, and its commit stages everything the release rewrote. |
 | [`test_release_dry_run.py`](test_release_dry_run.py) | The release rehearsal matches the release, and publishing to PyPI happens last. |
 | [`test_security_advisories.py`](test_security_advisories.py) | Every `### Security` changelog entry has a decided record in `security/advisories/`. |
 | [`test_update_script.py`](test_update_script.py) | `scripts/update_release_schedule.py` and the generated README schedule. |

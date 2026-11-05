@@ -50,10 +50,11 @@ jobs:
       # because a fixture is allowed to do things production code may not.
       # --exit-zero keeps the report advisory; the Security tab is where it is
       # read, and a finding should not block an unrelated pull request.
+      # Both packages are pinned so /preflight runs the same Bandit locally.
       - name: Run Bandit
         run: >
-          uvx --with bandit-sarif-formatter
-          bandit --recursive .
+          uvx --with bandit-sarif-formatter==1.1.1
+          bandit@1.9.4 --recursive .
           --severity-level medium
           --confidence-level medium
           --exclude ./tests,./secrets,./.venv
