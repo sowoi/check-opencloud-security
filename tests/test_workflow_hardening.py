@@ -85,6 +85,52 @@ def test_a_workflow_pins_every_action_to_a_digest(workflow: Path):
         )
 
 
+EXACT_VERSION_COMMENT = re.compile(r"@[0-9a-f]{40}\s+#\s*v?\d+\.\d+\.\d+\s*$")
+
+
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: p.name)
+def test_a_pin_comment_names_the_exact_release(workflow: Path):
+    """
+    `# v4` is a moving target; the digest is not.
+
+    zizmor, run online in the workflow lint, compares the comment with where
+    the tag points today. A bare major tag passes until upstream releases the
+    next minor - then every pull request fails on a file it never touched, as
+    happened when docker/login-action v4.8.0 moved `v4`.
+    """
+    for number, reference in _uses_lines(workflow):
+        if reference.startswith("./"):
+            continue
+        assert EXACT_VERSION_COMMENT.search(reference), (
+            f"{workflow.name}:{number} names no exact x.y.z release in its pin comment: {reference}"
+        )
+
+
+def test_a_bare_major_comment_is_refused():
+    """The negative case for the rule above."""
+    digest = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+    assert EXACT_VERSION_COMMENT.search(f"actions/checkout@{digest} # v7.0.1")
+    assert not EXACT_VERSION_COMMENT.search(f"actions/checkout@{digest} # v7")
+
+
+CURL = re.compile(r"\bcurl\b[^\n]*")
+
+
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: p.name)
+def test_a_download_retries_a_passing_server_error(workflow: Path):
+    """
+    A 504 from GitHub's release CDN is weather, not a verdict.
+
+    One failed the hadolint install on main and would, in publish-pypi.yml,
+    fail a release halfway. `--retry` covers timeouts and 408/429/5xx answers;
+    the digest check after each download still decides what gets installed.
+    """
+    for line in CURL.findall(workflow.read_text(encoding="utf-8")):
+        if line.lstrip().startswith("#"):
+            continue
+        assert "--retry " in line, f"{workflow.name}: a download without --retry: {line.strip()}"
+
+
 def _document(workflow: Path) -> dict:
     """The parsed workflow."""
     return yaml.safe_load(workflow.read_text(encoding="utf-8"))

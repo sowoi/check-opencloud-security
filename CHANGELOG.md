@@ -54,6 +54,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **The CI tool downloads retry a passing server error.** A `504` from
+  GitHub's release downloads failed the hadolint install on main. The same
+  single attempt fetched shellcheck, actionlint and nfpm, and nfpm is
+  installed inside the release in `publish-pypi.yml`. Every `curl` download
+  now retries up to five times (`--retry 5 --retry-delay 5`), and the digest
+  check after it still decides what is installed.
+  `tests/test_workflow_hardening.py` now refuses a download without
+  `--retry`, and a pin comment that names only a major tag.
 - **The test suite no longer leaks HTTP error answers.** In
   `tests/test_service.py`, each `HTTPError` a test caught kept its response
   open until the garbage collector closed it. That close came after the
