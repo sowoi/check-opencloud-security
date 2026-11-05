@@ -62,7 +62,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   file`), reported in whatever test happened to be running. A helper now
   reads the status and body and closes the answer. The fake OpenCloud also
   stops printing a traceback when the scanner deliberately hangs up at its
-  response cap.
+  response cap, and the webhook test in `tests/test_output_formats.py`
+  closes its listening socket.
+- **A failed advisory or release-schedule refresh no longer leaks its
+  connection.** When the OSV feed, the GitHub advisory API or the lifecycle
+  page answered with an HTTP error status, the fetch wrapped the
+  `HTTPError` in its own error and never closed the response it holds. Each
+  failed daily refresh in the web service kept a socket open until the
+  garbage collector reached it. `opencloud_local_scan/fetch.py` now opens
+  all three through one helper, `open_document`, which closes an error
+  answer before passing it on. Its status and reason stay readable.
 - **A deliberate hook refusal no longer also says the hook "could not run".**
   The wrappers in `.claude/settings.json` printed that message on every exit
   that was not 0, including the deliberate exit 2, so a decision read like a

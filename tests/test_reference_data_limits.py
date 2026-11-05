@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -42,7 +43,7 @@ class _Handler(BaseHTTPRequestHandler):
         if request_length:
             self.rfile.read(request_length)
         body = self.server.body  # type: ignore[attr-defined]
-        self.send_response(200)
+        self.send_response(self.server.status)  # type: ignore[attr-defined]
         self.send_header("Content-Type", self.server.content_type)  # type: ignore[attr-defined]
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -58,8 +59,9 @@ class _Handler(BaseHTTPRequestHandler):
 class FakeFeed:
     """A source that answers with exactly the bytes a test gives it."""
 
-    def __init__(self, body: bytes, content_type: str = "text/html; charset=utf-8"):
+    def __init__(self, body: bytes, content_type: str = "text/html; charset=utf-8", status: int = 200):
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        self._server.status = status  # type: ignore[attr-defined]
         self._server.body = body  # type: ignore[attr-defined]
         self._server.content_type = content_type  # type: ignore[attr-defined]
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -196,6 +198,41 @@ def test_a_non_http_advisory_url_is_still_refused():
     """The older guard is not lost to the new one."""
     with pytest.raises(AdvisoryFetchError):
         fetch_records("file:///etc/passwd")
+
+
+def test_an_advisory_feed_error_answer_is_closed_before_it_travels_on():
+    """
+    The HTTPError behind a failed refresh holds the response open.
+
+    The fetch chains it to its own error, which keeps it alive; left to the
+    garbage collector, a daily refresh against a failing mirror leaks a
+    socket each time.
+    """
+    with (
+        FakeFeed(b"<html>down</html>", status=503) as site,
+        pytest.raises(AdvisoryFetchError) as raised,
+    ):
+        fetch_records(site.url, timeout=5)
+    cause = raised.value.__cause__
+    assert isinstance(cause, urllib.error.HTTPError)
+    assert cause.code == 503
+    assert cause.fp.closed
+
+
+def test_a_lifecycle_page_error_answer_is_closed_before_it_travels_on():
+    """The schedule fetch lets the HTTPError through, closed, with its status intact."""
+    with (
+        FakeFeed(b"<html>gone</html>", status=404) as site,
+        pytest.raises(urllib.error.HTTPError) as raised,
+    ):
+        fetch(site.url, timeout=5)
+    assert raised.value.code == 404
+    assert raised.value.fp.closed
+
+
+def test_both_sources_open_through_the_same_helper():
+    """The closing rule lives in one place, like the cap."""
+    assert schedule_source.open_document is advisory_source.open_document
 
 
 def test_both_sources_read_through_the_same_cap():
