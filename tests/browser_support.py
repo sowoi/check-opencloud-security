@@ -186,6 +186,23 @@ document.addEventListener('securitypolicyviolation', (event) => {
 """
 
 
+#: NS_BINDING_ABORTED, as Firefox prints it in a failed font download.
+_ABORTED = "status=2152398850"
+
+
+def aborted_font_download(text: str) -> bool:
+    """
+    Firefox reporting a font download that a navigation cut short.
+
+    A web font is fetched when text first needs it, which can be after the
+    load event. A test that reloads or moves on in that moment aborts the
+    download, and Firefox logs it as an error. It is the test leaving, not
+    the page failing - a font that does not load at all still fails with
+    another status and is still reported.
+    """
+    return "downloadable font: download failed" in text and _ABORTED in text
+
+
 @dataclass
 class PageWatch:
     """What a page said while a test used it: console errors, crashes, CSP violations, stray requests."""
@@ -202,7 +219,7 @@ class PageWatch:
         page.on("request", self._request)
 
     def _console(self, message: Any) -> None:
-        if message.type == "error":
+        if message.type == "error" and not aborted_font_download(message.text):
             self.console_errors.append(message.text)
 
     def _request(self, request: Any) -> None:

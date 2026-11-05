@@ -63,6 +63,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Fixed
 
+- **A browser test no longer fails because it moved on while a font was
+  loading.** A web font is fetched when text first needs it, which can be
+  after the load event. When a test reloaded in that moment, Firefox aborted
+  the download and logged `downloadable font: download failed …
+  status=2152398850` (`NS_BINDING_ABORTED`) as a console error, and the
+  page watch failed the test. The first CI trace showed this for
+  `test_garbage_in_storage_is_ignored`. The watch now ignores exactly that
+  status. A font that fails for any other reason is still an error, and
+  `tests/test_browser_support.py` checks both cases.
 - **The browser tests cache their system packages too.** Today the
   runners' Ubuntu mirror served packages at a few hundred kB/s, and
   `playwright install-deps` timed out for WebKit (114 MB) and Firefox
