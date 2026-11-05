@@ -39,7 +39,7 @@ uv run pytest --shard 2/4                           # one slice, as the CI job "
 uv run pytest tests/test_webapp_api.py              # the web application (no Redis needed)
 uv run playwright install webkit                    # once: the browser for the tests below and the MCP server
 uv run pytest tests/test_webapp_browser_*.py        # the frontend in a real browser (ADR 0061)
-uvx ruff@0.17.1 check .                             # linting, as CI runs it
+uvx ruff@0.17.3 check .                             # linting, as CI runs it
 uv run mypy --config-file mypy.ini                  # type checking
 cd ansible && ansible-lint                          # must be run from ansible/
 uv run nox                                          # full suite on Python 3.11-3.15
@@ -52,8 +52,8 @@ python scripts/check_documentation_links.py         # re-checks documented OpenC
 python scripts/security_advisories.py --check       # every ### Security entry is decided
 python scripts/check_tool_pins.py                   # CI tool pins behind their latest release (--list: offline)
 python scripts/check_pull_request.py --base origin/main  # changelog entries and the version guard (local only)
-npx @biomejs/biome@2.5.13 lint                     # frontend scripts (biome.jsonc)
-uvx zizmor@1.30.1 .github/workflows                 # workflow security audit
+npx @biomejs/biome@2.6.5 lint                     # frontend scripts (biome.jsonc)
+uvx zizmor@1.32.0 .github/workflows                 # workflow security audit
 cd docker && docker compose up --build              # web + worker + redis, locally
 ```
 

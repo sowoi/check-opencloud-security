@@ -52,7 +52,7 @@ If you haven't already, install the `uv` package manager (or your preferred inst
 pipx install uv
 ```
 
-It needs to be uv 0.13.1 or newer, the `required-version` in `pyproject.toml`.
+It needs to be uv 0.13.7 or newer, the `required-version` in `pyproject.toml`.
 An older uv refuses to run in this repository. CI installs exactly that floor.
 
 ### 2. Register the merge drivers
@@ -273,7 +273,7 @@ We use Ruff for linting and code formatting checks.
 
 To run the linting check:
 ```
-uvx ruff@0.17.1 check
+uvx ruff@0.17.3 check
 ```
 
 ## Changelog entries
