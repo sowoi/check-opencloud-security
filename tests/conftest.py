@@ -5,8 +5,19 @@ import pytest
 
 from opencloud_local_scan import config as config_module
 from opencloud_local_scan import wizard as wizard_module
+from tests import sharding
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def pytest_addoption(parser):
+    sharding.addoption(parser)
+
+
+# Last, so the slice is cut from the items every other hook already settled on.
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    sharding.select(config, items)
 
 
 def coverage_environment() -> dict[str, str]:

@@ -41,4 +41,5 @@ def versions_check(session):
         "assert actual == expected, f'expected {expected}, running {actual}';"
         "print('running on', sys.version)",
     )
-    session.run("pytest")
+    # CI passes `-- --shard INDEX/COUNT` to run one slice per job.
+    session.run("pytest", *session.posargs)

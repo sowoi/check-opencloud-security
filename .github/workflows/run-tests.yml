@@ -20,9 +20,19 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The suite runs in SHARDS slices side by side (tests/sharding.py): it is
+  # nearly all pytest, about nineteen minutes of it under coverage, with no
+  # test long enough to unbalance a slice. Raising the count only needs the
+  # matrix and SHARDS changed together.
   uv-test:
-    name: python
+    name: python ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    strategy:
+      # Every slice reports its own failures; one red slice must not cancel
+      # the others and hide what they would have found.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     # The suite runs against `memory://`, the in-process stand-in, because a
     # test that needs a server is a test a contributor cannot run. That left
@@ -45,6 +55,7 @@ jobs:
 
     env:
       TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      SHARDS: 4
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,6 +74,95 @@ jobs:
       # instead of only ever running on a developer's own machine.
       - name: Install the project
         run: uv sync --locked --group test --extra signing
+
+      # Coverage is measured here and nowhere else. `nox` runs the same suite
+      # on five interpreters to prove the `requires-python` promise; measuring
+      # it there as well would multiply the runtime to report the same number
+      # five times. A slice reaches only part of the code, so its own floor is
+      # off; the coverage job below combines the slices and applies
+      # `fail_under` from pyproject.toml to the whole.
+      - name: Run tests
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: >
+          uv run --group test --extra signing pytest
+          --cov --cov-report= --cov-fail-under=0
+          --shard "${SHARD}/${SHARDS}" --shard-list "shard-${SHARD}.txt"
+
+      # Out of the `.coverage.*` pattern on purpose: pytest-cov erases those
+      # when a run starts, and the name needs no hidden-file upload either.
+      - name: Keep this slice's measurement
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: mv .coverage "coverage-shard${SHARD}.data"
+
+      - name: Upload this slice's measurement
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: |
+            coverage-shard${{ matrix.shard }}.data
+            shard-${{ matrix.shard }}.txt
+          if-no-files-found: error
+          retention-days: 3
+
+  # Keeps the check name `python` the single-job suite had.
+  coverage:
+    name: python
+    needs: uv-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          resolution-strategy: lowest
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --group test --extra signing
+
+      - name: Download the slices' measurements
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      # A node id that differed between the slices' processes would run one
+      # test twice and another never, and every slice would still be green.
+      - name: Check the slices ran the whole suite exactly once
+        run: |
+          uv run --group test --extra signing pytest -q --collect-only --shard 1/1 --shard-list whole.txt > /dev/null
+          uv run python -m tests.sharding verify whole.txt shard-*.txt
+
+      # The term report prints the uncovered lines into the job log, which is
+      # where a reviewer is already looking; `fail_under` in pyproject.toml is
+      # what actually gates the build.
+      - name: Combine and report coverage
+        run: |
+          uv run coverage combine coverage-shard*.data
+          uv run coverage report
+
+  # The generated-file checks need no Redis and no slice of the suite.
+  generated:
+    name: generated files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          resolution-strategy: lowest
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --group test
 
       - name: Check generated frontend documentation
         run: uv run python scripts/build_frontend_documentation.py --check
@@ -83,13 +183,3 @@ jobs:
       # render-architecture-diagram.yml, after the merge.
       - name: Check the architecture diagram references
         run: uv run python scripts/render_architecture_diagrams.py --check
-
-      # Coverage is measured here and nowhere else. `nox` runs the same suite
-      # on five interpreters to prove the `requires-python` promise; measuring
-      # it there as well would multiply the runtime to report the same number
-      # five times.
-      # The term report prints the uncovered lines into the job log, which is
-      # where a reviewer is already looking; `fail_under` in pyproject.toml is
-      # what actually gates the build.
-      - name: Run tests
-        run: uv run --group test --extra signing pytest --cov --cov-report=term

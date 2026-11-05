@@ -19,8 +19,12 @@ concurrency:
 jobs:
   uv-test:
     # One job per interpreter rather than five sessions in one job: they run in
-    # parallel, and a failure names the Python it failed on.
-    name: python ${{ matrix.python }}
+    # parallel, and a failure names the Python it failed on. Each interpreter
+    # runs the suite in three slices (tests/sharding.py), which brings a job
+    # from about fifteen minutes to five. Three rather than the four the
+    # coverage run uses: fifteen jobs already, and a pull request starts
+    # enough others that more would only wait for a free runner.
+    name: python ${{ matrix.python }} (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -28,6 +32,7 @@ jobs:
         # Quoted, or YAML reads 3.10 as the number 3.1. Keep in step with
         # PYTHON_VERSIONS in noxfile.py - tests/test_workflow_hardening.py does.
         python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        shard: [1, 2, 3]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,4 +51,5 @@ jobs:
       - name: Run tests
         env:
           PYTHON: ${{ matrix.python }}
-        run: uv run --group test nox --session "versions_check-${PYTHON}"
+          SHARD: ${{ matrix.shard }}
+        run: uv run --group test nox --session "versions_check-${PYTHON}" -- --shard "${SHARD}/3"
