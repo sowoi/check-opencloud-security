@@ -50,7 +50,7 @@ git ls-tree -r --name-only v1.13.0 | grep catalogue   # absent = never shipped
 | `slug` | Matches the filename. `--publish` addresses a record by it. |
 | `state` | `published`, `draft`, or `declined`. |
 | `ghsa` | The GitHub advisory id, written back by `--sync`. |
-| `changelog_version` | The release the entry appears under. |
+| `changelog_version` | The release the entry appears under, or `unreleased` while it is under `## [Unreleased]` - the release writes the number in (ADR 0080). |
 | `changelog_entry` | The bullet's opening phrase, so the check can find it. |
 | `shipped` | Did a released version carry it. `false` forbids an advisory. |
 | `verified` | The command that established `shipped`, and what it showed. |
@@ -59,7 +59,7 @@ git ls-tree -r --name-only v1.13.0 | grep catalogue   # absent = never shipped
 | `severity` | `low`, `medium`, `high`, `critical`. GitHub does not accept "moderate". |
 | `cwe_ids` | e.g. `CWE-918`. |
 | `package` | `plugin` or `web`. |
-| `introduced` / `fixed` | Becomes `>= introduced, < fixed`. |
+| `introduced` / `fixed` | Becomes `>= introduced, < fixed`. `fixed` is `unreleased` while the fix is; `--sync` drafts nothing until the release names it. |
 | `description` | The advisory body: Impact, Patches, Workarounds. |
 
 ### `package` is not cosmetic

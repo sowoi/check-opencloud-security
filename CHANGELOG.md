@@ -12,6 +12,49 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **A version bump is the whole release pull request.** Releasing 1.32.1
+  took three extra commits and two red CI runs. Three changes remove that
+  (ADR 0080):
+  - An advisory record for an entry under `## [Unreleased]` now says
+    `changelog_version: unreleased` (and `fixed: unreleased`) instead of
+    guessing a number. `scripts/release_notes.py` writes the version in when
+    it renames the heading, the release commit carries the records, and the
+    release dry run checks them. Before, the record had to name the version
+    in `pyproject.toml`, which is the release already out until the bump, so
+    every security entry broke the check on the bump.
+  - `scripts/check_pull_request.py` refuses a version change that does not
+    bring the regenerated Releases page and search indexes with it, and names
+    the commands. A bot commit that regenerated them afterwards would run no
+    checks. The edit hook's prompt for a version change names them too.
+  - A pull request that changes only the version (the version lines in
+    `pyproject.toml` and `uv.lock`, and those regenerated files) counts as a
+    release and needs no changelog entry of its own.
+- **The browser tests cache the Playwright browser build.** One 1.32.1 run
+  hung downloading WebKit until the job timed out. The download is now
+  cached, keyed on the locked Playwright version, and the install step has
+  its own 10-minute limit. The system libraries are still installed through
+  apt on every run.
+
+### Fixed
+
+- **A deliberate hook refusal no longer also says the hook "could not run".**
+  The wrappers in `.claude/settings.json` printed that message on every exit
+  that was not 0, including the deliberate exit 2, so a decision read like a
+  broken hook. Only an unexpected exit code prints it now; both still refuse.
+- **The release-notes preview in `AGENTS.md` and `CONTRIBUTING.md` reverts
+  with `git restore`.** The branch guard read the documented
+  `git checkout CHANGELOG.md RELEASE.md` as a switch to a branch called
+  `CHANGELOG.md` and refused it.
+
+### Documentation
+
+- **The documented test suite runtime is accurate.** `CLAUDE.md`,
+  `.github/copilot-instructions.md` and the preflight skill and agent said
+  about 75 seconds. The suite takes about 8 minutes locally and about
+  15 minutes per Python version in CI.
+
 ## [1.32.1] - 2026-11-04
 
 ### Security

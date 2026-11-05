@@ -49,6 +49,12 @@ jobs:
           --version "$VERSION"
           --require-unreleased
 
+      # The step above also named the version in every advisory record that
+      # claimed [Unreleased]; the release commit carries them, so they have to
+      # still match the renamed section (adr/0080).
+      - name: Check the advisory records against the released notes
+        run: uv run python scripts/security_advisories.py --check
+
       - name: Build package
         run: uv build
 

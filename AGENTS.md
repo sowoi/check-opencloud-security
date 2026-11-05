@@ -137,7 +137,23 @@ it on every release, so between releases it names the last one - see
 `python scripts/check_pull_request.py --base origin/main` checks this before a
 pull request is opened: a change needs a new `CHANGELOG.md` entry, and a
 version change has to move past every tag. No workflow runs it, and a release
-needs no label.
+needs no label. A pull request that changes the version and nothing else (the
+version line in `pyproject.toml` and `uv.lock`, and the regenerated files
+below) is a release and needs no entry of its own: its notes are the
+`## [Unreleased]` section.
+
+A bump regenerates everything that renders the version, in the same push.
+When the user has bumped (or asked for) the version:
+
+```bash
+uv lock
+uv run python scripts/build_frontend_documentation.py   # the operator area's Releases page
+uv run python scripts/build_search_index.py             # every search index, after the page
+```
+
+A bot commit that did this afterwards would start no checks of its own, so the
+pull request would sit on the red ones the bump caused - the 1.32.1 release
+did. `check_pull_request.py` refuses a bump without these files.
 `release-dry-run.yml` builds everything the
 release builds on the same pull request, and the release itself uploads to
 PyPI only after every other artifact is built. See
@@ -155,7 +171,7 @@ Preview what the next release would look like. It rewrites `CHANGELOG.md` and
 
 ```bash
 python scripts/release_notes.py --version 0.0.0 --date 2000-01-01
-git checkout CHANGELOG.md RELEASE.md
+git restore CHANGELOG.md RELEASE.md
 ```
 
 `--require-unreleased` makes the script fail rather than fall back to
@@ -204,6 +220,7 @@ stops the next person re-deriving a conclusion somebody already reached.
 | `state` | `published`, `draft`, or `declined` |
 | `shipped` | did a released version carry it - `false` forbids an advisory |
 | `verified` | the tag-level evidence for `shipped`, with the command |
+| `changelog_version` | `unreleased` for an entry under `## [Unreleased]` - never the number in `pyproject.toml`, which names the last release until the bump; the release writes it in (ADR 0080) |
 | `changelog_entry` | the bullet's opening phrase, so the check can find it |
 | `declined_because` | required when `state: declined`; say which case above |
 | `package` | `plugin` (PyPI) or `web` - **never** file a `webapp/` defect against pip |

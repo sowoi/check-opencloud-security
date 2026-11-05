@@ -56,6 +56,9 @@ def changelog(tmp_path, monkeypatch):
     path = tmp_path / "CHANGELOG.md"
     monkeypatch.setattr(script, "CHANGELOG", path)
     monkeypatch.setattr(script, "RELEASE", tmp_path / "RELEASE.md")
+    records = tmp_path / "advisories"
+    records.mkdir()
+    monkeypatch.setattr(script, "ADVISORY_RECORDS", records)
     # A generated fallback would reach for the real repository history.
     monkeypatch.setattr(script, "run_git", lambda *args: "")
     return path
@@ -177,3 +180,57 @@ def test_the_version_is_read_from_pyproject_and_never_invented():
     expected = declared.group(1)
 
     assert script.project_version() == expected
+
+
+RECORD = """# A record.
+slug: example
+state: draft
+changelog_version: {version}
+changelog_entry: "Something was wrong."
+fixed: {fixed}
+summary: >-
+  It said unreleased in prose, which stays as it is
+"""
+
+
+def test_a_release_names_its_version_in_the_records_that_waited_for_it(changelog):
+    """The record and the section it claims are renamed in the same step.
+
+    Left as `unreleased`, the record would claim an [Unreleased] section the
+    release just emptied, and the advisory check would fail on main.
+    """
+    changelog.write_text(f"{HEADER}\n{UNRELEASED_NOTES}\n{OLD_RELEASE}")
+    path = script.ADVISORY_RECORDS / "example.yml"
+    path.write_text(RECORD.format(version='"unreleased"', fixed="Unreleased"), encoding="utf-8")
+
+    assert script.main(["--version", "1.1.0", "--date", "2026-09-01"]) == 0
+
+    text = path.read_text(encoding="utf-8")
+    assert 'changelog_version: "1.1.0"' in text
+    assert 'fixed: "1.1.0"' in text
+    assert "It said unreleased in prose, which stays as it is" in text
+    assert text.startswith("# A record.\n")
+
+
+def test_a_record_of_an_earlier_release_is_left_alone(changelog):
+    """Only the marker is rewritten; a record that names its version keeps it."""
+    changelog.write_text(f"{HEADER}\n{UNRELEASED_NOTES}\n{OLD_RELEASE}")
+    path = script.ADVISORY_RECORDS / "example.yml"
+    original = RECORD.format(version='"1.0.0"', fixed='"1.0.0"')
+    path.write_text(original, encoding="utf-8")
+
+    assert script.main(["--version", "1.1.0", "--date", "2026-09-01"]) == 0
+
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_records_are_not_touched_when_there_is_nothing_to_promote(changelog):
+    """Notes generated from commits rename no [Unreleased] section, so no record follows."""
+    changelog.write_text(f"{HEADER}\n{OLD_RELEASE}")
+    path = script.ADVISORY_RECORDS / "example.yml"
+    original = RECORD.format(version="unreleased", fixed="unreleased")
+    path.write_text(original, encoding="utf-8")
+
+    assert script.main(["--version", "1.1.0", "--date", "2026-09-01"]) == 0
+
+    assert path.read_text(encoding="utf-8") == original

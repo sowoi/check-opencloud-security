@@ -325,7 +325,8 @@ shipped: true
 severity: high        # low | medium | high | critical
 package: plugin       # plugin (on PyPI) or web (the release tarball)
 introduced: "1.0.0"
-fixed: "1.17.0"
+changelog_version: unreleased   # the release writes its number in
+fixed: unreleased
 ```
 
 or, just as valid an answer:
@@ -397,5 +398,5 @@ revert afterwards:
 
 ```shell
 python scripts/release_notes.py --version 0.0.0 --date 2000-01-01
-git checkout CHANGELOG.md RELEASE.md
+git restore CHANGELOG.md RELEASE.md
 ```

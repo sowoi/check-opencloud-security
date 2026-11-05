@@ -87,4 +87,5 @@ RECORDS: tuple[tuple[str, str, str, str], ...] = (
     ("0077", "0077-decision-records-are-never-translated", "Decision records are never translated", "Accepted"),
     ("0078", "0078-changelogs-and-release-notes-are-never-translated", "Changelogs and release notes are never translated", "Accepted"),
     ("0079", "0079-a-finding-is-new-only-if-the-earlier-scan-could-have-reported-it", "A finding is new only if the earlier scan could have reported it", "Accepted"),
+    ("0080", "0080-a-version-bump-is-the-whole-release-pull-request", "A version bump is the whole release pull request", "Accepted"),
 )

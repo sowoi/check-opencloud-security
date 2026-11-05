@@ -12,7 +12,7 @@ only become visible after reading several files.
 ## Commands
 
 ```bash
-uv run pytest                                       # full suite (~75s)
+uv run pytest                                       # full suite (~8 min locally, ~15 min per Python version in CI)
 uv run pytest tests/test_waivers.py                 # one file
 uv run pytest tests/test_waivers.py::test_name      # one test
 uv run pytest -k "waiver and not rating"            # by expression

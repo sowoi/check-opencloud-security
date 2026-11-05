@@ -17,7 +17,7 @@ This skill runs in the read-only `preflight-runner` agent
 main conversation and nothing is fixed while the checks run. Run from the
 repository root. Do not run `ruff format` or reformat the tree. Run
 independent checks in parallel where possible; the test suite takes about
-75 seconds, so start it in the background first.
+8 minutes, so start it in the background first.
 
 ## 1. Context
 

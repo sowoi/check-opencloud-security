@@ -6,19 +6,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_bash.py\" || { echo 'guard_bash.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_bash.py\"; status=$?; [ \"$status\" -eq 0 ] || [ \"$status\" -eq 2 ] && exit \"$status\"; { echo 'guard_bash.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
             "timeout": 10
           },
           {
             "type": "command",
             "if": "Bash(git *)",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_branch.py\" || { echo 'guard_branch.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_branch.py\"; status=$?; [ \"$status\" -eq 0 ] || [ \"$status\" -eq 2 ] && exit \"$status\"; { echo 'guard_branch.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
             "timeout": 10
           },
           {
             "type": "command",
             "if": "Bash(git *)",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/privacy_guard.py\" pre-tool-use || { echo 'privacy_guard.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/privacy_guard.py\" pre-tool-use; status=$?; [ \"$status\" -eq 0 ] || [ \"$status\" -eq 2 ] && exit \"$status\"; { echo 'privacy_guard.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
             "timeout": 60
           },
           {
@@ -30,7 +30,7 @@
           {
             "type": "command",
             "if": "Bash(gh *)",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/privacy_guard.py\" pre-tool-use || { echo 'privacy_guard.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/privacy_guard.py\" pre-tool-use; status=$?; [ \"$status\" -eq 0 ] || [ \"$status\" -eq 2 ] && exit \"$status\"; { echo 'privacy_guard.py could not run - refusing the command until the hook is fixed' >&2; exit 2; }",
             "timeout": 60
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_edit.py\" || { echo 'guard_edit.py could not run - refusing the edit until the hook is fixed' >&2; exit 2; }",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_edit.py\"; status=$?; [ \"$status\" -eq 0 ] || [ \"$status\" -eq 2 ] && exit \"$status\"; { echo 'guard_edit.py could not run - refusing the edit until the hook is fixed' >&2; exit 2; }",
             "timeout": 10
           }
         ]

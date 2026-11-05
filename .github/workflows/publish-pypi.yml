@@ -127,6 +127,9 @@ jobs:
             webapp/data/admin-search-index.de.json \
             webapp/data/admin-search-index.es.json \
             webapp/data/admin-search-index.fr.json
+          # release_notes.py named the version in the advisory records that
+          # claimed [Unreleased] (adr/0080); they change with the heading.
+          git add security/advisories/
           if git diff --cached --quiet; then
             echo "Release notes are already up to date."
           else

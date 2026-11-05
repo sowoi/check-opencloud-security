@@ -131,22 +131,15 @@ def test_an_entry_below_the_baseline_is_not_demanded(tmp_path, monkeypatch) -> N
     assert script.check_coverage([]) == []
 
 
-def test_an_unreleased_entry_is_demanded_under_the_version_it_will_carry(
-    tmp_path, monkeypatch
-) -> None:
+def test_an_unreleased_entry_is_demanded_while_its_branch_is_open(tmp_path, monkeypatch) -> None:
     """A security entry needs its record while the branch it was written on is open.
 
     It used to be exempt, on the grounds that an Unreleased bullet has no
     release to warn anybody about yet. But the record answers a question about
     the *past* - did a released version carry this - and the person who can
     answer it cheaply is the one who just wrote the fix and has the tags open.
-    Deferring it to release time is how a decision gets made by whoever is
-    cutting the release, from prose, months later. AGENTS.md asks for the
-    record in the same pull request as the fix; this is the check that means
-    it.
-
-    The version is not a guess: `## [Unreleased]` is renamed to whatever
-    `pyproject.toml` says when the bump lands on main.
+    AGENTS.md asks for the record in the same pull request as the fix; this is
+    the check that means it.
     """
     changelog = tmp_path / "CHANGELOG.md"
     changelog.write_text(
@@ -154,24 +147,69 @@ def test_an_unreleased_entry_is_demanded_under_the_version_it_will_carry(
         encoding="utf-8",
     )
     monkeypatch.setattr(script, "CHANGELOG", changelog)
-    monkeypatch.setattr(script, "unreleased_version", lambda: "9.9.9")
 
     assert script.check_coverage([]) != []
-    # And the record that claims it settles the matter, without waiting for
-    # the heading to be renamed.
-    claimed = record(changelog_version="9.9.9", changelog_entry="**Not out yet.**")
+    claimed = record(changelog_version="unreleased", fixed="unreleased", changelog_entry="**Not out yet.**")
     assert script.check_coverage([claimed]) == []
+    assert script.validate([claimed]) == []
 
 
-def test_the_unreleased_heading_is_read_under_the_pyproject_version() -> None:
-    """The number the release workflow will rename the heading to, and no other.
+def test_an_unreleased_entry_is_not_claimed_by_a_guessed_version(tmp_path, monkeypatch) -> None:
+    """Between a release and the next bump, pyproject.toml names the release already out.
 
-    Checked against the project's own version rather than a fixture: a number
-    this check invented would let a record claim a release that never happens.
+    A record that took that number for an [Unreleased] entry claimed a section
+    that already existed and broke as soon as the version was bumped - the
+    1.32.1 release had to correct one by hand.
     """
-    from opencloud_local_scan import __version__
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        "## [Unreleased]\n\n### Security\n\n- **Not out yet.** Text.\n\n## [1.32.0] - 2026-10-19\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(script, "CHANGELOG", changelog)
 
-    assert script.unreleased_version() == __version__
+    guessed = record(changelog_version="1.32.0", fixed="1.32.0", changelog_entry="**Not out yet.**")
+    problems = script.check_coverage([guessed])
+    assert any("no record claims" in problem for problem in problems)
+    assert any("does not have" in problem for problem in problems)
+
+
+def test_the_marker_is_matched_whatever_its_case(tmp_path, monkeypatch) -> None:
+    """`Unreleased`, as the changelog spells the heading, is the same marker."""
+    path = tmp_path / "records"
+    path.mkdir()
+    (path / "example-finding.yml").write_text(
+        "slug: example-finding\nchangelog_version: Unreleased\nfixed: UNRELEASED\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(script, "RECORD_DIR", path)
+    (loaded,) = script.load_records()
+    assert loaded["changelog_version"] == loaded["fixed"] == "unreleased"
+
+
+def test_an_unreleased_record_sorts_after_every_release() -> None:
+    """--list and the baseline count compare it like a version, without crashing."""
+    assert script.parse_version("unreleased") > script.parse_version("999.0.0")
+    assert script.parse_version("1.14.0") == (1, 14, 0)
+
+
+def test_a_draft_for_an_unreleased_entry_waits_for_its_release(monkeypatch) -> None:
+    """A range needs a fixed version; the release names it and the next sync drafts it."""
+    calls: list[object] = []
+
+    def gh_api(*args: object, **kwargs: object) -> dict:
+        calls.append(args)
+        return {"ghsa_id": "GHSA-x"}
+
+    monkeypatch.setattr(script, "gh_api", gh_api)
+    waiting = record(state="draft", ghsa=None, changelog_version="unreleased", fixed="unreleased")
+    assert script.sync([waiting]) == 0
+    assert calls == []
+    # The same draft, once the release has named its version, is drafted.
+    named = record(state="draft", ghsa=None, changelog_version="1.33.0", fixed="1.33.0",
+                   _path=Path("/nonexistent/example-finding.yml"))
+    monkeypatch.setattr(script, "write_back", lambda *args: None)
+    assert script.sync([named]) == 0
+    assert len(calls) == 1
 
 
 def test_an_advisory_for_something_that_never_shipped_is_refused() -> None:

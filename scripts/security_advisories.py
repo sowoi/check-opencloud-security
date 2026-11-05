@@ -41,7 +41,6 @@ import yaml
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 RECORD_DIR = REPO_ROOT / "security" / "advisories"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
-PYPROJECT = REPO_ROOT / "pyproject.toml"
 
 #: The repository advisories are filed against.
 REPO = "sowoi/check-opencloud-security"
@@ -80,42 +79,38 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+#: What a record says, in `changelog_version` and `fixed`, for an entry still
+#: under `## [Unreleased]`. The number that section will be released as is not
+#: known while it is written - the version in pyproject.toml still names the
+#: last release until somebody bumps it - so the record does not guess one.
+#: `scripts/release_notes.py` replaces it with the version when the release
+#: renames the heading. See adr/0080-a-version-bump-is-the-whole-release-pull-request.md.
+UNRELEASED = "unreleased"
+
+
 def parse_version(raw: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in raw.split("."))
-
-
-def unreleased_version() -> str:
-    """The version `## [Unreleased]` will be renamed to when it is released.
-
-    ``tomllib`` is 3.11+ and this project supports 3.10, so the one field that
-    matters is matched directly - the same way ``scripts/release_notes.py``
-    reads it. It is not a guess about the user's intention: the release
-    workflow renames the heading to exactly this number.
-    """
-    text = PYPROJECT.read_text(encoding="utf-8")
-    table = re.search(r"^\[project\]$(?P<body>.*?)(?=^\[)", text, re.MULTILINE | re.DOTALL)
-    found = (
-        re.search(r'^version\s*=\s*["\']([^"\']+)["\']', table.group("body"), re.MULTILINE)
-        if table
-        else None
-    )
-    if found is None:  # pragma: no cover - a tree without a version is broken
-        raise SystemExit("pyproject.toml declares no version under [project].")
-    return found.group(1)
+    """A comparable key; `unreleased` sorts after every released version."""
+    if str(raw).lower() == UNRELEASED:
+        return (sys.maxsize,)
+    return tuple(int(part) for part in str(raw).split("."))
 
 
 def changelog_security_bullets() -> list[tuple[str, str]]:
     """Every `### Security` bullet, newest first, as (version, text).
 
-    `## [Unreleased]` is read under the version in `pyproject.toml`, because
-    that is the number the release workflow renames the heading to. It used to
-    be skipped, on the grounds that its entries have no release to be an
-    advisory about yet - but that put the decision, and the git archaeology it
-    rests on, at the far end of the cycle from the person who made the change
-    and knows the answer. AGENTS.md asks for the record in the same pull
-    request as the fix; this is what lets one be written there, and what makes
-    a security entry without one fail the check while it is still somebody's
-    open branch.
+    `## [Unreleased]` is read as `unreleased`, and a record claims it with
+    that word, not a number. It used to be skipped, on the grounds that its
+    entries have no release to be an advisory about yet - but that put the
+    decision, and the git archaeology it rests on, at the far end of the cycle
+    from the person who made the change and knows the answer. AGENTS.md asks
+    for the record in the same pull request as the fix; this is what lets one
+    be written there, and what makes a security entry without one fail the
+    check while it is still somebody's open branch.
+
+    It was then read under the version in `pyproject.toml` - but between a
+    release and the next bump that is the number already released, so a
+    record written then named the wrong section and broke on the bump. See
+    adr/0080-a-version-bump-is-the-whole-release-pull-request.md.
     """
     bullets: list[tuple[str, str]] = []
     version: str | None = None
@@ -132,7 +127,7 @@ def changelog_security_bullets() -> list[tuple[str, str]]:
         if heading:
             flush()
             raw = heading.group(1)
-            version = unreleased_version() if raw.lower() == "unreleased" else raw
+            version = UNRELEASED if raw.lower() == UNRELEASED else raw
             in_security = False
             continue
         if line.startswith("###"):
@@ -156,6 +151,9 @@ def load_records() -> list[dict[str, Any]]:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise RecordError(f"{path.name}: not a mapping")
+        for field in ("changelog_version", "fixed"):
+            if isinstance(data.get(field), str) and data[field].lower() == UNRELEASED:
+                data[field] = UNRELEASED
         data["_path"] = path
         records.append(data)
     return records
@@ -314,7 +312,12 @@ def write_back(record: dict[str, Any], field: str, value: str) -> None:
 
 def sync(records: list[dict[str, Any]]) -> int:
     """Create a GitHub draft for every drafted record that has no advisory yet."""
-    pending = [r for r in records if r["state"] == "draft" and not r.get("ghsa")]
+    # An entry still under [Unreleased] has no version to file a range
+    # against; the release names it and the next run drafts it.
+    pending = [
+        r for r in records
+        if r["state"] == "draft" and not r.get("ghsa") and UNRELEASED not in (r["changelog_version"], r.get("fixed"))
+    ]
     if not pending:
         print("No records are waiting for a draft advisory.")
         return 0

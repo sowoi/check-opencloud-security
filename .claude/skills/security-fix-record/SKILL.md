@@ -64,8 +64,9 @@ never shipped; `refresh-data-attestation` for hardening;
 
 - `slug` - matches the filename, kebab-case.
 - `state` - `draft` or `declined`.
-- `changelog_version` - the version in `pyproject.toml` (entries under
-  `[Unreleased]` are read under it).
+- `changelog_version` - `unreleased` for an entry under `[Unreleased]`,
+  never a guessed number: `pyproject.toml` still names the last release until
+  the bump. The release writes the version in (ADR 0080).
 - `changelog_entry` - the bullet's opening phrase, verbatim.
 - `shipped`, `verified` - from step 2.
 - `declined_because` - required when declined; name the case.
@@ -74,7 +75,8 @@ never shipped; `refresh-data-attestation` for hardening;
   user about code they do not have.
 - `severity` - `low`, `medium`, `high` or `critical` (never "moderate").
 - `cwe_ids` - e.g. `CWE-918`.
-- `introduced`, `fixed` - becomes `>= introduced, < fixed`.
+- `introduced`, `fixed` - becomes `>= introduced, < fixed`; `fixed` is
+  `unreleased` too while the fix is.
 - `summary` - one line, the advisory title.
 - `description` - `### Impact`, `### Patches`, `### Workarounds`, and for `web`
   the note that PyPI installations are unaffected.
