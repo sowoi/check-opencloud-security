@@ -10,6 +10,7 @@ should, and to staying quiet when it should.
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess  # nosec B404 - builds a throwaway repository with fixed argv
 import sys
 from pathlib import Path
@@ -361,3 +362,22 @@ def test_the_script_refuses_a_bump_that_did_not_regenerate_end_to_end(repo, caps
 
     assert script.main(["--base", "main"]) == 1
     assert "were not regenerated" in capsys.readouterr().out
+
+
+def test_the_real_lock_and_pyproject_differ_only_in_the_version_after_a_bump():
+    """The lock pattern was written against uv's layout; if uv moved it, no release would ever qualify."""
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+    version = script.project_version(pyproject)
+    assert version is not None
+    assert script.LOCK_VERSION.search(lock), "uv.lock no longer has the project entry the pattern expects"
+
+    bumped_pyproject = pyproject.replace(f'version = "{version}"', 'version = "99.0.0"', 1)
+    bumped_lock = script.LOCK_VERSION.sub(r'\1"99.0.0"', lock, count=1)
+    assert bumped_lock != lock
+    assert script.without_version(pyproject, lock) == script.without_version(bumped_pyproject, bumped_lock)
+
+    # A dependency that moved with the bump keeps the two apart.
+    changed = re.sub(r'(name = "requests"\nversion = )"[^"]*"', r'\1"0.0.1"', bumped_lock, count=1)
+    assert changed != bumped_lock
+    assert script.without_version(pyproject, lock) != script.without_version(bumped_pyproject, changed)

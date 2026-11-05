@@ -37,9 +37,10 @@ ADVISORY_RECORDS = REPO_ROOT / "security" / "advisories"
 #: A record for an entry still under '[Unreleased]' names no version yet - see
 #: scripts/security_advisories.py and
 #: adr/0080-a-version-bump-is-the-whole-release-pull-request.md. Only these two
-#: fields, and only a value that is the bare marker, quoted or not.
+#: fields, and only a value that is the bare marker, quoted or not, with or
+#: without a trailing comment - which is kept.
 UNRELEASED_RECORD_FIELD = re.compile(
-    r"^(?P<field>changelog_version|fixed):[ \t]*([\"']?)unreleased\2[ \t]*$",
+    r"^(?P<field>changelog_version|fixed):[ \t]*([\"']?)unreleased\2(?P<rest>[ \t]*(?:#.*)?)$",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -287,7 +288,9 @@ def resolve_unreleased_records(version: str) -> list[Path]:
     rewritten = []
     for path in sorted(ADVISORY_RECORDS.glob("*.yml")):
         text = path.read_text(encoding="utf-8")
-        resolved = UNRELEASED_RECORD_FIELD.sub(lambda m: f'{m.group("field")}: "{version}"', text)
+        resolved = UNRELEASED_RECORD_FIELD.sub(
+            lambda m: f'{m.group("field")}: "{version}"{m.group("rest")}', text
+        )
         if resolved != text:
             path.write_text(resolved, encoding="utf-8")
             rewritten.append(path)

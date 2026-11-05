@@ -234,3 +234,20 @@ def test_records_are_not_touched_when_there_is_nothing_to_promote(changelog):
     assert script.main(["--version", "1.1.0", "--date", "2026-09-01"]) == 0
 
     assert path.read_text(encoding="utf-8") == original
+
+
+def test_the_marker_is_named_even_with_a_comment_after_it(changelog):
+    """CONTRIBUTING.md shows the field with a trailing comment; copied as is, it must still resolve."""
+    changelog.write_text(f"{HEADER}\n{UNRELEASED_NOTES}\n{OLD_RELEASE}")
+    path = script.ADVISORY_RECORDS / "example.yml"
+    path.write_text(
+        "slug: example\nchangelog_version: unreleased   # the release writes its number in\nfixed: unreleased\n",
+        encoding="utf-8",
+    )
+
+    assert script.main(["--version", "1.1.0", "--date", "2026-09-01"]) == 0
+
+    text = path.read_text(encoding="utf-8")
+    assert 'changelog_version: "1.1.0"   # the release writes its number in' in text
+    assert 'fixed: "1.1.0"' in text
+    assert "unreleased\n" not in text.split("#")[0]
