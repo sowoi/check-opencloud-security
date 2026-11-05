@@ -64,6 +64,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   stops printing a traceback when the scanner deliberately hangs up at its
   response cap, and the webhook test in `tests/test_output_formats.py`
   closes its listening socket.
+- **Every pinned action names its exact release.** Several actions were
+  pinned to a commit hash but commented only with the major tag
+  (`actions/checkout # v7`, `actions/attest-build-provenance # v4`,
+  `actions/attest # v4`, `docker/login-action # v4`). zizmor, running
+  online in the workflow lint, compares that comment with where the tag
+  points now. When `docker/login-action` v4.8.0 moved `v4`, every pull
+  request failed on a file it never touched. The comments now name the tag
+  each hash is (`v7.0.1`, `v4.2.2`, `v4.2.2`, `v4.7.0`); the hashes are
+  unchanged.
 - **A failed advisory or release-schedule refresh no longer leaks its
   connection.** When the OSV feed, the GitHub advisory API or the lifecycle
   page answered with an HTTP error status, the fetch wrapped the
