@@ -136,7 +136,10 @@ def decide(rel: str, tool: str, tool_input: dict, current: str) -> tuple[str, st
         after = _VERSION_LINE.findall(new_text)
         if before != after:
             return "ask", ("This changes the project version. Only the user bumps the version "
-                           "(a bump on main publishes to PyPI) - confirm this was asked for.")
+                           "(a bump on main publishes to PyPI) - confirm this was asked for. "
+                           "If it was: run `uv lock`, then `uv run python scripts/build_frontend_documentation.py "
+                           "&& uv run python scripts/build_search_index.py`, and commit all of it in one push - "
+                           "the Releases page and the search indexes render the version.")
 
     if rel.endswith(".py") and _VERSION_LITERAL.search(new_text) and not _VERSION_LITERAL.search(old_fragment):
         return "ask", ("A literal __version__ was added. The version lives only in pyproject.toml; "

@@ -760,3 +760,32 @@ def test_every_blocking_guard_fails_closed_and_the_privacy_guard_is_filtered():
     assert sorted(h["if"] for h in privacy) == ["Bash(gh *)", "Bash(git *)"]
     stop = [h["command"] for group in settings["hooks"]["Stop"] for h in group["hooks"]]
     assert any("stop_checks.py" in c for c in stop) and any("privacy_guard.py\" stop" in c for c in stop)
+
+
+@pytest.mark.parametrize("exit_code, expected_exit, says_broken", [
+    (0, 0, False),   # allowed: nothing to add
+    (2, 2, False),   # a deliberate refusal speaks for itself
+    (1, 2, True),    # an uncaught exception fails closed
+    (127, 2, True),  # an interpreter that is not there fails closed
+])
+def test_a_guard_wrapper_reports_a_broken_guard_but_not_a_refusal(tmp_path, exit_code, expected_exit, says_broken):
+    """
+    A refusal used to arrive with "could not run" appended, because the
+    wrapper's ``||`` also fired on the deliberate exit 2 - and an agent read
+    that as a broken hook rather than a decision.
+    """
+    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text())
+    handlers = [h for group in settings["hooks"]["PreToolUse"] for h in group["hooks"]
+                if "changelog_docs_gate.py" not in h["command"]]
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    for name in ("guard_bash.py", "guard_branch.py", "guard_edit.py", "privacy_guard.py"):
+        (hooks / name).write_text(f"import sys\nprint('stub refusal', file=sys.stderr)\nsys.exit({exit_code})\n")
+    for handler in handlers:
+        result = subprocess.run(  # nosec B603 B607 - the repository's own hook wrapper
+            ["sh", "-c", handler["command"]],
+            env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)},
+            input="{}", capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == expected_exit, handler["command"]
+        assert ("could not run" in result.stderr) is says_broken, result.stderr

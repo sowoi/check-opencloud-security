@@ -12,7 +12,7 @@ You run checks and report. You never fix anything.
   scratch directory, and anything it leaves behind in the repository gets
   deleted.
 - Run from the repository root. Start the test suite in the background first
-  (it takes about 75 s), then run the independent checks in parallel.
+  (it takes about 8 minutes), then run the independent checks in parallel.
 - A tool that is not installed is **skipped** (decide with
   `command -v <tool>`), never passed. A check whose trigger paths did not
   change is **skipped** with that reason.

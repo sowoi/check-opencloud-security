@@ -34,7 +34,7 @@ that same local scanner for a URL a stranger submits.
 ## Commands
 
 ```bash
-uv run pytest                                       # full suite (~75s)
+uv run pytest                                       # full suite (~8 min locally, ~15 min per Python version in CI)
 uv run pytest tests/test_webapp_api.py              # the web application (no Redis needed)
 uv run playwright install webkit                    # once: the browser for the tests below and the MCP server
 uv run pytest tests/test_webapp_browser_*.py        # the frontend in a real browser (ADR 0061)

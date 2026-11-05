@@ -10,6 +10,7 @@ should, and to staying quiet when it should.
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess  # nosec B404 - builds a throwaway repository with fixed argv
 import sys
 from pathlib import Path
@@ -204,6 +205,27 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout
 
 
+LOCK = """version = 1
+
+[[package]]
+name = "check-opencloud-security"
+version = "{version}"
+source = {{ editable = "." }}
+
+[[package]]
+name = "requests"
+version = "{requests}"
+"""
+
+
+def _regenerate(repo: Path, version: str) -> None:
+    """What the two generators would write for a version: each file names it."""
+    for name in script.VERSION_EMBEDDING:
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"rendered for {version}\n", encoding="utf-8")
+
+
 @pytest.fixture
 def repo(tmp_path, monkeypatch) -> Path:
     """A released 1.0.0 on main and a branch to open pull requests from."""
@@ -212,6 +234,8 @@ def repo(tmp_path, monkeypatch) -> Path:
     (tmp_path / "CHANGELOG.md").write_text(CHANGELOG.format(unreleased=""), encoding="utf-8")
     (tmp_path / "RELEASE.md").write_text(RELEASE.format(version="1.0.0", body="- First."), encoding="utf-8")
     (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "uv.lock").write_text(LOCK.format(version="1.0.0", requests="2.0.0"), encoding="utf-8")
+    _regenerate(tmp_path, "1.0.0")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "feat: first")
     _git(tmp_path, "tag", "v1.0.0")
@@ -226,7 +250,9 @@ def test_the_script_passes_a_documented_bump_end_to_end(repo, capsys):
     (repo / "CHANGELOG.md").write_text(CHANGELOG.format(unreleased="### Fixed\n\n- x."), encoding="utf-8")
     _git(repo, "commit", "-qam", "fix: x")
     (repo / "pyproject.toml").write_text(PYPROJECT.format(version="1.1.0"), encoding="utf-8")
-    _git(repo, "commit", "-qam", "chore(release): bump to version 1.1.0")
+    _regenerate(repo, "1.1.0")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "chore(release): bump to version 1.1.0")
     # RELEASE.md still describes 1.0.0, as it does until the release rewrites it.
     assert (repo / "RELEASE.md").read_text(encoding="utf-8").startswith(
         "## check-opencloud-security 1.0.0"
@@ -255,3 +281,103 @@ def test_the_script_refuses_an_undocumented_change_end_to_end(repo, capsys):
     output = capsys.readouterr().out
     assert "CHANGELOG.md has no new entry" in output
     assert script.main(["--base", "main", "--labels", "skip-changelog"]) == 0
+
+
+# --- a release pull request ---------------------------------------------------
+
+
+def _release_files(version: str, requests: str = "2.0.0") -> tuple[str, str]:
+    return PYPROJECT.format(version=version), LOCK.format(version=version, requests=requests)
+
+
+def release(**overrides: object) -> dict:
+    """A pull request that only bumps, so a test can break one thing."""
+    arguments: dict = {
+        "changed_files": ["pyproject.toml", "uv.lock", *script.VERSION_EMBEDDING],
+        "base_version": "1.0.0",
+        "head_version": "1.0.1",
+        "base_files": _release_files("1.0.0"),
+        "head_files": _release_files("1.0.1"),
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def test_a_bump_and_nothing_else_is_a_release():
+    """Its notes are already under [Unreleased]; asking for another entry was noise."""
+    assert script.is_release_only(**release()) is True
+    assert script.check_changelog(**documented(head_changelog=documented()["base_changelog"],
+                                               release_only=True)) == []
+
+
+def test_a_release_that_carries_another_change_is_not_one():
+    """A change riding along with the bump still has to describe itself."""
+    assert script.is_release_only(**release(changed_files=["pyproject.toml", "webapp/app.py"])) is False
+
+
+def test_a_dependency_change_in_the_lock_is_not_hidden_by_a_bump():
+    """Only the project's own version line may differ in uv.lock."""
+    assert script.is_release_only(**release(head_files=_release_files("1.0.1", requests="2.1.0"))) is False
+
+
+def test_without_a_version_change_nothing_is_a_release():
+    """A pull request touching only uv.lock is an ordinary change."""
+    assert script.is_release_only(**release(head_version="1.0.0", head_files=_release_files("1.0.0"))) is False
+
+
+def test_a_bump_without_the_regenerated_pages_is_refused():
+    """The Releases page and the search indexes render the version - 1.32.1 went red on them."""
+    problems = script.check_regenerated(
+        changed_files=["pyproject.toml", "uv.lock"], base_version="1.0.0", head_version="1.0.1"
+    )
+    assert len(problems) == 1
+    assert "frontend/templates/admin-docs/releases.html" in problems[0]
+    assert "build_frontend_documentation.py" in problems[0]
+    assert script.check_regenerated(
+        changed_files=["pyproject.toml", *script.VERSION_EMBEDDING], base_version="1.0.0", head_version="1.0.1"
+    ) == []
+
+
+def test_a_change_that_keeps_the_version_needs_no_regeneration():
+    """Only a bump moves what those files render."""
+    assert script.check_regenerated(changed_files=["app.py"], base_version="1.0.0", head_version="1.0.0") == []
+
+
+def test_the_script_passes_a_release_pull_request_end_to_end(repo, capsys):
+    """Version line, lock line, regenerated files - and no new changelog entry."""
+    (repo / "pyproject.toml").write_text(PYPROJECT.format(version="1.0.1"), encoding="utf-8")
+    (repo / "uv.lock").write_text(LOCK.format(version="1.0.1", requests="2.0.0"), encoding="utf-8")
+    _regenerate(repo, "1.0.1")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "release: 1.0.1")
+
+    assert script.main(["--base", "main"]) == 0
+    assert "releases 1.0.1" in capsys.readouterr().out
+
+
+def test_the_script_refuses_a_bump_that_did_not_regenerate_end_to_end(repo, capsys):
+    """The failure the release of 1.32.1 met only in CI, caught before the push."""
+    (repo / "pyproject.toml").write_text(PYPROJECT.format(version="1.0.1"), encoding="utf-8")
+    _git(repo, "commit", "-qam", "release: 1.0.1")
+
+    assert script.main(["--base", "main"]) == 1
+    assert "were not regenerated" in capsys.readouterr().out
+
+
+def test_the_real_lock_and_pyproject_differ_only_in_the_version_after_a_bump():
+    """The lock pattern was written against uv's layout; if uv moved it, no release would ever qualify."""
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+    version = script.project_version(pyproject)
+    assert version is not None
+    assert script.LOCK_VERSION.search(lock), "uv.lock no longer has the project entry the pattern expects"
+
+    bumped_pyproject = pyproject.replace(f'version = "{version}"', 'version = "99.0.0"', 1)
+    bumped_lock = script.LOCK_VERSION.sub(r'\1"99.0.0"', lock, count=1)
+    assert bumped_lock != lock
+    assert script.without_version(pyproject, lock) == script.without_version(bumped_pyproject, bumped_lock)
+
+    # A dependency that moved with the bump keeps the two apart.
+    changed = re.sub(r'(name = "requests"\nversion = )"[^"]*"', r'\1"0.0.1"', bumped_lock, count=1)
+    assert changed != bumped_lock
+    assert script.without_version(pyproject, lock) != script.without_version(bumped_pyproject, changed)

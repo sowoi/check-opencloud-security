@@ -59,11 +59,29 @@ jobs:
       - name: Install the project
         run: uv sync --locked --group test
 
-      # Downloads the browser build from Microsoft's mirror and the system
-      # libraries it needs through apt. Chromium is Google's build, run behind
-      # the dead proxy like the others: see ADR 0068.
+      # The browser build is keyed on the locked playwright version: every
+      # playwright release pins its own builds, so a new lock is a new key.
+      - name: Read the playwright version
+        id: playwright
+        run: echo "version=$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+
+      # Downloading the build from Microsoft's mirror once hung until the job
+      # timed out. The cache only skips that download; this workflow writes
+      # nothing and publishes nothing, so a restored build reaches no release.
+      - name: Restore the browser build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      # The system libraries come through apt on every run - they are not in
+      # the cache. Chromium is Google's build, run behind the dead proxy like
+      # the others: see ADR 0068.
       - name: Install the browser
-        run: uv run playwright install --with-deps "$PLAYWRIGHT_BROWSER"
+        timeout-minutes: 10
+        run: |
+          uv run playwright install-deps "$PLAYWRIGHT_BROWSER"
+          uv run playwright install "$PLAYWRIGHT_BROWSER"
 
       - name: Run the browser tests
         run: uv run pytest tests/test_webapp_browser_*.py -q

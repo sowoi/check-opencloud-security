@@ -32,6 +32,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 RELEASE = REPO_ROOT / "RELEASE.md"
+ADVISORY_RECORDS = REPO_ROOT / "security" / "advisories"
+
+#: A record for an entry still under '[Unreleased]' names no version yet - see
+#: scripts/security_advisories.py and
+#: adr/0080-a-version-bump-is-the-whole-release-pull-request.md. Only these two
+#: fields, and only a value that is the bare marker, quoted or not, with or
+#: without a trailing comment - which is kept.
+UNRELEASED_RECORD_FIELD = re.compile(
+    r"^(?P<field>changelog_version|fixed):[ \t]*([\"']?)unreleased\2(?P<rest>[ \t]*(?:#.*)?)$",
+    re.MULTILINE | re.IGNORECASE,
+)
 
 CHANGELOG_HEADER = """# Changelog
 
@@ -266,6 +277,26 @@ def prepend_changelog(version: str, released: str, body: str) -> None:
     CHANGELOG.write_text(f"{head}\n\n{entry}\n{tail}", encoding="utf-8")
 
 
+def resolve_unreleased_records(version: str) -> list[Path]:
+    """
+    Name the version in every advisory record that claims '[Unreleased]'.
+
+    Done in the same step that renames the heading, so the record and the
+    section it claims change together; the release workflow commits both.
+    Returns the records it rewrote.
+    """
+    rewritten = []
+    for path in sorted(ADVISORY_RECORDS.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        resolved = UNRELEASED_RECORD_FIELD.sub(
+            lambda m: f'{m.group("field")}: "{version}"{m.group("rest")}', text
+        )
+        if resolved != text:
+            path.write_text(resolved, encoding="utf-8")
+            rewritten.append(path)
+    return rewritten
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the release workflow."""
     parser = argparse.ArgumentParser(description="Update CHANGELOG.md and RELEASE.md.")
@@ -289,6 +320,8 @@ def main(argv: list[str] | None = None) -> int:
         if body is not None:
             source = "Promoted [Unreleased] to"
             promote_unreleased(version, released, body)
+            for path in resolve_unreleased_records(version):
+                print(f"Named {version} in {path.name}", file=sys.stderr)
     if body is None:
         if args.require_unreleased:
             print(
