@@ -41,7 +41,7 @@ jobs:
           SHELLCHECK_VERSION: "0.11.0"
           SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
         run: |
-          curl -fsSL -o /tmp/shellcheck.tar.xz \
+          curl -fsSL --retry 5 --retry-delay 5 -o /tmp/shellcheck.tar.xz \
             "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
           echo "${SHELLCHECK_SHA256}  /tmp/shellcheck.tar.xz" | sha256sum --check --strict
           tar -xJf /tmp/shellcheck.tar.xz -C /tmp
@@ -65,7 +65,7 @@ jobs:
           HADOLINT_VERSION: "2.15.1"
           HADOLINT_SHA256: "c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507"
         run: |
-          curl -fsSL -o /tmp/hadolint \
+          curl -fsSL --retry 5 --retry-delay 5 -o /tmp/hadolint \
             "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64"
           echo "${HADOLINT_SHA256}  /tmp/hadolint" | sha256sum --check --strict
           sudo install -m 0755 /tmp/hadolint /usr/local/bin/hadolint
