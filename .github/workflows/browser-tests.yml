@@ -36,7 +36,7 @@ jobs:
   browser:
     name: ${{ matrix.browser }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -59,11 +59,15 @@ jobs:
       - name: Install the project
         run: uv sync --locked --group test
 
-      # The browser build is keyed on the locked playwright version: every
-      # playwright release pins its own builds, so a new lock is a new key.
+      # Both caches below are keyed on the locked playwright version: every
+      # playwright release pins its own browser builds and system packages,
+      # so a new lock is a new key. The image name keeps an Ubuntu upgrade of
+      # ubuntu-latest from restoring another release's packages.
       - name: Read the playwright version
         id: playwright
-        run: echo "version=$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS}" >> "$GITHUB_OUTPUT"
 
       # Downloading the build from Microsoft's mirror once hung until the job
       # timed out. The cache only skips that download; this workflow writes
@@ -74,14 +78,42 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
-      # The system libraries come through apt on every run - they are not in
-      # the cache. Chromium is Google's build, run behind the dead proxy like
-      # the others: see ADR 0068.
+      # The system libraries come through apt, and the runners' Ubuntu mirror
+      # has served them at a few hundred kB/s - WebKit needs 114 MB, Firefox
+      # 49 MB - until the install timed out. The downloaded .deb files are
+      # cached like the browser build: apt checks each one against the
+      # package index it just fetched and downloads only what changed.
+      - name: Restore the system packages
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      # Chromium is Google's build, run behind the dead proxy like the
+      # others: see ADR 0068. The limit is generous so that a slow mirror
+      # can still fill the cache once; with it, the install takes seconds.
+      - name: Install the system packages
+        timeout-minutes: 20
+        run: |
+          mkdir -p ~/apt-archives
+          find ~/apt-archives -maxdepth 1 -name '*.deb' -exec sudo cp -t /var/cache/apt/archives/ {} +
+          uv run playwright install-deps "$PLAYWRIGHT_BROWSER"
+          find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives/ {} +
+          echo "$(find ~/apt-archives -maxdepth 1 -name '*.deb' | wc -l) packages in ~/apt-archives"
+
+      # Saved straight after the install rather than at the end of the job,
+      # so a failing browser test does not throw away a slow download.
+      - name: Save the system packages
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
       - name: Install the browser
         timeout-minutes: 10
-        run: |
-          uv run playwright install-deps "$PLAYWRIGHT_BROWSER"
-          uv run playwright install "$PLAYWRIGHT_BROWSER"
+        run: uv run playwright install "$PLAYWRIGHT_BROWSER"
 
       - name: Run the browser tests
         run: uv run pytest tests/test_webapp_browser_*.py -q
