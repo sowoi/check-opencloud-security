@@ -1,0 +1,70 @@
+name: Tool pin report
+
+# Dependabot keeps actions, the locked Python packages and the Docker images
+# current. The other tool pins CI runs - uvx/npx versions, the downloaded
+# binaries checked against a SHA-256, and uv's required-version - it does not
+# know about, so they went stale without anyone noticing.
+#
+# This only reports. A binary pin is raised by reading the release and taking
+# a new SHA-256 on purpose, and the same pin is repeated in CLAUDE.md and the
+# skills, so a pull request written by a bot would be the wrong tool. One
+# issue is kept up to date while anything is behind and closed once nothing is.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  report:
+    name: Compare tool pins with their latest release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The script needs only the standard library, so the runner's Python
+      # does; no environment to install.
+      - name: Open, update or close the report issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TITLE: "CI tool pins are behind their latest release"
+        run: |
+          set -euo pipefail
+          status=0
+          python3 scripts/check_tool_pins.py --markdown > "$RUNNER_TEMP/table.md" || status=$?
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
+          cat "$RUNNER_TEMP/table.md" >> "$GITHUB_STEP_SUMMARY"
+
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq "map(select(.title == env.TITLE))[0].number // empty")
+
+          if [ "$status" -eq 1 ]; then
+            {
+              echo "These pins are older than the newest release their registry names."
+              echo "Read each release before raising it, take a new SHA-256 for a"
+              echo "downloaded binary, and change every place the pin is written"
+              echo "(\`git grep\` the old version: CLAUDE.md and the skills repeat several)."
+              echo
+              cat "$RUNNER_TEMP/table.md"
+              echo
+              echo "Written by \`scripts/check_tool_pins.py\`, run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
+            } > "$RUNNER_TEMP/body.md"
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file "$RUNNER_TEMP/body.md"
+            else
+              gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "Every tool pin is current again."
+          fi

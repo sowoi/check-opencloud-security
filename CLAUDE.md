@@ -49,6 +49,7 @@ python scripts/embed_wizard_blueprints.py           # after editing authentik/bl
 python scripts/update_golden_corpus.py --check      # the frozen verdicts still match
 python scripts/check_documentation_links.py         # re-checks documented OpenCloud links
 python scripts/security_advisories.py --check       # every ### Security entry is decided
+python scripts/check_tool_pins.py                   # CI tool pins behind their latest release (--list: offline)
 python scripts/check_pull_request.py --base origin/main  # changelog entries and the version guard (local only)
 npx @biomejs/biome@2.5.13 lint                     # frontend scripts (biome.jsonc)
 uvx zizmor@1.30.1 .github/workflows                 # workflow security audit

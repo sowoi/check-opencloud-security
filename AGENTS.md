@@ -45,6 +45,7 @@ for a remote scan service.
 | `scripts/update_vulnerability_db.py` | Regenerates `data/vulnerabilities.json` from that feed, adding only |
 | `scripts/release_notes.py` | Turns `## [Unreleased]` into the notes of a release |
 | `scripts/check_documentation_links.py` | Re-checks every documented OpenCloud link after a merge into `main` |
+| `scripts/check_tool_pins.py` | Reports the CI tool pins Dependabot cannot see (uvx/npx, downloaded binaries, uv) that are behind; a weekly issue |
 | `adr/` | Durable architectural decision records |
 | `security/advisories/` | One record per `### Security` changelog entry: what was decided, and the evidence |
 | `scripts/security_advisories.py` | Checks that coverage, and drives the GitHub advisories |
