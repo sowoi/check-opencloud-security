@@ -53,7 +53,7 @@ python scripts/security_advisories.py --check       # every ### Security entry i
 python scripts/check_tool_pins.py                   # CI tool pins behind their latest release (--list: offline)
 python scripts/check_pull_request.py --base origin/main  # changelog entries and the version guard (local only)
 npx @biomejs/biome@2.6.5 lint                     # frontend scripts (biome.jsonc)
-uvx zizmor@1.32.0 .github/workflows                 # workflow security audit
+GH_TOKEN="$(gh auth token)" uvx zizmor@1.32.0 .github/workflows  # workflow security audit, online like CI
 cd docker && docker compose up --build              # web + worker + redis, locally
 ```
 
@@ -64,6 +64,10 @@ Notes that will otherwise cost you time:
   [ADR 0068](adr/0068-chromium-is-a-third-browser-test-engine-behind-the-dead-proxy.md) -
   and always behind the dead proxy in `tests/browser_support.py`. The `playwright`
   MCP server in `.mcp.json` is the same reviewed package, loopback only.
+- **Firefox does not start inside Claude Code's sandbox.** It fails with
+  `Could not find profile folder` and every test errors at launch. WebKit and
+  Chromium run fine there. To reproduce a Firefox failure from CI, run
+  `PLAYWRIGHT_BROWSER=firefox` outside the sandbox; the browser build is fine.
 - Only `ruff check` is enforced, **never `ruff format`** — do not reformat the tree.
 - `ansible-lint` is clean only from inside `ansible/`; from the repo root it reports false positives.
 - `requires-python = ">=3.11"`: `tomllib` is fine, but no 3.12+ syntax - no backslashes inside f-string expressions, no `type` statements.

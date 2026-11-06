@@ -896,7 +896,7 @@ cd ansible && ansible-lint             # must be run from ansible/
 python scripts/security_advisories.py --check   # every Security entry decided
 python scripts/check_pull_request.py --base origin/main  # changelog and version guard
 npx @biomejs/biome@2.6.5 lint                  # frontend scripts, rules in biome.jsonc
-uvx zizmor@1.32.0 .github/workflows             # workflow security audit
+GH_TOKEN="$(gh auth token)" uvx zizmor@1.32.0 .github/workflows  # workflow security audit, online like CI
 ```
 
 CI also runs actionlint, shellcheck on every tracked `*.sh`, hadolint on the

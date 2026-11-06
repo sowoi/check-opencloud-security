@@ -48,7 +48,7 @@ A tool that is not installed is reported as **skipped**, never as passed. Use
 | 11 | Changelog and version guard | `python scripts/check_pull_request.py --base origin/main` |
 | 11a | Dependency policy | `uv run python scripts/check_dependencies.py --check --base origin/main` (a `proposed` record is a **warning** - it awaits the maintainer's approval - anything else fails) |
 | 12 | Biome | `npx --yes @biomejs/biome@2.6.5 lint --error-on-warnings` (needs Node) |
-| 13 | zizmor | `uvx zizmor@1.32.0 .github/workflows` |
+| 13 | zizmor | `GH_TOKEN="$(gh auth token)" uvx zizmor@1.32.0 .github/workflows` - online, as CI runs it: only then does it compare each pin comment with where its tag points now (a `# v4` that upstream moved fails CI, not an offline run). If `gh` is not signed in, run it without the token and report a **warning**: offline, the online audits did not run |
 | 14 | ansible-lint | `cd ansible && uvx ansible-lint` (**only** from inside `ansible/`; skip unless `ansible/` changed) |
 | 15 | actionlint | `actionlint -color` (skip unless `.github/workflows/` changed) |
 | 16 | shellcheck | `git ls-files '*.sh' \| xargs shellcheck` |
