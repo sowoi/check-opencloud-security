@@ -32,6 +32,18 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   installed on Fedora before a release relies on it. A local uv older than
   0.13.7 now refuses to run here.
 
+### Documentation
+
+- **`/preflight` runs zizmor online, as CI does.** Offline, zizmor skips the
+  audit that compares a pin comment with where its tag points now. A
+  `# v4` that upstream had moved therefore passed locally and failed only in
+  CI. The preflight skill, `CLAUDE.md` and `AGENTS.md` now pass
+  `GH_TOKEN="$(gh auth token)"`. Without a signed-in `gh`, preflight reports
+  a warning that the online audits did not run.
+- **`CLAUDE.md` says Firefox does not start inside Claude Code's sandbox.**
+  It fails with `Could not find profile folder`, which looked like a broken
+  browser build. Outside the sandbox the Firefox browser tests pass.
+
 ## [1.32.2] - 2026-11-05
 
 ### Changed
