@@ -31,6 +31,12 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   replaces its RPM writer, so the `.rpm` built on the pull request is
   installed on Fedora before a release relies on it. A local uv older than
   0.13.7 now refuses to run here.
+- **The signed-in stack runs authentik 2026.8.5.** The setup wizard and
+  `docker/docker-compose.authentik.yml` pinned 2026.8.4; `AUTHENTIK_TAG`
+  still overrides it. A stack the wizard generated earlier keeps the tag it
+  wrote until that is changed; authentik runs its own migrations on the next
+  start, as a step from 2026.8.2 did without trouble. Redis 8.10 and
+  Postgres 18.6 are still current.
 
 ### Documentation
 
