@@ -53,6 +53,14 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
   start, as a step from 2026.8.2 did without trouble. Redis 8.10 and
   Postgres 18.6 are still current.
 
+### Fixed
+
+- **The WebKit browser tests start again on Ubuntu 26.04.** The browser build
+  cache in `browser-tests.yml` was keyed on the OS family, not the Ubuntu
+  release, so after `ubuntu-latest` moved to 26.04 it restored the WebKit
+  built for 24.04, which could not load `libicudata.so.74`. The key now
+  carries the runner image, as the system package cache's already did.
+
 ### Documentation
 
 - **`/preflight` runs zizmor online, as CI does.** Offline, zizmor skips the
