@@ -129,7 +129,7 @@ Desde una copia del repositorio, con tres terminales o tres `&`:
 
 ```bash
 pip install ".[web,mcp]"    # the mcp extra is optional; it serves /mcp
-redis-server &
+valkey-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
     uvicorn webapp.app:app --host 127.0.0.1 --port 8811
@@ -902,7 +902,7 @@ espacio de nombres de usuario, que es usted, y sin sudo:
 
 ```bash
 docker run --rm --user 0 --entrypoint chown \
-  -v /srv/opencloud-scan/audit:/target redis:8.10-alpine 10001 /target
+  -v /srv/opencloud-scan/audit:/target valkey/valkey:9.1-alpine 10001 /target
 ```
 
 Manténgalo separado de un directorio de datos de Redis: Redis escribe como uid

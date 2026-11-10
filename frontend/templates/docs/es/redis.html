@@ -41,6 +41,12 @@ y la recuperación ante fallos de conexión.</p>
 complemento de línea de comandos no usa Redis en absoluto:
 <code>check-opencloud-security</code> se comunica con una instancia de OpenCloud, imprime
 una línea y termina.</p>
+<p>Las pilas incluidas usan <strong>Valkey</strong> (<code>valkey/valkey:9.1-alpine</code>), la
+continuación con licencia BSD de Redis. El protocolo es el mismo: el servicio
+sigue llamándose <code>redis</code> y <code>COS_WEB_REDIS_URL</code> conserva el esquema <code>redis://</code>.
+Si activó la persistencia con el asistente, vacíe una vez el directorio o el
+volumen de datos antes del primer arranque de Valkey, que rechaza un archivo de
+datos escrito por Redis 8.</p>
 <blockquote>
 <p><strong>¿Solo quiere eliminar la advertencia?</strong> Defina <code>COS_REDIS_PASSWORD</code> en
 <code>docker/.env</code> y ejecute <code>docker compose up -d</code>. El resto de esta página
@@ -270,12 +276,12 @@ no la deje sin definir en nada que no sea un portátil.</p>
   los secretos de Authentik, y no toca un valor existente.</li>
 </ul>
 <p>Compruebe que se ha aplicado:</p>
-<pre><code class="language-bash">docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+<pre><code class="language-bash">docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        &lt;- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   &lt;- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   &lt;- authenticated, via VALKEYCLI_AUTH
 </code></pre>
-<p>La comprobación de estado dentro del contenedor lee <code>REDISCLI_AUTH</code> del entorno
+<p>La comprobación de estado dentro del contenedor lee <code>VALKEYCLI_AUTH</code> del entorno
 en lugar de recibir <code>-a</code> en la línea de comandos, así que la contraseña no
 aparece en la lista de procesos del propio contenedor.</p>
 <p>Cambiar la contraseña más adelante requiere reiniciar los tres servicios a la
@@ -336,7 +342,7 @@ contadores y los datos gestionados por el operador. Trate el desalojo como una
 señal de capacidad e investíguelo en lugar de confiar solo en el TTL.</p>
 <p>Aumente el límite si aumenta mucho <code>COS_WEB_RESULT_TTL</code> o analiza un conjunto
 de cientos de instancias. Vigile <code>evicted_keys</code>:</p>
-<pre><code class="language-bash">docker compose exec redis redis-cli info stats | grep evicted_keys
+<pre><code class="language-bash">docker compose exec redis valkey-cli info stats | grep evicted_keys
 </code></pre>
 <p>Un desalojo constante con un TTL corto significa que el límite es demasiado
 bajo y que la gente pierde resultados antes de leerlos.</p>

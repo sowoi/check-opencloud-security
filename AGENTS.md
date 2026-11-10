@@ -890,12 +890,12 @@ the operator said yes.
 uv run pytest                          # full suite
 uv run pytest tests/test_waivers.py    # one file
 uv run pytest tests/test_webapp_api.py # the web application
-uvx ruff@0.17.3 check .                # linting, as CI runs it
+uvx ruff@0.17.4 check .                # linting, as CI runs it
 uv run mypy --config-file mypy.ini     # type checking
 cd ansible && ansible-lint             # must be run from ansible/
 python scripts/security_advisories.py --check   # every Security entry decided
 python scripts/check_pull_request.py --base origin/main  # changelog and version guard
-npx @biomejs/biome@2.6.5 lint                  # frontend scripts, rules in biome.jsonc
+npx @biomejs/biome@2.6.6 lint                  # frontend scripts, rules in biome.jsonc
 GH_TOKEN="$(gh auth token)" uvx zizmor@1.32.0 .github/workflows  # workflow security audit, online like CI
 ```
 

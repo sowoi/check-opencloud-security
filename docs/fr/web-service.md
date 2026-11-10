@@ -126,7 +126,7 @@ Depuis une copie du dépôt, avec trois terminaux ou trois `&` :
 
 ```bash
 pip install ".[web,mcp]"    # the mcp extra is optional; it serves /mcp
-redis-server &
+valkey-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
     uvicorn webapp.app:app --host 127.0.0.1 --port 8811
@@ -886,7 +886,7 @@ de noms utilisateur, c’est-à-dire vous, et sans sudo :
 
 ```bash
 docker run --rm --user 0 --entrypoint chown \
-  -v /srv/opencloud-scan/audit:/target redis:8.10-alpine 10001 /target
+  -v /srv/opencloud-scan/audit:/target valkey/valkey:9.1-alpine 10001 /target
 ```
 
 Séparez-le d’un répertoire de données Redis : Redis écrit avec l’uid 999, et un

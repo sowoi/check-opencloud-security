@@ -4,6 +4,8 @@ Redis speichert Warteschlange, Scanstatus, Ergebnisse und gemeinsam genutzte Bet
 
 Er gilt für die [Webanwendung](../../webapp/README.md). Das CLI-Plugin benötigt kein Redis; es verbindet sich direkt mit OpenCloud und beendet sich nach dem Scan.
 
+Die mitgelieferten Stacks nutzen **Valkey** (`valkey/valkey:9.1-alpine`), die BSD-lizenzierte Weiterführung von Redis. Das Protokoll ist dasselbe: Der Dienst heißt weiterhin `redis`, und `COS_WEB_REDIS_URL` behält das Schema `redis://`. Hast du mit dem Wizard Persistenz eingeschaltet, leere das Datenverzeichnis oder Volume einmal vor dem ersten Valkey-Start, denn Valkey lädt keine Datendatei von Redis 8.
+
 Für den Passwortschutz der mitgelieferten Compose-Bereitstellung setze `COS_REDIS_PASSWORD` in `docker/.env` und wende die Konfiguration mit `docker compose up -d` an.
 
 ## Inhaltsübersicht {#table-of-contents}
@@ -87,13 +89,13 @@ Der Setup-Assistent erzeugt das Passwort in einer `.env` mit Modus `0600`. Auch 
 Prüfe die wirksame Einstellung:
 
 ```bash
-docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        <- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   <- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   <- authenticated, via VALKEYCLI_AUTH
 ```
 
-Der Container-Healthcheck liest das Passwort über `REDISCLI_AUTH`, damit es nicht als `-a`-Argument in der Prozessliste erscheint.
+Der Container-Healthcheck liest das Passwort über `VALKEYCLI_AUTH`, damit es nicht als `-a`-Argument in der Prozessliste erscheint.
 
 Bei einem Passwortwechsel müssen Redis, Webanwendung und Worker dieselbe neue Konfiguration übernehmen. Deine Verbindungsdaten werden beim Start gelesen.
 
@@ -131,7 +133,7 @@ Das Speicherlimit begrenzt den Verbrauch bei wachsenden Warteschlangen und viele
 `allkeys-lru` kann unter Speicherdruck beliebige wenig genutzte Schlüssel entfernen, auch bevor deren TTL abläuft. Dadurch können Ergebnisse früher verschwinden; auch andere Redis-Zustände können betroffen sein. Beobachte die Verdrängungszähler:
 
 ```bash
-docker compose exec redis redis-cli info stats | grep evicted_keys
+docker compose exec redis valkey-cli info stats | grep evicted_keys
 ```
 
 Regelmäßige Verdrängung ist ein Anlass, Kapazität, Last und Aufbewahrungsdauer zu prüfen.

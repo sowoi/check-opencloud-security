@@ -39,6 +39,11 @@ limits and recovery from connection failures.</p>
 <p>It applies to the <strong>web application</strong> in <a href="https://github.com/sowoi/check-opencloud-security/blob/main/webapp/README.md"><code>webapp/</code></a>.
 The command line plugin does not use Redis at all: <code>check-opencloud-security</code>
 talks to an OpenCloud instance, prints a line and exits.</p>
+<p>The bundled stacks run <strong>Valkey</strong> (<code>valkey/valkey:9.1-alpine</code>), the
+BSD-licensed continuation of Redis. It speaks the same protocol, so this page
+says Redis for the protocol and for any compatible server you bring yourself,
+the service is still called <code>redis</code>, and <code>COS_WEB_REDIS_URL</code> keeps its
+<code>redis://</code> scheme.</p>
 <blockquote>
 <p><strong>Just want the fix for the warning?</strong> Set <code>COS_REDIS_PASSWORD</code> in
 <code>docker/.env</code> and run <code>docker compose up -d</code>. The rest of this page explains
@@ -263,12 +268,12 @@ leave it unset on anything that is not a laptop.</p>
   the Authentik secrets, and leaves an existing value alone.</li>
 </ul>
 <p>Verify it took effect:</p>
-<pre><code class="language-bash">docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+<pre><code class="language-bash">docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        &lt;- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   &lt;- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   &lt;- authenticated, via VALKEYCLI_AUTH
 </code></pre>
-<p>The health check inside the container reads <code>REDISCLI_AUTH</code> from the
+<p>The health check inside the container reads <code>VALKEYCLI_AUTH</code> from the
 environment rather than taking <code>-a</code> on the command line, so the password does
 not appear in the container's own process list.</p>
 <p>Changing the password later is a restart of all three services together, not a
@@ -308,6 +313,9 @@ that somebody may back up. It is never the default, it warns when you choose
 it, and it points at <code>COS_WEB_ENCRYPT_RESULTS</code> — with that on, what reaches
 the disk is ciphertext and the key lives in <code>.env</code> rather than beside it. On
 a deployment strangers can reach, the answer is still <code>none</code>.</p>
+<p><strong>Moving a persisting stack from Redis 8 to Valkey:</strong> Valkey refuses a data
+file written by Redis 8 and does not start. Stop the stack, empty the data
+directory or volume, and start it again. Everything in it had a TTL anyway.</p>
 <h2 id="memory-and-eviction">Memory and eviction</h2>
 <pre><code>--maxmemory 256mb
 --maxmemory-policy allkeys-lru
@@ -321,7 +329,7 @@ can also be affected. Treat eviction as a capacity signal and investigate it rat
 relying on TTL alone.</p>
 <p>Raise the cap if you raise <code>COS_WEB_RESULT_TTL</code> a long way, or run a fleet
 scan of hundreds of instances. Watch <code>evicted_keys</code>:</p>
-<pre><code class="language-bash">docker compose exec redis redis-cli info stats | grep evicted_keys
+<pre><code class="language-bash">docker compose exec redis valkey-cli info stats | grep evicted_keys
 </code></pre>
 <p>Steady eviction while the TTL is short means the cap is too low, and people
 are losing results before they read them.</p>

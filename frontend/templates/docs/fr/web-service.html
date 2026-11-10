@@ -173,7 +173,7 @@ recette <code>docker run</code> simple pour les trois conteneurs.</p>
 <h3 id="without-containers">Sans conteneurs</h3>
 <p>Depuis une copie du dépôt, avec trois terminaux ou trois <code>&amp;</code> :</p>
 <pre><code class="language-bash">pip install &quot;.[web,mcp]&quot;    # the mcp extra is optional; it serves /mcp
-redis-server &amp;
+valkey-server &amp;
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &amp;
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
     uvicorn webapp.app:app --host 127.0.0.1 --port 8811
@@ -1261,7 +1261,7 @@ sudo chown 10001 /srv/opencloud-scan/audit
 l’hôte : exécutez donc le <code>chown</code> dans un conteneur - en tant que root de l’espace
 de noms utilisateur, c’est-à-dire vous, et sans sudo :</p>
 <pre><code class="language-bash">docker run --rm --user 0 --entrypoint chown \
-  -v /srv/opencloud-scan/audit:/target redis:8.10-alpine 10001 /target
+  -v /srv/opencloud-scan/audit:/target valkey/valkey:9.1-alpine 10001 /target
 </code></pre>
 <p>Séparez-le d’un répertoire de données Redis : Redis écrit avec l’uid 999, et un
 répertoire ne peut appartenir qu’à l’un des deux.</p>

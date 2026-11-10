@@ -87,6 +87,7 @@ project. Read the accepted records that affect an area before changing it.
 | [0078](0078-changelogs-and-release-notes-are-never-translated.md) | Changelogs and release notes are never translated | Accepted |
 | [0079](0079-a-finding-is-new-only-if-the-earlier-scan-could-have-reported-it.md) | A finding is new only if the earlier scan could have reported it | Accepted |
 | [0080](0080-a-version-bump-is-the-whole-release-pull-request.md) | A version bump is the whole release pull request | Accepted |
+| [0081](0081-the-bundled-key-value-store-is-valkey.md) | The bundled key-value store is Valkey | Proposed |
 
 ## Writing a new record
 

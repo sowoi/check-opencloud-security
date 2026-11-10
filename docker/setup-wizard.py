@@ -194,7 +194,7 @@ REDIS_IMAGE_UID = 999
 # The Redis image the stack runs. Named once because it is also what fixes the
 # ownership of a bind mount on a rootless Docker: it is pulled anyway, so the
 # command costs no download of an image nobody asked for.
-REDIS_IMAGE = "redis:8.10-alpine"
+REDIS_IMAGE = "valkey/valkey:9.1-alpine"
 
 # How the Docker daemon runs. It matters for exactly one thing here, and it is
 # the thing that decides whether a bind mount is writable: on a rootless
@@ -3942,7 +3942,7 @@ def _redis_storage_command(setup: Setup) -> str:
         f"      --dir {REDIS_DATA_DIRECTORY}\n"
         "      --appendonly yes\n"
         "      --appendfsync everysec\n"
-        # Unquoted on purpose: redis-server reads its arguments as a config
+        # Unquoted on purpose: valkey-server reads its arguments as a config
         # line, so `--save "900 1"` arrives as one quoted value and is
         # rejected, while `--save 900 1` is the two the option takes.
         "      --save 900 1\n"
@@ -3967,6 +3967,8 @@ def _redis_storage_comment(setup: Setup) -> str:
         "    # survive a restart. That also means a copy of every result still inside\n"
         "    # its TTL exists as a file - back it up, or do not, but know which. Turn\n"
         "    # COS_WEB_ENCRYPT_RESULTS on and what lands there is ciphertext.\n"
+        "    # Valkey refuses a data file written by Redis 8, so a stack that ran\n"
+        "    # redis:8.x empties that storage once before its first Valkey start.\n"
     )
 
 
@@ -5771,6 +5773,8 @@ services:
       - ALL
 {_update_label(setup)}
   redis:
+    # Valkey, the BSD-licensed continuation of Redis: same protocol, same
+    # client, so the service keeps its name and COS_WEB_REDIS_URL its scheme.
     image: {REDIS_IMAGE}
     container_name: {setup.project_name}-redis
     restart: unless-stopped
@@ -5781,20 +5785,20 @@ services:
     # control. The password comes from .env; the network below is the second
     # half of the same argument.
     command: >
-      redis-server
+      valkey-server
 {_redis_storage_command(setup)}      --maxmemory {setup.redis_maxmemory}
       --maxmemory-policy allkeys-lru
       --requirepass "{_env_reference("redis_password")}"
     environment:
-      # redis-cli reads this, so the health check authenticates without the
+      # valkey-cli reads this, so the health check authenticates without the
       # password appearing in its own command line.
-      REDISCLI_AUTH: "{_env_reference("redis_password")}"
+      VALKEYCLI_AUTH: "{_env_reference("redis_password")}"
     # No `ports`: nothing outside this stack has any business connecting, and
     # `internal` means the network has no route off the host either.
     networks:
       - scanner_internal
 {_redis_mount(setup)}    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5

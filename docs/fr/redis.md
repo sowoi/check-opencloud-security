@@ -9,6 +9,13 @@ Ce guide concerne l’**application web** dans [`webapp/`](../../webapp/README.m
 en ligne de commande n’utilise pas Redis : `check-opencloud-security` contacte une
 instance OpenCloud, affiche une ligne puis se termine.
 
+Les piles fournies utilisent **Valkey** (`valkey/valkey:9.1-alpine`), la
+continuation sous licence BSD de Redis. Le protocole est le même : le service
+s’appelle toujours `redis` et `COS_WEB_REDIS_URL` garde le schéma `redis://`.
+Si vous avez activé la persistance avec l’assistant, videz une fois le
+répertoire ou le volume de données avant le premier démarrage de Valkey, qui
+refuse un fichier de données écrit par Redis 8.
+
 > **Pour corriger l’avertissement d’authentification**, définissez
 > `COS_REDIS_PASSWORD` dans `docker/.env`, puis lancez `docker compose up -d`.
 > Les sections suivantes expliquent ce réglage et les autres mesures utiles.
@@ -157,13 +164,13 @@ Deux outils le font pour vous :
 Vérifiez son application :
 
 ```bash
-docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        <- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   <- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   <- authenticated, via VALKEYCLI_AUTH
 ```
 
-Le contrôle de santé lit `REDISCLI_AUTH` dans l’environnement. Il ne passe pas le
+Le contrôle de santé lit `VALKEYCLI_AUTH` dans l’environnement. Il ne passe pas le
 mot de passe avec `-a`, pour éviter de l’exposer dans la liste des processus.
 
 Après un changement de mot de passe, redémarrez les trois services ensemble : les
@@ -231,7 +238,7 @@ Augmentez la limite si vous augmentez fortement `COS_WEB_RESULT_TTL` ou analysez
 des centaines d’instances. Surveillez `evicted_keys` :
 
 ```bash
-docker compose exec redis redis-cli info stats | grep evicted_keys
+docker compose exec redis valkey-cli info stats | grep evicted_keys
 ```
 
 Des évictions régulières avec une conservation courte indiquent une limite trop

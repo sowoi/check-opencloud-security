@@ -63,7 +63,9 @@ jobs:
       # Both caches below are keyed on the locked playwright version: every
       # playwright release pins its own browser builds and system packages,
       # so a new lock is a new key. The image name keeps an Ubuntu upgrade of
-      # ubuntu-latest from restoring another release's packages.
+      # ubuntu-latest from restoring another release's packages - and builds:
+      # playwright downloads a WebKit per Ubuntu release, and the 24.04 one,
+      # restored on 26.04, could not find libicudata.so.74.
       - name: Read the playwright version
         id: playwright
         run: |
@@ -77,7 +79,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
       # The system libraries come through apt, and the runners' Ubuntu mirror
       # has served them at a few hundred kB/s - WebKit needs 114 MB, Firefox

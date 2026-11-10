@@ -40,6 +40,12 @@ perte de connexion.</p>
 <p>Ce guide concerne l’<strong>application web</strong> dans <a href="https://github.com/sowoi/check-opencloud-security/blob/main/webapp/README.md"><code>webapp/</code></a>. Le plugin
 en ligne de commande n’utilise pas Redis : <code>check-opencloud-security</code> contacte une
 instance OpenCloud, affiche une ligne puis se termine.</p>
+<p>Les piles fournies utilisent <strong>Valkey</strong> (<code>valkey/valkey:9.1-alpine</code>), la
+continuation sous licence BSD de Redis. Le protocole est le même : le service
+s’appelle toujours <code>redis</code> et <code>COS_WEB_REDIS_URL</code> garde le schéma <code>redis://</code>.
+Si vous avez activé la persistance avec l’assistant, videz une fois le
+répertoire ou le volume de données avant le premier démarrage de Valkey, qui
+refuse un fichier de données écrit par Redis 8.</p>
 <blockquote>
 <p><strong>Pour corriger l’avertissement d’authentification</strong>, définissez
 <code>COS_REDIS_PASSWORD</code> dans <code>docker/.env</code>, puis lancez <code>docker compose up -d</code>.
@@ -258,12 +264,12 @@ conservé. Définissez-la pour tout déploiement autre qu’un essai local.</p>
   secrets Authentik et conserve toute valeur existante.</li>
 </ul>
 <p>Vérifiez son application :</p>
-<pre><code class="language-bash">docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+<pre><code class="language-bash">docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        &lt;- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   &lt;- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   &lt;- authenticated, via VALKEYCLI_AUTH
 </code></pre>
-<p>Le contrôle de santé lit <code>REDISCLI_AUTH</code> dans l’environnement. Il ne passe pas le
+<p>Le contrôle de santé lit <code>VALKEYCLI_AUTH</code> dans l’environnement. Il ne passe pas le
 mot de passe avec <code>-a</code>, pour éviter de l’exposer dans la liste des processus.</p>
 <p>Après un changement de mot de passe, redémarrez les trois services ensemble : les
 conteneurs applicatifs lisent l’URL au démarrage, ce qui empêche une rotation par
@@ -311,7 +317,7 @@ données de l’espace opérateur. Une éviction signale un problème de capacit
 examiner ; la durée de vie des clés ne suffit pas à le prévenir.</p>
 <p>Augmentez la limite si vous augmentez fortement <code>COS_WEB_RESULT_TTL</code> ou analysez
 des centaines d’instances. Surveillez <code>evicted_keys</code> :</p>
-<pre><code class="language-bash">docker compose exec redis redis-cli info stats | grep evicted_keys
+<pre><code class="language-bash">docker compose exec redis valkey-cli info stats | grep evicted_keys
 </code></pre>
 <p>Des évictions régulières avec une conservation courte indiquent une limite trop
 basse : les utilisateurs perdent leurs résultats avant de les consulter.</p>

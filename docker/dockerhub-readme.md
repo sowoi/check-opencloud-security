@@ -120,16 +120,16 @@ are most of the reason the wizard exists:
 ```yaml
 services:
   redis:
-    image: redis:8.10-alpine
+    image: valkey/valkey:9.1-alpine
     command: >
-      redis-server --save "" --appendonly no
+      valkey-server --save "" --appendonly no
       --maxmemory 256mb --maxmemory-policy allkeys-lru
       --requirepass "${COS_REDIS_PASSWORD:-}"
     environment:
-      REDISCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
+      VALKEYCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
     networks: [scanner_internal]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -232,7 +232,7 @@ REDIS_PASSWORD="$(openssl rand -base64 36 | tr -d '/+=')"
 
 docker run -d --name opencloud-scanner-redis \
   --network opencloud-scanner-internal \
-  redis:8.10-alpine redis-server --save "" --appendonly no \
+  valkey/valkey:9.1-alpine valkey-server --save "" --appendonly no \
   --maxmemory 256mb --maxmemory-policy allkeys-lru \
   --requirepass "$REDIS_PASSWORD"
 

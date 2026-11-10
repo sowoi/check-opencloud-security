@@ -169,7 +169,9 @@ services:
       - ALL
 
   redis:
-    image: redis:8.10-alpine
+    # Valkey, the BSD-licensed continuation of Redis: same protocol, same
+    # client, so the service keeps its name and COS_WEB_REDIS_URL its scheme.
+    image: valkey/valkey:9.1-alpine
     container_name: opencloud-scan-hub-redis
     restart: unless-stopped
     # Results are ephemeral and must not be written to a disk.
@@ -183,22 +185,22 @@ services:
     # a `#` inside it is literal text rather than a comment, and the prose would
     # be folded into the command line between the options.
     command: >
-      redis-server
+      valkey-server
       --save ""
       --appendonly no
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --requirepass "${COS_REDIS_PASSWORD:-}"
     environment:
-      # redis-cli reads this, so the health check authenticates without the
+      # valkey-cli reads this, so the health check authenticates without the
       # password appearing in its own command line.
-      REDISCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
+      VALKEYCLI_AUTH: "${COS_REDIS_PASSWORD:-}"
     # No published port, and `internal` on the network below means it has no
     # route off the host either.
     networks:
       - scanner_internal
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
