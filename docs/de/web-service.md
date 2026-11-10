@@ -90,7 +90,7 @@ Starte aus dem Checkout Redis, Webanwendung und Worker getrennt:
 
 ```bash
 pip install ".[web,mcp]"    # the mcp extra is optional; it serves /mcp
-redis-server &
+valkey-server &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
 COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \
     uvicorn webapp.app:app --host 127.0.0.1 --port 8811
@@ -511,7 +511,7 @@ Bei Rootless Docker setze die Eigentumsrechte innerhalb des User-Namespace:
 
 ```bash
 docker run --rm --user 0 --entrypoint chown \
-  -v /srv/opencloud-scan/audit:/target redis:8.10-alpine 10001 /target
+  -v /srv/opencloud-scan/audit:/target valkey/valkey:9.1-alpine 10001 /target
 ```
 
 Verwende ein anderes Verzeichnis als für Redis, das mit anderer UID schreibt.

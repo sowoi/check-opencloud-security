@@ -10,6 +10,13 @@ complemento de línea de comandos no usa Redis en absoluto:
 `check-opencloud-security` se comunica con una instancia de OpenCloud, imprime
 una línea y termina.
 
+Las pilas incluidas usan **Valkey** (`valkey/valkey:9.1-alpine`), la
+continuación con licencia BSD de Redis. El protocolo es el mismo: el servicio
+sigue llamándose `redis` y `COS_WEB_REDIS_URL` conserva el esquema `redis://`.
+Si activó la persistencia con el asistente, vacíe una vez el directorio o el
+volumen de datos antes del primer arranque de Valkey, que rechaza un archivo de
+datos escrito por Redis 8.
+
 > **¿Solo quiere eliminar la advertencia?** Defina `COS_REDIS_PASSWORD` en
 > `docker/.env` y ejecute `docker compose up -d`. El resto de esta página
 > explica qué cambia con eso y qué más conviene hacer.
@@ -170,13 +177,13 @@ Dos comandos lo hacen por usted:
 Compruebe que se ha aplicado:
 
 ```bash
-docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        <- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   <- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   <- authenticated, via VALKEYCLI_AUTH
 ```
 
-La comprobación de estado dentro del contenedor lee `REDISCLI_AUTH` del entorno
+La comprobación de estado dentro del contenedor lee `VALKEYCLI_AUTH` del entorno
 en lugar de recibir `-a` en la línea de comandos, así que la contraseña no
 aparece en la lista de procesos del propio contenedor.
 
@@ -258,7 +265,7 @@ Aumente el límite si aumenta mucho `COS_WEB_RESULT_TTL` o analiza un conjunto
 de cientos de instancias. Vigile `evicted_keys`:
 
 ```bash
-docker compose exec redis redis-cli info stats | grep evicted_keys
+docker compose exec redis valkey-cli info stats | grep evicted_keys
 ```
 
 Un desalojo constante con un TTL corto significa que el límite es demasiado

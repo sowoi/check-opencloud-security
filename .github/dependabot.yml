@@ -33,7 +33,7 @@ updates:
           - "github/codeql-action*"
 
   # The web application's images: the Python base and the uv stage of
-  # docker/Dockerfile.web, and the Redis image in docker/docker-compose.yml.
+  # docker/Dockerfile.web, and the Valkey image in docker/docker-compose.yml.
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:

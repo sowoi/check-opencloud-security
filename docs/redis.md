@@ -8,6 +8,12 @@ It applies to the **web application** in [`webapp/`](../webapp/README.md).
 The command line plugin does not use Redis at all: `check-opencloud-security`
 talks to an OpenCloud instance, prints a line and exits.
 
+The bundled stacks run **Valkey** (`valkey/valkey:9.1-alpine`), the
+BSD-licensed continuation of Redis. It speaks the same protocol, so this page
+says Redis for the protocol and for any compatible server you bring yourself,
+the service is still called `redis`, and `COS_WEB_REDIS_URL` keeps its
+`redis://` scheme.
+
 > **Just want the fix for the warning?** Set `COS_REDIS_PASSWORD` in
 > `docker/.env` and run `docker compose up -d`. The rest of this page explains
 > what that changes and what else is worth doing.
@@ -163,13 +169,13 @@ Two commands do it for you:
 Verify it took effect:
 
 ```bash
-docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        <- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   <- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   <- authenticated, via VALKEYCLI_AUTH
 ```
 
-The health check inside the container reads `REDISCLI_AUTH` from the
+The health check inside the container reads `VALKEYCLI_AUTH` from the
 environment rather than taking `-a` on the command line, so the password does
 not appear in the container's own process list.
 
@@ -223,6 +229,10 @@ it, and it points at `COS_WEB_ENCRYPT_RESULTS` — with that on, what reaches
 the disk is ciphertext and the key lives in `.env` rather than beside it. On
 a deployment strangers can reach, the answer is still `none`.
 
+**Moving a persisting stack from Redis 8 to Valkey:** Valkey refuses a data
+file written by Redis 8 and does not start. Stop the stack, empty the data
+directory or volume, and start it again. Everything in it had a TTL anyway.
+
 ## Memory and eviction
 
 ```
@@ -243,7 +253,7 @@ Raise the cap if you raise `COS_WEB_RESULT_TTL` a long way, or run a fleet
 scan of hundreds of instances. Watch `evicted_keys`:
 
 ```bash
-docker compose exec redis redis-cli info stats | grep evicted_keys
+docker compose exec redis valkey-cli info stats | grep evicted_keys
 ```
 
 Steady eviction while the TTL is short means the cap is too low, and people

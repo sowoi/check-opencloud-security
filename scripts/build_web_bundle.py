@@ -144,7 +144,7 @@ scanning its own instances wants.
 ## Run it without Docker
 
     pip install ".[web,mcp]"
-    redis-server &
+    valkey-server &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 python -m webapp.tasks &
     COS_WEB_REDIS_URL=redis://127.0.0.1:6379/0 \\
         uvicorn webapp.app:app --host 127.0.0.1 --port 8811

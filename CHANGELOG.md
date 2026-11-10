@@ -14,6 +14,19 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ### Changed
 
+- **The bundled stacks run Valkey instead of Redis.** Every compose file, the
+  stack `docker/setup-wizard.py` generates and the CI test service now use
+  `valkey/valkey:9.1-alpine` in place of `redis:8.10-alpine`, start
+  `valkey-server` and check their health with `valkey-cli` through
+  `VALKEYCLI_AUTH`. Valkey is the BSD-licensed continuation of Redis and
+  speaks the same protocol, so the service name `redis`, `COS_WEB_REDIS_URL`,
+  `COS_REDIS_PASSWORD` and the Python client are unchanged and an existing
+  `.env` keeps working. **Upgrade note:** a stack generated with persistence
+  (`volume` or `filesystem`) must empty its data directory or volume once
+  before the first start, because Valkey refuses a data file written by
+  Redis 8. The default stacks persist nothing. See
+  [ADR 0081](adr/0081-the-bundled-key-value-store-is-valkey.md) and
+  [`docs/redis.md`](docs/redis.md).
 - **The CI tools are current again.** On its first run,
   `scripts/check_tool_pins.py` found six pins behind their latest release.
   All six are raised wherever they are written (workflows, `CLAUDE.md`,

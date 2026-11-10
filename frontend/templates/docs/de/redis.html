@@ -35,6 +35,7 @@
 <article class="docs-article card section-gap" data-reveal lang="de">
 <p>Redis speichert Warteschlange, Scanstatus, Ergebnisse und gemeinsam genutzte Betriebsdaten des Webdienstes. Dieser Leitfaden beschreibt Verbindung, Zugriffsschutz, Speicherbedarf und Fehlersuche.</p>
 <p>Er gilt für die <a href="https://github.com/sowoi/check-opencloud-security/blob/main/webapp/README.md">Webanwendung</a>. Das CLI-Plugin benötigt kein Redis; es verbindet sich direkt mit OpenCloud und beendet sich nach dem Scan.</p>
+<p>Die mitgelieferten Stacks nutzen <strong>Valkey</strong> (<code>valkey/valkey:9.1-alpine</code>), die BSD-lizenzierte Weiterführung von Redis. Das Protokoll ist dasselbe: Der Dienst heißt weiterhin <code>redis</code>, und <code>COS_WEB_REDIS_URL</code> behält das Schema <code>redis://</code>. Hast du mit dem Wizard Persistenz eingeschaltet, leere das Datenverzeichnis oder Volume einmal vor dem ersten Valkey-Start, denn Valkey lädt keine Datendatei von Redis 8.</p>
 <p>Für den Passwortschutz der mitgelieferten Compose-Bereitstellung setze <code>COS_REDIS_PASSWORD</code> in <code>docker/.env</code> und wende die Konfiguration mit <code>docker compose up -d</code> an.</p>
 <h2 id="table-of-contents">Inhaltsübersicht</h2>
 <p>Die folgenden Abschnitte behandeln Datenhaltung, Verbindung, Schutz und Betrieb.</p>
@@ -184,12 +185,12 @@ docker compose up -d
 <p>Die Compose-Dateien verwenden <code>COS_REDIS_PASSWORD</code> für <code>--requirepass</code> und für die Verbindungs-URLs der beiden Anwendungscontainer. Ohne Wert bleibt der Passwortschutz aus. Für einen regulären Betrieb sollte er gesetzt sein.</p>
 <p>Der Setup-Assistent erzeugt das Passwort in einer <code>.env</code> mit Modus <code>0600</code>. Auch <code>authentik-env.sh</code> ergänzt einen fehlenden Wert und erhält einen bereits vorhandenen.</p>
 <p>Prüfe die wirksame Einstellung:</p>
-<pre><code class="language-bash">docker compose exec -e REDISCLI_AUTH= redis redis-cli ping
+<pre><code class="language-bash">docker compose exec -e VALKEYCLI_AUTH= redis valkey-cli ping
 # NOAUTH Authentication required.        &lt;- what you want to see
-docker compose exec redis redis-cli ping
-# PONG                                   &lt;- authenticated, via REDISCLI_AUTH
+docker compose exec redis valkey-cli ping
+# PONG                                   &lt;- authenticated, via VALKEYCLI_AUTH
 </code></pre>
-<p>Der Container-Healthcheck liest das Passwort über <code>REDISCLI_AUTH</code>, damit es nicht als <code>-a</code>-Argument in der Prozessliste erscheint.</p>
+<p>Der Container-Healthcheck liest das Passwort über <code>VALKEYCLI_AUTH</code>, damit es nicht als <code>-a</code>-Argument in der Prozessliste erscheint.</p>
 <p>Bei einem Passwortwechsel müssen Redis, Webanwendung und Worker dieselbe neue Konfiguration übernehmen. Deine Verbindungsdaten werden beim Start gelesen.</p>
 <h2 id="network-isolation">Netzwerkzugriff begrenzen</h2>
 <p>Die mitgelieferten Compose-Dateien veröffentlichen keinen Redis-Port. Redis liegt nur im internen Netzwerk:</p>
@@ -209,7 +210,7 @@ docker compose exec redis redis-cli ping
 </code></pre>
 <p>Das Speicherlimit begrenzt den Verbrauch bei wachsenden Warteschlangen und vielen Ergebnissen. Passe es an Workerzahl, Ergebnisgröße und TTL an.</p>
 <p><code>allkeys-lru</code> kann unter Speicherdruck beliebige wenig genutzte Schlüssel entfernen, auch bevor deren TTL abläuft. Dadurch können Ergebnisse früher verschwinden; auch andere Redis-Zustände können betroffen sein. Beobachte die Verdrängungszähler:</p>
-<pre><code class="language-bash">docker compose exec redis redis-cli info stats | grep evicted_keys
+<pre><code class="language-bash">docker compose exec redis valkey-cli info stats | grep evicted_keys
 </code></pre>
 <p>Regelmäßige Verdrängung ist ein Anlass, Kapazität, Last und Aufbewahrungsdauer zu prüfen.</p>
 <h2 id="an-external-or-managed-redis">Externes oder verwaltetes Redis</h2>

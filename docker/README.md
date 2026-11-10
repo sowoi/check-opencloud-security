@@ -122,6 +122,12 @@ Three rules the compose files exist to enforce:
   persistence on for a deployment that would rather not lose a queued scan to
   a restart - see [What a deployment keeps](#what-a-deployment-keeps) - and
   says what it costs when you ask for it.
+- **The server is Valkey** (`valkey/valkey:9.1-alpine`), the BSD-licensed
+  continuation of Redis. It speaks the same protocol, so the service is still
+  `redis` and `COS_WEB_REDIS_URL` still `redis://`. A stack that persists and
+  ran Redis 8 before empties its data directory or volume once before the
+  first Valkey start: Valkey refuses a Redis 8 data file. See
+  [ADR 0081](../adr/0081-the-bundled-key-value-store-is-valkey.md).
 - **Redis is on an internal network and asks for a password.** It publishes no
   port and the `scanner_internal` network has no route off the host. Set
   `COS_REDIS_PASSWORD` in `docker/.env` and Redis requires it as well; leave it
@@ -515,8 +521,8 @@ rootless daemon serves under `/run/user/<uid>` - and prints the rootless form
 instead, which runs the `chown` inside a container and needs no sudo:
 
 ```bash
-mkdir -p ./audit && docker run --rm --user 0 --entrypoint chown -v "$(realpath ./audit)":/target redis:8.10-alpine 10001 /target
-mkdir -p ./data  && docker run --rm --user 0 --entrypoint chown -v "$(realpath ./data)":/target redis:8.10-alpine 999 /target
+mkdir -p ./audit && docker run --rm --user 0 --entrypoint chown -v "$(realpath ./audit)":/target valkey/valkey:9.1-alpine 10001 /target
+mkdir -p ./data  && docker run --rm --user 0 --entrypoint chown -v "$(realpath ./data)":/target valkey/valkey:9.1-alpine 999 /target
 ```
 
 Your own account cannot read those directories afterwards; read them through a

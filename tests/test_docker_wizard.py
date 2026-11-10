@@ -1055,7 +1055,7 @@ def test_redis_persists_only_when_asked_and_says_what_that_costs() -> None:
     command = " ".join(redis["command"].split())
     assert "--appendonly yes" in command
     assert f"--dir {wizard_module.REDIS_DATA_DIRECTORY}" in command
-    # `--save "900 1"` would reach redis-server as one quoted value and be
+    # `--save "900 1"` would reach valkey-server as one quoted value and be
     # refused; the option takes two arguments.
     assert "--save 900 1" in command
     assert "--appendonly no" not in command
