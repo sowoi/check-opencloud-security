@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.33.1] - 2026-11-10
+
 ### Changed
 
 - **The guides read more plainly.** Around 300 sentences in the public and
