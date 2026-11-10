@@ -31,6 +31,7 @@
 
 <nav class="docs-toc card section-gap" aria-label="{{ t('docs.guide.toc.aria') }}" data-reveal>
   <p class="kicker">{{ t('docs.guide.toc.heading') }}</p>
+  <a href="#1330-this-release" lang="en">[1.33.0] - this release</a>
   <a href="#1322-2026-11-05" lang="en">[1.32.2] - 2026-11-05</a>
   <a href="#1321-2026-11-04" lang="en">[1.32.1] - 2026-11-04</a>
   <a href="#1320-2026-10-19" lang="en">[1.32.0] - 2026-10-19</a>
@@ -40,12 +41,62 @@
   <a href="#1310-2026-09-24" lang="en">[1.31.0] - 2026-09-24</a>
   <a href="#1302-2026-09-24" lang="en">[1.30.2] - 2026-09-24</a>
   <a href="#1301-2026-09-23" lang="en">[1.30.1] - 2026-09-23</a>
-  <a href="#1300-2026-09-22" lang="en">[1.30.0] - 2026-09-22</a>
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="en">
-<h2 id="1322-2026-11-05">[1.32.2] - 2026-11-05</h2>
+<h2 id="1330-this-release">[1.33.0] - this release</h2>
 <h3 id="changed">Changed</h3>
+<ul>
+<li><strong>The bundled stacks run Valkey instead of Redis.</strong> Every compose file, the
+  stack <code>docker/setup-wizard.py</code> generates and the CI test service now use
+  <code>valkey/valkey:9.1-alpine</code> in place of <code>redis:8.10-alpine</code>, start
+  <code>valkey-server</code> and check their health with <code>valkey-cli</code> through
+  <code>VALKEYCLI_AUTH</code>. Valkey is the BSD-licensed continuation of Redis and
+  speaks the same protocol, so the service name <code>redis</code>, <code>COS_WEB_REDIS_URL</code>,
+  <code>COS_REDIS_PASSWORD</code> and the Python client are unchanged and an existing
+  <code>.env</code> keeps working. <strong>Upgrade note:</strong> a stack generated with persistence
+  (<code>volume</code> or <code>filesystem</code>) must empty its data directory or volume once
+  before the first start, because Valkey refuses a data file written by
+  Redis 8. The default stacks persist nothing. See
+  <a href="{{ admin_path }}/decisions/0081-the-bundled-key-value-store-is-valkey">ADR 0081</a> and
+  <a href="/documentation/redis"><code>docs/redis.md</code></a>.</li>
+<li><strong>The CI tools are current again.</strong> On its first run,
+  <code>scripts/check_tool_pins.py</code> found six pins behind their latest release.
+  All six are raised wherever they are written (workflows, <code>CLAUDE.md</code>,
+  <code>AGENTS.md</code>, <code>CONTRIBUTING.md</code>, the preflight skill):</li>
+<li>ruff 0.17.1 → 0.17.3</li>
+<li>zizmor 1.30.1 → 1.32.0</li>
+<li>Biome 2.5.13 → 2.6.5, including the schema in <code>biome.jsonc</code></li>
+<li>mermaid-cli 12.0.0 → 12.2.0</li>
+<li>nfpm 2.47.0 → 2.48.0, with the SHA-256 of its Linux tarball from the
+    release's <code>checksums.txt</code>, checked against the downloaded file</li>
+<li>uv 0.13.1 → 0.13.7, as <code>required-version</code> and in the <code>docker/</code> images
+    alike</li>
+</ul>
+<p>The new ruff, zizmor and Biome find nothing in the repository. nfpm 2.48.0
+  replaces its RPM writer, so the <code>.rpm</code> built on the pull request is
+  installed on Fedora before a release relies on it. A local uv older than
+  0.13.7 now refuses to run here.
+- <strong>The signed-in stack runs authentik 2026.8.5.</strong> The setup wizard and
+  <code>docker/docker-compose.authentik.yml</code> pinned 2026.8.4; <code>AUTHENTIK_TAG</code>
+  still overrides it. A stack the wizard generated earlier keeps the tag it
+  wrote until that is changed; authentik runs its own migrations on the next
+  start, as a step from 2026.8.2 did without trouble. Redis 8.10 and
+  Postgres 18.6 are still current.</p>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li><strong><code>/preflight</code> runs zizmor online, as CI does.</strong> Offline, zizmor skips the
+  audit that compares a pin comment with where its tag points now. A
+  <code># v4</code> that upstream had moved therefore passed locally and failed only in
+  CI. The preflight skill, <code>CLAUDE.md</code> and <code>AGENTS.md</code> now pass
+  <code>GH_TOKEN="$(gh auth token)"</code>. Without a signed-in <code>gh</code>, preflight reports
+  a warning that the online audits did not run.</li>
+<li><strong><code>CLAUDE.md</code> says Firefox does not start inside Claude Code's sandbox.</strong>
+  It fails with <code>Could not find profile folder</code>, which looked like a broken
+  browser build. Outside the sandbox the Firefox browser tests pass.</li>
+</ul>
+<h2 id="1322-2026-11-05">[1.32.2] - 2026-11-05</h2>
+<h3 id="changed_1">Changed</h3>
 <ul>
 <li><strong>A failed browser test leaves a Playwright trace.</strong> In CI a Firefox
   run once timed out loading <code>/api</code>, a page the same run had just loaded
@@ -188,7 +239,7 @@
   <code>git checkout CHANGELOG.md RELEASE.md</code> as a switch to a branch called
   <code>CHANGELOG.md</code> and refused it.</li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation_1">Documentation</h3>
 <ul>
 <li><strong>The documented test suite runtime is accurate.</strong> <code>CLAUDE.md</code>,
   <code>.github/copilot-instructions.md</code> and the preflight skill and agent said
@@ -205,14 +256,14 @@
   PyPI package never pinned pyasn1, and the plugin image does not install the
   <code>signing</code> extra.</li>
 </ul>
-<h3 id="changed_1">Changed</h3>
+<h3 id="changed_2">Changed</h3>
 <ul>
 <li><strong>Dependabot updates every <code>github/codeql-action</code> step in one pull
   request.</strong> The <code>init</code>, <code>analyze</code> and <code>upload-sarif</code> steps must run the same
   version; bumped one at a time, each pull request failed CodeQL until the
   other two were merged too.</li>
 </ul>
-<h3 id="documentation_1">Documentation</h3>
+<h3 id="documentation_2">Documentation</h3>
 <ul>
 <li><strong><code>GUIDELINE.md</code> collects the rules behind this repository's agent setup.</strong>
   Fifty-one tool-agnostic best practices for repositories where AI coding
@@ -228,7 +279,7 @@
   run the suite on 3.11 to 3.15, and the packaged launchers try
   <code>python3.15</code> first after <code>python3</code>.</li>
 </ul>
-<h3 id="changed_2">Changed</h3>
+<h3 id="changed_3">Changed</h3>
 <ul>
 <li><strong>The container images run Python 3.15.</strong> Both images are built from
   <code>python:3.15-slim</code> and install with uv 0.13.1 instead of 0.11.31.</li>
@@ -254,7 +305,7 @@
   virtualenv from 21.7.7 to 21.14.11 (PYSEC-2026-4011 to -4014); it is a
   development dependency that no image or package contains.</li>
 </ul>
-<h3 id="changed_3">Changed</h3>
+<h3 id="changed_4">Changed</h3>
 <ul>
 <li><strong>Every locked dependency is on its newest release.</strong> <code>uv lock --upgrade</code>
   moved the whole set in <code>uv.lock</code>, which the container images install and
@@ -325,7 +376,7 @@
 <li><strong>A comparison page rounds its expiry up too.</strong> It rounded the minutes
   left down, so it announced one minute fewer than the result page would.</li>
 </ul>
-<h3 id="documentation_2">Documentation</h3>
+<h3 id="documentation_3">Documentation</h3>
 <ul>
 <li>
 <p>Added German, Spanish and French operator architecture and operations documentation, including
@@ -350,7 +401,7 @@
   untranslated in every locale.</li>
 </ul>
 <h2 id="1311-2026-09-24">[1.31.1] - 2026-09-24</h2>
-<h3 id="changed_4">Changed</h3>
+<h3 id="changed_5">Changed</h3>
 <ul>
 <li><strong>The coverage warning's alert line is now covered by mutation testing.</strong>
   <code>tests/test_coverage_regression.py</code> drives <code>_apply_baseline</code> in process but
@@ -391,7 +442,7 @@
   that CI, <code>pip-audit</code> and the SBOM never saw.</li>
 </ul>
 <h2 id="1310-2026-09-24">[1.31.0] - 2026-09-24</h2>
-<h3 id="documentation_3">Documentation</h3>
+<h3 id="documentation_4">Documentation</h3>
 <ul>
 <li>Polished scan progress, errors, downloads and sharing text in English,
   German, Spanish and French. Corrected informal Spanish instructions and
@@ -471,7 +522,7 @@
   tries the install once more before the release dry run fails.</li>
 </ul>
 <h2 id="1302-2026-09-24">[1.30.2] - 2026-09-24</h2>
-<h3 id="changed_5">Changed</h3>
+<h3 id="changed_6">Changed</h3>
 <ul>
 <li><strong>Tests now cover code that no test reached before.</strong> The advisory refresh
   script <code>scripts/update_vulnerability_db.py</code> has tests. They prove that it
@@ -487,7 +538,7 @@
   hardening flag of a full scan verifies to the same answer, not only three of
   them.</li>
 </ul>
-<h3 id="documentation_4">Documentation</h3>
+<h3 id="documentation_5">Documentation</h3>
 <ul>
 <li>Clarified operator status, comparison results, monitoring instructions and
   TLS explanations in English, German, Spanish and French. Corrected Spanish
@@ -530,7 +581,7 @@
   <code>opencloud_security_coverage_inconclusive_total</code> and
   <code>opencloud_security_coverage_not_checked_total</code>. The grade does not change.</li>
 </ul>
-<h3 id="documentation_5">Documentation</h3>
+<h3 id="documentation_6">Documentation</h3>
 <ul>
 <li>Replaced vague and literal wording in the interface, scanner guides and
   README. Aligned English, German, Spanish and French explanations and
@@ -542,124 +593,6 @@
   cases and a translation review checklist. Corrected inconsistent exemption
   terminology and Spanish plural recognition in the glossary check. Recorded
   reviewed plain-language alternatives so they no longer produce warnings.</li>
-</ul>
-<h2 id="1300-2026-09-22">[1.30.0] - 2026-09-22</h2>
-<h3 id="documentation_6">Documentation</h3>
-<ul>
-<li>
-<p>Listed <code>tests/test_monitoring_export.py</code> in the test index, so the
-  scheduler-export tests can be found by purpose.</p>
-</li>
-<li>
-<p>Clarified German operator messages about wildcard DNS and temporary
-  application updates, and replaced the literal TLS introduction with a
-  description of the measured values. Added three wording regression cases.</p>
-</li>
-<li>
-<p>Clarified configuration-drift explanations in the English, German, Spanish
-  and French baseline guides. Older baselines lack fingerprints, so an absent
-  drift report does not establish that the configuration is unchanged.
-  Added regression cases for vague and anthropomorphic wording in all four
-  languages. Fixed four French guide links to the documentation index found
-  by the translation tests.</p>
-</li>
-<li>Reworded literal German and Spanish translations in the baseline and scanner CLI
-  guides, including severity comparisons and missing measurements. Added
-  regression cases for the awkward phrases found during review.</li>
-</ul>
-<h3 id="added_3">Added</h3>
-<ul>
-<li>
-<p><strong>The setup wizard exports the scheduled check, not just the configuration.</strong>
-  <code>check-opencloud-scanner configure</code> now offers to write the monitoring
-  configuration next to the file it saved, and <code>--export-monitoring</code>
-  (<code>icinga</code>, <code>systemd</code>, <code>both</code>, <code>none</code>) answers that question up front for a
-  provisioning script. It produces an Icinga 2 <code>Service</code> object, and a systemd
-  <code>oneshot</code> service, <code>daily</code> timer and <code>COS_</code> environment file, each carrying
-  the thresholds, the release track and every other answer just given - so the
-  check that runs every day is the one that was configured rather than an
-  example adjusted from memory. Two rules shape the output: <strong>nothing is
-  installed</strong> (the files are written for review and the install commands are
-  printed, never run), and <strong>no credential is written into them</strong> - a webhook
-  URL or release token stays in the owner-only configuration file, which both
-  artefacts point at with <code>vars.opencloud_config</code> and <code>COS_CONFIG_FILE</code>, and
-  the settings withheld are named rather than silently dropped. The generated
-  unit carries the same hardening directives as the one in <code>contrib/systemd/</code>,
-  asserted by a test so it cannot quietly become a weaker copy.</p>
-</li>
-<li>
-<p><strong><code>check-opencloud-scanner diff</code> compares two results finding by finding.</strong>
-  A new <code>--format side-by-side</code> states both scans as two columns, one finding
-  per row, so a reader does not have to rebuild each side from a list of
-  changes; <code>--all-findings</code> adds the findings that did not move. Every
-  comparison now reports per-finding severity movement - a <code>~</code> line and a
-  <code>Failing by severity:</code> tally - which the baseline's comparison of two sets
-  of names cannot express: a check that stayed open and moved from <code>high</code> to
-  <code>critical</code> never enters or leaves that set, and caps the rating a grade
-  lower. <code>--category</code> narrows the comparison to one area, taking a value
-  either from the finding categories (<code>exposure</code>, <code>headers</code>, <code>transport</code>,
-  <code>advisory</code>, ...) or from the change categories (<code>instance</code>,
-  <code>referenceData</code>, <code>scanner</code>, <code>policy</code>, <code>unknown</code>); an unknown value is
-  refused rather than silently showing nothing. <code>--format json</code> carries the
-  same as <code>findings</code> and <code>severityTotals</code>. A side that was never measured is
-  reported as such and never as a pass, and a waived finding is still counted.</p>
-</li>
-<li>
-<p><strong>A finished scan downloads as a remediation bundle: only the work that is
-  left, with the configuration that closes it.</strong> The result page and
-  <code>GET /api/scans/{uuid}/export/{format}</code> gained <code>remediation-md</code> and
-  <code>remediation-html</code>. A bundle carries <strong>only</strong> the open, actionable findings</p>
-</li>
-<li>
-<p>waived entries and the flags OpenCloud hardcodes are left out - each with
-  what the scanner observed, what it means and what to change, followed by the
-  nginx, Caddy, Traefik, Docker Compose and <code>.env</code> fragments that satisfy
-  them, rendered from the hardening catalogue's own <code>env_fix</code> and
-  <code>header_fix</code> entries. Every flavour is written out rather than one, each
-  naming which findings it covers and which belong in the other kind of file,
-  and a finding whose right value is a decision about the deployment is listed
-  as having no mechanical fix rather than given a placeholder to edit. The
-  grade, the passed checks and the advisory list stay in the full report:
-  repeating them here would bury the one thing the file is for.</p>
-</li>
-<li>
-<p><strong>SARIF output now carries what a code-scanning dashboard needs to act on a
-  finding.</strong> <code>--format sarif</code> previously named a rule and a level and left the
-  rest to a reader's own research. Each rule now carries the hardening
-  catalogue's remediation sentence, the official documentation link
-  (<code>helpUri</code>), the catalogue entry that explains a per-path finding
-  (<code>catalogueId</code> - <code>exposed</code> for <code>exposed:/opencloud.yaml</code>), the setting
-  behind it, and the <code>security-severity</code>, <code>problem.severity</code> and <code>tags</code>
-  properties GitHub code scanning sorts and filters alerts on. Each result
-  carries the severity, category, remediation and reference beside the host,
-  and a <code>partialFingerprints</code> entry stable across runs, so a finding that has
-  been open for a month stays one alert with a history rather than a new one
-  every night. An advisory additionally names <code>fixedIn</code> and the release
-  window it covers (<code>affectedRanges</code>, e.g. <code>&gt;= 1.0.0, &lt; 4.0.8</code>), and the run
-  reports the rating, version and end-of-life state per scanned host. The web
-  application's own SARIF export gained the same properties and fingerprints,
-  keeping the two renderers in convention-sync as ADR 0026 requires.</p>
-</li>
-<li>
-<p><strong>A scan result's <code>vulnerabilities</code> entries name the release range they
-  apply to.</strong> <code>affectedRanges</code> (and <code>introduced</code>) join <code>fixedIn</code>, so a reader
-  can tell whether an older release was ever affected rather than only which
-  release ends the window.</p>
-</li>
-</ul>
-<h3 id="fixed_6">Fixed</h3>
-<ul>
-<li>
-<p><strong>The French scanner CLI guide no longer ships the newly added comparison
-  sections in English.</strong> Its <code>diff</code> explanation, severity view, side-by-side
-  output and category filtering are now translated, and regression tests catch
-  those copied-English phrases in future guide updates.</p>
-</li>
-<li>
-<p><strong>The German operator area no longer leaves avoidable English labels in
-  place.</strong> Advisory status is shown as Sicherheitsmeldungen, update controls
-  as Aktualisierungen, and the audit section consistently names its log.</p>
-</li>
 </ul>
 </article>
 {% endblock %}

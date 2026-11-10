@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "builtFor": "1.32.2",
+  "builtFor": "1.33.0",
   "pages": [
     {
       "path": "/",
