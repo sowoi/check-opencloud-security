@@ -64,14 +64,16 @@
   <code>scripts/check_tool_pins.py</code> found six pins behind their latest release.
   All six are raised wherever they are written (workflows, <code>CLAUDE.md</code>,
   <code>AGENTS.md</code>, <code>CONTRIBUTING.md</code>, the preflight skill):</li>
-<li>ruff 0.17.1 → 0.17.3</li>
+<li>ruff 0.17.1 → 0.17.4</li>
 <li>zizmor 1.30.1 → 1.32.0</li>
-<li>Biome 2.5.13 → 2.6.5, including the schema in <code>biome.jsonc</code></li>
+<li>Biome 2.5.13 → 2.6.6, including the schema in <code>biome.jsonc</code></li>
 <li>mermaid-cli 12.0.0 → 12.2.0</li>
 <li>nfpm 2.47.0 → 2.48.0, with the SHA-256 of its Linux tarball from the
     release's <code>checksums.txt</code>, checked against the downloaded file</li>
 <li>uv 0.13.1 → 0.13.7, as <code>required-version</code> and in the <code>docker/</code> images
     alike</li>
+<li>its second weekly run (#174) found ruff and Biome a patch behind again,
+    and both were raised once more</li>
 </ul>
 <p>The new ruff, zizmor and Biome find nothing in the repository. nfpm 2.48.0
   replaces its RPM writer, so the <code>.rpm</code> built on the pull request is
