@@ -734,7 +734,7 @@ curl -sS http://127.0.0.1:8811/api/scans/0f4a1f22-.../badge.svg
 
 Das Badge enthält nur Note und zugehörige Farbe, keine Zieladresse oder
 Versionsangaben. Es nutzt keine externen Badge-Dienste oder Schriften.
-Es bleibt genau so lange abrufbar wie der Scan: **200** nach Abschluss,
+Es bleibt so lange abrufbar wie der Scan: **200** nach Abschluss,
 **409** während des Scans, **404** nach Ablauf oder bei unbekannter UUID.
 `Cache-Control: no-store` verhindert eine vorgesehene Zwischenspeicherung.
 

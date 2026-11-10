@@ -174,8 +174,8 @@ inconnue au lieu de devenir un échec, comme partout ailleurs dans l’analyse.<
 <code>OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS</code>,
 <code>OC_PASSWORD_POLICY_MIN_DIGITS</code> et
 <code>OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS</code> à <code>1</code> ou plus. Chacun vaut déjà <code>1</code>
-par défaut : une instance qui échoue à ce contrôle les a donc abaissés
-volontairement.</p>
+par défaut : sur une instance qui échoue à ce contrôle, ils ont donc été
+abaissés.</p>
 <h2 id="6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Le fournisseur d’identité est-il seulement identifiable : <code>identityProviderDetected</code></h2>
 <p>Tous les contrôles ci-dessus demandent si un identifiant est accepté. Celui-ci
 pose la question préalable - <em>qui émet les jetons ?</em> - et y répond en lisant
@@ -209,7 +209,7 @@ fournisseur et peut être relié à un fournisseur externe.</p>
 <h2 id="7-what-the-discovery-document-says-about-how-sign-in-is-protected">7. Ce que le document de découverte indique sur la protection de la connexion</h2>
 <p>La requête ci-dessus a déjà été faite. Le document qu’elle renvoie est une
 preuve publique au sens de l’<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0022-identity-provider-versions-require-public-evidence.md">ADR 0022</a> -
-non authentifié, en lecture seule, publié volontairement - et quatre de ses
+non authentifié, en lecture seule et destiné à être public - et quatre de ses
 champs indiquent quelque chose sur quoi un opérateur peut agir. Les lire ne
 coûte <strong>aucune requête HTTP supplémentaire</strong> : la réponse qui a fourni
 l’émetteur fournit aussi les quatre champs.</p>

@@ -282,7 +282,7 @@ a CI artefact store or a shared directory, stays with whatever you already use.
 | Missing coverage | Expected hosts without a report, hosts whose newest scan failed, stale reports, and reports older than the coverage block |
 | Checks not evaluated | Checks the scans skipped or could not decide, and on how many hosts |
 
-A report is evidence about the day it was written, so two things are
+A report describes the day it was written, so two things are
 re-measured against **today** rather than read back:
 
 - **The release.** The recorded version is placed again in the release
@@ -481,7 +481,7 @@ in a container is covered in
 
 On such a bind the token must be at least 32 characters and not the
 placeholder from `secrets/scanner_token.example`: nothing limits how often it
-can be guessed, so its length is the whole of its strength. `openssl rand -hex
+can be guessed, so its length is its only protection. `openssl rand -hex
 32` gives one.
 
 This is not the public web application. That one is
@@ -531,7 +531,7 @@ check-opencloud-scanner configure --export-monitoring both
 | `check-opencloud-security.timer` | `OnCalendar=daily`, with a randomised delay so many hosts behind one address do not hit the release feed's rate limit at the same second |
 | `check-opencloud-security.env` | The `COS_` variables for the unit, written owner-only |
 
-Two things are deliberate. **Nothing is installed**: the files are written
+Two limits apply. **Nothing is installed**: the files are written
 where the configuration went and the commands that would install them are
 printed, so what reaches `/etc` is something you read first. And **no
 credential is written into them**: a webhook URL or a release token stays in

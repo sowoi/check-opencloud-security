@@ -394,7 +394,7 @@ check-opencloud-scanner explain                                         # the wh
 <h2 id="review-waivers-waivers-that-need-attention"><code>review-waivers</code>: Ausnahmen überprüfen</h2>
 <pre><code class="language-bash">check-opencloud-scanner -c /etc/check-opencloud-security/config.yml review-waivers
 </code></pre>
-<p>Der Befehl liest die Ausnahmen, die auch das Plugin verwenden würde - <code>scanner.ignore_hardenings</code> und <code>scanner.temporary_waivers</code> aus der Konfigurationsdatei oder die passenden <code>COS_</code>-Umgebungsvariablen -, und listet jede auf, um die du dich kümmern solltest, jeweils mit einem Vorschlag zum Aufräumen. <strong>Er ändert die Konfiguration nie.</strong> Ob ein Befund weiter akzeptabel ist, entscheidest du, nicht das Werkzeug.</p>
+<p>Der Befehl liest die Ausnahmen, die auch das Plugin verwenden würde - <code>scanner.ignore_hardenings</code> und <code>scanner.temporary_waivers</code> aus der Konfigurationsdatei oder die passenden <code>COS_</code>-Umgebungsvariablen -, und listet jede auf, um die du dich kümmern solltest, jeweils mit einem Vorschlag zum Aufräumen. <strong>Er ändert die Konfiguration nie.</strong> Ob ein Befund weiter akzeptabel ist, entscheidest du selbst.</p>
 <table>
 <thead>
 <tr>
@@ -548,7 +548,7 @@ check-opencloud-scanner serve --listen 0.0.0.0 --token &quot;$(cat /run/secrets/
 </tbody>
 </table>
 <p>Außerhalb von Loopback verlangt der Dienst ein Token. Fehlt es, erscheint <code>UNKNOWN: ...</code> auf stderr und der Prozess endet mit <code>3</code>. Die Endpunkte stehen im <a href="/documentation/reference#running-the-scanner-as-a-service">Haupt-README</a>, Containerbeispiele unter <a href="/documentation/scan-service">Scan-Dienst</a>.</p>
-<p>Das Token muss dann mindestens 32 Zeichen lang sein und darf nicht der Platzhalter aus <code>secrets/scanner_token.example</code> sein: Nichts begrenzt, wie oft es geraten werden kann, also ist seine Länge seine ganze Stärke. <code>openssl rand -hex 32</code> erzeugt dir eins.</p>
+<p>Das Token muss dann mindestens 32 Zeichen lang sein und darf nicht der Platzhalter aus <code>secrets/scanner_token.example</code> sein: Nichts begrenzt, wie oft es geraten werden kann, also schützt es allein seine Länge. <code>openssl rand -hex 32</code> erzeugt dir eins.</p>
 <p>Die <a href="/documentation/web-service">öffentliche Webanwendung</a> mit Browseroberfläche und Warteschlange ist ein separater Dienst.</p>
 <h2 id="configure-write-a-configuration-file"><code>configure</code>: Konfigurationsdatei erstellen</h2>
 <pre><code class="language-bash">check-opencloud-scanner configure

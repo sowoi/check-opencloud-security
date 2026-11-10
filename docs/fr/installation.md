@@ -211,7 +211,7 @@ configuration de chemin - voir [Icinga2 / Nagios](#icinga2-nagios) ci-dessous.
 
 ### Le configurer {#configuring-it}
 
-**Le paquet ne configure volontairement rien.** L’exemple de configuration
+**Le paquet ne configure rien.** L’exemple de configuration
 désigne un hôte qui n’est pas le vôtre, et
 `/etc/check-opencloud-security/config.yml` est un chemin que le plugin lit
 réellement : installer l’exemple à cet endroit donnerait à chaque appel sur
@@ -312,9 +312,9 @@ check-opencloud-security --host opencloud.example.com
 
 La formule se trouve dans un tap plutôt que dans Homebrew core, qui impose des
 critères de notoriété que ce projet ne prétend pas remplir. `brew upgrade` la
-maintient à jour ; `--upgrade-self` refuse volontairement d’agir sur une
-installation Homebrew et l’indique, car pip écrirait dans le Cellar et la
-prochaine opération `brew` l’annulerait discrètement.
+maintient à jour ; `--upgrade-self` refuse d’agir sur une
+installation Homebrew et explique pourquoi : pip écrirait dans le Cellar et la
+prochaine opération `brew` l’annulerait.
 
 La formule elle-même est générée à partir de ce que PyPI a publié, par
 [`scripts/build_homebrew_formula.py`](../../scripts/build_homebrew_formula.py) -

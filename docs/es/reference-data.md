@@ -106,7 +106,7 @@ Para añadir el extra a una instalación existente con pipx, vuelva a ejecutar
 ese comando con `--force`. [Instalar el complemento](../installation.md)
 contiene los equivalentes para uv y pip.
 
-Hay tres resultados posibles, y son deliberadamente distintos:
+Hay tres resultados posibles:
 
 | Resultado | Qué ocurre |
 |:--|:--|

@@ -93,9 +93,9 @@ no tiene veredicto en lugar de tener uno obsoleto; por eso
 `opencloud_security_scrape_success` es lo primero que muestra el panel.
 
 `opencloud_security_end_of_life` es una familia aparte, y no un número
-negativo de días, a propósito. Una versión rolling o production cuyo fin de
+negativo de días. Una versión rolling o production cuyo fin de
 vida aún no se ha anunciado no notifica ningún día, y "desconocido" no debe
-leerse como "caduca hoy" en la única alerta que nadie puede pasar por alto.
+leerse como "caduca hoy" en una alerta tan importante.
 
 
 ## Qué se puede representar en gráficos {#what-there-is-to-graph}
@@ -158,8 +158,8 @@ mv "$TMP" "$OUT"
 chmod 644 "$OUT"
 ```
 
-`opencloud_scan_success` no es un adorno. Sin ella, un análisis fallido parece
-exactamente una instancia sana, porque las demás métricas simplemente
+Conserve `opencloud_scan_success`. Sin ella, un análisis fallido parece
+una instancia sana, porque las demás métricas
 conservan su último valor hasta que se sobrescribe el archivo.
 
 `lifecycle.daysRemaining` es `null` para una versión cuyo fin de vida aún no

@@ -325,12 +325,12 @@ Tout client auquel on peut indiquer une URL fonctionnera avec</p>
 <pre><code class="language-json">{&quot;type&quot;: &quot;http&quot;, &quot;url&quot;: &quot;https://scan.example.com/mcp&quot;}
 </code></pre>
 <p>ou la même URL saisie dans une boîte de dialogue de paramètres. Si un client
-demande le transport, la réponse est <em>streamable HTTP</em> (parfois appelé « HTTP »
-ou « remote »), ni SSE ni stdio.</p>
+demande le transport, choisissez <em>streamable HTTP</em> (parfois appelé « HTTP »
+ou « remote ») plutôt que SSE ou stdio.</p>
 <p>Un agent qui ne dispose d’aucune configuration propre à ce service peut trouver lui-même le
 point de terminaison : <code>https://scan.example.com/.well-known/ai.json</code> le
-désigne, à côté des documents OpenAPI et Arazzo. C’est toute la raison d’être
-du document de découverte - voir <a href="https://scan.example.com/api#api-agents">la page de l’API</a>.
+désigne, à côté des documents OpenAPI et Arazzo. Le document de découverte
+existe pour cela - voir <a href="https://scan.example.com/api#api-agents">la page de l’API</a>.
 <code>https://scan.example.com/agents.txt</code> et <code>https://scan.example.com/llms.txt</code>
 renvoient au même document pour un outil qui cherche d’abord l’un de ces deux
 noms de fichier, selon les conventions informelles que certains frameworks
@@ -371,7 +371,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 </code></pre>
 <p>C’est l’extra <code>mcp</code> qui monte le point de terminaison. Sans lui, l’application
 démarre parfaitement et <code>/mcp</code> répond <strong>404</strong>.</p>
-<p>Trois paramètres sont bons à connaître :</p>
+<p>Trois paramètres comptent ici :</p>
 <table>
 <thead>
 <tr>
@@ -441,9 +441,8 @@ répond <strong>401</strong>, et sur un déploiement sans jeton défini il répo
 si la fonction n’existait pas - ce qui, pour ce déploiement, est le cas.</p>
 <p><strong>Sur un déploiement qui exige une connexion</strong> (ci-dessous), l’identifiant
 d’effacement passe dans <code>X-Purge-Authorization</code> : <code>Authorization</code> transporte
-alors le jeton d’identité de l’agent, et lire l’un à la place de l’autre
-reviendrait à comparer un identifiant à un autre identifiant et à répondre 401
-pour une raison que personne ne pourrait voir.</p>
+alors le jeton d’identité de l’agent, et confondre les deux
+aboutirait à une réponse 401 sans cause apparente.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;

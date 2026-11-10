@@ -97,8 +97,8 @@ certificate against the instance:</p>
 <li>Python 3.11 or newer - or Docker, if you prefer the containerised route.</li>
 <li><code>requests</code> and <code>PyYAML</code>, installed automatically by pipx/uv/pip.</li>
 <li>Network access from the monitoring host to the OpenCloud instance. Unlike a
-  hosted scanner, this plugin needs to reach the instance itself - which is
-  exactly what makes it work for instances that are not on the internet.</li>
+  hosted scanner, this plugin needs to reach the instance itself, and for the
+  same reason it also works for instances that are not on the internet.</li>
 </ul>
 <h2 id="installation">Installation</h2>
 <p>Two commands cover the common case. Everything else - keeping the package
@@ -392,16 +392,16 @@ the thresholds, hardening, lifecycle and baseline rules already decided, and
 the output says <code>Policy: every requirement met</code>. The webhook payload and
 <code>--format json</code> carry the same verdict under <code>policy</code>, so a CI job need not
 parse the alert line.</p>
-<p>Two rules are worth knowing before you write one:</p>
+<p>Two rules apply when you write one:</p>
 <ul>
 <li><strong>A waiver does not excuse a requirement.</strong> <code>--ignore-hardening</code> and
   <code>--waive-until</code> are the local operator accepting a finding; a policy is the
   organization saying it may not be accepted. If a waiver could silence a
-  required measure, a policy would describe nothing enforceable.</li>
-<li><strong>A typo is a usage error, not a silent pass.</strong> An unknown key, a rating
+  required measure, the policy could not be enforced.</li>
+<li><strong>A typo is a usage error.</strong> An unknown key, a rating
   outside <code>0</code>-<code>5</code>, or a measure the catalogue does not know ends the run
-  <code>UNKNOWN</code> with the reason. A policy exists to fail deployments, so a rule
-  that quietly requires nothing is the worst outcome available.</li>
+  <code>UNKNOWN</code> with the reason. Otherwise a misspelled rule would require
+  nothing and the policy would pass deployments it was written to fail.</li>
 </ul>
 <h2 id="prometheus-kubernetes-integration">Prometheus &amp; Kubernetes integration</h2>
 <p><code>--format=prometheus</code> produces a one-shot text payload; the built-in exporter
@@ -447,7 +447,7 @@ manifests and the Helm chart.</p>
 document for every scanned host - never one per host, even for a single one, so
 the output is always valid JSON/SARIF/XML. <strong>The exit code keeps its Nagios
 meaning under every format</strong> (<code>0</code>/<code>1</code>/<code>2</code>/<code>3</code>), so a CI step can gate on it
-exactly the way an Icinga check does; the document is a separate, additional
+the way an Icinga check does; the document is a separate, additional
 artifact.</p>
 <ul>
 <li><code>json</code> is a JSON array of the same document described in
@@ -854,8 +854,8 @@ description.</p>
 OpenCloud 7.3.0 on cloud.example.com, rating: F, last scanned: 2026-08-12 15:18:08.839323
 Release lifecycle: 7.3 (rolling), out of support since 2026-08-03, upgrade to 7.4.0
 </code></pre>
-<p>A supported line reports how much time is left, which is what makes an LTS
-instance worth monitoring at all:</p>
+<p>A supported line reports how much time is left, which matters most on an LTS
+instance:</p>
 <pre><code>Release lifecycle: 4.0 (lts), supported until 2027-12-01 (476 days left)
 </code></pre>
 <p>The remaining window is also published as the <code>support_days_left</code> performance
@@ -1104,7 +1104,7 @@ thresholds:</p>
 <blockquote>
 <p><strong>A single critical finding does not page by default.</strong> The worst finding
 caps the rating rather than setting it: critical caps at <code>2</code> (<code>D</code>), which the
-default <code>--critical 1</code> still reports as <code>WARNING</code>. That is deliberate - it
+default <code>--critical 1</code> still reports as <code>WARNING</code>. That
 keeps one exposed path from being indistinguishable from an end-of-life
 instance. If a critical finding should wake somebody up, run with
 <code>--critical 2</code>.</p>
@@ -1205,7 +1205,7 @@ things that fix that - a reason and an expiry:</p>
     --waive-until 'debugPort:9205|2026-12-31T00:00:00Z|Firewall change, OPS-412'
 </code></pre>
 <p>The expiry must carry a timezone and the reason may not be empty; a record
-missing either is refused rather than quietly treated as permanent. At
+missing either is refused instead of being treated as permanent. At
 <code>2026-12-31T00:00:00Z</code> the check alerts again with no configuration change.
 Every configured waiver - active, expired, and the ones that matched nothing -
 is listed under <code>waivers</code> in the result document.</p>
@@ -1259,7 +1259,7 @@ give: <code>5</code> up to date, <code>4</code> a patch update pending, <code>3<
 behind, <code>2</code> known vulnerabilities, <code>1</code> critical or high ones, <code>0</code> end of life.
 Failed additional checks then cap it by severity - <code>critical</code> to <code>2</code>, <code>high</code> to
 <code>3</code>, <code>medium</code> to <code>4</code>, <code>low</code> to <code>5</code>. A check that failed but did not decide the
-outcome is still listed, marked as such, so nothing looks quietly dropped.</p>
+outcome is still listed and marked as such, so the list stays complete.</p>
 <p>Without <code>--debug</code> the output stays the size a monitoring system wants. The
 same breakdown is always present in the scan result as <code>ratingExplanation</code>, so
 it can be read without rerunning the check:</p>
@@ -1288,9 +1288,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     HTTP Basic authentication is enabled
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 </code></pre>
-<p>Three things about that list are worth knowing before acting on it:</p>
+<p>Before acting on that list, note three things:</p>
 <ul>
-<li><strong>The order is not arbitrary.</strong> Findings of the same severity share one
+<li><strong>The order matters.</strong> Findings of the same severity share one
   ceiling, so fixing the first of three medium findings changes nothing at
   all. Steps that gain nothing on their own are still listed - with <code>still
   4/5</code> rather than <code>then 5/5</code> - because leaving them out would suggest they
@@ -1302,8 +1302,8 @@ Two fixes would raise this instance from 3/5 to 5/5.
   separately as blocked, and they bound how far the plan can reach. See
   <a href="/documentation/hardening#measures-that-are-not-settings">Measures that are not settings</a>.</li>
 </ul>
-<p>Waived findings are listed too, marked as waived: a waiver silences an alert,
-it does not fix anything, and the plan says so.</p>
+<p>Waived findings are listed too, marked as waived, because a waiver silences
+an alert without fixing anything.</p>
 <p>The same plan appears on the web dashboard, in the JSON, CSV, SARIF and PDF
 exports, and as the <code>plan_remediation</code> MCP tool.</p>
 <h3 id="grouped-by-where-the-change-is-made">Grouped by where the change is made</h3>
@@ -1413,8 +1413,8 @@ discarded. Drift never creates a finding and never changes the exit code.</p>
 <p>A baseline also remembers which checks reached a conclusion. When a check
 that was measured before is <strong>inconclusive</strong> now, the run warns - <code>OK</code> becomes
 <code>WARNING</code> - even though the grade has not moved. The rating, its perfdata and
-the findings are left exactly as the evidence gave them; it is the scan that
-saw less, not the instance that changed. <code>--warn-on-new</code> does not suppress it.</p>
+the findings are left as the evidence gave them, because the scan saw less
+and the instance itself may not have changed. <code>--warn-on-new</code> does not suppress it.</p>
 <p><strong><a href="/documentation/baseline">Reporting only what changed</a></strong> has the diff formats
 (<code>text</code>, <code>markdown</code>, <code>slack</code>, <code>json</code>), what counts as a regression, the
 configuration groups, and the rules that keep a baseline from hiding

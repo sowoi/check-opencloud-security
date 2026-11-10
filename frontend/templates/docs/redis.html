@@ -297,8 +297,8 @@ only on the internal one.</p>
 6379 to a host interface, and never to the internet: an open Redis on a public
 address is found by scanners within minutes.</p>
 <h2 id="persistence-or-the-deliberate-lack-of-it">Persistence, or the deliberate lack of it</h2>
-<p>The shipped Redis runs with <code>--save ""</code> and <code>--appendonly no</code>. It writes
-nothing to disk, on purpose.</p>
+<p>The shipped Redis runs with <code>--save ""</code> and <code>--appendonly no</code>. It is
+configured to write nothing to disk.</p>
 <p>Persistence and backups can retain scan data beyond its expiry in the running store. The
 default stack therefore disables both snapshots and append-only persistence. A restart
 loses temporary results and other Redis-managed state, including operator-added
@@ -312,7 +312,7 @@ losing a queued scan to a restart matters more than the scans being on a disk
 that somebody may back up. It is never the default, it warns when you choose
 it, and it points at <code>COS_WEB_ENCRYPT_RESULTS</code> — with that on, what reaches
 the disk is ciphertext and the key lives in <code>.env</code> rather than beside it. On
-a deployment strangers can reach, the answer is still <code>none</code>.</p>
+a deployment strangers can reach, still use <code>none</code>.</p>
 <p><strong>Moving a persisting stack from Redis 8 to Valkey:</strong> Valkey refuses a data
 file written by Redis 8 and does not start. Stop the stack, empty the data
 directory or volume, and start it again. Everything in it had a TTL anyway.</p>

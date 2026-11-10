@@ -9,8 +9,7 @@ docker run --rm --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.example.com
 ```
 
-That is the whole thing. It prints the same line a monitoring system would
-get:
+It prints the same line a monitoring system would get:
 
 ```text
 OK: Server is up to date. No known vulnerabilities.
@@ -111,8 +110,8 @@ docker run --rm --network host --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.internal.example.com
 ```
 
-The hosted service refuses a private address on purpose; your own machine has
-no reason to.
+The hosted service refuses private addresses. A scan from your own machine
+does not.
 
 Configure it with environment variables instead of flags, which is easier to
 template over a list of hosts - every option has a `COS_` variable, listed in

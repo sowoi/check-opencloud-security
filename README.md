@@ -152,8 +152,8 @@ For a permanent setup (Icinga2, systemd timer, cron, Docker, ...) see
 - Python 3.11 or newer - or Docker, if you prefer the containerised route.
 - `requests` and `PyYAML`, installed automatically by pipx/uv/pip.
 - Network access from the monitoring host to the OpenCloud instance. Unlike a
-  hosted scanner, this plugin needs to reach the instance itself - which is
-  exactly what makes it work for instances that are not on the internet.
+  hosted scanner, this plugin needs to reach the instance itself, and for the
+  same reason it also works for instances that are not on the internet.
 
 # Installation
 Two commands cover the common case. Everything else - keeping the package
@@ -397,16 +397,16 @@ the output says `Policy: every requirement met`. The webhook payload and
 `--format json` carry the same verdict under `policy`, so a CI job need not
 parse the alert line.
 
-Two rules are worth knowing before you write one:
+Two rules apply when you write one:
 
 * **A waiver does not excuse a requirement.** `--ignore-hardening` and
   `--waive-until` are the local operator accepting a finding; a policy is the
   organization saying it may not be accepted. If a waiver could silence a
-  required measure, a policy would describe nothing enforceable.
-* **A typo is a usage error, not a silent pass.** An unknown key, a rating
+  required measure, the policy could not be enforced.
+* **A typo is a usage error.** An unknown key, a rating
   outside `0`-`5`, or a measure the catalogue does not know ends the run
-  `UNKNOWN` with the reason. A policy exists to fail deployments, so a rule
-  that quietly requires nothing is the worst outcome available.
+  `UNKNOWN` with the reason. Otherwise a misspelled rule would require
+  nothing and the policy would pass deployments it was written to fail.
 
 # Prometheus & Kubernetes integration
 
@@ -464,7 +464,7 @@ manifests and the Helm chart.
 document for every scanned host - never one per host, even for a single one, so
 the output is always valid JSON/SARIF/XML. **The exit code keeps its Nagios
 meaning under every format** (`0`/`1`/`2`/`3`), so a CI step can gate on it
-exactly the way an Icinga check does; the document is a separate, additional
+the way an Icinga check does; the document is a separate, additional
 artifact.
 
 - `json` is a JSON array of the same document described in
@@ -788,8 +788,8 @@ OpenCloud 7.3.0 on cloud.example.com, rating: F, last scanned: 2026-08-12 15:18:
 Release lifecycle: 7.3 (rolling), out of support since 2026-08-03, upgrade to 7.4.0
 ```
 
-A supported line reports how much time is left, which is what makes an LTS
-instance worth monitoring at all:
+A supported line reports how much time is left, which matters most on an LTS
+instance:
 
 ```
 Release lifecycle: 4.0 (lts), supported until 2027-12-01 (476 days left)
@@ -1008,7 +1008,7 @@ Two rules always apply on top of the thresholds:
 
 > **A single critical finding does not page by default.** The worst finding
 > caps the rating rather than setting it: critical caps at `2` (`D`), which the
-> default `--critical 1` still reports as `WARNING`. That is deliberate - it
+> default `--critical 1` still reports as `WARNING`. That
 > keeps one exposed path from being indistinguishable from an end-of-life
 > instance. If a critical finding should wake somebody up, run with
 > `--critical 2`.
@@ -1098,7 +1098,7 @@ check-opencloud-security --host opencloud.example.com --check-hardening \
 ```
 
 The expiry must carry a timezone and the reason may not be empty; a record
-missing either is refused rather than quietly treated as permanent. At
+missing either is refused instead of being treated as permanent. At
 `2026-12-31T00:00:00Z` the check alerts again with no configuration change.
 Every configured waiver - active, expired, and the ones that matched nothing -
 is listed under `waivers` in the result document.
@@ -1163,7 +1163,7 @@ give: `5` up to date, `4` a patch update pending, `3` a whole release line
 behind, `2` known vulnerabilities, `1` critical or high ones, `0` end of life.
 Failed additional checks then cap it by severity - `critical` to `2`, `high` to
 `3`, `medium` to `4`, `low` to `5`. A check that failed but did not decide the
-outcome is still listed, marked as such, so nothing looks quietly dropped.
+outcome is still listed and marked as such, so the list stays complete.
 
 Without `--debug` the output stays the size a monitoring system wants. The
 same breakdown is always present in the scan result as `ratingExplanation`, so
@@ -1205,9 +1205,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 ```
 
-Three things about that list are worth knowing before acting on it:
+Before acting on that list, note three things:
 
-- **The order is not arbitrary.** Findings of the same severity share one
+- **The order matters.** Findings of the same severity share one
   ceiling, so fixing the first of three medium findings changes nothing at
   all. Steps that gain nothing on their own are still listed - with `still
   4/5` rather than `then 5/5` - because leaving them out would suggest they
@@ -1219,8 +1219,8 @@ Three things about that list are worth knowing before acting on it:
   separately as blocked, and they bound how far the plan can reach. See
   [Measures that are not settings](docs/hardening.md#measures-that-are-not-settings).
 
-Waived findings are listed too, marked as waived: a waiver silences an alert,
-it does not fix anything, and the plan says so.
+Waived findings are listed too, marked as waived, because a waiver silences
+an alert without fixing anything.
 
 The same plan appears on the web dashboard, in the JSON, CSV, SARIF and PDF
 exports, and as the `plan_remediation` MCP tool.
@@ -1353,8 +1353,8 @@ discarded. Drift never creates a finding and never changes the exit code.
 A baseline also remembers which checks reached a conclusion. When a check
 that was measured before is **inconclusive** now, the run warns - `OK` becomes
 `WARNING` - even though the grade has not moved. The rating, its perfdata and
-the findings are left exactly as the evidence gave them; it is the scan that
-saw less, not the instance that changed. `--warn-on-new` does not suppress it.
+the findings are left as the evidence gave them, because the scan saw less
+and the instance itself may not have changed. `--warn-on-new` does not suppress it.
 
 **[Reporting only what changed](docs/baseline.md)** has the diff formats
 (`text`, `markdown`, `slack`, `json`), what counts as a regression, the

@@ -258,9 +258,9 @@ The scanner chooses the OpenCloud paths it knows itself; nothing appended by
 a visitor can become a path, parameter or payload in an outgoing request.</p>
 <p>Waivers are checked against an allow-list built from the hardening catalogue,
 so <code>*</code> and <code>debugPort:*</code> are dropped rather than honoured. A wildcard waiver
-on a public service would be a blindfold with a nice name. Flags OpenCloud
-hardcodes are not offered either: waiving a finding nobody can fix would imply
-somebody could.</p>
+on a public service would hide every finding at once. Flags OpenCloud
+hardcodes are not offered either, because nobody can fix those findings and
+a waiver would suggest otherwise.</p>
 <h2 id="configuration">Configuration</h2>
 <p>Every setting is an environment variable, read once at startup.</p>
 <table>
@@ -649,7 +649,7 @@ somebody could.</p>
 </tr>
 </tbody>
 </table>
-<p><code>COS_WEB_RELEASES_MODE</code> is <code>off</code> by default on purpose: a public deployment
+<p><code>COS_WEB_RELEASES_MODE</code> is <code>off</code> by default: a public deployment
 that queries the release feed once per visitor gets rate limited, and then
 every visitor's update check fails at once. The release schedule still decides
 end of life without it.</p>
@@ -709,7 +709,7 @@ behind the SSRF guard from being used as an amplifier. The cooldown runs last,
 so a request that was going to be refused anyway does not consume the slot for
 a target it never scanned.</p>
 <h2 id="queueing-rather-than-refusing">Queueing rather than refusing</h2>
-<p>More visitors than workers is a queue, not an outage. Every request that
+<p>When there are more visitors than workers, requests queue. Every request that
 passes validation gets a uuid and a <strong>202</strong> (or a <strong>303</strong> from the form), and
 waits in a FIFO. The scan page shows the position - <em>"Scan queued. Position in
 line: #2 of 7"</em> - and the polling script updates it every two seconds until a
@@ -780,7 +780,7 @@ exempt from.</p>
 </tr>
 <tr>
 <td>The two scans describe different instances</td>
-<td><strong>422</strong>, not compared. "Did the fix work" is a question about one instance, and two hosts compared by accident is a wrong answer nobody notices - <code>check-opencloud-scanner diff</code> refuses them too. See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0059-a-comparison-refuses-two-different-instances.md">ADR 0059</a></td>
+<td><strong>422</strong>, not compared. "Did the fix work" is a question about one instance, and an accidental comparison of two hosts would give a wrong answer that is easy to miss - <code>check-opencloud-scanner diff</code> refuses them too. See <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0059-a-comparison-refuses-two-different-instances.md">ADR 0059</a></td>
 </tr>
 </tbody>
 </table>
@@ -985,7 +985,7 @@ scanning target here however public it looks:</p>
   <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0043-an-operators-exclusion-outranks-every-allowance.md">ADR 0043</a>;</li>
 <li>an entry that is none of those four shapes <strong>refuses startup</strong>, in the web
   process and in the worker alike. A typo here is otherwise invisible: the
-  service comes up, answers normally, and scans exactly what it was told not
+  service comes up, answers normally, and scans the addresses it was told not
   to.</li>
 </ul>
 <p>The refusal a visitor sees says only that the service has been asked not to
@@ -1080,7 +1080,7 @@ certificate verification and then on port 80 as the plugin does for an
 operator looking for the endpoint that works. Silence is still retried, since
 that may only be an untrusted certificate.</p>
 <p>A legitimate operator whose own instance is down can meet the block too,
-after five attempts. That is the trade: the message says why, and points at
+after five attempts. The message says why, and points at
 running the scanner locally, which has no such limit.</p>
 <p><strong>The operator's area shows the guard working</strong> - networks blocked right now,
 and blocks, strikes and spent daily caps today and over seven days - as
@@ -1192,7 +1192,7 @@ then has to put the trail somewhere that outlives the stack:</p>
 volumes:
   audit_log:
 </code></pre>
-<p>Three things follow from that, and each is deliberate:</p>
+<p>Three things follow from that:</p>
 <ul>
 <li><strong>The records go to the file instead of, not as well as, the output.</strong> The
   ordinary log is the one place this service keeps free of targets and client
@@ -1201,8 +1201,8 @@ volumes:
 <li><strong>The file is owner-readable only</strong>, rotated generations included. A mounted
   volume is readable by whoever reaches the host it sits on.</li>
 <li><strong>A file that cannot be written stops the process</strong>, with the path in the
-  message. Reporting an audit trail that silently goes nowhere is worse than
-  keeping none, and it is the same reasoning as
+  message. Otherwise the service would report an audit trail that is not being
+  written. The same reasoning is in
   <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0008-refuse-to-start-without-the-encryption-key.md">ADR 0008</a>.</li>
 </ul>
 <p>A named volume is the simplest answer and the one
@@ -1292,8 +1292,8 @@ whatever the client sent. A CDN in front of an ingress is two hops and needs
 <code>COS_WEB_TRUSTED_PROXY_HOPS=2</code>.</p>
 <p>Counting too few is safe - the address recorded is a proxy's rather than the
 visitor's. Counting more hops than there really are is what to avoid: it walks
-the reader back into the part of the header a client controls, which is
-exactly the forgery the setting exists to prevent. When in doubt, count the
+the reader back into the part of the header a client controls, and so
+allows the forgery the setting exists to prevent. When in doubt, count the
 proxies you operate and no others.</p>
 <p>An entry that is not an IP address is ignored rather than counted, so an
 obfuscated identifier cannot become somebody's rate-limit bucket.</p>
@@ -1451,15 +1451,15 @@ for the full result.</p>
 <p>The badge carries the letter and nothing the scanned instance chose: no
 hostname, no product string, no version. The colour is the dashboard's own
 tone for that rating, so a badge and the page it links to cannot disagree.</p>
-<p><strong>It lasts exactly as long as the scan does.</strong> With the default
+<p><strong>It lasts as long as the scan does.</strong> With the default
 <code>COS_WEB_RESULT_TTL</code> of one hour, an image embedded somewhere permanent stops
 resolving within the hour and answers <strong>404</strong> like any other expired uuid.
 That makes it right for a ticket, a chat message or a status dashboard while a
 result is current, and wrong for a README - unless the deployment serving it
 keeps results far longer, which is a decision with its own consequences for
-everybody whose scans it stores. There is deliberately no endpoint that
+everybody whose scans it stores. No endpoint
 renders a badge for a <em>hostname</em>: that would be a permanent, guessable handle
-on somebody's instance, and this service has none of those.</p>
+on somebody's instance, which this service does not offer.</p>
 <p><strong>200</strong> with <code>image/svg+xml</code> and <code>Cache-Control: no-store</code>, <strong>409</strong> while the
 scan has not finished, <strong>404</strong> for an unknown or expired uuid. The <code>no-store</code>
 is the service-wide default it never opts out of: every route that is publicly
@@ -1530,9 +1530,9 @@ It contains no scan data and no listing mechanism.</p>
 <h3 id="post-mcp"><code>POST /mcp</code></h3>
 <p>The <a href="https://modelcontextprotocol.io">Model Context Protocol</a> endpoint, over
 streamable HTTP, stateless, with JSON responses. It is the agent-facing
-execution layer, not a second implementation: every tool calls this
-application's own HTTP API in process, so an agent meets exactly the rate
-limits, the SSRF guard and the purge authorisation a browser meets.</p>
+execution layer and does not reimplement the service: every tool calls this
+application's own HTTP API in process, so an agent meets the same rate
+limits, SSRF guard and purge authorisation as a browser.</p>
 <p>Seven tools, one per user-level task rather than one per endpoint:
 <code>scan_instance</code>, <code>scan_instances</code>, <code>get_scan_result</code>, <code>plan_remediation</code>,
 <code>compare_scans</code>, <code>export_scan</code> and <code>erase_instance_data</code>. Seven prompts name
@@ -1670,8 +1670,7 @@ deployment, so a reader's history survives the service moving host.</p>
 page, the nine explanation/index pages and every generated CLI document, and
 takes each <code>lastmod</code> from the template that renders it, so it cannot drift
 from the pages that actually exist. None of them ever mentions a result: the
-uuid is the whole of the authorisation, and a listing is exactly what this
-service does not have. <code>robots.txt</code> disallows <code>/scan/</code>, <code>/api/</code>, the schema
+uuid is the only authorisation, and this service has no listing of results. <code>robots.txt</code> disallows <code>/scan/</code>, <code>/api/</code>, the schema
 and the health probe, and points at the sitemap.</p>
 <p><code>agents.txt</code> follows the <a href="https://agents-txt.com">agents-txt.com</a> convention
 instead: capability blocks of <code>Key: value</code> directives rather than

@@ -92,7 +92,7 @@ WARNING: 1 previously measured check(s) are now inconclusive; the rating is unch
 Coverage regressed (1): previously measured, now inconclusive: caaRecord (timeout) - the rating is unaffected.
 ```
 
-Das ist bewusst von der Sicherheitsbewertung getrennt. Note, Perfdata und
+Das ist von der Sicherheitsbewertung getrennt. Note, Perfdata und
 Befunde bleiben, was die Messung ergeben hat; nur der Alarmstatus ändert sich,
 und nur von `OK` auf `WARNING`. Ein Lauf, der schon `WARNING` oder `CRITICAL`
 ist, behält seine Meldung und bekommt die Zeile dazu. `--warn-on-new`

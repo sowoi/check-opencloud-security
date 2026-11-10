@@ -88,9 +88,9 @@ rather than a stale one - which is why `opencloud_security_scrape_success` is
 the first thing the dashboard shows.
 
 `opencloud_security_end_of_life` is a separate family rather than a negative
-day count on purpose. A rolling or production release whose end of life has
+day count. A rolling or production release whose end of life has
 not been announced reports no days at all, and "unknown" must not read as
-"expiring today" in the one alert nobody may miss.
+"expiring today" in an alert this important.
 
 
 ## What there is to graph
@@ -153,9 +153,9 @@ mv "$TMP" "$OUT"
 chmod 644 "$OUT"
 ```
 
-`opencloud_scan_success` is not decoration. Without it a failed scan looks
-exactly like a healthy instance, because the other metrics simply keep their
-last value until the file is overwritten.
+Keep `opencloud_scan_success`. Without it a failed scan looks like a healthy
+instance, because the other metrics keep their last value until the file is
+overwritten.
 
 `lifecycle.daysRemaining` is `null` for a release whose end of life is not
 dated yet - a current rolling or production release, which expires when its

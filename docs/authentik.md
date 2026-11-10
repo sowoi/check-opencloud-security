@@ -145,7 +145,7 @@ inboxes.
 
 Every setting is a variable in `docker/.env`, and both Authentik services read
 them - the server sends the test message, the worker sends everything else, so
-configuring one and not the other works until the day it matters:
+with only one of them configured, some messages are sent and others are not:
 
 | Variable | Default | What it is |
 |:---------|:--------|:-----------|
@@ -227,7 +227,7 @@ provider by hand, set it too.
 
 **The client ID is the audience.** It lives in `.env`, which is where the web
 application reads it from as `COS_WEB_MCP_AUTH_AUDIENCE` - the two sides agree
-because they read the same line, not because you copied one into the other.
+because they read the same line, so nothing has to be copied.
 
 Per-provider issuer mode gives:
 
@@ -473,7 +473,7 @@ shows an error instead of sending them back:
 docker compose exec authentik_worker ak shell -c "from authentik.core.models import Group; g = Group.objects.get(name='opencloud-scanner-operators'); print('IN_GROUP', g.users.filter(username='scanokko').exists())" 2>&1 | grep -E 'IN_GROUP|Error|DoesNotExist'
 ```
 
-And the negative case, which is worth the minute: an account that is *not* in
+Test the negative case as well: an account that is *not* in
 the group must get Authentik's error, not the area. **Events → Logs** records
 every refusal with the account and the application it was refused.
 
@@ -522,7 +522,7 @@ application mints tokens for all of them, with the same issuer and the same
 signing key, so an `aud` that is never compared makes every one of those
 tokens a key to `/mcp` - including one minted for an application anybody in
 the directory may use. Leaving `COS_WEB_MCP_AUTH_AUDIENCE` empty therefore
-stops the service rather than quietly widening it, and a token that carries
+stops the service instead of widening access, and a token that carries
 no `aud` at all is refused for the same reason. The stack in
 `docker/docker-compose.authentik.yml` sets it from `AUTHENTIK_CLIENT_ID` and
 will not start without it.
@@ -545,7 +545,7 @@ place that decision exists.
 ### A group, and the binding that makes it mean something
 
 Do this once, before the first user. A binding on a group is one thing to
-review later; a binding per person is a list nobody prunes.
+review later; bindings per person pile up and are rarely cleaned out.
 
 1. **Directory → Groups → Create**. Name it `opencloud-scanner`. Leave
    *Superuser privileges* off - this group is about one application, and an
@@ -579,7 +579,7 @@ Then, on the user's page:
   some other route when there is no mail server.
 - **Groups → Add to existing group** → `opencloud-scanner`.
 
-That is the whole of it for somebody who signs in through a browser: their MCP
+Somebody who signs in through a browser needs nothing more: their MCP
 client takes them through Authentik, they log in, and the client gets a token.
 Nothing has to be copied, and there is no per-user configuration on the
 scanner side at all.
@@ -609,9 +609,8 @@ issue a new one from **Directory → Tokens and App passwords** before then. And
 a service account cannot use the admin or user interface at all, which is the
 point of it: it has credentials and no login.
 
-Give one to each caller rather than sharing one. They cost nothing, and the
-difference shows the day you need to revoke exactly one of them without
-telephoning everybody else.
+Give one to each caller rather than sharing one. They cost nothing, and you can
+then revoke one of them without affecting the others.
 
 ## Getting a token
 
@@ -678,7 +677,7 @@ endpoint out. It is a poor one to leave in place: every caller using it is the
 same account, so revoking one revokes all of them, and the credential it turns
 on is the provider secret the scan service also reads. Once the binding above
 exists, remember to add that generated account to the group as well, or this
-stops working - which is the correct outcome, and the moment to switch to a
+stops working. That is the intended result, and a good time to switch to a
 service account of your own.
 
 ### As a person
@@ -765,9 +764,9 @@ With the endpoint open it travels in `Authorization`, because nothing else is
 using that header.
 
 **With a sign-in configured, `Authorization` belongs to the identity provider,
-and the purge credential moves to `X-Purge-Authorization`.** The fallback is
-deliberately not kept: reading an agent's identity token as if it were an
-operator credential is exactly the confusion worth refusing.
+and the purge credential moves to `X-Purge-Authorization`.** No fallback
+is kept, so that an agent's identity token is never read as an
+operator credential.
 
 ```json
 "headers": {
@@ -784,7 +783,7 @@ never as an argument.
 Two hosts, two requirements.
 
 **Authentik builds the issuer out of the `Host` header it is handed.** A proxy
-that rewrites it gives every token an `iss` nobody will accept, and the
+that rewrites it gives every token an `iss` that is rejected, and the
 symptom is confusing because everything else works. Pass `Host` and
 `X-Forwarded-Proto` through unchanged, and add the proxy's egress address to
 `AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS` if it is outside the private ranges.

@@ -246,7 +246,7 @@ compartido, queda a cargo de lo que usted ya utilice.
 | Missing coverage | Hosts esperados sin informe, hosts cuyo último análisis falló, informes antiguos e informes sin bloque de cobertura |
 | Checks not evaluated | Comprobaciones que los análisis omitieron o no pudieron decidir, y en cuántos hosts |
 
-Un informe es prueba del día en que se escribió, así que dos cosas se
+Un informe describe el día en que se escribió, así que dos cosas se
 vuelven a evaluar respecto a **hoy**:
 
 - **La versión.** La versión registrada se sitúa de nuevo en el calendario de
@@ -421,7 +421,7 @@ su ejecución en un contenedor se explica en
 
 El token debe tener entonces al menos 32 caracteres y no ser el ejemplo de
 `secrets/scanner_token.example`: nada limita cuántas veces puede adivinarse,
-así que su longitud es toda su fuerza. `openssl rand -hex 32` genera uno.
+así que su longitud es su única protección. `openssl rand -hex 32` genera uno.
 
 No es la aplicación web pública. Esa es
 [el servicio público de análisis](../webapp.md).
@@ -471,9 +471,9 @@ check-opencloud-scanner configure --export-monitoring both
 | `check-opencloud-security.timer` | `OnCalendar=daily`, con un retardo aleatorio para que muchos hosts detrás de una misma dirección no alcancen el límite de peticiones del canal de publicaciones en el mismo segundo |
 | `check-opencloud-security.env` | Las variables `COS_` de la unidad, escritas con lectura solo para el propietario |
 
-Dos cosas son deliberadas. **No se instala nada**: los archivos se escriben
+Se aplican dos límites. **No se instala nada**: los archivos se escriben
 donde fue la configuración y las órdenes que los instalarían se imprimen, así
-que lo que llega a `/etc` es algo que has leído antes. Y **no se escribe
+que lo que llega a `/etc` es algo que ha leído antes. Y **no se escribe
 ninguna credencial en ellos**: una URL de webhook o un token de publicación se
 queda en el archivo de configuración, legible solo por el propietario,
 mientras que un objeto de Icinga y un archivo de unidad no lo son. Ambos

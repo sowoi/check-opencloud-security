@@ -155,8 +155,8 @@ bit set, and reads whether the resolver validated the answer, whether the
 answer carried signatures, and whether the resolver understood the question
 at all.
 
-That last part is why the finding is sometimes simply absent. A resolver that
-does not speak DNSSEC produces exactly the same silence an unsigned zone
+That last part is why the finding is sometimes absent. A resolver that
+does not speak DNSSEC answers the same way an unsigned zone
 does, and reporting it would fail every scan run from behind such a resolver
 for a reason that has nothing to do with the instance. So:
 
@@ -179,8 +179,8 @@ The certificate names an OCSP responder, but the server does not attach the
 revocation answer to the handshake - so every client has to ask the
 authority itself, which tells that authority who is visiting, and is usually
 skipped rather than treated as a failure when the responder is slow. This is
-a low finding for a reason: most current authorities, Let's Encrypt among
-them, no longer publish a responder at all, and the check simply does not
+only a low finding: most current authorities, Let's Encrypt among
+them, no longer publish a responder at all, and the check does not
 apply to those certificates.
 
 ## 11. Was the certificate published to a log: `tlsCertificateTransparency`
@@ -260,7 +260,7 @@ needing to be told which case it is looking at:
 3. Plain HTTP - `httpsAvailable` (critical).
 
 `--insecure` (`COS_INSECURE`) skips step 1's verification requirement. The
-untrusted chain is still listed in the output; it simply stops counting
+untrusted chain is still listed in the output but no longer counts
 against the rating. Use it only when you intentionally accept an untrusted
 certificate for that instance.
 

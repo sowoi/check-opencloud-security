@@ -220,10 +220,10 @@ parámetro o una carga útil de una solicitud saliente.
 
 Las exclusiones se comprueban con una lista permitida construida a partir del
 catálogo de refuerzos, así que `*` y `debugPort:*` se descartan en lugar de
-aplicarse. Una exclusión con comodín en un servicio público sería una venda en
-los ojos con un nombre bonito. Tampoco se ofrecen los indicadores que OpenCloud
-fija en el código: excluir un hallazgo que nadie puede corregir daría a
-entender que alguien podría.
+aplicarse. Una exclusión con comodín en un servicio público ocultaría todos
+los hallazgos a la vez. Tampoco se ofrecen los indicadores que OpenCloud
+fija en el código: nadie puede corregir esos hallazgos, y una exclusión
+daría a entender lo contrario.
 
 ## Configuración {#configuration}
 
@@ -307,7 +307,7 @@ Cada ajuste es una variable de entorno que se lee una vez al arrancar.
 | `COS_WEB_WEBHOOK_SECRET` | *(ninguno)* | Se lee al arrancar, pero el servicio web no lo usa, porque no envía webhooks; los webhooks firmados son el `--webhook-secret` del complemento. Se enumera para que definirlo no se confunda con una errata |
 | `COS_WEB_ENCRYPTION_KEY_<n>` | *(ninguno)* | Una clave de 32 bytes como 64 caracteres hexadecimales. El `<n>` más alto cifra y los inferiores siguen descifrando, que es la forma de rotar una clave |
 
-`COS_WEB_RELEASES_MODE` está en `off` por defecto a propósito: un despliegue
+`COS_WEB_RELEASES_MODE` está en `off` por defecto: un despliegue
 público que consulta el canal de versiones una vez por visitante acaba
 limitado por frecuencia, y entonces la comprobación de actualizaciones falla a
 la vez para todos los visitantes. El calendario de versiones sigue decidiendo
@@ -381,7 +381,7 @@ que nunca analizó.
 
 ## Poner en cola en lugar de rechazar {#queueing-rather-than-refusing}
 
-Más visitantes que workers es una cola, no una caída. Cada solicitud que supera
+Cuando hay más visitantes que workers, las solicitudes esperan en cola. Cada solicitud que supera
 la validación recibe un uuid y un **202** (o un **303** desde el formulario), y
 espera en una cola FIFO. La página del análisis muestra la posición
 (*"Scan queued. Position in line: #2 of 7"*), y el script de consulta la
@@ -608,7 +608,7 @@ COS_WEB_BLOCKED_TARGETS="opencloud.example.com;.example.org;203.0.113.0/24"
 - una entrada que no tiene ninguna de esas cuatro formas **impide el
   arranque**, tanto en el proceso web como en el worker. De lo contrario, una
   errata aquí sería invisible: el servicio arranca, responde con normalidad y
-  analiza exactamente lo que se le dijo que no analizara.
+  analiza las direcciones que se le dijo que no analizara.
 
 El rechazo que ve un visitante solo dice que se ha pedido al servicio que no
 analice esa dirección. Qué entrada ha coincidido es configuración del
@@ -870,7 +870,7 @@ volumes:
   audit_log:
 ```
 
-De eso se derivan tres cosas, y todas son deliberadas:
+De eso se derivan tres cosas:
 
 - **Los registros van al archivo en lugar de a la salida, no además de a
   ella.** El registro normal es el único lugar que este servicio mantiene libre
@@ -880,8 +880,8 @@ De eso se derivan tres cosas, y todas son deliberadas:
   generaciones rotadas. Un volumen montado es legible por quien llegue al host
   en el que está.
 - **Un archivo en el que no se puede escribir detiene el proceso**, con la ruta
-  en el mensaje. Presentar un registro de auditoría que en silencio no va a
-  ninguna parte es peor que no tener ninguno, y es el mismo razonamiento que
+  en el mensaje. De lo contrario, el servicio anunciaría un registro de auditoría que no se
+  está escribiendo. El mismo razonamiento figura en
   [ADR 0008](../../adr/0008-refuse-to-start-without-the-encryption-key.md).
 
 Un volumen con nombre es la respuesta más sencilla y la primera que ofrece
@@ -999,7 +999,7 @@ delante de un ingress son dos saltos y necesita
 Contar de menos es seguro: la dirección registrada es la de un proxy y no la
 del visitante. Lo que hay que evitar es contar más saltos de los que hay
 realmente: eso lleva la lectura a la parte de la cabecera que controla el
-cliente, que es justo la falsificación que el ajuste pretende impedir. En caso
+cliente, y permite así la falsificación que el ajuste pretende impedir. En caso
 de duda, cuente los proxies que gestiona usted y ninguno más.
 
 Una entrada que no es una dirección IP se ignora en lugar de contarse, para que
@@ -1230,10 +1230,10 @@ como cualquier otro uuid caducado. Eso la hace adecuada para una incidencia, un
 mensaje de chat o un panel de estado mientras un resultado está vigente, e
 inadecuada para un README, salvo que el despliegue que la sirve conserve los
 resultados mucho más tiempo, lo que es una decisión con sus propias
-consecuencias para todas las personas cuyos análisis guarda. A propósito, no
+consecuencias para todas las personas cuyos análisis guarda. No
 hay ningún punto de acceso que genere una insignia para un *nombre de host*:
-sería un identificador permanente y adivinable de la instancia de alguien, y
-este servicio no tiene ninguno.
+sería un identificador permanente y adivinable de la instancia de alguien,
+algo que este servicio no ofrece.
 
 **200** con `image/svg+xml` y `Cache-Control: no-store`, **409** mientras el
 análisis no ha terminado y **404** para un uuid desconocido o caducado. El
@@ -1336,7 +1336,7 @@ mecanismo de enumeración.
 
 El punto de acceso del [Model Context Protocol](https://modelcontextprotocol.io),
 por streamable HTTP, sin estado y con respuestas JSON. Es la capa de ejecución
-para agentes, no una segunda implementación: cada herramienta llama dentro del
+para agentes y no reimplementa el servicio: cada herramienta llama dentro del
 proceso a la propia API HTTP de esta aplicación, así que un agente se encuentra
 exactamente con los mismos límites de frecuencia, protección contra SSRF y
 autorización de purga que un navegador.
@@ -1490,7 +1490,7 @@ canales se publicó y cuándo deja de recibir correcciones.
 Ambos se construyen con las mismas funciones que usan las páginas, así que un
 canal no puede describir un aviso de forma distinta a `/catalogue`. Son el
 motivo por el que un análisis ejecutado hoy puede calificar una instancia con
-más dureza que el mismo análisis el mes pasado, algo que conviene saber: un
+más dureza que el mismo análisis el mes pasado: un
 suscriptor se entera de que la base de datos ha cambiado sin tener que volver a
 analizar para descubrirlo.
 
@@ -1515,8 +1515,8 @@ Los tres se generan; nunca son archivos en disco. El mapa del sitio enumera la
 página de inicio, las nueve páginas explicativas y de índice y todos los
 documentos de la CLI generados, y toma cada `lastmod` de la plantilla que lo
 genera, así que no puede divergir de las páginas que existen realmente. Ninguno
-menciona nunca un resultado: el uuid es toda la autorización, y una
-enumeración es exactamente lo que este servicio no tiene. `robots.txt`
+menciona nunca un resultado: el uuid es la única autorización, y este
+servicio no tiene ninguna enumeración de resultados. `robots.txt`
 prohíbe `/scan/`, `/api/`, el esquema y la sonda de estado, y apunta al mapa
 del sitio.
 

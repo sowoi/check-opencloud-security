@@ -8,7 +8,7 @@ lit le fichier public `/config.json` pour vérifier quelles origines le client
 intégré considère comme fiables.
 
 Si `/config.json` ne peut pas être lu, ou s'il ne publie aucun bloc `embed`,
-les deux contrôles réussissent : l'intégration n'est simplement pas configurée,
+les deux contrôles réussissent : l'intégration n'est pas configurée,
 il n'y a donc aucune restriction d'origine susceptible d'échouer.
 
 <!-- TOC -->

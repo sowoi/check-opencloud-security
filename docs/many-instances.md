@@ -29,8 +29,8 @@ check-opencloud-security --check-hardening \
 ```
 
 This is the right answer when the instances are alike. Everything after
-`--host` applies to all of them, so the moment one instance needs `--insecure`
-or a waiver the others do not, you have outgrown it.
+`--host` applies to all of them, so once one instance needs `--insecure`
+or a waiver the others do not, this form no longer fits.
 
 Aggregating also loses the per-host history your monitoring system would
 otherwise keep. If you want one red service per broken instance rather than
@@ -185,8 +185,8 @@ Two things to get right:
   treat it as a host it has never seen.
 
 A release past its end of life keeps alerting on every run regardless of the
-baseline, which is the point: it receives no security fixes, so it gets worse
-every day it stays up. See
+baseline, because it receives no security fixes and the risk grows the longer
+it stays up. See
 [Reporting only what changed](../README.md#reporting-only-what-changed).
 
 Add `--self-update-check` on one host in the fleet - not all of them - to be

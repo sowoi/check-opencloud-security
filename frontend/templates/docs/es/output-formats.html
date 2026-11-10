@@ -37,9 +37,9 @@ nada posterior tiene que tratar de forma especial una ejecución con un solo
 host.</p>
 <p><strong>El código de salida conserva su significado de Nagios con cualquier
 formato</strong>: <code>0</code> (OK), <code>1</code> (WARNING), <code>2</code> (CRITICAL), <code>3</code> (UNKNOWN). Un paso de CI
-se condiciona al código de salida exactamente igual que una comprobación de
-Icinga; el documento que producen estas opciones es un artefacto adicional e
-independiente, no un sustituto. Los dos formatos de métricas, <code>prometheus</code> y
+se condiciona al código de salida igual que una comprobación de
+Icinga; el documento que producen estas opciones es un artefacto adicional
+y no lo sustituye. Los dos formatos de métricas, <code>prometheus</code> y
 <code>otlp</code>, son la excepción: informan sobre un análisis en lugar de juzgarlo, así
 que un hallazgo viaja como una muestra y el proceso termina con <code>0</code>.</p>
 <!-- TOC -->

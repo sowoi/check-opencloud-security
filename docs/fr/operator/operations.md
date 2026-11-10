@@ -80,7 +80,7 @@ Options utiles :
 | `--check` | désactivé | Code de sortie non nul si le fichier est périmé ; n’écrit rien |
 | `--allow-failure` | désactivé | Sortir avec `0` si le flux est injoignable (pour les exécutions planifiées) |
 
-**Une actualisation ne fait qu’ajouter.** Un avis que le flux ne mentionne plus reste dans le fichier, car un flux qui a oublié une vulnérabilité ne l’a pas corrigée. Supprimer une entrée est une modification délibérée d’une personne, qui est aussi le seul moyen d’ajouter quelque chose qu’OSV ne connaît pas.
+**Une actualisation ne fait qu’ajouter.** Un avis que le flux ne mentionne plus reste dans le fichier, car un flux qui a oublié une vulnérabilité ne l’a pas corrigée. Une entrée n’est supprimée qu’à la main, et une modification manuelle est aussi le seul moyen d’ajouter quelque chose qu’OSV ne connaît pas.
 
 Après l’exécution, examinez le diff avant de valider. Ce que vous voulez voir : de nouvelles entrées et des plages enrichies. Ce qui doit vous inquiéter : des entrées qui disparaissent, ou une entrée qui ne nomme aucune plage de versions (elle correspondrait à toutes les versions jamais publiées).
 
@@ -105,10 +105,10 @@ python scripts/update_release_schedule.py --no-readme # leave the README block a
 Il écrit **les deux** : `opencloud_local_scan/data/release_schedule.json` et le bloc généré de `README.md` entre `<!-- release-schedule:start -->` et `<!-- release-schedule:end -->`.
 
 - Ne modifiez jamais ce bloc du README à la main. L’actualisation suivante l’écrase, et `tests/test_update_script.py` échoue s’il ne correspond pas au calendrier livré à côté.
-- Supprimer les marqueurs est une erreur, pas une opération neutre : un README qui cesse discrètement de se mettre à jour est pire qu’un README qui ne l’a jamais fait.
+- Supprimer les marqueurs est une erreur, car sinon le README cesserait de se mettre à jour sans que personne le remarque.
 - Le texte et les exemples *autour* du bloc sont écrits à la main et nomment volontairement d’anciennes versions. N’y touchez pas.
 
-La page du cycle de vie est le seul endroit où le *type* de version est indiqué. La liste des versions GitHub ne distingue pas une version rolling d’une version de production : si la page est indisponible, il n’y a pas de source de repli, et le calendrier reste simplement tel quel.
+La page du cycle de vie est le seul endroit où le *type* de version est indiqué. La liste des versions GitHub ne distingue pas une version rolling d’une version de production : si la page est indisponible, il n’y a pas de source de repli, et le calendrier reste tel quel.
 
 **Attendez-vous à ce qu’une version plus récente soit moins prise en charge qu’une plus ancienne.** Rolling, production et LTS sont publiées en parallèle. Ce n’est pas un bogue à corriger.
 
@@ -209,7 +209,7 @@ docker compose up --build
 # http://127.0.0.1:8811
 ```
 
-Le `docker/docker-compose.yml` livré construit déjà depuis la racine du dépôt (`context: ..`), il n’y a donc rien d’autre à faire. Sa seule limite pour les tests est la plus importante : il définit `COS_WEB_ALLOW_PRIVATE_TARGETS: "false"`, si bien que la protection SSRF refuse toute adresse privée, de bouclage ou lien-local, c’est-à-dire précisément là où vit votre instance OpenCloud de test. Vous obtenez le site, mais vous ne pouvez mener à bien aucune analyse d’une cible locale.
+Le `docker/docker-compose.yml` livré construit déjà depuis la racine du dépôt (`context: ..`), il n’y a donc rien d’autre à faire. Sa seule limite pour les tests est la plus importante : il définit `COS_WEB_ALLOW_PRIVATE_TARGETS: "false"`, si bien que la protection SSRF refuse toute adresse privée, de bouclage ou lien-local, et votre instance OpenCloud de test se trouve sur l’une d’elles. Vous obtenez le site, mais vous ne pouvez mener à bien aucune analyse d’une cible locale.
 
 ### La version avec l’assistant, celle qu’il vous faut {#the-wizard-version-which-is-the-one-you-want}
 
@@ -230,7 +230,7 @@ Ce que fait chaque partie, et pourquoi :
 
 | Option | Pourquoi elle compte ici |
 |:--|:--|
-| `--preset private` | Définit `COS_WEB_ALLOW_PRIVATE_TARGETS=true`, pour que l’analyse d’une instance locale soit tout simplement autorisée. Désactive aussi l’indexation et active le journal d’audit |
+| `--preset private` | Définit `COS_WEB_ALLOW_PRIVATE_TARGETS=true`, pour que l’analyse d’une instance locale soit autorisée. Désactive aussi l’indexation et active le journal d’audit |
 | `--non-interactive` | Accepte toutes les valeurs par défaut et génère les identifiants. Sans elle, l’assistant pose les questions une à une, avec une explication et un exemple de réponse pour chacune |
 | `--image-source build` | Construit le code de ce checkout. Sans elle, la pile télécharge l’image publiée sur Docker Hub, qui est la valeur par défaut et pas ce que vous testez |
 | `--output-dir ~/scan-test` | **Écrit hors du dépôt.** Voir l’avertissement ci-dessous |
@@ -271,7 +271,7 @@ docker compose -f docker-compose.local.yml -f docker-compose.override.yml up -d
 
 Désormais, une modification d’un modèle, de `app.css` ou de tout fichier sous `frontend/static/js/` apparaît au prochain chargement de page. Ce qui nécessite encore un redémarrage :
 
-- tout ce qui se trouve sous `webapp/` : le Python est intégré à l’image, et uvicorn tourne volontairement sans `--reload` ;
+- tout ce qui se trouve sous `webapp/` : le Python est intégré à l’image, et uvicorn tourne sans `--reload` ;
 - `frontend/static/llms.txt` et `llms-full.txt`, lus une seule fois au démarrage ;
 - `frontend/templates/docs/*.html`, que l’on régénère avec `scripts/build_frontend_documentation.py` au lieu de les modifier.
 
@@ -283,7 +283,7 @@ Les analyses s’exécutent **depuis le conteneur du worker** : `localhost` dans
 
 Sans instance réelle, vous pouvez tout de même exercer l’essentiel du frontend : le formulaire, la validation, la file d’attente et les états de progression, le 404 d’un uuid expiré, le catalogue, les pages de documentation et toutes les pages statiques. Une analyse qui ne parvient pas à se connecter se termine comme analyse *échouée* et affiche la page d’échec, qui mérite elle aussi un coup d’œil.
 
-`tests/fake_opencloud.py` est un vrai serveur HTTP piloté par une dataclass `InstanceBehaviour` ; c’est la manière honnête d’afficher une page de *résultat* avec des constats sans avoir besoin d’un déploiement OpenCloud.
+`tests/fake_opencloud.py` est un vrai serveur HTTP piloté par une dataclass `InstanceBehaviour` ; il permet d’afficher une vraie page de *résultat* avec des constats sans avoir besoin d’un déploiement OpenCloud.
 
 ### La démonter {#tearing-it-down}
 
@@ -330,7 +330,7 @@ La bonne réponse à « l’actualisation a été refusée » est donc d’exami
 
 ## L’espace d’exploitation sous /admin {#the-operators-area-at-admin}
 
-Facultatif, désactivé par défaut, et il vaut mieux en connaître la forme avant de l’activer.
+Facultatif et désactivé par défaut. Lisez cette section avant de l’activer.
 
 ```bash
 COS_WEB_ADMIN_ENABLED=true
@@ -342,7 +342,7 @@ L’assistant demande les trois (`docker/setup-wizard.py`, section de l’espace
 
 **Un opérateur est un nom d’utilisateur à deux endroits** : dans `COS_WEB_ADMIN_USERS` et dans le groupe `opencloud-scanner-operators` d’Authentik, auquel l’application `/admin` est liée. Le lien d’inscription de l’assistant fait les deux ; créer le compte et l’ajouter au groupe à la main, entrer dans `akadmin` avec une clé de récupération et le second facteur exigé à chaque connexion sont décrits dans [`docs/authentik.md`](../../../docs/authentik.md#an-operator-for-admin).
 
-**Désactivé signifie absent, pas protégé.** Sans `COS_WEB_ADMIN_ENABLED`, les routes ne sont jamais enregistrées et `/admin` répond le même 404 que tout autre chemin inconnu : un déploiement qui n’utilise pas l’espace ne révèle pas son existence.
+**Désactivé signifie que l’espace n’existe pas.** Sans `COS_WEB_ADMIN_ENABLED`, les routes ne sont jamais enregistrées et `/admin` répond le même 404 que tout autre chemin inconnu : un déploiement qui n’utilise pas l’espace ne révèle pas son existence.
 
 **Le service n’authentifie personne.** Un fournisseur proxy Authentik connecte l’opérateur et transmet l’identité sous forme d’en-têtes ; le service ne croit ces en-têtes que parce que le proxy envoie aussi `COS_WEB_ADMIN_PROXY_SECRET` dans `X-COS-Admin-Proxy`. Deux conséquences à bien intégrer :
 
@@ -391,10 +391,10 @@ L’onglet Versions ne change qu’à la publication d’une version : le workfl
 
 Ce qu’il ne peut délibérément pas faire : nommer une cible, un uuid, un résultat ou une adresse de client. Les statistiques sont des comptes et des paramètres, et la vue d’audit affiche les enregistrements pseudonymisés que le journal a déjà écrits : une empreinte est un HMAC tronqué sous un sel que détient le processus, et rien ne permet de remonter à l’original. La carte des exclusions est le seul endroit où apparaissent des adresses, et il s’agit de la configuration propre de l’opérateur, pas du trafic de quiconque ; `/admin/state`, le document que l’on copie dans un rapport d’incident, n’en indique que le nombre.
 
-**À propos du seul contrôle qui écrit.** Ajouter une exclusion est la seule action de l’espace qui modifie ce que fait le service, et elle a délibérément la forme la plus sûre possible :
+**À propos du seul contrôle qui écrit.** Ajouter une exclusion est la seule action de l’espace qui modifie ce que fait le service, et elle est conçue pour être aussi sûre que possible :
 
 - elle ne peut que **refuser** une analyse. Rien ici ne fait analyser quoi que ce soit au service, ne lui fait atteindre une cible ni n’élargit une limite : le pire qu’obtienne une session d’opérateur volée est un déploiement qui analyse moins qu’il ne pourrait ;
-- `COS_WEB_BLOCKED_TARGETS` est un **plancher**. Ces entrées figurent dans la liste sans contrôle à côté, et toute tentative d’en retirer une est refusée avec un renvoi vers l’environnement plutôt que de ne rien faire en silence : votre fichier compose reste la vérité sur ce qu’il déclare ;
+- `COS_WEB_BLOCKED_TARGETS` est un **plancher**. Ces entrées figurent dans la liste sans contrôle à côté, et toute tentative d’en retirer une est refusée avec un renvoi vers l’environnement au lieu de ne rien faire : votre fichier compose reste la vérité sur ce qu’il déclare ;
 - **les entrées ajoutées ici vivent dans Redis**, elles sont donc exactement aussi durables que votre Redis. Ce qui doit survivre à un vidage appartient à `COS_WEB_BLOCKED_TARGETS` ; la carte le rappelle sous la liste ;
 - **une entrée compte au plus 253 caractères**, la longueur maximale d’un nom d’hôte, dans cette carte comme dans `COS_WEB_BLOCKED_TARGETS`. Rien de plus long ne pourrait correspondre à une cible que le service accepterait : c’est donc refusé plutôt que stocké comme une exclusion qui n’exclut rien ;
 - **les deux moitiés sont comparées après analyse, pas comme du texte.** `Example.COM` dans votre fichier compose et `example.com` saisi ici sont une seule exclusion, pas deux : la carte refuse de stocker ce que l’environnement contient déjà et refuse de le retirer, quelle que soit l’orthographe ;
@@ -404,13 +404,13 @@ Voir l’[ADR 0044](../../../adr/0044-the-operator-area-may-write-the-exclusions
 
 **Les mesures indiquent leur âge.** Elles sont interrogées toutes les dix secondes, et une interrogation qui ne répond plus serait sinon impossible à distinguer d’un service où il ne se passe rien : les chiffres cessent simplement de bouger. La page indique donc l’âge de la dernière réponse, le fait avancer entre deux interrogations et dit clairement quand ce que vous voyez est la dernière mesure fournie par le service et non la mesure actuelle. Une tuile s’illumine quand sa valeur change. La page cesse d’interroger lorsque son onglet passe en arrière-plan et relit dès que vous y revenez.
 
-**Deux combinaisons de la carte d’exposition portent l’accent d’avertissement, et deux seulement.** Aucun des deux paramètres n’est une erreur en soi, c’est pourquoi ils sont signalés plutôt que refusés : servir `/mcp` sans jeton est la raison d’être d’un analyseur public, et analyser des adresses privées est tout l’intérêt d’un déploiement qui surveille son propre parc. Ce qui mérite un second regard, c’est *la paire* : `COS_WEB_ALLOW_PRIVATE_TARGETS` sur un déploiement qui demande aussi à être indexé est un analyseur que des inconnus peuvent trouver, pointé vers le réseau dans lequel il se trouve. Si c’est délibéré, le paramètre voulu était presque certainement `COS_WEB_ALLOW_INDEXING=false`.
+**Deux combinaisons de la carte d’exposition portent l’accent d’avertissement, et deux seulement.** Aucun des deux paramètres n’est une erreur en soi, c’est pourquoi ils sont signalés plutôt que refusés : servir `/mcp` sans jeton est la raison d’être d’un analyseur public, et un déploiement qui surveille son propre parc doit analyser des adresses privées. Ce qui mérite un second regard, c’est *la paire* : `COS_WEB_ALLOW_PRIVATE_TARGETS` sur un déploiement qui demande aussi à être indexé est un analyseur que des inconnus peuvent trouver, pointé vers le réseau dans lequel il se trouve. Si c’est délibéré, le paramètre voulu était presque certainement `COS_WEB_ALLOW_INDEXING=false`.
 
-**Une actualisation qui n’aboutit plus le dit, et dit quel échec la bloque.** Les deux tuiles de référence datent leurs propres mesures comme la carte au-dessus : `checked 6h ago` plutôt qu’un horodatage à soustraire de la date du jour, le moment exact sur l’élément pour qui le souhaite, et l’accent au-delà de deux cycles quotidiens. Lorsque la dernière exécution a échoué, la note le précise (*téléchargement impossible* ou *refusé par les contrôles*), si bien que la distinction `*_failed` / `*_rejected` est sur la page avant que quiconque n’appuie sur un bouton. Un déploiement qui a désactivé l’actualisation n’est pas signalé en retard ; il n’a rien à rattraper.
+**Une actualisation qui n’aboutit plus est signalée, avec le type d’échec.** Les deux tuiles de référence datent leurs propres mesures comme la carte au-dessus : `checked 6h ago` plutôt qu’un horodatage à soustraire de la date du jour, le moment exact sur l’élément pour qui le souhaite, et l’accent au-delà de deux cycles quotidiens. Lorsque la dernière exécution a échoué, la note le précise (*téléchargement impossible* ou *refusé par les contrôles*), si bien que la distinction `*_failed` / `*_rejected` est sur la page avant que quiconque n’appuie sur un bouton. Un déploiement qui a désactivé l’actualisation n’est pas signalé en retard ; il n’a rien à rattraper.
 
 **Tester les sources** est l’exécution à blanc à côté de ces deux boutons : elle effectue le même téléchargement et les mêmes contrôles, puis jette le résultat, pour que vous puissiez distinguer un `failed` (injoignable, ou la page a changé de forme) d’un `rejected` (bien lu, refusé par les contrôles) sans rien appliquer. Elle contacte la source, elle est donc limitée par `COS_WEB_ADMIN_REFRESH_COOLDOWN`, sous sa propre clé, pour rester disponible juste après l’échec d’une actualisation. À côté, *Relire*, *Copier le diagnostic* (le document `/admin/state` dans le presse-papiers, pour un rapport d’incident) et *Vider* de la liste d’audit ne changent rien nulle part.
 
-Deux choses que vous dira la carte d’audit et qu’il vaut mieux savoir d’avance. Le service ferme le flux au bout de 30 minutes et le signale, plutôt que de se taire : appuyez sur *Suivre en direct* pour en ouvrir un autre. Et **sans `COS_WEB_AUDIT_LOG_FILE`, la fenêtre est un anneau dans la mémoire d’un seul processus** : derrière plusieurs réplicas, vous voyez les enregistrements du réplica qui a répondu ; la carte le signale dans ce cas. Configurez le fichier si vous avez besoin de la piste complète.
+Deux remarques sur la carte d’audit. Le service ferme le flux au bout de 30 minutes et le signale, plutôt que de se taire : appuyez sur *Suivre en direct* pour en ouvrir un autre. Et **sans `COS_WEB_AUDIT_LOG_FILE`, la fenêtre est un anneau dans la mémoire d’un seul processus** : derrière plusieurs réplicas, vous voyez les enregistrements du réplica qui a répondu ; la carte le signale dans ce cas. Configurez le fichier si vous avez besoin de la piste complète.
 
 ![L’espace d’exploitation : état du service, les deux actualisations des données de référence et la vérification de l’index de recherche](../../../img/admin-area-dark.png)
 
@@ -497,7 +497,7 @@ Pour le plugin plutôt que le service, `docs/troubleshooting.md` couvre les éta
 
 ## Quand OpenCloud déplace sa documentation {#when-opencloud-moves-its-documentation}
 
-Presque tout ce que ce projet sait d’OpenCloud est ancré dans des liens qui ne sont pas sous notre contrôle : la page du cycle de vie dont est tiré le calendrier, les avis, les fichiers sources qui prouvent qu’une option de durcissement est codée en dur, les guides d’installation. Quand OpenCloud se réorganise, ces liens pourrissent en silence, et un constat expliqué par un lien mort est un constat sur lequel personne ne peut agir.
+Presque tout ce que ce projet sait d’OpenCloud est ancré dans des liens qui ne sont pas sous notre contrôle : la page du cycle de vie dont est tiré le calendrier, les avis, les fichiers sources qui prouvent qu’une option de durcissement est codée en dur, les guides d’installation. Quand OpenCloud se réorganise, ces liens se cassent sans que personne le remarque, et un constat expliqué par un lien mort laisse le lecteur sans correctif.
 
 ```bash
 python scripts/check_documentation_links.py              # check and fail
@@ -525,7 +525,7 @@ Lorsque la vérification signale un lien mort :
 - **Certains constats ne peuvent jamais être corrigés.** Plusieurs options codées en dur par OpenCloud ne sont pas des paramètres : `publicLinkExpirationEnforced` échoue sur toutes les instances existantes. Ces constats sont marqués non actionnables et restent hors de la ligne d’alerte.
 - **Certains constats sont signalés sans jamais déclencher d’alerte.** Les en-têtes consultatifs (`Permissions-Policy`, la famille `Cross-Origin-*`) évaluent des en-têtes qu’*aucune* instance OpenCloud n’envoie : leur absence est un fait concernant OpenCloud, pas ce déploiement.
 - **La fin de vie l’emporte sur tout**, y compris une dérogation. Une ligne de versions qui ne reçoit plus de correctifs de sécurité vaut `F`, aussi propre que soit le reste.
-- **Les résultats sont éphémères.** Ils vivent en mémoire pendant `COS_WEB_RESULT_TTL`, puis disparaissent. Il n’y a ni point de terminaison de liste, ni historique, ni comptes, par conception. Personne ne peut récupérer un résultat expiré, vous non plus.
+- **Les résultats sont éphémères.** Ils vivent en mémoire pendant `COS_WEB_RESULT_TTL`, puis disparaissent. Il n’y a ni point de terminaison de liste, ni historique, ni comptes. Personne ne peut récupérer un résultat expiré, vous non plus.
 - **L’uuid constitue toute l’autorisation.** Quiconque détient un lien de résultat peut lire ce rapport jusqu’à son expiration. C’est pourquoi le panneau de partage met en garde avant de le publier dans un canal.
 - **Les données livrées vieillissent entre deux versions.** Un hôte de supervision qui n’exécute jamais `refresh-data` et n’est jamais mis à jour note avec la base livrée avec sa version.
 - **Le plugin ne contacte pas de service distant.** Il ne demande jamais de verdict à un service externe et, volontairement, ne télécharge pas la page du cycle de vie à chaque exécution : un contrôle exécuté toutes les quelques minutes ne doit pas devenir un téléchargement de documentation.

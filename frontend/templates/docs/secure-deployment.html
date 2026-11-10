@@ -268,11 +268,11 @@ for OpenCloud specifically:</p>
 CalDAV and CardDAV calendars, WebDAV mounts, backup jobs. Those authenticate
 with HTTP Basic, and <code>PROXY_ENABLE_BASIC_AUTH=true</code> re-opens a path that
 bypasses your provider and every second factor on it.</p>
-<p>Leave it <code>false</code> if nothing needs it. If something does, the answer is <strong>app
-tokens, not account passwords</strong>: what can be replayed is then revocable and is
+<p>Leave it <code>false</code> if nothing needs it. If something does, use <strong>app
+tokens instead of account passwords</strong>: what can be replayed is then revocable and is
 never the credential your identity provider protects. This scanner reports
 <code>basicAuthDisabled</code> as medium, or low when it can see an external provider,
-precisely because the trade is sometimes deliberate - see
+because this trade-off is sometimes intended - see
 <a href="/documentation/authentication">Authentication</a>.</p>
 <h2 id="2-turn-the-audit-log-on-then-read-it">2. Turn the audit log on, then read it</h2>
 <h3 id="the-audit-service-does-not-run-by-default">The audit service does not run by default</h3>
@@ -386,7 +386,7 @@ its place:</p>
 <h3 id="retention-and-the-law">Retention, and the law</h3>
 <p>An audit log of a file service is a record of who accessed which documents,
 which in most jurisdictions is personal data with a retention limit rather
-than something to keep forever. Decide the period deliberately, write it down,
+than something to keep forever. Decide the period, write it down,
 and make the collector enforce it. If you are subject to GDPR, this log is in
 scope for your record of processing activities.</p>
 <h2 id="3-firewall-it-properly">3. Firewall it properly</h2>
@@ -437,7 +437,7 @@ scope for your record of processing activities.</p>
 <a href="/documentation/exposure">Exposed paths and debug endpoints</a>. It is checking your firewall
 for you, from the one vantage point that counts.</p>
 <h3 id="a-host-firewall-that-works-with-docker">A host firewall that works with Docker</h3>
-<p>The usual mistake is worth stating plainly: <strong>Docker writes its own iptables
+<p>The usual mistake: <strong>Docker writes its own iptables
 rules and they are evaluated before UFW's.</strong> A container started with
 <code>-p 9200:9200</code> is reachable from the internet no matter what <code>ufw status</code>
 says. Two ways out, and you want one of them:</p>
@@ -494,8 +494,8 @@ denying the rest.</p>
   (<a href="/documentation/lifecycle">lifecycle</a>); it cannot install anything.</li>
 <li><strong>Full-disk encryption</strong> on whatever the storage lives on, so that a
   decommissioned or stolen disk is not a data breach.</li>
-<li><strong>Backups you have restored from.</strong> A backup nobody has tested is a
-  hypothesis. Keep one copy offline or on write-once storage - ransomware
+<li><strong>Backups you have restored from.</strong> An untested backup may not
+  restore. Keep one copy offline or on write-once storage - ransomware
   looks for the backup first.</li>
 <li><strong>Least privilege for the service account.</strong> The systemd units in
   <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/systemd"><code>contrib/systemd/</code></a> show the pattern:
@@ -508,7 +508,7 @@ denying the rest.</p>
 <h2 id="5-what-the-people-using-it-should-know">5. What the people using it should know</h2>
 <p>Most real incidents at a file service are not exploits. Somebody shares the
 wrong folder with a public link, or reuses a password that was in a breach
-dump. That is a documentation and defaults problem, not a patching problem.</p>
+dump. Patching prevents neither; both are a matter of documentation and defaults.</p>
 <h3 id="for-everybody-with-an-account">For everybody with an account</h3>
 <ul>
 <li><strong>A public link is a password.</strong> Anyone who has the URL has the data -

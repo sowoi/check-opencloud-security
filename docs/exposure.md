@@ -121,8 +121,8 @@ origins. OpenCloud ships with it switched off for *all* of them:
 [`OC_CORS_ALLOW_ORIGINS` defaults to `*` and `OC_CORS_ALLOW_CREDENTIALS` to
 `true`](https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables),
 and a middleware given both commonly reflects whatever `Origin` it was sent
-rather than the literal `*` - which is precisely the arrangement browsers
-refuse to allow when they can see it coming.
+rather than the literal `*` - the combination browsers refuse when it is
+stated openly.
 
 The scan sends a request to `/graph/v1.0/me` carrying an `Origin` that cannot
 belong to anybody (`https://cors-probe.check-opencloud-security.invalid` -
@@ -208,4 +208,4 @@ rating-capped whenever the scan runs at all - critical findings cap the
 rating at `D`, high at `C` - see the extra-checks table in [the main
 README](scanner-checks.md#what-the-scanner-checks). None of them are hardening
 flags, and none require `--check-hardening`: an exposed configuration file
-or an open debug port is a finding on every scan, not an opt-in one.
+or an open debug port is reported on every scan.

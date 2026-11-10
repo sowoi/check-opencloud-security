@@ -53,9 +53,9 @@ Two of the rows above cannot be influenced by anyone:
 
 They are still recorded in the result document, because the observation is
 real, but they are **left out of the "Missing hardening" line, out of the
-`hardenings_missing` metric and out of the webhook**. A warning nobody can
-ever clear is noise, and noise is how genuine findings get ignored. `--debug`
-still lists them, with the explanation.
+`hardenings_missing` metric and out of the webhook**. Nobody can clear
+these warnings, so alerting on them would only distract from findings that can
+be fixed. `--debug` still lists them, with the explanation.
 
 `cspWithoutUnsafeInline` is a milder version of the same problem: OpenCloud's
 **default CSP contains `'unsafe-inline'`**, so it fails on a stock instance.
@@ -74,8 +74,8 @@ findings.
 Some findings are real but not actionable in your environment: a CSP you
 cannot tighten without breaking the web UI, an HSTS header your reverse proxy
 owns, or basic auth you genuinely need for a migration tool. Left alone they
-keep the rating down and the check yellow, and a check that is permanently
-yellow is a check nobody reads.
+keep the rating down and the check permanently yellow, and people stop looking
+at a check that never changes.
 
 `--ignore-hardening` accepts a finding by name. The rating is recalculated
 without it, so accepting a finding really does change the grade:
@@ -108,15 +108,15 @@ A waived finding:
 - but **stays in the JSON result document**, flagged with `"ignored": true`,
   and is listed in the plugin output as `Ignored by configuration (n): ...`.
 
-That last point is deliberate. A waiver suppresses an alert, not the evidence:
-the scan still records what it saw, `--debug` still explains it, and anyone
-reading the output can see exactly what is being skipped.
+A waiver suppresses the alert and keeps the evidence: the scan still records
+what it saw, `--debug` still explains it, and anyone reading the output can
+see what is being skipped.
 
 Two things a waiver will not do:
 
 - **It cannot waive something that passes.** A waiver is only applied to a
-  finding that actually failed, so it cannot quietly turn into a blind spot the
-  day the measure regresses.
+  finding that actually failed, so a later regression of that measure does
+  not go unnoticed.
 - **It cannot waive an end-of-life release.** Running a version that receives
   no security fixes overrides every other signal, including
   `--ignore-hardening '*'`.

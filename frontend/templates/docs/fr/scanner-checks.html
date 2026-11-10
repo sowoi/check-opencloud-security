@@ -351,7 +351,7 @@ donc aussi les supprimer.</p>
 seul un intermédiaire ajoute, comme <code>Via</code>.</p>
 <pre><code class="language-json">{&quot;reverseProxy&quot;: {&quot;detected&quot;: true, &quot;vendor&quot;: &quot;Nginx&quot;, &quot;evidence&quot;: &quot;Server: nginx&quot;&#125;&#125;
 </code></pre>
-<p><code>reverseProxyDetected</code> échoue lorsque rien n’a été trouvé, et ce <strong>volontairement</strong>
+<p><code>reverseProxyDetected</code> échoue lorsque rien n’a été trouvé, mais seulement
 avec la gravité <code>low</code> : Traefik et HAProxy n’annoncent rien par défaut, et
 supprimer l’en-tête <code>Server</code> est en soi une bonne pratique. L’absence de cet en-tête ne
 prouve donc pas l’absence de proxy. Le constat est affiché, mais ne réduit
@@ -384,8 +384,8 @@ noms inconnus corrige le problème - voir
 par défaut qui refuse un nom inconnu affiche souvent ce nom dans sa page
 d’erreur, et chercher ce nom dans le corps de la réponse signalerait le bon
 comportement comme un constat. Une instance qui ne publie aucun document de
-découverte n’est jugée ni dans un sens ni dans l’autre : deux erreurs signifient
-que l’analyse n’a rien appris, pas une réussite.</p>
+découverte n’est jugée ni dans un sens ni dans l’autre : avec deux erreurs,
+l’analyse n’a rien à évaluer.</p>
 <h3 id="alternative-services-http3">Services alternatifs (HTTP/3)</h3>
 <p><code>alternativeServices</code> enregistre ce que l’instance annonce dans son en-tête
 <code>Alt-Svc</code>. Une entrée <code>h3</code> indique à chaque navigateur d’essayer HTTP/3 sur
@@ -396,7 +396,7 @@ pas couvrir, et qu’un reverse proxy peut activer sans que personne l’ait dé
   &quot;header&quot;: &quot;h3=\&quot;:443\&quot;; ma=86400&quot;&#125;&#125;
 </code></pre>
 <p>C’est une observation, jamais notée : HTTP/3 n’est pas une faiblesse, seulement
-un élément à filtrer délibérément au pare-feu. Le plugin affiche une ligne de
+un élément dont le pare-feu doit tenir compte. Le plugin affiche une ligne de
 détail lorsqu’il en voit une. L’adresse annoncée n’est jamais sondée : c’est la
 parole de la cible, pas une origine vers laquelle l’analyse a été dirigée
 (<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md">ADR 0036</a>).

@@ -360,7 +360,7 @@ protections structurelles et le signale par un avertissement dans le journal.
 Notez ce que cela implique : un hôte sans cet extra ne vérifie pas du tout la
 provenance, installez-le donc partout où l’actualisation compte réellement.
 
-Avec l’extra installé, les trois issues sont volontairement différentes. Un
+Avec l’extra installé, trois issues sont possibles. Un
 document vérifié est écrit. Une signature qui n’a pas pu être *vérifiée* -
 attestation pas encore publiée, GitHub injoignable, racine de confiance
 impossible à charger - produit un avertissement et un repli sur les protections
@@ -377,8 +377,8 @@ et est régénéré chaque jour par `.github/workflows/vulnerability-db.yml`, qu
 exécute `scripts/update_vulnerability_db.py` sur l’API de requête OSV et ouvre
 une pull request lorsque la réponse a changé. L’actualisation **ne fait
 qu’ajouter** : un avis que le flux a oublié reste dans le fichier, et une entrée
-rédigée à la main est conservée. En supprimer une est une modification
-délibérée.
+rédigée à la main est conservée. Une entrée n’est supprimée qu’à la
+main.
 
 La base n’est toutefois complète que dans la mesure où les flux dont elle est
 issue le sont. `vulnerabilities: []` dans une analyse signifie *« rien dans la
@@ -469,7 +469,7 @@ sans origine explicite fait échouer `webEmbedDelegatedAuthenticationRestricted`
 et un écouteur OpenCloud correspondant sur le port backend direct fait échouer
 `backendPortClosed`.
 
-Certains de ces points méritent d’être connus avant d’activer
+Notez les points suivants avant d’activer
 `--check-hardening` :
 
 - **`cspWithoutUnsafeInline` échoue sur une instance OpenCloud non modifiée.**
@@ -545,13 +545,12 @@ disponible, ce champ pourra la porter sans changer la forme du résultat.
 
 ### Ce que le scanner ne peut pas mesurer {#what-the-scanner-cannot-measure}
 
-Deux questions reviennent assez souvent pour être présentées comme des
-non-objectifs :
+Deux questions reviennent souvent et sont hors du périmètre :
 
 - **La journalisation d’audit ne peut pas être vérifiée.** Le service d’audit
   d’OpenCloud consomme le bus d’événements interne et n’expose aucune surface
   HTTP ; aucune capacité, aucun en-tête ni aucun document non authentifié ne
-  révèle s’il fonctionne. Il n’y a aucun signal à lire : aucun contrôle n’existe,
+  révèle s’il fonctionne. Faute de signal à lire, aucun contrôle n’existe,
   et aucun ne peut être ajouté sans identifiants.
 - **« Correctement configuré » est hors du périmètre des intégrations
   ci-dessus.** Qu’un fournisseur soit enregistré ne dit rien des secrets WOPI,
@@ -703,7 +702,7 @@ Deux propriétés comptent ici :
   `extraChecks[].ignored`, car une exemption est une décision sur les alertes,
   pas sur les preuves.
 
-Un document écrit avant l’existence de ce bloc n’a tout simplement pas de clé
+Un document écrit avant l’existence de ce bloc n’a pas de clé
 `coverage` : c’est un rapport qui ne dit pas ce qu’il a couvert, pas une analyse
 sans lacune. Lisez-le avec `coverage.coverage_of(result)`, qui renvoie `None`
 pour un bloc absent comme pour un bloc mal formé.
@@ -786,9 +785,9 @@ résumé existant, et `--format json` les transmet sous `explanation` :
 | `policy` | Une exemption a expiré, a été ajoutée ou retirée |
 | `unknown` | Quelque chose a changé et rien d’enregistré ne l’explique |
 
-La formulation est volontairement prudente. Une empreinte modifiée établit que
+La formulation est prudente. Une empreinte modifiée établit que
 les données de référence différaient ; elle n’établit pas qu’elles ont provoqué
-le changement d’une note en particulier, et la phrase le dit. Plusieurs
+le changement d’une note en particulier, et la phrase en tient compte. Plusieurs
 changements peuvent y contribuer sans que l’un soit désigné comme *la* cause.
 
 `--format json` contient aussi `findings`, une entrée par constat figurant dans
@@ -844,7 +843,7 @@ le déploiement est configuré, et rien de ce sur quoi il est configuré. Voir
 
 Deux analyses ayant le même condensat de groupe observaient la même
 configuration pour ce groupe ; deux analyses dont les condensats diffèrent, non.
-C’est toute l’affirmation, et les règles suivantes lui donnent sa valeur :
+Rien d’autre n’est affirmé, et les règles suivantes lui donnent sa valeur :
 
 - **Des condensats uniquement, jamais la configuration.** Une politique de
   sécurité du contenu nomme les origines auxquelles un déploiement fait

@@ -184,9 +184,9 @@ fallo <strong>no</strong> se vuelven a publicar, así que una instancia cuyo an�
 no tiene veredicto en lugar de tener uno obsoleto; por eso
 <code>opencloud_security_scrape_success</code> es lo primero que muestra el panel.</p>
 <p><code>opencloud_security_end_of_life</code> es una familia aparte, y no un número
-negativo de días, a propósito. Una versión rolling o production cuyo fin de
+negativo de días. Una versión rolling o production cuyo fin de
 vida aún no se ha anunciado no notifica ningún día, y "desconocido" no debe
-leerse como "caduca hoy" en la única alerta que nadie puede pasar por alto.</p>
+leerse como "caduca hoy" en una alerta tan importante.</p>
 <h2 id="what-there-is-to-graph">Qué se puede representar en gráficos</h2>
 <p>Cada ejecución imprime datos de rendimiento después de un <code>|</code>:</p>
 <pre><code>rating=5;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.234s;;;0;
@@ -275,8 +275,8 @@ jq -r --arg host &quot;$HOST&quot; '
 mv &quot;$TMP&quot; &quot;$OUT&quot;
 chmod 644 &quot;$OUT&quot;
 </code></pre>
-<p><code>opencloud_scan_success</code> no es un adorno. Sin ella, un análisis fallido parece
-exactamente una instancia sana, porque las demás métricas simplemente
+<p>Conserve <code>opencloud_scan_success</code>. Sin ella, un análisis fallido parece
+una instancia sana, porque las demás métricas
 conservan su último valor hasta que se sobrescribe el archivo.</p>
 <p><code>lifecycle.daysRemaining</code> es <code>null</code> para una versión cuyo fin de vida aún no
 tiene fecha, es decir, una versión rolling o production actual, que caduca

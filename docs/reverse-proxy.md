@@ -79,10 +79,10 @@ redirect chain that reaches HTTPS only on its second hop all fail. A closed
 or filtered port 80 **passes** - plain HTTP cannot be spoken at all, which is
 the stronger version of enforcing it.
 
-**`reverseProxyDetected`** is deliberately best-effort and never changes the
+**`reverseProxyDetected`** is best-effort and never changes the
 rating, because Traefik and HAProxy announce nothing by default. A
 well-configured deployment can fail it with nothing wrong; treat it as a
-prompt to confirm there is something in front, not as a defect. If there is
+prompt to confirm there is something in front. If there is
 not, the configuration below is the usual way to put one there.
 
 ### nginx
@@ -321,7 +321,7 @@ backend opencloud
 The web application in this repository - [`docs/webapp.md`](webapp.md) - is a
 plain ASGI service on one port. It sends its own security headers, including a
 `Content-Security-Policy` with no `unsafe-inline`, so a proxy has nothing to
-add. What it does need is the truth about who is calling and enough patience
+add. What it does need is the real client address and a timeout long enough
 for a scan to finish.
 
 **You do not have to copy any of this by hand.**

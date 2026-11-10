@@ -202,7 +202,7 @@ seul un intermédiaire ajoute, comme `Via`.
 {"reverseProxy": {"detected": true, "vendor": "Nginx", "evidence": "Server: nginx"}}
 ```
 
-`reverseProxyDetected` échoue lorsque rien n’a été trouvé, et ce **volontairement**
+`reverseProxyDetected` échoue lorsque rien n’a été trouvé, mais seulement
 avec la gravité `low` : Traefik et HAProxy n’annoncent rien par défaut, et
 supprimer l’en-tête `Server` est en soi une bonne pratique. L’absence de cet en-tête ne
 prouve donc pas l’absence de proxy. Le constat est affiché, mais ne réduit
@@ -241,8 +241,8 @@ Seule compte une URL vers laquelle un client serait *envoyé*. Un hôte virtuel
 par défaut qui refuse un nom inconnu affiche souvent ce nom dans sa page
 d’erreur, et chercher ce nom dans le corps de la réponse signalerait le bon
 comportement comme un constat. Une instance qui ne publie aucun document de
-découverte n’est jugée ni dans un sens ni dans l’autre : deux erreurs signifient
-que l’analyse n’a rien appris, pas une réussite.
+découverte n’est jugée ni dans un sens ni dans l’autre : avec deux erreurs,
+l’analyse n’a rien à évaluer.
 
 ### Services alternatifs (HTTP/3) {#alternative-services-http3}
 
@@ -258,7 +258,7 @@ pas couvrir, et qu’un reverse proxy peut activer sans que personne l’ait dé
 ```
 
 C’est une observation, jamais notée : HTTP/3 n’est pas une faiblesse, seulement
-un élément à filtrer délibérément au pare-feu. Le plugin affiche une ligne de
+un élément dont le pare-feu doit tenir compte. Le plugin affiche une ligne de
 détail lorsqu’il en voit une. L’adresse annoncée n’est jamais sondée : c’est la
 parole de la cible, pas une origine vers laquelle l’analyse a été dirigée
 ([ADR 0036](../../adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md)).

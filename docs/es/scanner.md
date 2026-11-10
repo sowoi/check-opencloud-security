@@ -337,7 +337,7 @@ cuenta lo que significa: un host sin el extra no comprueba en absoluto la
 procedencia, así que instálelo en todos los lugares donde la actualización
 importe realmente.
 
-Con el extra instalado, los tres resultados son deliberadamente distintos. Un
+Con el extra instalado, hay tres resultados posibles. Un
 documento verificado se escribe. Una firma que no se pudo *comprobar* (la
 certificación aún no está publicada, GitHub no está accesible, la raíz de
 confianza no se cargó) genera una advertencia y recurre a las protecciones
@@ -355,7 +355,7 @@ OpenCloud y se regenera a diario mediante
 `scripts/update_vulnerability_db.py` contra la API de consultas de OSV y abre
 una pull request cuando la respuesta ha cambiado. La actualización **solo
 añade**: un aviso que el canal ha olvidado se queda en el archivo, y una
-entrada escrita a mano se conserva. Eliminar una es una edición deliberada.
+entrada escrita a mano se conserva. Una entrada solo se elimina a mano.
 
 Aun así, solo es tan completo como los canales a partir de los que se
 construye. `vulnerabilities: []` en un análisis significa *"nada de la base de
@@ -444,7 +444,7 @@ origen explícito hace fallar `webEmbedDelegatedAuthenticationRestricted`, y un
 servicio de OpenCloud que responde en el puerto directo del backend hace fallar
 `backendPortClosed`.
 
-Conviene conocer algunas de ellas antes de activar `--check-hardening`:
+Tenga en cuenta lo siguiente antes de activar `--check-hardening`:
 
 - **`cspWithoutUnsafeInline` falla en un OpenCloud estándar.** El `csp.yaml`
   predeterminado contiene `'unsafe-inline'` en `script-src` y `style-src`. Se
@@ -671,7 +671,7 @@ Hay dos propiedades en las que conviene apoyarse:
   aceptación está en `extraChecks[].ignored`, porque una exención es una
   decisión sobre las alertas y no sobre las pruebas.
 
-Un documento escrito antes de que existiera este bloque simplemente no tiene
+Un documento escrito antes de que existiera este bloque no tiene
 la clave `coverage`, que es un informe que no dice lo que cubrió y no un
 análisis sin lagunas. Léalo con `coverage.coverage_of(result)`, que devuelve
 `None` tanto para un bloque ausente como para uno mal formado.
@@ -751,9 +751,9 @@ resumen existente, y `--format json` los entrega como `explanation`:
 | `policy` | Una exención caducó, se añadió o se retiró |
 | `unknown` | Algo se movió y nada de lo registrado lo explica |
 
-La redacción es deliberadamente prudente. Un resumen distinto establece que los
+La redacción es prudente. Un resumen distinto establece que los
 datos de referencia difirieron; no establece que eso hiciera moverse ninguna
-nota concreta, y la frase lo dice así. Varios cambios pueden contribuir sin que
+nota concreta, y la frase lo refleja. Varios cambios pueden contribuir sin que
 se elija uno como la causa.
 
 `limitations` enumera lo que la comparación no pudo establecer, casi siempre que
@@ -790,7 +790,7 @@ por área, sin los valores de configuración originales. Véase
 ```
 
 Dos análisis con el mismo resumen de grupo vieron la misma configuración; dos
-que difieren, no. Eso es todo lo que se afirma, y estas reglas son las que lo
+que difieren, no. No se afirma nada más, y estas reglas son las que lo
 hacen útil:
 
 - **Solo resúmenes, nunca la configuración.** Una política de seguridad de

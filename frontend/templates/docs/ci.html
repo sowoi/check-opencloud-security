@@ -71,7 +71,7 @@ jobs:
           # token the job already has is enough; it needs no scopes.
           releases-token: $&#123;&#123; github.token &#125;&#125;
 </code></pre>
-<p>That is the whole thing. The step installs the pinned release, scans the
+<p>The step installs the pinned release, scans the
 instance, writes <code>opencloud-security.json</code>, puts the result in the job
 summary, and fails the job on WARNING, CRITICAL or UNKNOWN.</p>
 <p><strong>Pin the tag.</strong> The release schedule and the newest known OpenCloud version

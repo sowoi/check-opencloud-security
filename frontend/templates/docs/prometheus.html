@@ -179,9 +179,9 @@ are <strong>not</strong> re-published, so an instance whose scan is broken has n
 rather than a stale one - which is why <code>opencloud_security_scrape_success</code> is
 the first thing the dashboard shows.</p>
 <p><code>opencloud_security_end_of_life</code> is a separate family rather than a negative
-day count on purpose. A rolling or production release whose end of life has
+day count. A rolling or production release whose end of life has
 not been announced reports no days at all, and "unknown" must not read as
-"expiring today" in the one alert nobody may miss.</p>
+"expiring today" in an alert this important.</p>
 <h2 id="what-there-is-to-graph">What there is to graph</h2>
 <p>Every run prints performance data after a <code>|</code>:</p>
 <pre><code>rating=5;@0:3;@0:1;0;5 vulnerabilities=0;;;0; time=1.234s;;;0;
@@ -270,9 +270,9 @@ jq -r --arg host &quot;$HOST&quot; '
 mv &quot;$TMP&quot; &quot;$OUT&quot;
 chmod 644 &quot;$OUT&quot;
 </code></pre>
-<p><code>opencloud_scan_success</code> is not decoration. Without it a failed scan looks
-exactly like a healthy instance, because the other metrics simply keep their
-last value until the file is overwritten.</p>
+<p>Keep <code>opencloud_scan_success</code>. Without it a failed scan looks like a healthy
+instance, because the other metrics keep their last value until the file is
+overwritten.</p>
 <p><code>lifecycle.daysRemaining</code> is <code>null</code> for a release whose end of life is not
 dated yet - a current rolling or production release, which expires when its
 successor ships rather than on a date. The <code>// 0</code> above turns that into <code>0</code>;

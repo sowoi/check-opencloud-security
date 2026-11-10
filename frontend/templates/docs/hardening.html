@@ -125,9 +125,9 @@ the output and the metrics.</p>
 </ul>
 <p>They are still recorded in the result document, because the observation is
 real, but they are <strong>left out of the "Missing hardening" line, out of the
-<code>hardenings_missing</code> metric and out of the webhook</strong>. A warning nobody can
-ever clear is noise, and noise is how genuine findings get ignored. <code>--debug</code>
-still lists them, with the explanation.</p>
+<code>hardenings_missing</code> metric and out of the webhook</strong>. Nobody can clear
+these warnings, so alerting on them would only distract from findings that can
+be fixed. <code>--debug</code> still lists them, with the explanation.</p>
 <p><code>cspWithoutUnsafeInline</code> is a milder version of the same problem: OpenCloud's
 <strong>default CSP contains <code>'unsafe-inline'</code></strong>, so it fails on a stock instance.
 That one <em>is</em> changeable, so it is reported rather than excused - but be aware
@@ -142,8 +142,8 @@ findings.</p>
 <p>Some findings are real but not actionable in your environment: a CSP you
 cannot tighten without breaking the web UI, an HSTS header your reverse proxy
 owns, or basic auth you genuinely need for a migration tool. Left alone they
-keep the rating down and the check yellow, and a check that is permanently
-yellow is a check nobody reads.</p>
+keep the rating down and the check permanently yellow, and people stop looking
+at a check that never changes.</p>
 <p><code>--ignore-hardening</code> accepts a finding by name. The rating is recalculated
 without it, so accepting a finding really does change the grade:</p>
 <pre><code class="language-bash">check-opencloud-security --host opencloud.example.com --check-hardening \
@@ -168,14 +168,14 @@ accepting it in one place but not the other would be surprising.</p>
 <li>but <strong>stays in the JSON result document</strong>, flagged with <code>"ignored": true</code>,
   and is listed in the plugin output as <code>Ignored by configuration (n): ...</code>.</li>
 </ul>
-<p>That last point is deliberate. A waiver suppresses an alert, not the evidence:
-the scan still records what it saw, <code>--debug</code> still explains it, and anyone
-reading the output can see exactly what is being skipped.</p>
+<p>A waiver suppresses the alert and keeps the evidence: the scan still records
+what it saw, <code>--debug</code> still explains it, and anyone reading the output can
+see what is being skipped.</p>
 <p>Two things a waiver will not do:</p>
 <ul>
 <li><strong>It cannot waive something that passes.</strong> A waiver is only applied to a
-  finding that actually failed, so it cannot quietly turn into a blind spot the
-  day the measure regresses.</li>
+  finding that actually failed, so a later regression of that measure does
+  not go unnoticed.</li>
 <li><strong>It cannot waive an end-of-life release.</strong> Running a version that receives
   no security fixes overrides every other signal, including
   <code>--ignore-hardening '*'</code>.</li>

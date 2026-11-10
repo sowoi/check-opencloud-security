@@ -49,7 +49,7 @@ versiones antiguas para ilustrar una idea.
 
 ## Qué puede y qué no puede decir el calendario incluido {#what-the-bundled-schedule-can-and-cannot-tell-you}
 
-Conviene saber dos cosas sobre el calendario incluido:
+El calendario incluido tiene estos límites:
 
 - **Las versiones LTS solo están disponibles con suscripción**, así que una
   línea LTS se reconoce a partir de la documentación, pero sus versiones puede
@@ -62,7 +62,7 @@ Conviene saber dos cosas sobre el calendario incluido:
   rapidez suele ser más reciente que los datos con los que se compara. Conserva
   su nota, no recibe ninguna recomendación de actualización y nunca se
   considera sin soporte por ello.
-- **Lo indica cuando ocurre.** Una versión posterior a la más reciente
+- **La salida lo notifica cuando ocurre.** Una versión posterior a la más reciente
   registrada para su línea, o de una línea más reciente que todas las
   registradas, activa `lifecycle.scheduleStale` en el documento de resultado,
   rellena `scheduleNote`, `scheduleUpdated` y `scheduleSource`, y añade una
@@ -85,8 +85,8 @@ Conviene saber dos cosas sobre el calendario incluido:
 
 Un canal de versiones solo conoce la versión más reciente *en general*, y en
 OpenCloud siempre es una rolling. Recomendarla a una instancia production o
-LTS la llevaría silenciosamente a un canal con un periodo de soporte de tres
-semanas, justo lo contrario de lo que eligió un operador del canal production.
+LTS la llevaría a un canal con un periodo de soporte de tres
+semanas, algo que un operador del canal production no eligió.
 
 Por eso la comprobación de actualizaciones usa el
 [calendario de versiones](../../README.md#end-of-life-detection) para elegir un
@@ -112,8 +112,8 @@ pertenece una versión y la evalúa con la mayor generosidad que permiten los
 hechos: `7.2.3` aparece tanto en el canal rolling como en el production, así
 que se trata como versión production y se considera actual.
 
-Es la respuesta correcta cuando nadie ha dicho otra cosa, pero no lo es para
-todo el mundo. Si sigue deliberadamente el canal rolling, `7.2.3` perdió el
+Es el valor predeterminado adecuado mientras no se declare un canal, pero no
+sirve para todas las instancias. Si sigue deliberadamente el canal rolling, `7.2.3` perdió el
 soporte el día en que se publicó `7.4.0`, y querrá saberlo.
 `--release-track` indica en qué canal está, y la versión se evalúa entonces
 solo en ese canal:
@@ -140,7 +140,7 @@ check-opencloud-security --host opencloud.example.com --release-track auto
 | `2.3.0`   | `production`        | **Sin soporte**: por detrás del canal production, actualice a `7.2.3`       |
 | `4.0.8`   | `lts`               | Con soporte hasta que termine el periodo de dos años                        |
 
-Conviene conocer de antemano dos consecuencias:
+Esto tiene dos consecuencias:
 
 - **Ir por delante de su canal no es un hallazgo.** Una instancia production
   que ha pasado a la versión rolling actual tiene todo lo que incluye el canal
@@ -150,8 +150,8 @@ Conviene conocer de antemano dos consecuencias:
 - **La comprobación nunca recomienda volver a una versión anterior.** Si el
   canal declarado no tiene ninguna versión a la que pueda *subir*, la
   recomendación de actualización queda vacía y el motivo explica la situación.
-  Pasar de `7.4.0` a `7.2.3` es una decisión para una persona, no para un
-  complemento de monitorización.
+  Pasar de `7.4.0` a `7.2.3` es una decisión que el complemento le deja a
+  usted.
 
 El canal declarado también orienta la recomendación de actualización descrita
 en [la sección anterior](#the-recommended-release-follows-your-track), y la

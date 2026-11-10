@@ -101,7 +101,7 @@ To add the extra to an existing pipx installation, re-run that command with
 `--force`. [Installing the plugin](installation.md) has the uv and pip
 equivalents.
 
-There are three outcomes, and they are deliberately different:
+There are three outcomes:
 
 | Outcome | What happens |
 |:--|:--|
@@ -125,7 +125,7 @@ sense. So these checks run on every refresh, signed or not:
 
 - **The release schedule may not lose a release line.** Every line in the
   schedule bundled with the installed package must still be present. A
-  truncated or rewritten lifecycle page cannot quietly make an old release
+  truncated or rewritten lifecycle page cannot make an old release
   look supported.
 - **The advisory database must have usable entries.** It must contain at
   least one advisory, and every advisory needs a version bound. An advisory

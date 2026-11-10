@@ -131,8 +131,8 @@ protección para orígenes concretos. OpenCloud viene con ella desactivada para
 [`OC_CORS_ALLOW_ORIGINS` vale por defecto `*` y `OC_CORS_ALLOW_CREDENTIALS`
 vale `true`](https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables),
 y un middleware con ambos valores suele devolver el `Origin` que se le haya
-enviado en lugar del literal `*`, que es precisamente la combinación que los
-navegadores se niegan a permitir cuando la ven venir.
+enviado en lugar del literal `*`, que es la combinación que los
+navegadores rechazan cuando se declara abiertamente.
 
 El análisis envía una solicitud a `/graph/v1.0/me` con un `Origin` que no
 puede pertenecer a nadie
@@ -224,4 +224,4 @@ comprobaciones adicionales en
 [la guía de comprobaciones](../scanner-checks.md#what-the-scanner-checks).
 Ninguna es un indicador de refuerzo y ninguna requiere `--check-hardening`: un
 archivo de configuración expuesto o un puerto de depuración abierto es un
-hallazgo en cada análisis, no algo opcional.
+hallazgo que se notifica en cada análisis.

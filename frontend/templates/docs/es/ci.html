@@ -74,7 +74,7 @@ jobs:
           # token the job already has is enough; it needs no scopes.
           releases-token: $&#123;&#123; github.token &#125;&#125;
 </code></pre>
-<p>Eso es todo. El paso instala la versión fijada, analiza la instancia, escribe
+<p>El paso instala la versión fijada, analiza la instancia, escribe
 <code>opencloud-security.json</code>, añade el resultado al resumen del trabajo y hace
 fallar el trabajo con WARNING, CRITICAL o UNKNOWN.</p>
 <p><strong>Fije la etiqueta.</strong> El calendario de versiones y la versión de OpenCloud más

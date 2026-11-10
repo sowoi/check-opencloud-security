@@ -58,7 +58,7 @@ voir [Installation](#installation) ci-dessous.
 - `requests` et `PyYAML`, installés automatiquement par pipx/uv/pip.
 - Un accès réseau de l’hôte de supervision vers l’instance OpenCloud.
   Contrairement à un scanner hébergé, ce plugin doit atteindre l’instance
-  elle-même - c’est précisément ce qui le rend utilisable pour des instances qui
+  elle-même, et c’est pour cette raison qu’il fonctionne aussi avec des instances qui
   ne sont pas sur Internet.
 
 # Installation {#installation}
@@ -315,7 +315,7 @@ référence avaient déjà décidé, et la sortie indique
 contiennent le même verdict sous `policy` : une tâche CI n’a donc pas besoin
 d’analyser la ligne d’alerte.
 
-Deux règles sont bonnes à connaître avant d’en écrire une :
+Deux règles s’appliquent lorsque vous en écrivez une :
 
 * **Une exemption n’excuse pas une exigence.** `--ignore-hardening` et
   `--waive-until` sont l’opérateur local qui accepte un constat ; une politique
@@ -324,9 +324,9 @@ Deux règles sont bonnes à connaître avant d’en écrire une :
   d’applicable.
 * **Une faute de frappe est une erreur d’utilisation, pas une réussite
   silencieuse.** Une clé inconnue, une note hors de `0`-`5` ou une mesure
-  inconnue du catalogue termine l’exécution en `UNKNOWN` avec la raison. Une
-  politique existe pour faire échouer des déploiements : une règle qui n’exige
-  discrètement rien est le pire résultat possible.
+  inconnue du catalogue termine l’exécution en `UNKNOWN` avec la raison. Sinon,
+  une règle mal orthographiée n’exigerait rien et la politique laisserait passer
+  des déploiements qu’elle devait faire échouer.
 
 # Intégration Prometheus et Kubernetes {#prometheus-kubernetes-integration}
 
@@ -1049,7 +1049,7 @@ check-opencloud-security --host opencloud.example.com --check-hardening \
 
 La date d’expiration doit comporter un fuseau horaire et la raison ne peut pas
 être vide ; un enregistrement auquel manque l’un des deux est refusé au lieu
-d’être traité discrètement comme permanent. À `2026-12-31T00:00:00Z`, la
+d’être traité comme permanent. À `2026-12-31T00:00:00Z`, la
 vérification déclenche de nouveau une alerte sans aucune modification de la
 configuration. Chaque exemption configurée - active, expirée ou sans aucune
 correspondance - est listée sous `waivers` dans le document de résultat.
@@ -1095,7 +1095,7 @@ entière, `2` vulnérabilités connues, `1` vulnérabilités critiques ou élev�
 `0` fin de vie. Les contrôles supplémentaires en échec la plafonnent ensuite
 selon leur gravité : `critical` à `2`, `high` à `3`, `medium` à `4`, `low` à `5`.
 Un contrôle en échec qui n’a pas déterminé le résultat est tout de même listé,
-avec une mention en ce sens : rien ne semble écarté discrètement.
+avec une mention en ce sens, afin que la liste reste complète.
 
 Sans `--debug`, la sortie garde la taille qui convient à un système de
 supervision. La même décomposition est toujours présente dans le résultat de
@@ -1138,9 +1138,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 ```
 
-Trois points sur cette liste méritent d’être connus avant d’agir :
+Avant d’agir sur cette liste, notez trois points :
 
-- **L’ordre n’est pas arbitraire.** Les constats de même gravité partagent un
+- **L’ordre compte.** Les constats de même gravité partagent un
   même plafond : corriger le premier de trois constats medium ne change donc
   rien. Les étapes qui ne font rien gagner à elles seules sont tout de même
   listées - avec `still 4/5` au lieu de `then 5/5` -, car les omettre laisserait
@@ -1154,8 +1154,8 @@ Trois points sur cette liste méritent d’être connus avant d’agir :
   la portée du plan. Voir
   [Mesures qui ne sont pas des paramètres](hardening.md#measures-that-are-not-settings).
 
-Les constats exemptés sont aussi listés, marqués comme tels : une exemption fait
-taire une alerte, elle ne corrige rien, et le plan le dit.
+Les constats exemptés sont aussi listés, marqués comme tels, car une exemption fait
+taire une alerte sans rien corriger.
 
 Le même plan figure sur le tableau de bord web, dans les exports JSON, CSV,
 SARIF et PDF, et dans l’outil MCP `plan_remediation`.

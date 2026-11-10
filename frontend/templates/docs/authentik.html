@@ -197,7 +197,7 @@ recovery messages are delivered locally inside the container and do not reach us
 inboxes.</p>
 <p>Every setting is a variable in <code>docker/.env</code>, and both Authentik services read
 them - the server sends the test message, the worker sends everything else, so
-configuring one and not the other works until the day it matters:</p>
+with only one of them configured, some messages are sent and others are not:</p>
 <table>
 <thead>
 <tr>
@@ -333,7 +333,7 @@ service will not accept. The blueprint sets it; if you ever recreate the
 provider by hand, set it too.</p>
 <p><strong>The client ID is the audience.</strong> It lives in <code>.env</code>, which is where the web
 application reads it from as <code>COS_WEB_MCP_AUTH_AUDIENCE</code> - the two sides agree
-because they read the same line, not because you copied one into the other.</p>
+because they read the same line, so nothing has to be copied.</p>
 <p>Per-provider issuer mode gives:</p>
 <table>
 <thead>
@@ -598,7 +598,7 @@ password; it expires after the minutes given.</p>
 shows an error instead of sending them back:</p>
 <pre><code class="language-bash">docker compose exec authentik_worker ak shell -c &quot;from authentik.core.models import Group; g = Group.objects.get(name='opencloud-scanner-operators'); print('IN_GROUP', g.users.filter(username='scanokko').exists())&quot; 2&gt;&amp;1 | grep -E 'IN_GROUP|Error|DoesNotExist'
 </code></pre>
-<p>And the negative case, which is worth the minute: an account that is <em>not</em> in
+<p>Test the negative case as well: an account that is <em>not</em> in
 the group must get Authentik's error, not the area. <strong>Events → Logs</strong> records
 every refusal with the account and the application it was refused.</p>
 <h2 id="pointing-the-scanner-at-it">Pointing the scanner at it</h2>
@@ -666,7 +666,7 @@ application mints tokens for all of them, with the same issuer and the same
 signing key, so an <code>aud</code> that is never compared makes every one of those
 tokens a key to <code>/mcp</code> - including one minted for an application anybody in
 the directory may use. Leaving <code>COS_WEB_MCP_AUTH_AUDIENCE</code> empty therefore
-stops the service rather than quietly widening it, and a token that carries
+stops the service instead of widening access, and a token that carries
 no <code>aud</code> at all is refused for the same reason. The stack in
 <code>docker/docker-compose.authentik.yml</code> sets it from <code>AUTHENTIK_CLIENT_ID</code> and
 will not start without it.</p>
@@ -684,7 +684,7 @@ entirely Authentik's decision, made in the two steps below, and it is the only
 place that decision exists.</p>
 <h3 id="a-group-and-the-binding-that-makes-it-mean-something">A group, and the binding that makes it mean something</h3>
 <p>Do this once, before the first user. A binding on a group is one thing to
-review later; a binding per person is a list nobody prunes.</p>
+review later; bindings per person pile up and are rarely cleaned out.</p>
 <ol>
 <li><strong>Directory → Groups → Create</strong>. Name it <code>opencloud-scanner</code>. Leave
    <em>Superuser privileges</em> off - this group is about one application, and an
@@ -714,7 +714,7 @@ account without one can only be recovered by an administrator.</p>
   some other route when there is no mail server.</li>
 <li><strong>Groups → Add to existing group</strong> → <code>opencloud-scanner</code>.</li>
 </ul>
-<p>That is the whole of it for somebody who signs in through a browser: their MCP
+<p>Somebody who signs in through a browser needs nothing more: their MCP
 client takes them through Authentik, they log in, and the client gets a token.
 Nothing has to be copied, and there is no per-user configuration on the
 scanner side at all.</p>
@@ -738,9 +738,8 @@ agent that has worked all year is an agent that stops for no visible reason -
 issue a new one from <strong>Directory → Tokens and App passwords</strong> before then. And
 a service account cannot use the admin or user interface at all, which is the
 point of it: it has credentials and no login.</p>
-<p>Give one to each caller rather than sharing one. They cost nothing, and the
-difference shows the day you need to revoke exactly one of them without
-telephoning everybody else.</p>
+<p>Give one to each caller rather than sharing one. They cost nothing, and you can
+then revoke one of them without affecting the others.</p>
 <h2 id="getting-a-token">Getting a token</h2>
 <p>Which credential a caller uses depends on what it is, and all three end at the
 same token endpoint:</p>
@@ -811,7 +810,7 @@ endpoint out. It is a poor one to leave in place: every caller using it is the
 same account, so revoking one revokes all of them, and the credential it turns
 on is the provider secret the scan service also reads. Once the binding above
 exists, remember to add that generated account to the group as well, or this
-stops working - which is the correct outcome, and the moment to switch to a
+stops working. That is the intended result, and a good time to switch to a
 service account of your own.</p>
 <h3 id="as-a-person">As a person</h3>
 <p>An MCP client that implements the OAuth flow needs nothing but the URL: it
@@ -899,9 +898,9 @@ addition here is the header.</p>
 With the endpoint open it travels in <code>Authorization</code>, because nothing else is
 using that header.</p>
 <p><strong>With a sign-in configured, <code>Authorization</code> belongs to the identity provider,
-and the purge credential moves to <code>X-Purge-Authorization</code>.</strong> The fallback is
-deliberately not kept: reading an agent's identity token as if it were an
-operator credential is exactly the confusion worth refusing.</p>
+and the purge credential moves to <code>X-Purge-Authorization</code>.</strong> No fallback
+is kept, so that an agent's identity token is never read as an
+operator credential.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;
@@ -912,7 +911,7 @@ never as an argument.</p>
 <h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>
 <p>Two hosts, two requirements.</p>
 <p><strong>Authentik builds the issuer out of the <code>Host</code> header it is handed.</strong> A proxy
-that rewrites it gives every token an <code>iss</code> nobody will accept, and the
+that rewrites it gives every token an <code>iss</code> that is rejected, and the
 symptom is confusing because everything else works. Pass <code>Host</code> and
 <code>X-Forwarded-Proto</code> through unchanged, and add the proxy's egress address to
 <code>AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS</code> if it is outside the private ranges.

@@ -345,7 +345,7 @@ compartido, queda a cargo de lo que usted ya utilice.</p>
 </tr>
 </tbody>
 </table>
-<p>Un informe es prueba del día en que se escribió, así que dos cosas se
+<p>Un informe describe el día en que se escribió, así que dos cosas se
 vuelven a evaluar respecto a <strong>hoy</strong>:</p>
 <ul>
 <li><strong>La versión.</strong> La versión registrada se sitúa de nuevo en el calendario de
@@ -641,7 +641,7 @@ su ejecución en un contenedor se explica en
 <a href="/documentation/scan-service">Ejecutar el escáner como servicio</a>.</p>
 <p>El token debe tener entonces al menos 32 caracteres y no ser el ejemplo de
 <code>secrets/scanner_token.example</code>: nada limita cuántas veces puede adivinarse,
-así que su longitud es toda su fuerza. <code>openssl rand -hex 32</code> genera uno.</p>
+así que su longitud es su única protección. <code>openssl rand -hex 32</code> genera uno.</p>
 <p>No es la aplicación web pública. Esa es
 <a href="/documentation/web-service">el servicio público de análisis</a>.</p>
 <h2 id="configure-write-a-configuration-file"><code>configure</code>: escribir un archivo de configuración</h2>
@@ -717,9 +717,9 @@ ajustado de memoria:</p>
 </tr>
 </tbody>
 </table>
-<p>Dos cosas son deliberadas. <strong>No se instala nada</strong>: los archivos se escriben
+<p>Se aplican dos límites. <strong>No se instala nada</strong>: los archivos se escriben
 donde fue la configuración y las órdenes que los instalarían se imprimen, así
-que lo que llega a <code>/etc</code> es algo que has leído antes. Y <strong>no se escribe
+que lo que llega a <code>/etc</code> es algo que ha leído antes. Y <strong>no se escribe
 ninguna credencial en ellos</strong>: una URL de webhook o un token de publicación se
 queda en el archivo de configuración, legible solo por el propietario,
 mientras que un objeto de Icinga y un archivo de unidad no lo son. Ambos

@@ -45,7 +45,7 @@ point.
 
 ## What the bundled schedule can and cannot tell you
 
-Two things are worth knowing about the bundled schedule:
+The bundled schedule has these limits:
 
 - **LTS releases are only available with a subscription**, so an LTS line is
   recognised from the documentation but its releases may never appear
@@ -57,7 +57,7 @@ Two things are worth knowing about the bundled schedule:
   instance that was patched promptly is routinely newer than the data it is
   compared against. It keeps its rating, gets no upgrade recommendation and is
   never called end of life for it.
-- **It says so when that happens.** A version ahead of the newest release
+- **The output reports when that happens.** A version ahead of the newest release
   recorded for its line - or on a line newer than every line on record - sets
   `lifecycle.scheduleStale` in the result document, fills in `scheduleNote`,
   `scheduleUpdated` and `scheduleSource`, and adds a line to the plugin's
@@ -67,7 +67,7 @@ Two things are worth knowing about the bundled schedule:
   Release schedule: 7.4.1 is newer than anything in the bundled release schedule (generated 2026-08-12), so that schedule is probably out of date. This is not counted against the instance. Check the current support window at https://docs.opencloud.eu/docs/admin/resources/lifecycle/, and regenerate the schedule with scripts/update_release_schedule.py.
   ```
 
-  It is a statement about the bundled file, not about the instance: the
+  The note concerns the bundled file and not the instance: the
   support window it worked out came from data older than the release it
   judged, so it is worth re-reading at the [source][lifecycle]. Upgrading the
   package, or running `python scripts/update_release_schedule.py`, clears it.
@@ -79,8 +79,8 @@ Two things are worth knowing about the bundled schedule:
 
 A release feed only knows the newest release *overall*, and on OpenCloud that
 is always a rolling one. Recommending it to a production or LTS instance would
-quietly move it onto a track with a three-week support window - the opposite
-of what an operator on the production track signed up for.
+move it onto a track with a three-week support window, which an operator on
+the production track did not choose.
 
 The update check therefore uses the
 [release schedule](../README.md#end-of-life-detection) to pick a target on the instance's
@@ -106,8 +106,8 @@ judges it as generously as the truth allows: `7.2.3` appears on both the
 rolling and the production track, so it is treated as a production release and
 is current.
 
-That is the right answer when nobody has said otherwise, but it is not the
-right answer for everyone. If you deliberately follow the rolling track, then
+That is the right default when no track is declared, but it does not suit
+every instance. If you deliberately follow the rolling track, then
 `7.2.3` went out of support the day `7.4.0` shipped, and you want to be told
 so. `--release-track` says which track you are on, and the version is then
 judged on that track alone:
@@ -134,7 +134,7 @@ check-opencloud-security --host opencloud.example.com --release-track auto
 | `2.3.0`   | `production`        | **End of life** - behind the production track, upgrade to `7.2.3`           |
 | `4.0.8`   | `lts`               | Supported until the two-year window closes                                  |
 
-Two consequences are worth knowing about in advance:
+This has two consequences:
 
 - **Being ahead of your track is not a finding.** A production instance that
   has moved on to the current rolling release has everything the production
@@ -144,7 +144,7 @@ Two consequences are worth knowing about in advance:
 - **The check never recommends a downgrade.** If your declared track has no
   release you could move *up* to, the update recommendation stays empty and
   the reason explains the situation instead. Moving from `7.4.0` back to
-  `7.2.3` is a decision for a human, not for a monitoring plugin.
+  `7.2.3` is a decision the plugin leaves to you.
 
 The declared track also steers the update recommendation described in
 [the section above](#the-recommended-release-follows-your-track), and the

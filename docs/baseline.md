@@ -120,7 +120,7 @@ Baseline: No new findings since 2026-09-14T06:00:00Z
 Coverage regressed (1): previously measured, now inconclusive: caaRecord (timeout) - the rating is unaffected.
 ```
 
-This is kept apart from the security rating on purpose. The rating, its
+This is kept separate from the security rating. The rating, its
 perfdata and the findings stay what the evidence gave; only the alert state
 moves, and only from `OK` to `WARNING` - a run that is already `WARNING` or
 `CRITICAL` keeps its own message and gets the coverage line beside it.

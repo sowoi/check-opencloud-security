@@ -234,13 +234,13 @@ Tout client auquel on peut indiquer une URL fonctionnera avec
 ```
 
 ou la même URL saisie dans une boîte de dialogue de paramètres. Si un client
-demande le transport, la réponse est *streamable HTTP* (parfois appelé « HTTP »
-ou « remote »), ni SSE ni stdio.
+demande le transport, choisissez *streamable HTTP* (parfois appelé « HTTP »
+ou « remote ») plutôt que SSE ou stdio.
 
 Un agent qui ne dispose d’aucune configuration propre à ce service peut trouver lui-même le
 point de terminaison : `https://scan.example.com/.well-known/ai.json` le
-désigne, à côté des documents OpenAPI et Arazzo. C’est toute la raison d’être
-du document de découverte - voir [la page de l’API](https://scan.example.com/api#api-agents).
+désigne, à côté des documents OpenAPI et Arazzo. Le document de découverte
+existe pour cela - voir [la page de l’API](https://scan.example.com/api#api-agents).
 `https://scan.example.com/agents.txt` et `https://scan.example.com/llms.txt`
 renvoient au même document pour un outil qui cherche d’abord l’un de ces deux
 noms de fichier, selon les conventions informelles que certains frameworks
@@ -296,7 +296,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 C’est l’extra `mcp` qui monte le point de terminaison. Sans lui, l’application
 démarre parfaitement et `/mcp` répond **404**.
 
-Trois paramètres sont bons à connaître :
+Trois paramètres comptent ici :
 
 | Paramètre | Valeur par défaut | Effet |
 |:--------|:--------|:-------------|
@@ -362,9 +362,8 @@ si la fonction n’existait pas - ce qui, pour ce déploiement, est le cas.
 
 **Sur un déploiement qui exige une connexion** (ci-dessous), l’identifiant
 d’effacement passe dans `X-Purge-Authorization` : `Authorization` transporte
-alors le jeton d’identité de l’agent, et lire l’un à la place de l’autre
-reviendrait à comparer un identifiant à un autre identifiant et à répondre 401
-pour une raison que personne ne pourrait voir.
+alors le jeton d’identité de l’agent, et confondre les deux
+aboutirait à une réponse 401 sans cause apparente.
 
 ```json
 "headers": {

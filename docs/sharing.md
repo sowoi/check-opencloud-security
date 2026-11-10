@@ -43,15 +43,15 @@ The capabilities document's `files_sharing.public.expire_date.enabled` field
 is read directly. In current OpenCloud releases this is a hardcoded `false`
 in the frontend service - a constant, not a setting - so every instance
 reports the same value regardless of how it is configured. **This check is
-never alerted on** for exactly that reason: it is left out of the "Missing
+never alerted on** for that reason: it is left out of the "Missing
 hardening" line, the `hardenings_missing` metric and the webhook payload,
-because a warning nobody can ever clear is noise, and noise is how genuine
-findings get ignored - see [Measures that are not
+because nobody can clear the warning and it would only distract from findings
+that can be fixed - see [Measures that are not
 settings](hardening.md#measures-that-are-not-settings). `--debug` still
 prints it, with the explanation.
 
 It is kept in the catalogue rather than removed so that a future OpenCloud
-release that makes automatic expiry configurable is caught the moment the
+release that makes automatic expiry configurable is noticed as soon as the
 capabilities document starts reporting something other than `false` - the
 same reasoning documented for `userEnumerationRestricted` in
 [Authentication](authentication.md#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted).

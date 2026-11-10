@@ -236,13 +236,13 @@ que admita una URL funcionará con
 ```
 
 o con la misma URL escrita en un cuadro de diálogo de ajustes. Si un cliente
-pregunta por el transporte, la respuesta es *streamable HTTP* (a veces llamado
-"HTTP" o "remote"), no SSE ni stdio.
+pregunta por el transporte, elija *streamable HTTP* (a veces llamado
+"HTTP" o "remote") en lugar de SSE o stdio.
 
 Un agente que nunca ha oído hablar de este servicio puede encontrar el punto de
 acceso por sí mismo: `https://scan.okxo.de/.well-known/ai.json` lo indica,
-junto con los documentos OpenAPI y Arazzo. Esa es precisamente la finalidad del
-documento de descubrimiento; consulte
+junto con los documentos OpenAPI y Arazzo. El documento de descubrimiento
+existe para eso; consulte
 [la página de la API](https://scan.okxo.de/api#api-agents).
 `https://scan.okxo.de/agents.txt` y `https://scan.okxo.de/llms.txt` apuntan al
 mismo documento para los programas que buscan primero uno de esos dos nombres
@@ -298,7 +298,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 El extra `mcp` es el que monta el punto de acceso. Sin él, la aplicación
 arranca sin problemas y `/mcp` responde **404**.
 
-Conviene conocer tres ajustes:
+Aquí importan tres ajustes:
 
 | Ajuste | Valor predeterminado | Qué hace |
 |:--------|:--------|:-------------|
@@ -313,8 +313,8 @@ transmite en flujo.
 
 ## Desactivar MCP {#turning-mcp-off}
 
-Un operador que no quiera una interfaz para agentes puede eliminarla. Es un
-ajuste, no una compilación:
+Un operador que no quiera una interfaz para agentes puede eliminarla con un
+ajuste, sin recompilar nada:
 
 ```bash
 # docker/, without editing docker-compose.yml
@@ -365,8 +365,8 @@ despliegue es el caso.
 
 **En un despliegue que exige iniciar sesión** (véase más abajo), la credencial
 de purga pasa a `X-Purge-Authorization`: `Authorization` lleva entonces el
-token de identidad del agente, y leer uno como si fuera el otro compararía una
-credencial con otra y respondería 401 por un motivo que nadie podría ver.
+token de identidad del agente, y confundir uno con el otro
+acabaría en un 401 sin causa visible.
 
 ```json
 "headers": {

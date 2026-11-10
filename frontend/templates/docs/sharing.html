@@ -54,14 +54,14 @@ enough</a>.</p>
 is read directly. In current OpenCloud releases this is a hardcoded <code>false</code>
 in the frontend service - a constant, not a setting - so every instance
 reports the same value regardless of how it is configured. <strong>This check is
-never alerted on</strong> for exactly that reason: it is left out of the "Missing
+never alerted on</strong> for that reason: it is left out of the "Missing
 hardening" line, the <code>hardenings_missing</code> metric and the webhook payload,
-because a warning nobody can ever clear is noise, and noise is how genuine
-findings get ignored - see <a href="/documentation/hardening#measures-that-are-not-settings">Measures that are not
+because nobody can clear the warning and it would only distract from findings
+that can be fixed - see <a href="/documentation/hardening#measures-that-are-not-settings">Measures that are not
 settings</a>. <code>--debug</code> still
 prints it, with the explanation.</p>
 <p>It is kept in the catalogue rather than removed so that a future OpenCloud
-release that makes automatic expiry configurable is caught the moment the
+release that makes automatic expiry configurable is noticed as soon as the
 capabilities document starts reporting something other than <code>false</code> - the
 same reasoning documented for <code>userEnumerationRestricted</code> in
 <a href="/documentation/authentication#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted">Authentication</a>.</p>

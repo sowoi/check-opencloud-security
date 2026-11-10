@@ -126,9 +126,9 @@ medidas a la salida y a las métricas.</p>
 </ul>
 <p>Se siguen registrando en el documento de resultado, porque la observación es
 real, pero <strong>se excluyen de la línea "Missing hardening", de la métrica
-<code>hardenings_missing</code> y del webhook</strong>. Una advertencia que nadie puede resolver
-es ruido, y el ruido es lo que hace que se ignoren los hallazgos reales.
-<code>--debug</code> los sigue mostrando, con su explicación.</p>
+<code>hardenings_missing</code> y del webhook</strong>. Nadie puede resolver esas advertencias,
+así que alertar sobre ellas solo distraería de los hallazgos que sí se pueden
+corregir. <code>--debug</code> los sigue mostrando, con su explicación.</p>
 <p><code>cspWithoutUnsafeInline</code> es una versión más leve del mismo problema: la <strong>CSP
 predeterminada de OpenCloud contiene <code>'unsafe-inline'</code></strong>, así que falla en una
 instancia estándar. Esta sí se puede cambiar, por lo que se notifica en lugar
@@ -145,8 +145,8 @@ hallazgos fantasma.</p>
 que no puede endurecer sin romper la interfaz web, una cabecera HSTS que
 controla su proxy inverso o una autenticación básica que realmente necesita
 para una herramienta de migración. Si se dejan así, mantienen baja la nota y
-la comprobación en amarillo, y una comprobación que está siempre en amarillo es
-una comprobación que nadie lee.</p>
+la comprobación siempre en amarillo, y se deja de mirar una comprobación que
+nunca cambia.</p>
 <p><code>--ignore-hardening</code> acepta un hallazgo por su nombre. La nota se vuelve a
 calcular sin él, así que aceptar un hallazgo cambia realmente la calificación:</p>
 <pre><code class="language-bash">check-opencloud-security --host opencloud.example.com --check-hardening \
@@ -173,14 +173,14 @@ otro resultaría sorprendente.</p>
   <code>"ignored": true</code>, y aparece en la salida del complemento como
   <code>Ignored by configuration (n): ...</code>.</li>
 </ul>
-<p>Este último punto es deliberado. Una exclusión suprime una alerta, no la
+<p>Una exclusión suprime la alerta y conserva la
 evidencia: el análisis sigue registrando lo que vio, <code>--debug</code> lo sigue
-explicando y cualquiera que lea la salida puede ver exactamente qué se omite.</p>
+explicando y cualquiera que lea la salida puede ver qué se omite.</p>
 <p>Hay dos cosas que una exclusión no hace:</p>
 <ul>
 <li><strong>No puede excluir algo que se supera.</strong> Una exclusión solo se aplica a un
-  hallazgo que ha fallado realmente, así que no puede convertirse
-  silenciosamente en un punto ciego el día en que la medida retroceda.</li>
+  hallazgo que ha fallado realmente, así que un retroceso posterior de la
+  medida no pasa desapercibido.</li>
 <li><strong>No puede excluir una versión sin soporte.</strong> Ejecutar una versión que no
   recibe correcciones de seguridad prevalece sobre cualquier otra señal,
   incluido <code>--ignore-hardening '*'</code>.</li>

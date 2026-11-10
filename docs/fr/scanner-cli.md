@@ -261,7 +261,7 @@ de CI ou un répertoire partagé, reste à l'outil que vous utilisez déjà.
 | Missing coverage | Les hôtes attendus sans rapport, ceux dont le dernier scan a échoué, les rapports trop anciens et ceux sans bloc de couverture |
 | Checks not evaluated | Les contrôles que les scans ont ignorés ou n'ont pas pu trancher, et sur combien d'hôtes |
 
-Un rapport témoigne du jour où il a été écrit ; deux éléments sont donc
+Un rapport décrit le jour où il a été écrit ; deux éléments sont donc
 réévalués par rapport à **aujourd'hui** :
 
 - **La version.** La version enregistrée est replacée dans le calendrier des
@@ -438,7 +438,7 @@ service](scan-service.md).
 
 Le jeton doit alors compter au moins 32 caractères et ne pas être l'exemple de
 `secrets/scanner_token.example` : rien ne limite le nombre de tentatives, sa
-longueur fait donc toute sa force. `openssl rand -hex 32` en produit un.
+longueur est donc sa seule protection. `openssl rand -hex 32` en produit un.
 
 Il ne s'agit pas de l'application web publique. Celle-ci est décrite dans
 [le service de scan public](../webapp.md).

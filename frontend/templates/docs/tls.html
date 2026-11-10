@@ -172,8 +172,8 @@ same unauthenticated channel and can be forged along with it.</p>
 bit set, and reads whether the resolver validated the answer, whether the
 answer carried signatures, and whether the resolver understood the question
 at all.</p>
-<p>That last part is why the finding is sometimes simply absent. A resolver that
-does not speak DNSSEC produces exactly the same silence an unsigned zone
+<p>That last part is why the finding is sometimes absent. A resolver that
+does not speak DNSSEC answers the same way an unsigned zone
 does, and reporting it would fail every scan run from behind such a resolver
 for a reason that has nothing to do with the instance. So:</p>
 <table>
@@ -212,8 +212,8 @@ unprotected. See
 revocation answer to the handshake - so every client has to ask the
 authority itself, which tells that authority who is visiting, and is usually
 skipped rather than treated as a failure when the responder is slow. This is
-a low finding for a reason: most current authorities, Let's Encrypt among
-them, no longer publish a responder at all, and the check simply does not
+only a low finding: most current authorities, Let's Encrypt among
+them, no longer publish a responder at all, and the check does not
 apply to those certificates.</p>
 <h2 id="11-was-the-certificate-published-to-a-log-tlscertificatetransparency">11. Was the certificate published to a log: <code>tlsCertificateTransparency</code></h2>
 <p>Certificate Transparency is the public, append-only record of every
@@ -277,7 +277,7 @@ needing to be told which case it is looking at:</p>
 <li>Plain HTTP - <code>httpsAvailable</code> (critical).</li>
 </ol>
 <p><code>--insecure</code> (<code>COS_INSECURE</code>) skips step 1's verification requirement. The
-untrusted chain is still listed in the output; it simply stops counting
+untrusted chain is still listed in the output but no longer counts
 against the rating. Use it only when you intentionally accept an untrusted
 certificate for that instance.</p>
 <h2 id="severity-and-rating-impact">Severity and rating impact</h2>

@@ -197,8 +197,8 @@ Deux points à respecter :
   vérification le traiterait comme un hôte jamais vu.
 
 Une version ayant dépassé sa fin de vie continue de déclencher une alerte à
-chaque exécution, quelle que soit la référence, et c’est voulu : elle ne reçoit
-plus de correctifs de sécurité et sa situation s’aggrave chaque jour où elle
+chaque exécution, quelle que soit la référence, car elle ne reçoit
+plus de correctifs de sécurité et le risque augmente tant qu’elle
 reste en service. Voir
 [Ne signaler que ce qui a changé](../../README.md#reporting-only-what-changed).
 

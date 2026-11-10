@@ -210,11 +210,11 @@ CalDAV and CardDAV calendars, WebDAV mounts, backup jobs. Those authenticate
 with HTTP Basic, and `PROXY_ENABLE_BASIC_AUTH=true` re-opens a path that
 bypasses your provider and every second factor on it.
 
-Leave it `false` if nothing needs it. If something does, the answer is **app
-tokens, not account passwords**: what can be replayed is then revocable and is
+Leave it `false` if nothing needs it. If something does, use **app
+tokens instead of account passwords**: what can be replayed is then revocable and is
 never the credential your identity provider protects. This scanner reports
 `basicAuthDisabled` as medium, or low when it can see an external provider,
-precisely because the trade is sometimes deliberate - see
+because this trade-off is sometimes intended - see
 [Authentication](authentication.md).
 
 ## 2. Turn the audit log on, then read it
@@ -304,7 +304,7 @@ its place:
 
 An audit log of a file service is a record of who accessed which documents,
 which in most jurisdictions is personal data with a retention limit rather
-than something to keep forever. Decide the period deliberately, write it down,
+than something to keep forever. Decide the period, write it down,
 and make the collector enforce it. If you are subject to GDPR, this log is in
 scope for your record of processing activities.
 
@@ -328,7 +328,7 @@ for you, from the one vantage point that counts.
 
 ### A host firewall that works with Docker
 
-The usual mistake is worth stating plainly: **Docker writes its own iptables
+The usual mistake: **Docker writes its own iptables
 rules and they are evaluated before UFW's.** A container started with
 `-p 9200:9200` is reachable from the internet no matter what `ufw status`
 says. Two ways out, and you want one of them:
@@ -405,8 +405,8 @@ Briefly, because none of it is OpenCloud-specific and all of it is load-bearing:
   ([lifecycle](lifecycle.md)); it cannot install anything.
 - **Full-disk encryption** on whatever the storage lives on, so that a
   decommissioned or stolen disk is not a data breach.
-- **Backups you have restored from.** A backup nobody has tested is a
-  hypothesis. Keep one copy offline or on write-once storage - ransomware
+- **Backups you have restored from.** An untested backup may not
+  restore. Keep one copy offline or on write-once storage - ransomware
   looks for the backup first.
 - **Least privilege for the service account.** The systemd units in
   [`contrib/systemd/`](../contrib/systemd/) show the pattern:
@@ -420,7 +420,7 @@ Briefly, because none of it is OpenCloud-specific and all of it is load-bearing:
 
 Most real incidents at a file service are not exploits. Somebody shares the
 wrong folder with a public link, or reuses a password that was in a breach
-dump. That is a documentation and defaults problem, not a patching problem.
+dump. Patching prevents neither; both are a matter of documentation and defaults.
 
 ### For everybody with an account
 

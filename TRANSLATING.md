@@ -148,7 +148,7 @@ output and identifiers unchanged.
 Run the wording regression tests before committing:
 
 ```bash
-uv run pytest tests/test_translation_quality.py tests/test_frontend_documentation.py tests/test_webapp_i18n.py
+uv run pytest tests/test_translation_quality.py tests/test_frontend_documentation.py tests/test_webapp_i18n.py tests/test_documentation_style.py
 ```
 
 These tests run in the existing CI test job. They reject known wording defects

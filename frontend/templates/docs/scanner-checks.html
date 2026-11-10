@@ -344,7 +344,7 @@ only a forwarder adds such as <code>Via</code>.</p>
 <pre><code class="language-json">{&quot;reverseProxy&quot;: {&quot;detected&quot;: true, &quot;vendor&quot;: &quot;Nginx&quot;, &quot;evidence&quot;: &quot;Server: nginx&quot;&#125;&#125;
 </code></pre>
 <p><code>reverseProxyDetected</code> fails when nothing was found, and does so at severity
-<code>low</code> <strong>on purpose</strong>: Traefik and HAProxy announce nothing by default, and
+<code>low</code> only: Traefik and HAProxy announce nothing by default, and
 stripping the <code>Server</code> header is itself good practice, so a well-run
 deployment can look bare from outside. The finding is worth showing and is
 never worth a grade.</p>
@@ -374,7 +374,7 @@ explicit default server that refuses unknown names fixes it - see
 refuses an unrecognised name commonly prints that name in its error page, and
 reading the body for it would report the correct behaviour as the finding.
 An instance that publishes no discovery document at all is not judged either
-way: two errors are the scan learning nothing, not a pass.</p>
+way: two errors give the scan nothing to assess.</p>
 <h3 id="alternative-services-http3">Alternative services (HTTP/3)</h3>
 <p><code>alternativeServices</code> records what the instance advertises in its <code>Alt-Svc</code>
 header. An <code>h3</code> entry tells every browser to try HTTP/3 over <strong>UDP</strong> on the
@@ -385,7 +385,7 @@ a reverse proxy can enable without anybody deciding to.</p>
   &quot;header&quot;: &quot;h3=\&quot;:443\&quot;; ma=86400&quot;&#125;&#125;
 </code></pre>
 <p>It is an observation and is never graded: HTTP/3 is not a weakness, only
-something to firewall on purpose. The plugin prints a detail line when it sees
+something the firewall has to account for. The plugin prints a detail line when it sees
 one. The advertised address is never probed - it is the target's word, not an
 origin the scan was pointed at
 (<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md">ADR 0036</a>).
@@ -575,7 +575,7 @@ skipped when <code>scanner.ipv6_enabled</code> is off.</p>
 </tbody>
 </table>
 <p>Waived headers and checks are not compared. A name with one address gets no
-finding at all - an absence, not a pass - and no extra requests. What each
+finding at all (it is absent, not passed) and causes no extra requests. What each
 address served is in the result document as <code>addressObservations</code>.</p>
 <p>It is off by default: about a dozen requests per address, a demo sign-in
 among them. It sees what DNS sees - nodes behind a single load-balancer

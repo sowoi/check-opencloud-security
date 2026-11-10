@@ -110,8 +110,8 @@ needs no editing to point at your instance:</p>
     /usr/lib/check_mk_agent/local/3600/opencloud_security
 </code></pre>
 <p><strong>The <code>3600</code> is the important part.</strong> A script in <code>local/</code> itself runs every
-time the agent is called - once a minute - and that is a scan a minute against
-somebody's production instance. The numeric subdirectory is the agent's cache
+time the agent is called - once a minute - which would scan a production
+instance every minute. The numeric subdirectory is the agent's cache
 interval in seconds: the scan then runs at most hourly, and every call in
 between is answered from the cached line. Pick the interval you actually want;
 <code>3600</code> is a good default for a rating.</p>
@@ -140,8 +140,8 @@ end-of-life rules as everywhere else. Checkmk is not asked to judge anything:</p
 <p>That last one is why the shipped script always prints a line, even when the
 plugin is missing or was killed by the agent's timeout. A local check that
 prints nothing does not go UNKNOWN - it <em>removes its service from the host</em>,
-which reads like a check somebody deliberately switched off rather than one
-that broke.</p>
+which looks as if somebody had switched the check off, although it actually
+broke.</p>
 <h3 id="the-metrics">The metrics</h3>
 <p>The same measurements the Nagios performance data carries, under the same
 names, with two differences the format requires:</p>
@@ -218,10 +218,10 @@ and acknowledgements work as they do for anything else. Two rules worth
 setting up:</p>
 <ul>
 <li>Alert on <strong>CRIT</strong> immediately - a known vulnerability or an end-of-life
-  release is not a tomorrow problem.</li>
-<li>Graph <code>support_days_left</code> and set a level on it. It is the one number that
-  gets worse while nothing about the instance changes, and the day it goes
-  negative the rating drops to F on its own.</li>
+  release should not wait until the next day.</li>
+<li>Graph <code>support_days_left</code> and set a level on it. It falls even when
+  nothing about the instance changes, and once it is negative the rating
+  drops to F.</li>
 </ul>
 <p><code>--baseline</code> and <code>--warn-on-new</code> (<a href="/documentation/baseline">Reporting only what
 changed</a>) work under both routes and are worth having on a check

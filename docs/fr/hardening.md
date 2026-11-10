@@ -78,8 +78,8 @@ Certains constats sont réels mais ne peuvent pas être traités dans votre
 environnement : une CSP que vous ne pouvez pas durcir sans casser l’interface
 web, un en-tête HSTS géré par votre reverse proxy, ou une authentification Basic
 dont un outil de migration a réellement besoin. Laissés tels quels, ils
-abaissent la note et maintiennent le contrôle en jaune, et un contrôle
-constamment jaune est un contrôle que plus personne ne lit.
+abaissent la note et maintiennent le contrôle en jaune en permanence, et l’on
+cesse de regarder un contrôle qui ne change jamais.
 
 `--ignore-hardening` accepte un constat par son nom. La note est recalculée sans
 lui : accepter un constat change donc réellement la note :
@@ -114,15 +114,15 @@ Un constat faisant l’objet d’une exemption :
 - mais **reste dans le document de résultat JSON**, marqué `"ignored": true`,
   et figure dans la sortie du plugin sous la forme `Ignored by configuration (n): ...`.
 
-Ce dernier point est voulu. Une exemption supprime une alerte, pas la preuve :
+Une exemption supprime l’alerte et conserve la preuve :
 l’analyse enregistre toujours ce qu’elle a vu, `--debug` l’explique toujours et
-toute personne qui lit la sortie voit exactement ce qui est ignoré.
+toute personne qui lit la sortie voit ce qui est ignoré.
 
 Une exemption ne permet pas deux choses :
 
 - **Exempter un contrôle qui réussit.** Une exemption ne s’applique qu’à un
-  constat réellement en échec : elle ne peut donc pas devenir discrètement un
-  angle mort le jour où la mesure régresse.
+  constat réellement en échec : une régression ultérieure de la mesure ne
+  passe donc pas inaperçue.
 - **Exempter une version en fin de vie.** Faire tourner une version qui ne
   reçoit plus de correctifs de sécurité l’emporte sur tous les autres signaux, y
   compris `--ignore-hardening '*'`.

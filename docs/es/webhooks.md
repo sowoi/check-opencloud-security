@@ -170,7 +170,7 @@ procesado: `await request.body()` en FastAPI, `request.get_data()` en Flask.
 Los frameworks que solo entregan un objeto ya procesado no pueden verificar
 esta firma. Lea el cuerpo sin procesar antes de convertirlo en un objeto.
 
-Tres cosas que conviene saber:
+Tres notas:
 
 - **La firma cubre lo que se haya enviado**, incluidos los documentos de chat
   y push que producen `--webhook-format slack`, `discord`, `ntfy` y `gotify`.
@@ -185,8 +185,8 @@ Tres cosas que conviene saber:
 
 ## Uptime Kuma {#uptime-kuma}
 Uptime Kuma no tiene sistema de complementos, pero su monitor **Push** es una
-URL que espera recibir llamadas periódicas, que es exactamente lo que hace el
-webhook. La comprobación se convierte en un monitor en tres pasos.
+URL que espera recibir llamadas periódicas, y el webhook las
+hace. La comprobación se convierte en un monitor en tres pasos.
 
 **1. Cree el monitor.** En Uptime Kuma elija *Add New Monitor*, tipo de
 monitor **Push**, y póngale el nombre de la instancia. Uptime Kuma muestra una
@@ -409,7 +409,7 @@ check-opencloud-security --host opencloud.example.com --webhook-url \
 Envíe una alerta solo para los estados por los que quiera que se avise a
 alguien, y deje que caduque en lugar de intentar resolverla a mano: el
 siguiente análisis puede tardar hasta un día, y una alerta resuelta antes de
-tiempo es una alerta que deja de avisar en silencio sobre un servidor que
+tiempo deja de avisar sobre un servidor que
 sigue siendo vulnerable. Si ya envía métricas,
 [Prometheus y Grafana](../prometheus.md) es la mejor vía hacia Alertmanager.
 

@@ -264,7 +264,7 @@ Die Kennungen entsprechen den Werten in der Alarmzeile, in `extraChecks[].id`, i
 check-opencloud-scanner -c /etc/check-opencloud-security/config.yml review-waivers
 ```
 
-Der Befehl liest die Ausnahmen, die auch das Plugin verwenden würde - `scanner.ignore_hardenings` und `scanner.temporary_waivers` aus der Konfigurationsdatei oder die passenden `COS_`-Umgebungsvariablen -, und listet jede auf, um die du dich kümmern solltest, jeweils mit einem Vorschlag zum Aufräumen. **Er ändert die Konfiguration nie.** Ob ein Befund weiter akzeptabel ist, entscheidest du, nicht das Werkzeug.
+Der Befehl liest die Ausnahmen, die auch das Plugin verwenden würde - `scanner.ignore_hardenings` und `scanner.temporary_waivers` aus der Konfigurationsdatei oder die passenden `COS_`-Umgebungsvariablen -, und listet jede auf, um die du dich kümmern solltest, jeweils mit einem Vorschlag zum Aufräumen. **Er ändert die Konfiguration nie.** Ob ein Befund weiter akzeptabel ist, entscheidest du selbst.
 
 | Art | Bedeutung |
 |:--|:--|
@@ -329,7 +329,7 @@ Der HTTP-Dienst stellt mehreren Verbrauchern ein zwischengespeichertes Ergebnis 
 
 Außerhalb von Loopback verlangt der Dienst ein Token. Fehlt es, erscheint `UNKNOWN: ...` auf stderr und der Prozess endet mit `3`. Die Endpunkte stehen im [Haupt-README](../../README.md#running-the-scanner-as-a-service), Containerbeispiele unter [Scan-Dienst](../scan-service.md).
 
-Das Token muss dann mindestens 32 Zeichen lang sein und darf nicht der Platzhalter aus `secrets/scanner_token.example` sein: Nichts begrenzt, wie oft es geraten werden kann, also ist seine Länge seine ganze Stärke. `openssl rand -hex 32` erzeugt dir eins.
+Das Token muss dann mindestens 32 Zeichen lang sein und darf nicht der Platzhalter aus `secrets/scanner_token.example` sein: Nichts begrenzt, wie oft es geraten werden kann, also schützt es allein seine Länge. `openssl rand -hex 32` erzeugt dir eins.
 
 Die [öffentliche Webanwendung](../webapp.md) mit Browseroberfläche und Warteschlange ist ein separater Dienst.
 

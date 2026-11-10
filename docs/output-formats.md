@@ -12,8 +12,8 @@ downstream has to special-case a single-host run.
 
 **The exit code keeps its Nagios meaning under every format** - `0`
 (OK), `1` (WARNING), `2` (CRITICAL), `3` (UNKNOWN). A CI step gates on the
-exit code exactly the way an Icinga check does; the document these flags
-produce is a separate, additional artifact, not a replacement for it. The two
+exit code the way an Icinga check does; the document these flags
+produce is an additional artifact and does not replace it. The two
 metric formats, `prometheus` and `otlp`, are the exception: they report a
 scan rather than judging it, so a finding travels as a sample and the process
 exits `0`.
@@ -149,7 +149,7 @@ Like `--format prometheus`, **this format exits `0` even for an instance that
 would have alerted**, and reports a failed scan as
 `opencloud_security_scrape_success 0` rather than as an exit code. A metrics
 pipeline has no other way to tell an unreachable instance from a scan that
-stopped running; where the exit code is the point, use `nagios`, `json`,
+stopped running; where you need the exit code, use `nagios`, `json`,
 `sarif` or `junit`.
 
 ## Choosing a format

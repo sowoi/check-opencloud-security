@@ -8,7 +8,7 @@ sesión. El escáner lee el archivo público `/config.json` para comprobar en qu
 orígenes confía el cliente insertado.
 
 Si `/config.json` no se puede leer, o no publica ningún bloque `embed`, ambas
-comprobaciones se superan: la inserción simplemente no está configurada, así
+comprobaciones se superan: la inserción no está configurada, así
 que ninguna de las dos restricciones de origen puede fallar.
 
 <!-- TOC -->

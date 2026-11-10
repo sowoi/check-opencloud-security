@@ -140,10 +140,10 @@ dirección HTTP sin cifrar, un <code>200</code> que sirve la interfaz y una cade
 redirecciones que solo llega a HTTPS en el segundo salto. Un puerto 80 cerrado
 o filtrado <strong>se supera</strong>: no se puede hablar HTTP sin cifrar, que es la versión
 más estricta de exigir HTTPS.</p>
-<p><strong><code>reverseProxyDetected</code></strong> es deliberadamente aproximado y nunca cambia la
+<p><strong><code>reverseProxyDetected</code></strong> es aproximado y nunca cambia la
 nota, porque Traefik y HAProxy no anuncian nada por defecto. Un despliegue bien
 configurado puede fallarlo sin que haya nada mal; tómelo como una invitación a
-confirmar que hay algo delante, no como un defecto. Si no lo hay, la
+confirmar que hay algo delante. Si no lo hay, la
 configuración siguiente es la forma habitual de ponerlo.</p>
 <h3 id="nginx">nginx</h3>
 <pre><code class="language-nginx">server {

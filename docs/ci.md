@@ -57,7 +57,7 @@ jobs:
           releases-token: ${{ github.token }}
 ```
 
-That is the whole thing. The step installs the pinned release, scans the
+The step installs the pinned release, scans the
 instance, writes `opencloud-security.json`, puts the result in the job
 summary, and fails the job on WARNING, CRITICAL or UNKNOWN.
 

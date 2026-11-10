@@ -204,8 +204,8 @@ messagerie externe, les messages de récupération sont livrés localement dans 
 conteneur et n’atteignent pas les boîtes de réception des utilisateurs.</p>
 <p>Chaque paramètre est une variable de <code>docker/.env</code>, et les deux services
 Authentik les lisent : le serveur envoie le message de test, le worker envoie
-tout le reste. Configurer l’un sans l’autre fonctionne jusqu’au jour où cela
-compte.</p>
+tout le reste. Si vous n’en configurez qu’un, certains messages partent et d’autres
+non.</p>
 <table>
 <thead>
 <tr>
@@ -343,8 +343,7 @@ que ce service refuse. Le blueprint la définit ; si vous recréez un jour le
 fournisseur à la main, définissez-la aussi.</p>
 <p><strong>L’ID client est l’audience.</strong> Il se trouve dans <code>.env</code>, où l’application web
 le lit sous le nom <code>COS_WEB_MCP_AUTH_AUDIENCE</code> : les deux côtés concordent parce
-qu’ils lisent la même ligne, et non parce que vous avez recopié l’un dans
-l’autre.</p>
+qu’ils lisent la même ligne, et il n’y a rien à recopier.</p>
 <p>Le mode d’émetteur par fournisseur donne :</p>
 <table>
 <thead>
@@ -695,7 +694,7 @@ n’apprendrait qu’à désactiver le garde-fou.</p>
 un <code>aud</code> jamais comparé ferait de chacun de ces jetons une clé pour <code>/mcp</code>, y
 compris un jeton émis pour une application que n’importe qui dans l’annuaire
 peut utiliser. Laisser <code>COS_WEB_MCP_AUTH_AUDIENCE</code> vide arrête donc le service
-au lieu d’élargir discrètement l’accès, et un jeton sans aucun <code>aud</code> est refusé
+au lieu d’élargir l’accès, et un jeton sans aucun <code>aud</code> est refusé
 pour la même raison. La pile de <code>docker/docker-compose.authentik.yml</code> la définit
 à partir de <code>AUTHENTIK_CLIENT_ID</code> et ne démarre pas sans elle.</p>
 <h2 id="adding-somebody-who-may-use-the-endpoint">Autoriser une personne à utiliser le point de terminaison</h2>
@@ -713,8 +712,8 @@ détenir un jeton relève donc entièrement d’Authentik, décidé dans les deu
 ci-dessous, et c’est le seul endroit où cette décision existe.</p>
 <h3 id="a-group-and-the-binding-that-makes-it-mean-something">Un groupe, et l’association qui lui donne un sens</h3>
 <p>Faites-le une fois, avant le premier utilisateur. Une association sur un groupe
-est un seul élément à réexaminer plus tard ; une association par personne est
-une liste que personne ne nettoie.</p>
+est un seul élément à réexaminer plus tard ; les associations par personne
+s’accumulent et sont rarement nettoyées.</p>
 <ol>
 <li><strong>Directory → Groups → Create</strong>. Nommez-le <code>opencloud-scanner</code>. Laissez
    <em>Superuser privileges</em> désactivé : ce groupe concerne une application, et un
@@ -747,7 +746,7 @@ par un administrateur.</p>
   lorsqu’il n’y a pas de serveur de messagerie.</li>
 <li><strong>Groups → Add to existing group</strong> → <code>opencloud-scanner</code>.</li>
 </ul>
-<p>C’est tout pour une personne qui se connecte dans un navigateur : son client MCP
+<p>Une personne qui se connecte dans un navigateur n’a besoin de rien d’autre : son client MCP
 la conduit chez Authentik, elle se connecte, et le client obtient un jeton. Rien
 n’est à copier, et il n’y a aucune configuration par utilisateur côté scanner.</p>
 <p><strong>Un second facteur est déjà exigé.</strong> La personne est conduite à en enregistrer
@@ -771,11 +770,10 @@ passe d’application <strong>expire au bout de 360 jours</strong> si vous ne d�
 <em>Expiring</em> : un agent qui a fonctionné toute l’année s’arrête alors sans raison
 visible. Émettez-en un nouveau depuis <strong>Directory → Tokens and App passwords</strong>
 avant cette échéance. Et un compte de service ne peut utiliser ni l’interface
-d’administration ni l’interface utilisateur, et c’est tout l’intérêt : il a des
+d’administration ni l’interface utilisateur, et c’est voulu : il a des
 identifiants, pas de connexion.</p>
 <p>Donnez-en un à chaque appelant plutôt que d’en partager un. Ils ne coûtent rien,
-et la différence se voit le jour où vous devez en révoquer exactement un sans
-téléphoner à tous les autres.</p>
+et vous pouvez ainsi en révoquer un seul sans toucher aux autres.</p>
 <h2 id="getting-a-token">Obtenir un jeton</h2>
 <p>L’identifiant utilisé par un appelant dépend de sa nature, et les trois cas
 aboutissent au même point de terminaison des jetons :</p>
@@ -848,8 +846,8 @@ le point de terminaison. C’est un mauvais choix à long terme : tous les appel
 qui l’utilisent sont le même compte, en révoquer un les révoque tous, et
 l’identifiant qu’il active est le secret du fournisseur que lit aussi le service
 d’analyse. Une fois l’association ci-dessus en place, pensez à ajouter aussi ce
-compte généré au groupe, sinon ce chemin cesse de fonctionner - ce qui est le
-bon résultat, et le moment de passer à votre propre compte de service.</p>
+compte généré au groupe, sinon ce chemin cesse de fonctionner. C’est le résultat
+attendu, et une bonne occasion de passer à votre propre compte de service.</p>
 <h3 id="as-a-person">En tant que personne</h3>
 <p>Un client MCP qui implémente le flux OAuth n’a besoin que de l’URL : il reçoit la
 réponse <code>401</code>, lit <code>/.well-known/oauth-protected-resource/mcp</code>, trouve
@@ -939,9 +937,9 @@ terminaison est ouvert, il circule dans <code>Authorization</code>, car rien d�
 n’utilise cet en-tête.</p>
 <p><strong>Lorsqu’une connexion est configurée, <code>Authorization</code> appartient au
 fournisseur d’identité, et l’identifiant d’effacement passe dans
-<code>X-Purge-Authorization</code>.</strong> L’ancien comportement n’est volontairement pas
-conservé : lire le jeton d’identité d’un agent comme s’il s’agissait d’un
-identifiant d’opérateur est exactement la confusion qu’il faut refuser.</p>
+<code>X-Purge-Authorization</code>.</strong> L’ancien comportement n’est pas
+conservé, afin que le jeton d’identité d’un agent ne soit jamais lu comme un
+identifiant d’opérateur.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;
@@ -952,7 +950,7 @@ en-têtes de la requête, jamais dans un argument.</p>
 <h2 id="behind-a-reverse-proxy">Derrière un reverse proxy</h2>
 <p>Deux hôtes, deux exigences.</p>
 <p><strong>Authentik construit l’émetteur à partir de l’en-tête <code>Host</code> qu’il reçoit.</strong> Un
-proxy qui le réécrit donne à chaque jeton un <code>iss</code> que personne n’acceptera, et
+proxy qui le réécrit donne à chaque jeton un <code>iss</code> qui sera refusé, et
 le symptôme est déroutant parce que tout le reste fonctionne. Transmettez <code>Host</code>
 et <code>X-Forwarded-Proto</code> sans modification, et ajoutez l’adresse de sortie du proxy
 à <code>AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS</code> si elle est en dehors des plages

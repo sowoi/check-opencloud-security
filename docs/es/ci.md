@@ -60,7 +60,7 @@ jobs:
           releases-token: ${{ github.token }}
 ```
 
-Eso es todo. El paso instala la versión fijada, analiza la instancia, escribe
+El paso instala la versión fijada, analiza la instancia, escribe
 `opencloud-security.json`, añade el resultado al resumen del trabajo y hace
 fallar el trabajo con WARNING, CRITICAL o UNKNOWN.
 

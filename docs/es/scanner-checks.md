@@ -204,7 +204,7 @@ que solo añade un reenviador, como `Via`.
 ```
 
 `reverseProxyDetected` falla cuando no se ha encontrado nada, y lo hace con
-gravedad `low` **a propósito**: Traefik y HAProxy no anuncian nada por
+gravedad `low` únicamente: Traefik y HAProxy no anuncian nada por
 defecto, y eliminar la cabecera `Server` es en sí una buena práctica, así que
 un despliegue bien gestionado puede parecer desnudo desde fuera. El hallazgo
 merece mostrarse, pero nunca merece restar nota.
@@ -242,8 +242,8 @@ Solo cuenta una URL a la que se *enviaría* a un cliente. Un host virtual
 predeterminado que rechaza un nombre no reconocido suele mostrar ese nombre en
 su página de error, y buscarlo en el cuerpo haría que el comportamiento
 correcto se notificara como hallazgo. Una instancia que no publica ningún
-documento de descubrimiento tampoco se evalúa en ningún sentido: dos errores
-significan que el análisis no ha averiguado nada, no que se haya superado.
+documento de descubrimiento tampoco se evalúa en ningún sentido: con dos errores,
+el análisis no tiene nada que evaluar.
 
 ### Servicios alternativos (HTTP/3) {#alternative-services-http3}
 
@@ -260,7 +260,7 @@ decida.
 ```
 
 Es una observación y nunca se califica: HTTP/3 no es una debilidad, solo algo
-que conviene abrir en el cortafuegos a propósito. El plugin muestra una línea
+que el cortafuegos debe tener en cuenta. El plugin muestra una línea
 de detalle cuando lo ve. La dirección anunciada nunca se sondea: es la palabra
 del objetivo, no un origen al que se apuntó el escaneo
 ([ADR 0036](../../adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md)).

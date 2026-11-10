@@ -127,7 +127,7 @@ WARNING: 1 previously measured check(s) are now inconclusive; the rating is unch
 Coverage regressed (1): previously measured, now inconclusive: caaRecord (timeout) - the rating is unaffected.
 ```
 
-Ce signal est volontairement séparé de la note de sécurité. La note, les
+Ce signal est séparé de la note de sécurité. La note, les
 perfdata et les constats restent ceux que les mesures ont donnés ; seul l'état
 d'alerte change, et uniquement de `OK` à `WARNING`. Une exécution déjà en
 `WARNING` ou `CRITICAL` garde son message et reçoit la ligne en plus.

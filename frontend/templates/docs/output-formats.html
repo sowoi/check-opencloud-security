@@ -36,8 +36,8 @@ JSON, SARIF or XML regardless of how many addresses were passed, so nothing
 downstream has to special-case a single-host run.</p>
 <p><strong>The exit code keeps its Nagios meaning under every format</strong> - <code>0</code>
 (OK), <code>1</code> (WARNING), <code>2</code> (CRITICAL), <code>3</code> (UNKNOWN). A CI step gates on the
-exit code exactly the way an Icinga check does; the document these flags
-produce is a separate, additional artifact, not a replacement for it. The two
+exit code the way an Icinga check does; the document these flags
+produce is an additional artifact and does not replace it. The two
 metric formats, <code>prometheus</code> and <code>otlp</code>, are the exception: they report a
 scan rather than judging it, so a finding travels as a sample and the process
 exits <code>0</code>.</p>
@@ -175,7 +175,7 @@ has the metric table both formats share.</p>
 would have alerted</strong>, and reports a failed scan as
 <code>opencloud_security_scrape_success 0</code> rather than as an exit code. A metrics
 pipeline has no other way to tell an unreachable instance from a scan that
-stopped running; where the exit code is the point, use <code>nagios</code>, <code>json</code>,
+stopped running; where you need the exit code, use <code>nagios</code>, <code>json</code>,
 <code>sarif</code> or <code>junit</code>.</p>
 <h2 id="choosing-a-format">Choosing a format</h2>
 <table>

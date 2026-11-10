@@ -1,6 +1,6 @@
 # Architektur
 
-So ist das Repository aufgebaut, und deshalb verlaufen seine Grenzen genau hier. Die Regeln stehen in [`AGENTS.md`](../../../AGENTS.md); die Entscheidungen und verworfenen Alternativen findest du unter [`adr/`](../../../adr/README.md).
+Diese Seite beschreibt den Aufbau des Repositorys und begründet, wo seine Grenzen verlaufen. Die Regeln stehen in [`AGENTS.md`](../../../AGENTS.md); die Entscheidungen und verworfenen Alternativen findest du unter [`adr/`](../../../adr/README.md).
 
 ## In einem Satz {#the-one-sentence-version}
 
@@ -119,9 +119,9 @@ CLI flags    ───┘        (flat COS_ names)     (builds)       (dataclass
 - `config.py` flacht verschachtelte Schlüssel ab: `scanner.target_port` wird zu `SCANNER_TARGET_PORT`, als Umgebungsvariable `COS_SCANNER_TARGET_PORT`. Listen werden mit `;` verbunden.
 - Rangfolge: **CLI-Flag > Umgebungsvariable > Datei > Standardwert**. Beide CLIs übergeben für nicht gesetzte Werte `None` an `factory.py`.
 - Nur `factory.py` erzeugt die unveränderlichen `ScannerSettings` und `ReleaseSettings`.
-- `.json` wird als JSON gelesen, alles andere als YAML. Die Endung entscheidet, nicht der Inhalt.
+- `.json` wird als JSON gelesen, alles andere als YAML. Maßgeblich ist die Endung und nicht der Inhalt.
 
-Die Webanwendung nutzt diese Kette nicht. Ihre `COS_WEB_*`-Umgebungsvariablen werden einmal beim Start gelesen: Eine Anfrage darf das Ziel wählen, niemals die Last.
+Die Webanwendung nutzt diese Kette nicht. Ihre `COS_WEB_*`-Umgebungsvariablen werden einmal beim Start gelesen: Eine Anfrage darf das Ziel wählen, aber nicht die Last.
 
 ## So durchläuft ein Scan die Webanwendung {#how-a-scan-flows-through-the-web-application}
 
@@ -269,7 +269,7 @@ Ausgangspunkt sind Version und Advisory-Datenbank. Fehlgeschlagene Prüfungen be
 
 `remediation.py` berechnet, welche Behebung was verbessert, indem jeweils ein Befund aus derselben Berechnung entfernt wird. Der Plan wird aus dem Ergebnis abgeleitet, nirgends zusätzlich gespeichert und enthält nur Zahlen. Buchstaben ergänzt weiterhin die bewertende Schicht ([ADR 0012](../../../adr/0012-the-remediation-plan-is-derived-not-stored.md)).
 
-Eine Ausnahme unterdrückt den Alarm, nicht die Belege. Der Befund bleibt mit `"ignored": true` im Ergebnis. Nur tatsächlich fehlgeschlagene Prüfungen lassen sich ausnehmen, damit eine spätere Verschlechterung nicht unbemerkt bleibt.
+Eine Ausnahme unterdrückt nur den Alarm. Der Befund bleibt mit `"ignored": true` im Ergebnis. Nur tatsächlich fehlgeschlagene Prüfungen lassen sich ausnehmen, damit eine spätere Verschlechterung nicht unbemerkt bleibt.
 
 Fest in OpenCloud codierte, nicht behebbare Befunde tragen in `hardening.py` `actionable=False`: im Ergebnis sichtbar, aber ohne Alarmzeile, `hardenings_missing`-Metrik oder Webhook.
 

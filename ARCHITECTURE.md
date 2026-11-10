@@ -219,7 +219,7 @@ POST /api/scans/batch  (per target, in order)                 │
                           GET /api/scans/{uuid}/export/{fmt} ◄─┘
 ```
 
-The order is deliberate. The client limit comes first because it is one Redis
+The order has reasons. The client limit comes first because it is one Redis
 `INCR` and it protects the resolver behind the SSRF guard from being used as an
 amplifier. The cooldown is claimed with `SET NX`, so two simultaneous requests
 for the same instance cannot both win. Only then does a uuid exist.
@@ -264,7 +264,7 @@ hardcodes a different number. If a description and the API disagree, the API
 wins and the description is the bug.
 
 `mcp_server.py` executes by calling **this service's own HTTP API in-process**,
-through the ordinary ASGI stack. That is the whole design: the SSRF guard, the
+through the ordinary ASGI stack. As a result the SSRF guard, the
 client rate limit, the target cooldown, the queue and the authorisation on
 erasure are the real ones, because there is no second path to them. An agent
 cannot reach a code path a browser could not, and cannot be rationed more
@@ -323,7 +323,7 @@ served open is the worst outcome available. See
 
 When MCP is enabled, the landing and result pages expose their current actions through the
 [WebMCP draft](https://webmachinelearning.github.io/webmcp/). This is a
-client-side adapter, not another workflow implementation:
+client-side adapter and implements no workflow of its own:
 
 ```text
 Jinja context -> _webmcp.html -> /static/js/webmcp.js
@@ -389,9 +389,9 @@ allow/disallow list, which stays that file's job alone. It is, like the
 discovery document, an informal convention rather than a registered
 standard. `/.well-known/ai.json` is
 *this application's* detailed discovery document and not a registered
-standard, which is why the code says so and the documentation does too. It
+standard, and both the code and the documentation state that. It
 lives under `/.well-known/` because that is where a well-behaved client
-looks, and it is deliberately small: a name, a description and absolute
+looks, and it is kept small: a name, a description and absolute
 URLs. `base.html` carries `service-desc` and `arazzo` link relations as
 hints, and the `/ai` page says the same in prose with ordinary clickable
 links - for the visitor who is a person, and for the crawler that only reads
@@ -399,7 +399,7 @@ HTML.
 
 Every one of these URLs is public and unauthenticated at a stable path.
 `COS_WEB_ENABLE_DOCS` governs only the browsable `/docs` and `/redoc` pages,
-never the JSON: a description nobody can fetch describes nothing
+never the JSON, because a description is only useful if it can be fetched
 ([ADR 0010](adr/0010-machine-readable-descriptions-are-always-public.md)).
 `COS_WEB_ENABLE_MCP` turns the MCP endpoint off for a deployment that does not
 want one, and the discovery document then stops advertising it.
@@ -505,8 +505,8 @@ line can belong to several tracks.
 
 - rolling and production expire when the next release on the same track ships;
   LTS expires on the clock.
-- **A newer version can be less supported than an older one.** That is the
-  model, not a bug.
+- **A newer version can be less supported than an older one.** The model
+  intends that.
 - **Ahead of your track is not end of life.** Only a release *behind* the
   current release of the declared track is unsupported.
 - An upgrade recommendation only ever points forwards, and never moves a
@@ -535,7 +535,7 @@ for a rolling, production, or LTS release:
    LTS line, verify the opening date and the calculated two-year support
    window. Existing lines may gain a newer patch, but their known tracks and
    opening dates must not disappear. A rejected runtime refresh is a safety
-   signal, not a reason to relax that rule.
+   signal and no reason to relax that rule.
 3. **Evaluate the vendor image separately.** Dispatch the `real OpenCloud
    container` workflow with `candidate_image` set to the immutable candidate
    digest. It initializes the vendor image and scans its public status
@@ -639,8 +639,8 @@ it destroys anything. It needs a row in the tool tables in `docs/mcp.md`,
 **A new MCP resource** is for reference material an agent reads, never for
 something that takes an argument or changes state - that is a tool. Call an
 existing presentation function (`webapp/catalog.py`, `webapp/advisories.py`)
-rather than writing a second one; a resource restating what a page already
-renders is exactly the divergence a resource exists to avoid. It needs a
+rather than writing a second one; a resource that restates what a page already
+renders would diverge from that page over time. It needs a
 `spec://check-opencloud-security/...` URI, the same rows and test as a new
 MCP tool above, and no scan target in its signature.
 

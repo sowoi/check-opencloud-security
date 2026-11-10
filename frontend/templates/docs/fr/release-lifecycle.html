@@ -98,9 +98,9 @@ versions plus anciennes pour illustrer un point.</p>
 <h2 id="the-recommended-release-follows-your-track">La version recommandée suit votre canal</h2>
 <p>Un flux de versions ne connaît que la version la plus récente <em>tous canaux
 confondus</em>, et chez OpenCloud c’est toujours une version rolling. La recommander
-à une instance production ou LTS la ferait passer discrètement sur un canal dont
-la période de support est de trois semaines - l’inverse de ce qu’a choisi un
-opérateur du canal production.</p>
+à une instance production ou LTS la ferait passer sur un canal dont
+la période de support est de trois semaines, ce qu’un opérateur du canal
+production n’a pas choisi.</p>
 <p>La vérification des mises à jour utilise donc le
 <a href="/documentation/reference#end-of-life-detection">calendrier des versions</a> pour choisir une
 cible sur le canal propre à l’instance :</p>
@@ -150,8 +150,8 @@ le flux l’emporte, car il est plus récent que le calendrier fourni.</p>
 version et la juge aussi favorablement que les faits le permettent : <code>7.2.3</code>
 figure à la fois sur le canal rolling et sur le canal production, elle est donc
 traitée comme une version de production et considérée comme à jour.</p>
-<p>C’est la bonne réponse tant que personne n’a indiqué le contraire, mais pas pour
-tout le monde. Si vous suivez délibérément le canal rolling, <code>7.2.3</code> n’est plus
+<p>C’est le bon choix par défaut tant qu’aucun canal n’est déclaré, mais il ne
+convient pas à toutes les instances. Si vous suivez délibérément le canal rolling, <code>7.2.3</code> n’est plus
 prise en charge depuis la sortie de <code>7.4.0</code>, et vous voulez en être informé.
 <code>--release-track</code> indique votre canal, et la version est alors jugée sur ce seul
 canal :</p>
@@ -204,7 +204,7 @@ d’utiliser une même configuration pour des instances sur des canaux différen
 </tr>
 </tbody>
 </table>
-<p>Deux conséquences sont bonnes à connaître à l’avance :</p>
+<p>Il en découle deux conséquences :</p>
 <ul>
 <li><strong>Être en avance sur votre canal n’est pas un constat.</strong> Une instance
   production passée à la version rolling actuelle dispose de tout ce que livre

@@ -284,8 +284,8 @@ et tous ses seconds facteurs.</p>
 solution est <strong>des jetons d’application, pas les mots de passe des comptes</strong> :
 ce qui peut être rejoué est alors révocable et n’est jamais l’identifiant que
 protège votre fournisseur d’identité. Ce scanner signale <code>basicAuthDisabled</code>
-en medium, ou en low lorsqu’il voit un fournisseur externe, précisément parce
-que ce compromis est parfois délibéré - voir
+en medium, ou en low lorsqu’il voit un fournisseur externe, parce
+que ce compromis est parfois voulu - voir
 <a href="/documentation/authentication">Authentification</a>.</p>
 <h2 id="2-turn-the-audit-log-on-then-read-it">2. Activer le journal d’audit, puis le lire</h2>
 <h3 id="the-audit-service-does-not-run-by-default">Le service d’audit ne s’exécute pas par défaut</h3>
@@ -402,7 +402,7 @@ preuves :</p>
 <p>Le journal d’audit d’un service de fichiers indique qui a consulté quels
 documents, ce qui, dans la plupart des juridictions, constitue des données
 personnelles soumises à une durée de conservation limitée plutôt qu’à une
-conservation illimitée. Fixez cette durée délibérément, consignez-la et faites-la
+conservation illimitée. Fixez cette durée, consignez-la et faites-la
 appliquer par le collecteur. Si vous êtes soumis au RGPD, ce journal entre dans
 votre registre des activités de traitement.</p>
 <h2 id="3-firewall-it-properly">3. Configurer correctement le pare-feu</h2>
@@ -453,7 +453,7 @@ votre registre des activités de traitement.</p>
 <a href="/documentation/exposure">Chemins exposés et points de terminaison de débogage</a>. Il vérifie
 votre pare-feu à votre place, depuis le seul point de vue qui compte.</p>
 <h3 id="a-host-firewall-that-works-with-docker">Un pare-feu d’hôte compatible avec Docker</h3>
-<p>L’erreur courante mérite d’être dite clairement : <strong>Docker écrit ses propres
+<p>L’erreur courante : <strong>Docker écrit ses propres
 règles iptables, et elles sont évaluées avant celles d’UFW.</strong> Un conteneur
 démarré avec <code>-p 9200:9200</code> est accessible depuis Internet, quoi qu’indique
 <code>ufw status</code>. Deux solutions, et il vous en faut une :</p>
@@ -512,8 +512,8 @@ messagerie que vous avez délibérément configurés. Refusez le reste par défa
   rien installer.</li>
 <li><strong>Un chiffrement complet du disque</strong> sur le support du stockage, pour qu’un
   disque mis au rebut ou volé ne soit pas une fuite de données.</li>
-<li><strong>Des sauvegardes que vous avez déjà restaurées.</strong> Une sauvegarde que personne
-  n’a testée est une hypothèse. Conservez une copie hors ligne ou sur un
+<li><strong>Des sauvegardes que vous avez déjà restaurées.</strong> Une sauvegarde jamais
+  testée peut se révéler inutilisable. Conservez une copie hors ligne ou sur un
   stockage à écriture unique : un rançongiciel cherche d’abord la sauvegarde.</li>
 <li><strong>Le moindre privilège pour le compte de service.</strong> Les unités systemd de
   <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/systemd"><code>contrib/systemd/</code></a> montrent le principe :

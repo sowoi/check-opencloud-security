@@ -219,7 +219,7 @@ short-circuiting comparison leaks how much of a guess was correct.</p>
 <p>Read the raw body with <code>await request.body()</code> in FastAPI or
 <code>request.get_data()</code> in Flask. Signature verification requires the original
 bytes, so read the body before parsing it as JSON.</p>
-<p>Three things worth knowing:</p>
+<p>Three notes:</p>
 <ul>
 <li><strong>The signature covers whatever was sent</strong>, including the chat-native and
   push documents <code>--webhook-format slack</code>, <code>discord</code>, <code>ntfy</code> and <code>gotify</code>
@@ -234,7 +234,7 @@ bytes, so read the body before parsing it as JSON.</p>
 </ul>
 <h2 id="uptime-kuma">Uptime Kuma</h2>
 <p>Uptime Kuma has no plugin system, but its <strong>Push</strong> monitor is a URL that
-expects to be called regularly - which is exactly what the webhook does. The
+expects to be called regularly, and the webhook does that. The
 check becomes a monitor in three steps.</p>
 <p><strong>1. Create the monitor.</strong> In Uptime Kuma choose <em>Add New Monitor</em>, monitor
 type <strong>Push</strong>, and name it after the instance. Uptime Kuma shows a <em>Push URL</em>
@@ -433,7 +433,7 @@ arriving before it resolves them:</p>
 </code></pre>
 <p>Send an alert only for a state you want paged, and let it time out rather than
 trying to resolve it by hand - the next scan is up to a day away, and an alert
-resolved early is an alert that silently un-pages a still-vulnerable server.
+resolved early stops paging for a server that is still vulnerable.
 If you already push metrics, <a href="/documentation/prometheus">Prometheus and Grafana</a> is the
 better route to Alertmanager.</p>
 <h2 id="testing-a-receiver-without-an-instance">Testing a receiver without an instance</h2>

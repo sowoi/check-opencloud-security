@@ -137,10 +137,10 @@ another plain-HTTP address, a <code>200</code> that serves the interface, and a
 redirect chain that reaches HTTPS only on its second hop all fail. A closed
 or filtered port 80 <strong>passes</strong> - plain HTTP cannot be spoken at all, which is
 the stronger version of enforcing it.</p>
-<p><strong><code>reverseProxyDetected</code></strong> is deliberately best-effort and never changes the
+<p><strong><code>reverseProxyDetected</code></strong> is best-effort and never changes the
 rating, because Traefik and HAProxy announce nothing by default. A
 well-configured deployment can fail it with nothing wrong; treat it as a
-prompt to confirm there is something in front, not as a defect. If there is
+prompt to confirm there is something in front. If there is
 not, the configuration below is the usual way to put one there.</p>
 <h3 id="nginx">nginx</h3>
 <pre><code class="language-nginx">server {
@@ -349,7 +349,7 @@ backend opencloud
 <p>The web application in this repository - <a href="/documentation/web-service"><code>docs/webapp.md</code></a> - is a
 plain ASGI service on one port. It sends its own security headers, including a
 <code>Content-Security-Policy</code> with no <code>unsafe-inline</code>, so a proxy has nothing to
-add. What it does need is the truth about who is calling and enough patience
+add. What it does need is the real client address and a timeout long enough
 for a scan to finish.</p>
 <p><strong>You do not have to copy any of this by hand.</strong>
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/docker/setup-wizard.py"><code>docker/setup-wizard.py</code></a> writes the nginx, Apache,

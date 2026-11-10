@@ -219,8 +219,8 @@ de minutos.
 
 ## Persistencia, o su ausencia deliberada {#persistence-or-the-deliberate-lack-of-it}
 
-El Redis incluido se ejecuta con `--save ""` y `--appendonly no`. No escribe
-nada en disco, a propósito.
+El Redis incluido se ejecuta con `--save ""` y `--appendonly no`. Está
+configurado para no escribir nada en disco.
 
 La persistencia y las copias de seguridad pueden conservar datos de análisis
 más allá de su caducidad en el almacén en ejecución. Por eso la pila
@@ -241,7 +241,7 @@ estén en un disco del que alguien pueda hacer copia. Nunca es la opción
 predeterminada, avisa cuando se elige y remite a `COS_WEB_ENCRYPT_RESULTS`:
 con esa opción activada, lo que llega al disco es texto cifrado y la clave vive
 en `.env` y no a su lado. En un despliegue al que pueden acceder desconocidos,
-la respuesta sigue siendo `none`.
+siga usando `none`.
 
 ## Memoria y desalojo {#memory-and-eviction}
 

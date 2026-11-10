@@ -379,7 +379,7 @@ a CI artefact store or a shared directory, stays with whatever you already use.<
 </tr>
 </tbody>
 </table>
-<p>A report is evidence about the day it was written, so two things are
+<p>A report describes the day it was written, so two things are
 re-measured against <strong>today</strong> rather than read back:</p>
 <ul>
 <li><strong>The release.</strong> The recorded version is placed again in the release
@@ -697,7 +697,7 @@ in a container is covered in
 <a href="/documentation/scan-service">Running the scanner as a service</a>.</p>
 <p>On such a bind the token must be at least 32 characters and not the
 placeholder from <code>secrets/scanner_token.example</code>: nothing limits how often it
-can be guessed, so its length is the whole of its strength. <code>openssl rand -hex
+can be guessed, so its length is its only protection. <code>openssl rand -hex
 32</code> gives one.</p>
 <p>This is not the public web application. That one is
 <a href="/documentation/web-service">the public scan service</a>.</p>
@@ -773,7 +773,7 @@ check that was configured rather than an example adjusted from memory:</p>
 </tr>
 </tbody>
 </table>
-<p>Two things are deliberate. <strong>Nothing is installed</strong>: the files are written
+<p>Two limits apply. <strong>Nothing is installed</strong>: the files are written
 where the configuration went and the commands that would install them are
 printed, so what reaches <code>/etc</code> is something you read first. And <strong>no
 credential is written into them</strong>: a webhook URL or a release token stays in

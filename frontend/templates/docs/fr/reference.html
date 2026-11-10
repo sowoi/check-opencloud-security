@@ -103,7 +103,7 @@ voir <a href="#installation">Installation</a> ci-dessous.</p>
 <li><code>requests</code> et <code>PyYAML</code>, installés automatiquement par pipx/uv/pip.</li>
 <li>Un accès réseau de l’hôte de supervision vers l’instance OpenCloud.
   Contrairement à un scanner hébergé, ce plugin doit atteindre l’instance
-  elle-même - c’est précisément ce qui le rend utilisable pour des instances qui
+  elle-même, et c’est pour cette raison qu’il fonctionne aussi avec des instances qui
   ne sont pas sur Internet.</li>
 </ul>
 <h2 id="installation">Installation</h2>
@@ -410,7 +410,7 @@ référence avaient déjà décidé, et la sortie indique
 <code>Policy: every requirement met</code>. La charge utile du webhook et <code>--format json</code>
 contiennent le même verdict sous <code>policy</code> : une tâche CI n’a donc pas besoin
 d’analyser la ligne d’alerte.</p>
-<p>Deux règles sont bonnes à connaître avant d’en écrire une :</p>
+<p>Deux règles s’appliquent lorsque vous en écrivez une :</p>
 <ul>
 <li><strong>Une exemption n’excuse pas une exigence.</strong> <code>--ignore-hardening</code> et
   <code>--waive-until</code> sont l’opérateur local qui accepte un constat ; une politique
@@ -419,9 +419,9 @@ d’analyser la ligne d’alerte.</p>
   d’applicable.</li>
 <li><strong>Une faute de frappe est une erreur d’utilisation, pas une réussite
   silencieuse.</strong> Une clé inconnue, une note hors de <code>0</code>-<code>5</code> ou une mesure
-  inconnue du catalogue termine l’exécution en <code>UNKNOWN</code> avec la raison. Une
-  politique existe pour faire échouer des déploiements : une règle qui n’exige
-  discrètement rien est le pire résultat possible.</li>
+  inconnue du catalogue termine l’exécution en <code>UNKNOWN</code> avec la raison. Sinon,
+  une règle mal orthographiée n’exigerait rien et la politique laisserait passer
+  des déploiements qu’elle devait faire échouer.</li>
 </ul>
 <h2 id="prometheus-kubernetes-integration">Intégration Prometheus et Kubernetes</h2>
 <p><code>--format=prometheus</code> produit une charge utile texte ponctuelle ; l’exportateur
@@ -1256,7 +1256,7 @@ ce problème, une raison et une date d’expiration :</p>
 </code></pre>
 <p>La date d’expiration doit comporter un fuseau horaire et la raison ne peut pas
 être vide ; un enregistrement auquel manque l’un des deux est refusé au lieu
-d’être traité discrètement comme permanent. À <code>2026-12-31T00:00:00Z</code>, la
+d’être traité comme permanent. À <code>2026-12-31T00:00:00Z</code>, la
 vérification déclenche de nouveau une alerte sans aucune modification de la
 configuration. Chaque exemption configurée - active, expirée ou sans aucune
 correspondance - est listée sous <code>waivers</code> dans le document de résultat.</p>
@@ -1295,7 +1295,7 @@ entière, <code>2</code> vulnérabilités connues, <code>1</code> vulnérabilit�
 <code>0</code> fin de vie. Les contrôles supplémentaires en échec la plafonnent ensuite
 selon leur gravité : <code>critical</code> à <code>2</code>, <code>high</code> à <code>3</code>, <code>medium</code> à <code>4</code>, <code>low</code> à <code>5</code>.
 Un contrôle en échec qui n’a pas déterminé le résultat est tout de même listé,
-avec une mention en ce sens : rien ne semble écarté discrètement.</p>
+avec une mention en ce sens, afin que la liste reste complète.</p>
 <p>Sans <code>--debug</code>, la sortie garde la taille qui convient à un système de
 supervision. La même décomposition est toujours présente dans le résultat de
 l’analyse sous <code>ratingExplanation</code> : elle peut donc être lue sans relancer la
@@ -1325,9 +1325,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     HTTP Basic authentication is enabled
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 </code></pre>
-<p>Trois points sur cette liste méritent d’être connus avant d’agir :</p>
+<p>Avant d’agir sur cette liste, notez trois points :</p>
 <ul>
-<li><strong>L’ordre n’est pas arbitraire.</strong> Les constats de même gravité partagent un
+<li><strong>L’ordre compte.</strong> Les constats de même gravité partagent un
   même plafond : corriger le premier de trois constats medium ne change donc
   rien. Les étapes qui ne font rien gagner à elles seules sont tout de même
   listées - avec <code>still 4/5</code> au lieu de <code>then 5/5</code> -, car les omettre laisserait
@@ -1341,8 +1341,8 @@ Two fixes would raise this instance from 3/5 to 5/5.
   la portée du plan. Voir
   <a href="/documentation/hardening#measures-that-are-not-settings">Mesures qui ne sont pas des paramètres</a>.</li>
 </ul>
-<p>Les constats exemptés sont aussi listés, marqués comme tels : une exemption fait
-taire une alerte, elle ne corrige rien, et le plan le dit.</p>
+<p>Les constats exemptés sont aussi listés, marqués comme tels, car une exemption fait
+taire une alerte sans rien corriger.</p>
 <p>Le même plan figure sur le tableau de bord web, dans les exports JSON, CSV,
 SARIF et PDF, et dans l’outil MCP <code>plan_remediation</code>.</p>
 <h4 id="grouped-by-where-the-change-is-made">Regroupé par configuration</h4>

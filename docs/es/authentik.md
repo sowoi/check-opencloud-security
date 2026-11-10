@@ -151,8 +151,7 @@ del contenedor y no llegan a los buzones de los usuarios.
 
 Cada ajuste es una variable de `docker/.env`, y ambos servicios de Authentik
 las leen: el servidor envía el mensaje de prueba y el worker envía todo lo
-demás, así que configurar uno y no el otro funciona hasta el día en que
-importa:
+demás, así que, con solo uno configurado, unos mensajes se envían y otros no:
 
 | Variable | Valor predeterminado | Qué es |
 |:---------|:--------|:-----------|
@@ -236,7 +235,7 @@ crear el proveedor a mano, defínala también.
 
 **El ID de cliente es la audiencia.** Está en `.env`, que es de donde la
 aplicación web lo lee como `COS_WEB_MCP_AUTH_AUDIENCE`: ambas partes coinciden
-porque leen la misma línea, no porque usted haya copiado una en la otra.
+porque leen la misma línea, así que no hay nada que copiar.
 
 El modo de emisor por proveedor da:
 
@@ -494,7 +493,7 @@ sesión y Authentik muestra un error en lugar de devolverla:
 docker compose exec authentik_worker ak shell -c "from authentik.core.models import Group; g = Group.objects.get(name='opencloud-scanner-operators'); print('IN_GROUP', g.users.filter(username='scanokko').exists())" 2>&1 | grep -E 'IN_GROUP|Error|DoesNotExist'
 ```
 
-Y el caso negativo, que merece el minuto que cuesta: una cuenta que *no* está
+Pruebe también el caso negativo: una cuenta que *no* está
 en el grupo debe recibir el error de Authentik, no el área. **Events → Logs**
 registra cada rechazo con la cuenta y la aplicación que se le denegó.
 
@@ -543,7 +542,7 @@ esta emite tokens para todas ellas, con el mismo emisor y la misma clave de
 firma, así que un `aud` que nunca se compara convierte cada uno de esos tokens
 en una llave de `/mcp`, incluido uno emitido para una aplicación que puede usar
 cualquiera del directorio. Dejar `COS_WEB_MCP_AUTH_AUDIENCE` vacío detiene por
-tanto el servicio en lugar de ampliarlo sin avisar, y un token sin ningún `aud`
+tanto el servicio en lugar de ampliar el acceso, y un token sin ningún `aud`
 se rechaza por el mismo motivo. La pila de
 `docker/docker-compose.authentik.yml` lo define a partir de
 `AUTHENTIK_CLIENT_ID` y no arranca sin él.
@@ -567,8 +566,8 @@ decisión.
 ### Un grupo, y la vinculación que le da sentido {#a-group-and-the-binding-that-makes-it-mean-something}
 
 Hágalo una vez, antes del primer usuario. Una vinculación a un grupo es una
-cosa que revisar más adelante; una vinculación por persona es una lista que
-nadie depura.
+cosa que revisar más adelante; las vinculaciones por persona se acumulan y
+rara vez se depuran.
 
 1. **Directory → Groups → Create**. Llámelo `opencloud-scanner`. Deje
    desactivado *Superuser privileges*: este grupo trata de una aplicación, y un
@@ -603,7 +602,7 @@ Después, en la página del usuario:
   enlace para entregarlo por otra vía cuando no hay servidor de correo.
 - **Groups → Add to existing group** → `opencloud-scanner`.
 
-Eso es todo para alguien que inicia sesión desde un navegador: su cliente MCP
+Quien inicia sesión desde un navegador no necesita nada más: su cliente MCP
 lo lleva por Authentik, inicia sesión y el cliente obtiene un token. No hay que
 copiar nada, y no hay ninguna configuración por usuario en el lado del
 escáner.
@@ -636,9 +635,8 @@ Tokens and App passwords** antes de esa fecha. Y una cuenta de servicio no
 puede usar la interfaz de administración ni la de usuario, que es justamente la
 idea: tiene credenciales y no tiene inicio de sesión.
 
-Dé una a cada llamante en lugar de compartir una. No cuestan nada, y la
-diferencia se nota el día en que necesita revocar exactamente una sin llamar
-por teléfono a todos los demás.
+Dé una a cada llamante en lugar de compartir una. No cuestan nada, y así
+puede revocar una sola sin afectar a las demás.
 
 ## Obtener un token {#getting-a-token}
 
@@ -795,9 +793,8 @@ cabecera.
 
 **Con un inicio de sesión configurado, `Authorization` pertenece al proveedor
 de identidad, y la credencial de purga pasa a `X-Purge-Authorization`.** No se
-mantiene el comportamiento anterior a propósito: leer el token de identidad de
-un agente como si fuera una credencial de operador es exactamente la confusión
-que conviene rechazar.
+mantiene el comportamiento anterior, para que el token de identidad de
+un agente nunca se lea como una credencial de operador.
 
 ```json
 "headers": {
@@ -814,7 +811,7 @@ cabeceras de la solicitud, nunca como argumento.
 Dos hosts, dos requisitos.
 
 **Authentik construye el emisor a partir de la cabecera `Host` que recibe.** Un
-proxy que la reescribe da a cada token un `iss` que nadie aceptará, y el
+proxy que la reescribe da a cada token un `iss` que se rechaza, y el
 síntoma confunde porque todo lo demás funciona. Reenvíe `Host` y
 `X-Forwarded-Proto` sin cambios, y añada la dirección de salida del proxy a
 `AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS` si está fuera de los rangos privados.

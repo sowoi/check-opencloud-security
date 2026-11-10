@@ -278,12 +278,12 @@ dos factores específicamente para OpenCloud:</p>
 calendarios CalDAV y CardDAV, montajes WebDAV, trabajos de copia de seguridad.
 Esos se autentican con HTTP Basic, y <code>PROXY_ENABLE_BASIC_AUTH=true</code> vuelve a
 abrir una vía que elude su proveedor y todos sus segundos factores.</p>
-<p>Déjelo en <code>false</code> si nada lo necesita. Si algo lo necesita, la respuesta son
-<strong>tokens de aplicación, no contraseñas de cuenta</strong>: lo que se puede reutilizar
+<p>Déjelo en <code>false</code> si nada lo necesita. Si algo lo necesita, use
+<strong>tokens de aplicación en lugar de contraseñas de cuenta</strong>: lo que se puede reutilizar
 es entonces revocable y nunca es la credencial que protege su proveedor de
 identidad. Este escáner notifica <code>basicAuthDisabled</code> como medium, o como low
-cuando ve un proveedor externo, precisamente porque a veces el compromiso es
-deliberado; consulte <a href="/documentation/authentication">Autenticación</a>.</p>
+cuando ve un proveedor externo, porque a veces ese compromiso es
+intencionado; consulte <a href="/documentation/authentication">Autenticación</a>.</p>
 <h2 id="2-turn-the-audit-log-on-then-read-it">2. Active el registro de auditoría y después léalo</h2>
 <h3 id="the-audit-service-does-not-run-by-default">El servicio de auditoría no se ejecuta por defecto</h3>
 <p>OpenCloud tiene un
@@ -510,8 +510,8 @@ fundamental:</p>
   nada.</li>
 <li><strong>Cifrado de disco completo</strong> en lo que contenga el almacenamiento, para que
   un disco retirado o robado no sea una fuga de datos.</li>
-<li><strong>Copias de seguridad que ya ha restaurado.</strong> Una copia que nadie ha probado
-  es una hipótesis. Guarde una copia fuera de línea o en almacenamiento de
+<li><strong>Copias de seguridad que ya ha restaurado.</strong> Una copia sin probar puede
+  no restaurarse. Guarde una copia fuera de línea o en almacenamiento de
   escritura única: el ransomware busca primero la copia de seguridad.</li>
 <li><strong>Privilegios mínimos para la cuenta de servicio.</strong> Las unidades de systemd
   de <a href="https://github.com/sowoi/check-opencloud-security/blob/main/contrib/systemd"><code>contrib/systemd/</code></a> muestran el patrón:
@@ -525,8 +525,9 @@ fundamental:</p>
 <h2 id="5-what-the-people-using-it-should-know">5. Lo que deben saber las personas que lo usan</h2>
 <p>La mayoría de los incidentes reales en un servicio de archivos no son
 exploits. Alguien comparte la carpeta equivocada con un enlace público, o
-reutiliza una contraseña que estaba en una filtración. Es un problema de
-documentación y de valores predeterminados, no de parches.</p>
+reutiliza una contraseña que estaba en una filtración. Los parches no evitan ninguna de
+las dos cosas; ambas dependen de la documentación y de los valores
+predeterminados.</p>
 <h3 id="for-everybody-with-an-account">Para todas las personas con cuenta</h3>
 <ul>
 <li><strong>Un enlace público es una contraseña.</strong> Quien tiene la URL tiene los datos:

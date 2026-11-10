@@ -151,8 +151,8 @@ inconnue au lieu de devenir un échec, comme partout ailleurs dans l’analyse.
 `OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS`,
 `OC_PASSWORD_POLICY_MIN_DIGITS` et
 `OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS` à `1` ou plus. Chacun vaut déjà `1`
-par défaut : une instance qui échoue à ce contrôle les a donc abaissés
-volontairement.
+par défaut : sur une instance qui échoue à ce contrôle, ils ont donc été
+abaissés.
 
 ## 6. Le fournisseur d’identité est-il seulement identifiable : `identityProviderDetected` {#6-can-the-identity-provider-be-found-at-all-identityproviderdetected}
 
@@ -193,7 +193,7 @@ fournisseur et peut être relié à un fournisseur externe.
 
 La requête ci-dessus a déjà été faite. Le document qu’elle renvoie est une
 preuve publique au sens de l’[ADR 0022](../../adr/0022-identity-provider-versions-require-public-evidence.md) -
-non authentifié, en lecture seule, publié volontairement - et quatre de ses
+non authentifié, en lecture seule et destiné à être public - et quatre de ses
 champs indiquent quelque chose sur quoi un opérateur peut agir. Les lire ne
 coûte **aucune requête HTTP supplémentaire** : la réponse qui a fourni
 l’émetteur fournit aussi les quatre champs.

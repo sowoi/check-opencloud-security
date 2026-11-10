@@ -183,7 +183,7 @@ Read the raw body with `await request.body()` in FastAPI or
 `request.get_data()` in Flask. Signature verification requires the original
 bytes, so read the body before parsing it as JSON.
 
-Three things worth knowing:
+Three notes:
 
 - **The signature covers whatever was sent**, including the chat-native and
   push documents `--webhook-format slack`, `discord`, `ntfy` and `gotify`
@@ -198,7 +198,7 @@ Three things worth knowing:
 
 ## Uptime Kuma
 Uptime Kuma has no plugin system, but its **Push** monitor is a URL that
-expects to be called regularly - which is exactly what the webhook does. The
+expects to be called regularly, and the webhook does that. The
 check becomes a monitor in three steps.
 
 **1. Create the monitor.** In Uptime Kuma choose *Add New Monitor*, monitor
@@ -414,7 +414,7 @@ check-opencloud-security --host opencloud.example.com --webhook-url \
 
 Send an alert only for a state you want paged, and let it time out rather than
 trying to resolve it by hand - the next scan is up to a day away, and an alert
-resolved early is an alert that silently un-pages a still-vulnerable server.
+resolved early stops paging for a server that is still vulnerable.
 If you already push metrics, [Prometheus and Grafana](prometheus.md) is the
 better route to Alertmanager.
 

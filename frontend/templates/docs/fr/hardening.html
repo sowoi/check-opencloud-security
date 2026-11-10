@@ -146,8 +146,8 @@ donc pas de constats fantômes.</p>
 environnement : une CSP que vous ne pouvez pas durcir sans casser l’interface
 web, un en-tête HSTS géré par votre reverse proxy, ou une authentification Basic
 dont un outil de migration a réellement besoin. Laissés tels quels, ils
-abaissent la note et maintiennent le contrôle en jaune, et un contrôle
-constamment jaune est un contrôle que plus personne ne lit.</p>
+abaissent la note et maintiennent le contrôle en jaune en permanence, et l’on
+cesse de regarder un contrôle qui ne change jamais.</p>
 <p><code>--ignore-hardening</code> accepte un constat par son nom. La note est recalculée sans
 lui : accepter un constat change donc réellement la note :</p>
 <pre><code class="language-bash">check-opencloud-security --host opencloud.example.com --check-hardening \
@@ -174,14 +174,14 @@ l’autre serait déroutant.</p>
 <li>mais <strong>reste dans le document de résultat JSON</strong>, marqué <code>"ignored": true</code>,
   et figure dans la sortie du plugin sous la forme <code>Ignored by configuration (n): ...</code>.</li>
 </ul>
-<p>Ce dernier point est voulu. Une exemption supprime une alerte, pas la preuve :
+<p>Une exemption supprime l’alerte et conserve la preuve :
 l’analyse enregistre toujours ce qu’elle a vu, <code>--debug</code> l’explique toujours et
-toute personne qui lit la sortie voit exactement ce qui est ignoré.</p>
+toute personne qui lit la sortie voit ce qui est ignoré.</p>
 <p>Une exemption ne permet pas deux choses :</p>
 <ul>
 <li><strong>Exempter un contrôle qui réussit.</strong> Une exemption ne s’applique qu’à un
-  constat réellement en échec : elle ne peut donc pas devenir discrètement un
-  angle mort le jour où la mesure régresse.</li>
+  constat réellement en échec : une régression ultérieure de la mesure ne
+  passe donc pas inaperçue.</li>
 <li><strong>Exempter une version en fin de vie.</strong> Faire tourner une version qui ne
   reçoit plus de correctifs de sécurité l’emporte sur tous les autres signaux, y
   compris <code>--ignore-hardening '*'</code>.</li>
