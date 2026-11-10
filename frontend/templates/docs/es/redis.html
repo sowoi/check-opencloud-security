@@ -307,8 +307,8 @@ privado. Nunca publique el 6379 en una interfaz del host, y nunca en internet:
 los escáneres encuentran un Redis abierto en una dirección pública en cuestión
 de minutos.</p>
 <h2 id="persistence-or-the-deliberate-lack-of-it">Persistencia, o su ausencia deliberada</h2>
-<p>El Redis incluido se ejecuta con <code>--save ""</code> y <code>--appendonly no</code>. No escribe
-nada en disco, a propósito.</p>
+<p>El Redis incluido se ejecuta con <code>--save ""</code> y <code>--appendonly no</code>. Está
+configurado para no escribir nada en disco.</p>
 <p>La persistencia y las copias de seguridad pueden conservar datos de análisis
 más allá de su caducidad en el almacén en ejecución. Por eso la pila
 predeterminada desactiva tanto las instantáneas como la persistencia
@@ -326,7 +326,7 @@ estén en un disco del que alguien pueda hacer copia. Nunca es la opción
 predeterminada, avisa cuando se elige y remite a <code>COS_WEB_ENCRYPT_RESULTS</code>:
 con esa opción activada, lo que llega al disco es texto cifrado y la clave vive
 en <code>.env</code> y no a su lado. En un despliegue al que pueden acceder desconocidos,
-la respuesta sigue siendo <code>none</code>.</p>
+siga usando <code>none</code>.</p>
 <h2 id="memory-and-eviction">Memoria y desalojo</h2>
 <pre><code>--maxmemory 256mb
 --maxmemory-policy allkeys-lru

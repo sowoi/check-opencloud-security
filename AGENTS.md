@@ -741,6 +741,16 @@ string - in `webapp/locales/de.py` and in the guides under `docs/de/` - uses
 the catalogue or in a German guide. Spanish (formal "usted", in the catalogue
 and under `docs/es/`) and French keep their existing register.
 
+**Guides state facts and leave the rhetoric out, in all four languages.** No
+closing aphorism ("a warning nobody can clear is noise"), no summary flourish
+("that is the whole thing", "which is the point"), no lead-in that announces
+information ("three things are worth knowing"), and no "on purpose" where the
+reason belongs. `tests/test_documentation_style.py` lists the banned
+constructs per language with the plain rewrite for each, and holds words that
+are only sometimes padding (`deliberately`, `simply`, `quietly` and their
+translations) to a count that may fall but not rise - never raise a ceiling to
+make a sentence fit.
+
 Every page carries the trademark notice in the footer of `base.html`. See
 [Trademarks and affiliation](#trademarks-and-affiliation) - do not remove it
 from a template, and add it to any new surface that stands on its own.

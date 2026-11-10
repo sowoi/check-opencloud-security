@@ -209,8 +209,8 @@ address is found by scanners within minutes.
 
 ## Persistence, or the deliberate lack of it
 
-The shipped Redis runs with `--save ""` and `--appendonly no`. It writes
-nothing to disk, on purpose.
+The shipped Redis runs with `--save ""` and `--appendonly no`. It is
+configured to write nothing to disk.
 
 Persistence and backups can retain scan data beyond its expiry in the running store. The
 default stack therefore disables both snapshots and append-only persistence. A restart
@@ -227,7 +227,7 @@ losing a queued scan to a restart matters more than the scans being on a disk
 that somebody may back up. It is never the default, it warns when you choose
 it, and it points at `COS_WEB_ENCRYPT_RESULTS` — with that on, what reaches
 the disk is ciphertext and the key lives in `.env` rather than beside it. On
-a deployment strangers can reach, the answer is still `none`.
+a deployment strangers can reach, still use `none`.
 
 **Moving a persisting stack from Redis 8 to Valkey:** Valkey refuses a data
 file written by Redis 8 and does not start. Stop the stack, empty the data

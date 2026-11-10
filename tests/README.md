@@ -209,6 +209,7 @@ that check.
 | [`test_webapp_seo.py`](test_webapp_seo.py) | Docs pages are indexable, results never are, there is no third-party card metadata, and the mobile nav fits. |
 | [`test_webapp_i18n.py`](test_webapp_i18n.py) | The frontend is translated without changing API contracts. |
 | [`test_translation_quality.py`](test_translation_quality.py) | Structural differences between the catalogues fail; prose heuristics warn. |
+| [`test_documentation_style.py`](test_documentation_style.py) | The guides in all four languages carry no closing aphorism, summary flourish or announcing lead-in, and filler words may not spread. |
 | [`test_coverage.py`](test_coverage.py) | Every check has one state, an unmeasured one says why, and none of it moves the grade. |
 | [`test_fingerprint.py`](test_fingerprint.py) | Configuration drift shows up, routine churn does not, and no configuration leaves the block. |
 | [`test_webapp_coverage.py`](test_webapp_coverage.py) | Scan gaps regrouped and translated, and an older report that records none. |

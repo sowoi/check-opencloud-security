@@ -161,8 +161,8 @@ La comprobación pregunta al resolvedor que ya usa este equipo (el de
 DNSSEC activado, y lee si el resolvedor validó la respuesta, si la respuesta
 llevaba firmas y si el resolvedor entendió la pregunta.
 
-Esta última parte explica por qué a veces el hallazgo simplemente no aparece.
-Un resolvedor que no admite DNSSEC produce exactamente el mismo silencio que una
+Esta última parte explica por qué a veces el hallazgo no aparece.
+Un resolvedor que no admite DNSSEC responde igual que una
 zona sin firmar, y notificarlo haría fallar todos los análisis ejecutados
 detrás de un resolvedor así por un motivo que no tiene nada que ver con la
 instancia. Por tanto:
@@ -186,9 +186,9 @@ El certificado indica un servidor OCSP, pero el servidor no adjunta la
 respuesta de revocación al handshake, así que cada cliente tiene que
 preguntar él mismo a la autoridad. Eso le revela a la autoridad quién está de
 visita, y cuando el servidor OCSP es lento suele omitirse en lugar de tratarse
-como un fallo. Es un hallazgo de gravedad baja por una razón: la mayoría de las
+como un fallo. Es solo un hallazgo de gravedad baja: la mayoría de las
 autoridades actuales, entre ellas Let's Encrypt, ya no publican ningún
-servidor OCSP, y la comprobación simplemente no se aplica a esos certificados.
+servidor OCSP, y la comprobación no se aplica a esos certificados.
 
 ## 11. ¿Se publicó el certificado en un registro?: `tlsCertificateTransparency` {#11-was-the-certificate-published-to-a-log-tlscertificatetransparency}
 
@@ -273,7 +273,7 @@ que se le indique ante qué caso está:
 3. HTTP sin cifrar: `httpsAvailable` (critical).
 
 `--insecure` (`COS_INSECURE`) omite el requisito de verificación del paso 1.
-La cadena no fiable se sigue mostrando en la salida; simplemente deja de restar
+La cadena no fiable se sigue mostrando en la salida, pero deja de restar
 en la nota. Úselo para una instancia que sabe que es autofirmada, para que un
 certificado *realmente* defectuoso en otro lugar siga destacando en lugar de
 perderse entre hallazgos esperados.

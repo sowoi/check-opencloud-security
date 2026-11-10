@@ -93,8 +93,8 @@ sudo install -m 0755 contrib/checkmk/opencloud_security \
 ```
 
 **Lo importante es el `3600`.** Un script situado directamente en `local/` se
-ejecuta cada vez que se llama al agente, es decir, una vez por minuto, y eso
-supone un análisis por minuto contra la instancia de producción de alguien. El
+ejecuta cada vez que se llama al agente, es decir, una vez por minuto, lo que
+analizaría una instancia de producción cada minuto. El
 subdirectorio numérico es el intervalo de caché del agente en segundos: así el
 análisis se ejecuta como mucho una vez por hora, y cada llamada intermedia se
 responde con la línea guardada en caché. Elija el intervalo que realmente
@@ -133,7 +133,7 @@ Este último es el motivo por el que el script incluido siempre imprime una
 línea, incluso cuando falta el complemento o el tiempo de espera del agente lo
 ha interrumpido. Una comprobación local que no imprime nada no pasa a UNKNOWN:
 *elimina su servicio del host*, lo que parece una comprobación que alguien
-desactivó a propósito y no una que se ha roto.
+ha desactivado, aunque en realidad se ha roto.
 
 ### Las métricas {#the-metrics}
 
@@ -173,9 +173,9 @@ cualquier otro. Conviene configurar dos reglas:
 
 - Alertar de inmediato en **CRIT**: una vulnerabilidad conocida o una versión
   sin soporte no son un problema para mañana.
-- Representar `support_days_left` en un gráfico y fijarle un nivel. Es el único
-  número que empeora aunque nada cambie en la instancia, y el día en que pasa a
-  negativo la nota cae por sí sola a F.
+- Representar `support_days_left` en un gráfico y fijarle un nivel. Baja aunque
+  nada cambie en la instancia, y cuando pasa a
+  negativo la nota cae a F.
 
 `--baseline` y `--warn-on-new`
 ([Notificar solo lo que ha cambiado](../baseline.md)) funcionan con ambas vías

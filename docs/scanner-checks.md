@@ -195,7 +195,7 @@ only a forwarder adds such as `Via`.
 ```
 
 `reverseProxyDetected` fails when nothing was found, and does so at severity
-`low` **on purpose**: Traefik and HAProxy announce nothing by default, and
+`low` only: Traefik and HAProxy announce nothing by default, and
 stripping the `Server` header is itself good practice, so a well-run
 deployment can look bare from outside. The finding is worth showing and is
 never worth a grade.
@@ -231,7 +231,7 @@ Only a URL a client would be *sent* to counts. A default virtual host that
 refuses an unrecognised name commonly prints that name in its error page, and
 reading the body for it would report the correct behaviour as the finding.
 An instance that publishes no discovery document at all is not judged either
-way: two errors are the scan learning nothing, not a pass.
+way: two errors give the scan nothing to assess.
 
 ### Alternative services (HTTP/3)
 
@@ -247,7 +247,7 @@ a reverse proxy can enable without anybody deciding to.
 ```
 
 It is an observation and is never graded: HTTP/3 is not a weakness, only
-something to firewall on purpose. The plugin prints a detail line when it sees
+something the firewall has to account for. The plugin prints a detail line when it sees
 one. The advertised address is never probed - it is the target's word, not an
 origin the scan was pointed at
 ([ADR 0036](../adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md)).
@@ -432,7 +432,7 @@ The result is `addressParity`, with the first address as the reference:
 | The address resolves but does not answer       | medium                                    |
 
 Waived headers and checks are not compared. A name with one address gets no
-finding at all - an absence, not a pass - and no extra requests. What each
+finding at all (it is absent, not passed) and causes no extra requests. What each
 address served is in the result document as `addressObservations`.
 
 It is off by default: about a dozen requests per address, a demo sign-in

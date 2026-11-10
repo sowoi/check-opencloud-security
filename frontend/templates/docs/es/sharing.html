@@ -54,10 +54,10 @@ enlaces?</a>.</p>
 documento de capacidades. En las versiones actuales de OpenCloud es un <code>false</code>
 fijo en el servicio frontend (una constante, no un ajuste), así que todas las
 instancias notifican el mismo valor sea cual sea su configuración. <strong>Esta
-comprobación nunca genera alertas</strong> precisamente por eso: se excluye de la
+comprobación nunca genera alertas</strong> por ese motivo: se excluye de la
 línea "Missing hardening", de la métrica <code>hardenings_missing</code> y de la carga
-útil del webhook, porque una advertencia que nadie puede resolver es ruido, y
-el ruido es lo que hace que se ignoren los hallazgos reales; consulte
+útil del webhook, porque nadie puede resolver la advertencia y solo distraería de los
+hallazgos que sí se pueden corregir; consulte
 <a href="/documentation/hardening#measures-that-are-not-settings">Medidas que no son ajustes</a>.
 <code>--debug</code> la sigue mostrando, con su explicación.</p>
 <p>Se mantiene en el catálogo en lugar de eliminarse para que una futura versión

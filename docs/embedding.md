@@ -7,7 +7,7 @@ scanner reads the public `/config.json` to check which origins the embedded clie
 trusts.
 
 If `/config.json` cannot be read, or does not publish an `embed` block at
-all, both checks pass - embedding is simply not configured, so there is
+all, both checks pass - embedding is not configured, so there is
 nothing for either origin restriction to fail.
 
 <!-- TOC -->

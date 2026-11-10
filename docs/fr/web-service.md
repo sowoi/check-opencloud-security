@@ -216,10 +216,10 @@ ou une charge utile dans une requête sortante.
 
 Les exemptions sont vérifiées par rapport à une liste autorisée construite à partir
 du catalogue de durcissement : `*` et `debugPort:*` sont donc écartés au lieu
-d’être respectés. Une exemption générique sur un service public serait un bandeau
-sur les yeux avec un joli nom. Les indicateurs qu’OpenCloud code en dur ne sont pas
-proposés non plus : exempter un constat que personne ne peut corriger laisserait
-croire que quelqu’un le pourrait.
+d’être respectés. Une exemption générique sur un service public masquerait tous les
+constats d’un coup. Les indicateurs qu’OpenCloud code en dur ne sont pas
+proposés non plus : personne ne peut corriger ces constats, et une exemption
+laisserait croire le contraire.
 
 ## Configuration {#configuration}
 
@@ -303,7 +303,7 @@ Chaque paramètre est une variable d’environnement, lue une fois au démarrage
 | `COS_WEB_WEBHOOK_SECRET` | *(aucun)* | Lu au démarrage mais non utilisé par le service web, qui n’envoie aucun webhook ; les webhooks signés relèvent de l’option `--webhook-secret` du plugin. Listé pour que sa définition ne soit pas prise pour une faute de frappe |
 | `COS_WEB_ENCRYPTION_KEY_<n>` | *(aucune)* | Une clé de 32 octets sous forme de 64 caractères hexadécimaux. Le `<n>` le plus élevé chiffre, les plus bas déchiffrent encore : c’est ainsi qu’une clé est renouvelée |
 
-`COS_WEB_RELEASES_MODE` vaut `off` par défaut, volontairement : un déploiement
+`COS_WEB_RELEASES_MODE` vaut `off` par défaut : un déploiement
 public qui interroge le flux des versions à chaque visiteur est limité en débit,
 et la vérification des mises à jour de tous les visiteurs échoue alors d’un coup.
 Le calendrier des versions décide toujours de la fin de vie sans lui.
@@ -375,7 +375,7 @@ façon être refusée ne consomme pas le créneau d’une cible jamais analysée
 
 ## Mettre en file d’attente plutôt que refuser {#queueing-rather-than-refusing}
 
-Plus de visiteurs que de workers, c’est une file d’attente, pas une panne. Chaque
+Lorsqu’il y a plus de visiteurs que de workers, les requêtes sont mises en file d’attente. Chaque
 requête qui passe la validation reçoit un uuid et une réponse **202** (ou **303**
 depuis le formulaire), puis attend dans une file FIFO. La page d’analyse affiche
 la position - *« Analyse en file d’attente. Position : n° 2 sur 7 »* - et le
@@ -597,7 +597,7 @@ COS_WEB_BLOCKED_TARGETS="opencloud.example.com;.example.org;203.0.113.0/24"
   Voir [l’ADR 0043](../../adr/0043-an-operators-exclusion-outranks-every-allowance.md) ;
 - une entrée qui n’a aucune de ces quatre formes **empêche le démarrage**, dans le
   processus web comme dans le worker. Une faute de frappe serait sinon invisible :
-  le service démarre, répond normalement et analyse exactement ce qu’on lui avait
+  le service démarre, répond normalement et analyse les adresses qu’on lui avait
   demandé de ne pas analyser.
 
 Le refus que voit un visiteur indique seulement que le service a été prié de ne
@@ -707,7 +707,7 @@ donne toujours lieu à une nouvelle tentative, car il peut ne s’agir que d’u
 certificat non reconnu.
 
 Un opérateur légitime dont l’instance est hors service peut lui aussi rencontrer
-le blocage, après cinq tentatives. C’est le compromis : le message en donne la
+le blocage, après cinq tentatives. Le message en donne la
 raison et suggère d’exécuter le scanner localement, ce qui n’a pas cette limite.
 
 **L’espace opérateur montre la protection à l’œuvre** - réseaux actuellement
@@ -864,8 +864,8 @@ Trois conséquences en découlent, toutes voulues :
   renouvelées comprises. Un volume monté est lisible par quiconque accède à l’hôte
   qui l’héberge.
 - **Un fichier impossible à écrire arrête le processus**, avec le chemin dans le
-  message. Annoncer une piste d’audit qui ne mène discrètement nulle part est pire
-  que de ne pas en avoir, selon le même raisonnement que
+  message. Sinon, le service annoncerait une piste d’audit qui n’est pas écrite.
+  Le même raisonnement figure dans
   [l’ADR 0008](../../adr/0008-refuse-to-start-without-the-encryption-key.md).
 
 Un volume nommé est la solution la plus simple, et celle que
@@ -983,7 +983,7 @@ ingress représente deux sauts et nécessite `COS_WEB_TRUSTED_PROXY_HOPS=2`.
 En compter trop peu est sans danger : l’adresse enregistrée est alors celle d’un
 proxy plutôt que celle du visiteur. Ce qu’il faut éviter, c’est d’en compter plus
 qu’il n’y en a réellement : la lecture remonte alors dans la partie de l’en-tête
-contrôlée par le client, ce qui est exactement la falsification que ce paramètre
+contrôlée par le client, ce qui permet la falsification que ce paramètre
 doit empêcher. En cas de doute, comptez les proxies que vous exploitez, et aucun
 autre.
 
@@ -1215,9 +1215,9 @@ uuid expiré. Il convient donc à un ticket, à un message de chat ou à un tabl
 bord d’état tant qu’un résultat est actuel, mais pas à un README - sauf si le
 déploiement qui le sert conserve les résultats bien plus longtemps, une décision
 qui a ses propres conséquences pour toutes les personnes dont il stocke les
-analyses. Il n’existe volontairement aucun point de terminaison qui produit un
+analyses. Aucun point de terminaison ne produit de
 badge pour un *nom d’hôte* : ce serait une poignée permanente et devinable sur
-l’instance de quelqu’un, et ce service n’en a aucune.
+l’instance de quelqu’un, ce que ce service ne propose pas.
 
 **200** avec `image/svg+xml` et `Cache-Control: no-store`, **409** tant que
 l’analyse n’est pas terminée, **404** pour un uuid inconnu ou expiré. `no-store`
@@ -1314,9 +1314,9 @@ aucun mécanisme de liste.
 
 Le point de terminaison [Model Context Protocol](https://modelcontextprotocol.io),
 en streamable HTTP, sans état, avec des réponses JSON. C’est la couche
-d’exécution destinée aux agents, pas une seconde implémentation : chaque outil
+d’exécution destinée aux agents et ne réimplémente pas le service : chaque outil
 appelle dans le même processus l’API HTTP de cette application, si bien qu’un
-agent rencontre exactement les mêmes limites de débit, la même protection SSRF et
+agent rencontre les mêmes limites de débit, la même protection SSRF et
 la même autorisation d’effacement qu’un navigateur.
 
 Sept outils, un par tâche utilisateur plutôt qu’un par point de terminaison :

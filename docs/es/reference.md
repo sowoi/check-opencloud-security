@@ -60,7 +60,7 @@ Docker, ...) consulte [Instalación](#installation) más abajo.
 - `requests` y `PyYAML`, que pipx/uv/pip instalan automáticamente.
 - Acceso de red desde el host de monitorización a la instancia de OpenCloud. A
   diferencia de un escáner alojado, este complemento necesita llegar a la
-  propia instancia, y eso es precisamente lo que le permite funcionar con
+  propia instancia, y por eso funciona también con
   instancias que no están en internet.
 
 ## Instalación {#installation}
@@ -296,17 +296,17 @@ protección, el ciclo de vida y la referencia, y la salida indica
 `Policy: every requirement met`. La carga del webhook y `--format json`
 llevan el mismo veredicto bajo `policy`.
 
-Conviene conocer dos reglas antes de escribir una:
+Al escribir una se aplican dos reglas:
 
 * **Una exención no disculpa un requisito.** `--ignore-hardening` y
   `--waive-until` son el operador local aceptando un hallazgo; una política es
   la organización diciendo que no puede aceptarse. Si una exención pudiera
-  silenciar una medida exigida, una política no describiría nada exigible.
-* **Una errata es un error de uso, no una aprobación silenciosa.** Una clave
+  silenciar una medida exigida, la política no se podría hacer cumplir.
+* **Una errata es un error de uso.** Una clave
   desconocida, una nota fuera de `0`-`5` o una medida que el catálogo no
-  conoce terminan la ejecución en `UNKNOWN` con el motivo. Una política existe
-  para hacer fallar despliegues: una regla que en silencio no exige nada sería
-  el peor resultado posible.
+  conoce terminan la ejecución en `UNKNOWN` con el motivo. De lo contrario,
+  una regla mal escrita no exigiría nada y la política dejaría pasar
+  despliegues que debía hacer fallar.
 
 ## Integración con Prometheus y Kubernetes {#prometheus-kubernetes-integration}
 
@@ -914,7 +914,7 @@ Además de los umbrales, siempre se aplican dos reglas:
 > **Un único hallazgo crítico no genera un aviso urgente por defecto.** El peor
 > hallazgo limita la nota en lugar de fijarla: critical la limita a `2` (`D`),
 > que el valor predeterminado `--critical 1` sigue notificando como `WARNING`.
-> Es deliberado: evita que una sola ruta expuesta sea indistinguible de una
+> Así se evita que una sola ruta expuesta sea indistinguible de una
 > instancia sin soporte. Si un hallazgo crítico debe despertar a alguien,
 > ejecute con `--critical 2`.
 
@@ -1025,8 +1025,8 @@ línea de versiones completa por detrás, `2` vulnerabilidades conocidas, `1`
 vulnerabilidades críticas o altas, `0` fin de vida. Después, las
 comprobaciones adicionales fallidas la limitan según su gravedad: `critical` a
 `2`, `high` a `3`, `medium` a `4`, `low` a `5`. Una comprobación que falló pero
-no decidió el resultado se sigue mostrando, marcada como tal, para que nada
-parezca descartado en silencio.
+no decidió el resultado se sigue mostrando, marcada como tal, para que la
+lista quede completa.
 
 Sin `--debug`, la salida mantiene el tamaño que quiere un sistema de
 monitorización. El mismo desglose está siempre presente en el resultado del
@@ -1069,9 +1069,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 ```
 
-Conviene saber tres cosas sobre esa lista antes de actuar:
+Antes de actuar sobre esa lista, tenga en cuenta tres cosas:
 
-- **El orden no es arbitrario.** Los hallazgos de la misma gravedad comparten
+- **El orden importa.** Los hallazgos de la misma gravedad comparten
   un mismo techo, así que corregir el primero de tres hallazgos medium no
   cambia nada. Los pasos que por sí solos no aportan nada se siguen mostrando
   (con `still 4/5` en lugar de `then 5/5`), porque omitirlos daría a entender
@@ -1085,8 +1085,8 @@ Conviene saber tres cosas sobre esa lista antes de actuar:
   hasta dónde puede llegar el plan. Consulte
   [Medidas que no son ajustes](../hardening.md#measures-that-are-not-settings).
 
-También se enumeran los hallazgos excluidos, marcados como tales: una
-exclusión silencia una alerta, no corrige nada, y el plan lo dice.
+También se enumeran los hallazgos excluidos, marcados como tales, porque una
+exclusión silencia una alerta sin corregir nada.
 
 El mismo plan aparece en el panel web, en las exportaciones JSON, CSV, SARIF y
 PDF, y como la herramienta MCP `plan_remediation`.

@@ -209,7 +209,7 @@ configurar más rutas; consulte [Icinga2 / Nagios](#icinga2--nagios) más abajo.
 
 ### Configurarlo {#configuring-it}
 
-**El paquete no configura nada, a propósito.** La configuración de ejemplo
+**El paquete no configura nada.** La configuración de ejemplo
 indica un host que no es el suyo, y `/etc/check-opencloud-security/config.yml`
 es una ruta que el complemento lee de verdad, así que instalar allí el ejemplo
 daría a cada ejecución en el host un destino predeterminado que nadie ha
@@ -309,9 +309,9 @@ check-opencloud-security --host opencloud.example.com
 
 La fórmula está en un tap y no en Homebrew core, que tiene requisitos de
 notoriedad que este proyecto no pretende cumplir. `brew upgrade` la mantiene
-al día; `--upgrade-self` se niega deliberadamente en una instalación de
-Homebrew y lo indica, porque pip escribiría en el Cellar y la siguiente
-operación de `brew` lo desharía sin avisar.
+al día; `--upgrade-self` se niega en una instalación de
+Homebrew y explica por qué: pip escribiría en el Cellar y la siguiente
+operación de `brew` lo desharía.
 
 La propia fórmula se genera a partir de lo que se publicó en PyPI, mediante
 [`scripts/build_homebrew_formula.py`](../../scripts/build_homebrew_formula.py);

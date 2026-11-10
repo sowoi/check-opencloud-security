@@ -424,7 +424,7 @@ daily. A network failure leaves the previous files untouched.</p>
 alone and logs a warning saying so. Note what that means: a host without the
 extra is not checking provenance at all, so install it wherever the refresh
 actually matters.</p>
-<p>With the extra installed, the three outcomes are deliberately different. A
+<p>With the extra installed, there are three outcomes. A
 verified document is written. A signature that could not be <em>checked</em> - the
 attestation is not published yet, GitHub is unreachable, the trust root
 would not load - warns and falls back to the structural guards. A signature
@@ -439,7 +439,7 @@ OpenCloud, and is regenerated daily by
 <code>scripts/update_vulnerability_db.py</code> against the OSV query API and opens a
 pull request when the answer has changed. The refresh <strong>only ever adds</strong>: an
 advisory the feed has forgotten stays in the file, and a hand-written entry
-survives. Removing one is a deliberate edit.</p>
+survives. An entry is only removed by hand.</p>
 <p>It is still only as complete as the feeds it is built from.
 <code>vulnerabilities: []</code> from a scan means <em>"nothing in the database you
 configured matched"</em>, not <em>"this instance has no known vulnerabilities"</em>, and
@@ -557,7 +557,7 @@ message origins fail <code>webEmbedMessageOriginRestricted</code>, delegated ifr
 authentication without an explicit origin fails
 <code>webEmbedDelegatedAuthenticationRestricted</code>, and a matching OpenCloud listener
 on the direct backend port fails <code>backendPortClosed</code>.</p>
-<p>Some of these are worth knowing about before you enable <code>--check-hardening</code>:</p>
+<p>Note the following before you enable <code>--check-hardening</code>:</p>
 <ul>
 <li><strong><code>cspWithoutUnsafeInline</code> fails on a stock OpenCloud.</strong> The default
   <code>csp.yaml</code> contains <code>'unsafe-inline'</code> in <code>script-src</code> and <code>style-src</code>. It is
@@ -643,12 +643,12 @@ endpoint. The scanner does not guess from URL paths, assets or proxy headers;
 if trustworthy public version evidence becomes available, that field can carry
 it without changing the result shape.</p>
 <h3 id="what-the-scanner-cannot-measure">What the scanner cannot measure</h3>
-<p>Two questions come up often enough to be worth stating as non-goals:</p>
+<p>Two questions come up often and are out of scope:</p>
 <ul>
 <li><strong>Audit logging cannot be checked.</strong> OpenCloud's audit service consumes the
   internal event bus and exposes no HTTP surface; no capability, header or
-  unauthenticated document reveals whether it is running. There is no signal to
-  read, so no check exists and none can be added without credentials.</li>
+  unauthenticated document reveals whether it is running. Without a
+  signal to read, no check exists and none can be added without credentials.</li>
 <li><strong>"Configured correctly" is out of scope for the integrations above.</strong> That a
   provider is registered says nothing about WOPI secrets, share permissions or
   the second service's own configuration, all of which sit behind a login.</li>
@@ -716,8 +716,8 @@ flavour reports what it cannot express in <code>Fragment.elsewhere</code> instea
 deployment, such as a CORS origin or CSP file path, appear in <code>Fragment.undecided</code>. They
 require an operator’s choice before a usable snippet can be generated.</p>
 <h2 id="what-the-scan-covered">What the scan covered</h2>
-<p>A passed check and a check that never ran leave the same shape in this
-document: nothing. <code>coverage</code> is where the difference is written down. See
+<p>Neither a passed check nor a check that never ran leaves a trace in this
+document. <code>coverage</code> records which of the two it was. See
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0064-a-scan-records-what-it-did-not-measure.md">ADR 0064</a>.</p>
 <pre><code class="language-json">{
   &quot;coverage&quot;: {
@@ -808,7 +808,7 @@ excuse. The other two always carry one, from a closed set:</p>
   acceptance is in <code>extraChecks[].ignored</code>, because a waiver is a decision
   about alerting and not about evidence.</li>
 </ul>
-<p>A document written before this block existed simply has no <code>coverage</code> key,
+<p>A document written before this block existed has no <code>coverage</code> key,
 which is a report that does not say what it covered - not a scan without
 gaps. Read it with <code>coverage.coverage_of(result)</code>, which returns <code>None</code> for
 both a missing and a malformed block.</p>
@@ -893,9 +893,9 @@ existing summary, and <code>--format json</code> carries them as <code>explanati
 </tr>
 </tbody>
 </table>
-<p>The wording is deliberately conservative. A changed digest establishes that
+<p>The wording is conservative. A changed digest establishes that
 the reference data differed; it does not establish that it caused any
-particular grade to move, and the sentence says so. Several changes may
+particular grade to move, and the sentence reflects that. Several changes may
 contribute without one being chosen as <em>the</em> cause.</p>
 <p><code>--format json</code> also carries <code>findings</code>, one entry per finding in either
 document, with the severity, the waiver state and the category on each side,

@@ -156,7 +156,7 @@ análisis.
 `OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS`,
 `OC_PASSWORD_POLICY_MIN_DIGITS` y
 `OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS` con `1` o más. Cada uno vale `1`
-por defecto, así que en una instancia que falla se redujeron a propósito.
+por defecto, así que en una instancia que falla alguien los ha reducido.
 
 ## 6. ¿Se puede encontrar el proveedor de identidad?: `identityProviderDetected` {#6-can-the-identity-provider-be-found-at-all-identityproviderdetected}
 
@@ -196,7 +196,7 @@ proveedor y se puede apuntar a uno externo.
 La solicitud anterior ya está hecha. El documento que devuelve es evidencia
 pública en el sentido de
 [ADR 0022](../../adr/0022-identity-provider-versions-require-public-evidence.md)
-(sin autenticación, de solo lectura, publicado a propósito), y cuatro de sus
+(sin autenticación, de solo lectura y pensado para ser público), y cuatro de sus
 campos dicen algo sobre lo que un operador puede actuar. Leerlos **no cuesta
 ninguna solicitud HTTP adicional**: la misma respuesta que dio el emisor da los
 cuatro.

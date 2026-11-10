@@ -165,8 +165,8 @@ origins. OpenCloud ships with it switched off for <em>all</em> of them:
 <a href="https://docs.opencloud.eu/docs/dev/server/services/graph/environment-variables"><code>OC_CORS_ALLOW_ORIGINS</code> defaults to <code>*</code> and <code>OC_CORS_ALLOW_CREDENTIALS</code> to
 <code>true</code></a>,
 and a middleware given both commonly reflects whatever <code>Origin</code> it was sent
-rather than the literal <code>*</code> - which is precisely the arrangement browsers
-refuse to allow when they can see it coming.</p>
+rather than the literal <code>*</code> - the combination browsers refuse when it is
+stated openly.</p>
 <p>The scan sends a request to <code>/graph/v1.0/me</code> carrying an <code>Origin</code> that cannot
 belong to anybody (<code>https://cors-probe.check-opencloud-security.invalid</code> -
 <code>.invalid</code> is reserved by RFC 2606 and resolves nowhere) and reads what comes
@@ -263,7 +263,7 @@ rating-capped whenever the scan runs at all - critical findings cap the
 rating at <code>D</code>, high at <code>C</code> - see the extra-checks table in <a href="/documentation/scanner-checks#what-the-scanner-checks">the main
 README</a>. None of them are hardening
 flags, and none require <code>--check-hardening</code>: an exposed configuration file
-or an open debug port is a finding on every scan, not an opt-in one.</p>
+or an open debug port is reported on every scan.</p>
 </article>
 
 {% include "_page-nav.html" %}

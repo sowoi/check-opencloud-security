@@ -504,7 +504,7 @@ Geprüft werden Repository-Texte und der importierte Härtungskatalog; zusammeng
 - Version in `pyproject.toml` nicht eigenmächtig erhöhen: Ein Merge nach `main` veröffentlicht sofort auf PyPI; das entscheidet der Maintainer.
 - Sicherheits-Advisories nicht veröffentlichen: `security/advisories/` bleibt `draft`; Veröffentlichung löst unumkehrbare Dependabot-Meldungen aus.
 - Generierte README-Blöcke, HTML-Vorlagen und Suchindizes nicht von Hand bearbeiten.
-- Keine anfrageseitigen Einstellungen für Parallelität, Timeouts oder TLS hinzufügen. Eine Anfrage bestimmt das Ziel, nicht die Last.
+- Keine anfrageseitigen Einstellungen für Parallelität, Timeouts oder TLS hinzufügen. Eine Anfrage legt nur das Ziel fest.
 - Keine Anbindung an die in den Projektregeln ausgeschlossenen Drittplattformen: keine Fonts, Analyse, CDN, Anmeldung oder Kartenmetadaten. Tests und CSP sichern das ab.
 
 ## Weiterführende Dokumentation {#further-reading}

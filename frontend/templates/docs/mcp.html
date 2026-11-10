@@ -321,11 +321,11 @@ told a URL will work with</p>
 <pre><code class="language-json">{&quot;type&quot;: &quot;http&quot;, &quot;url&quot;: &quot;https://scan.okxo.de/mcp&quot;}
 </code></pre>
 <p>or the same URL typed into a settings dialogue. If a client asks which
-transport, the answer is <em>streamable HTTP</em> (sometimes called "HTTP" or
-"remote"), not SSE and not stdio.</p>
+transport, choose <em>streamable HTTP</em> (sometimes called "HTTP" or
+"remote") rather than SSE or stdio.</p>
 <p>An agent that has never heard of this service can find the endpoint itself:
 <code>https://scan.okxo.de/.well-known/ai.json</code> names it, alongside the OpenAPI and
-Arazzo documents. That is the whole point of the discovery document - see
+Arazzo documents. The discovery document exists for this - see
 <a href="https://scan.okxo.de/api#api-agents">the API page</a>. <code>https://scan.okxo.de/agents.txt</code>
 and <code>https://scan.okxo.de/llms.txt</code> point at the same document for a fetcher
 that goes looking for one of those two filenames first, in the informal
@@ -365,7 +365,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 </code></pre>
 <p>The <code>mcp</code> extra is what mounts the endpoint. Without it the application starts
 perfectly well and <code>/mcp</code> answers <strong>404</strong>.</p>
-<p>Three settings are worth knowing:</p>
+<p>Three settings matter here:</p>
 <table>
 <thead>
 <tr>
@@ -396,8 +396,8 @@ perfectly well and <code>/mcp</code> answers <strong>404</strong>.</p>
 proxies</a>, which covers the one thing MCP needs that a normal
 page does not - an unbuffered response, because the endpoint streams.</p>
 <h2 id="turning-mcp-off">Turning MCP off</h2>
-<p>An operator who does not want an agent interface can remove it. It is a
-setting, not a build:</p>
+<p>An operator who does not want an agent interface can remove it with a
+setting; no rebuild is needed:</p>
 <pre><code class="language-bash"># docker/, without editing docker-compose.yml
 COS_WEB_ENABLE_MCP=false docker compose up -d
 </code></pre>
@@ -433,8 +433,7 @@ on a deployment with no token set it answers <strong>404</strong> - as though th
 were not there, which for that deployment it is not.</p>
 <p><strong>On a deployment that requires a sign-in</strong> (below), the purge credential
 moves to <code>X-Purge-Authorization</code>: <code>Authorization</code> then carries the agent's
-identity token, and reading one as the other would compare a credential
-against a credential and answer 401 for a reason nobody could see.</p>
+identity token, and mixing the two up would end in a 401 with no visible cause.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;

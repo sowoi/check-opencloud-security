@@ -82,9 +82,9 @@ Voici ce qu’il faut savoir sur le calendrier fourni :
 
 Un flux de versions ne connaît que la version la plus récente *tous canaux
 confondus*, et chez OpenCloud c’est toujours une version rolling. La recommander
-à une instance production ou LTS la ferait passer discrètement sur un canal dont
-la période de support est de trois semaines - l’inverse de ce qu’a choisi un
-opérateur du canal production.
+à une instance production ou LTS la ferait passer sur un canal dont
+la période de support est de trois semaines, ce qu’un opérateur du canal
+production n’a pas choisi.
 
 La vérification des mises à jour utilise donc le
 [calendrier des versions](../../README.md#end-of-life-detection) pour choisir une
@@ -110,8 +110,8 @@ version et la juge aussi favorablement que les faits le permettent : `7.2.3`
 figure à la fois sur le canal rolling et sur le canal production, elle est donc
 traitée comme une version de production et considérée comme à jour.
 
-C’est la bonne réponse tant que personne n’a indiqué le contraire, mais pas pour
-tout le monde. Si vous suivez délibérément le canal rolling, `7.2.3` n’est plus
+C’est le bon choix par défaut tant qu’aucun canal n’est déclaré, mais il ne
+convient pas à toutes les instances. Si vous suivez délibérément le canal rolling, `7.2.3` n’est plus
 prise en charge depuis la sortie de `7.4.0`, et vous voulez en être informé.
 `--release-track` indique votre canal, et la version est alors jugée sur ce seul
 canal :
@@ -138,7 +138,7 @@ check-opencloud-security --host opencloud.example.com --release-track auto
 | `2.3.0`   | `production`        | **Fin de vie** - en retard sur le canal production, mettre à jour vers `7.2.3`     |
 | `4.0.8`   | `lts`               | Prise en charge jusqu’à la fin de la période de deux ans                           |
 
-Deux conséquences sont bonnes à connaître à l’avance :
+Il en découle deux conséquences :
 
 - **Être en avance sur votre canal n’est pas un constat.** Une instance
   production passée à la version rolling actuelle dispose de tout ce que livre

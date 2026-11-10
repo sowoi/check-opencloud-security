@@ -691,7 +691,7 @@ python scripts/check_documentation_links.py --strict     # treat a redirect as o
 <li>Version in <code>pyproject.toml</code> nicht eigenmächtig erhöhen: Ein Merge nach <code>main</code> veröffentlicht sofort auf PyPI; das entscheidet der Maintainer.</li>
 <li>Sicherheits-Advisories nicht veröffentlichen: <code>security/advisories/</code> bleibt <code>draft</code>; Veröffentlichung löst unumkehrbare Dependabot-Meldungen aus.</li>
 <li>Generierte README-Blöcke, HTML-Vorlagen und Suchindizes nicht von Hand bearbeiten.</li>
-<li>Keine anfrageseitigen Einstellungen für Parallelität, Timeouts oder TLS hinzufügen. Eine Anfrage bestimmt das Ziel, nicht die Last.</li>
+<li>Keine anfrageseitigen Einstellungen für Parallelität, Timeouts oder TLS hinzufügen. Eine Anfrage legt nur das Ziel fest.</li>
 <li>Keine Anbindung an die in den Projektregeln ausgeschlossenen Drittplattformen: keine Fonts, Analyse, CDN, Anmeldung oder Kartenmetadaten. Tests und CSP sichern das ab.</li>
 </ul>
 <h2 id="further-reading">Weiterführende Dokumentation</h2>

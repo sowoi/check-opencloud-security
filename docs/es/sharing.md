@@ -43,10 +43,10 @@ Se lee directamente el campo `files_sharing.public.expire_date.enabled` del
 documento de capacidades. En las versiones actuales de OpenCloud es un `false`
 fijo en el servicio frontend (una constante, no un ajuste), así que todas las
 instancias notifican el mismo valor sea cual sea su configuración. **Esta
-comprobación nunca genera alertas** precisamente por eso: se excluye de la
+comprobación nunca genera alertas** por ese motivo: se excluye de la
 línea "Missing hardening", de la métrica `hardenings_missing` y de la carga
-útil del webhook, porque una advertencia que nadie puede resolver es ruido, y
-el ruido es lo que hace que se ignoren los hallazgos reales; consulte
+útil del webhook, porque nadie puede resolver la advertencia y solo distraería de los
+hallazgos que sí se pueden corregir; consulte
 [Medidas que no son ajustes](../hardening.md#measures-that-are-not-settings).
 `--debug` la sigue mostrando, con su explicación.
 

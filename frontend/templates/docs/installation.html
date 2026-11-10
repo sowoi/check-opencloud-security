@@ -142,7 +142,7 @@ and - the one that saves real typing - the hardening identifiers accepted by
 <p>Without <code>argcomplete</code> installed, nothing is registered and the plugin behaves
 exactly as before; it is never a hard dependency of a monitoring plugin.</p>
 <h2 id="debian-ubuntu-rhel-fedora-deb-and-rpm">Debian, Ubuntu, RHEL, Fedora (.deb and .rpm)</h2>
-<p>Use this on a monitoring host, where the point is that the check appears in the
+<p>Use this on a monitoring host, where the check should appear in the
 package database like everything else on the machine: in the inventory, in the
 unattended-upgrade job, and answerable to <code>apt list --installed</code>. Every release
 carries both packages as assets. They are architecture-independent (<code>all</code> /
@@ -205,7 +205,7 @@ Sigstore provenance attestation as the wheel - see
 <code>CheckCommand</code> using <code>PluginDir + "/check_opencloud_security"</code> works with no
 further path configuration - see <a href="#icinga2--nagios">Icinga2 / Nagios</a> below.</p>
 <h3 id="configuring-it">Configuring it</h3>
-<p><strong>The package configures nothing on purpose.</strong> The example configuration names
+<p><strong>The package configures nothing.</strong> The example configuration names
 a host that is not yours, and <code>/etc/check-opencloud-security/config.yml</code> is a
 path the plugin genuinely reads, so installing the example there would give
 every invocation on the host a default target nobody chose. Copy what you want:</p>
@@ -270,9 +270,8 @@ check-opencloud-security --host opencloud.example.com
 </code></pre>
 <p>The formula lives in a tap rather than in Homebrew core, which has notability
 requirements this project does not claim to meet. <code>brew upgrade</code> keeps it
-current; <code>--upgrade-self</code> deliberately refuses on a Homebrew installation and
-says so, because pip would write into the Cellar and the next <code>brew</code>
-operation would quietly undo it.</p>
+current; <code>--upgrade-self</code> refuses on a Homebrew installation and prints why:
+pip would write into the Cellar and the next <code>brew</code> operation would undo it.</p>
 <p>The formula itself is generated from what PyPI published, by
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/scripts/build_homebrew_formula.py"><code>scripts/build_homebrew_formula.py</code></a> -
 see <a href="https://github.com/sowoi/check-opencloud-security/blob/main/packaging/README.md#homebrew"><code>packaging/README.md</code></a> if you are

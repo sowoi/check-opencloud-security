@@ -277,7 +277,7 @@ Attestierungsprüfung abgerufen. Der Befehl weist im Log darauf hin; siehe
 `.github/workflows/vulnerability-db.yml` fragt täglich über
 `scripts/update_vulnerability_db.py` die OSV-API ab und öffnet bei Änderungen
 einen Pull Request für `data/vulnerabilities.json`. Dabei kommen nur Einträge
-hinzu. Entfernen einer Meldung erfordert eine bewusste Bearbeitung.
+hinzu. Eine Meldung wird nur von Hand entfernt.
 
 Eine leere Liste `vulnerabilities` bedeutet, dass keine geladene Meldung zur
 Version passt. Sie bestätigt nicht die Vollständigkeit der Quellen. Eigene
@@ -524,7 +524,7 @@ Auf zwei Eigenschaften kannst du dich verlassen:
   Annahme steht in `extraChecks[].ignored`, denn eine Ausnahme ist eine
   Entscheidung über Alarme und nicht über Belege.
 
-Ein Dokument, das vor diesem Block entstanden ist, hat schlicht keinen
+Ein Dokument, das vor diesem Block entstanden ist, hat keinen
 Schlüssel `coverage` - ein Bericht, der nicht sagt, was er abgedeckt hat, und
 nicht ein Scan ohne Lücken. Lies ihn mit `coverage.coverage_of(result)`, das
 sowohl für einen fehlenden als auch für einen fehlerhaften Block `None`
@@ -603,14 +603,14 @@ bisherigen Zusammenfassung aus, und `--format json` liefert sie als
 | Kategorie | Was sich geändert hat |
 |:--|:--|
 | `instance` | Die Version, oder eine Prüfung, die zu scheitern begann oder aufhörte |
-| `referenceData` | Die Advisories, der Zeitplan, der Track, oder ein schlicht abgelaufener Supportzeitraum |
+| `referenceData` | Die Advisories, der Zeitplan, der Track, oder ein abgelaufener Supportzeitraum |
 | `scanner` | Die Version des Scanners, oder wie viele Prüfungen zu einem Ergebnis kamen |
 | `policy` | Eine Ausnahme ist verfallen, kam hinzu oder fiel weg |
 | `unknown` | Etwas hat sich bewegt und nichts Aufgezeichnetes erklärt es |
 
-Die Formulierungen sind bewusst zurückhaltend. Eine geänderte Prüfsumme belegt,
+Die Formulierungen sind zurückhaltend. Eine geänderte Prüfsumme belegt,
 dass sich die Referenzdaten unterschieden; sie belegt nicht, dass dadurch eine
-bestimmte Note gefallen ist, und der Satz sagt genau das. Mehrere Änderungen
+bestimmte Note gefallen ist, und der Satz behauptet es auch nicht. Mehrere Änderungen
 können beitragen, ohne dass eine davon zur Ursache erklärt wird.
 
 `limitations` listet auf, was der Vergleich nicht feststellen konnte - meist,

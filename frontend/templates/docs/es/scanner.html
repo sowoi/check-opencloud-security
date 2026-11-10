@@ -418,7 +418,7 @@ protecciones estructurales y registra una advertencia indicándolo. Tenga en
 cuenta lo que significa: un host sin el extra no comprueba en absoluto la
 procedencia, así que instálelo en todos los lugares donde la actualización
 importe realmente.</p>
-<p>Con el extra instalado, los tres resultados son deliberadamente distintos. Un
+<p>Con el extra instalado, hay tres resultados posibles. Un
 documento verificado se escribe. Una firma que no se pudo <em>comprobar</em> (la
 certificación aún no está publicada, GitHub no está accesible, la raíz de
 confianza no se cargó) genera una advertencia y recurre a las protecciones
@@ -434,7 +434,7 @@ OpenCloud y se regenera a diario mediante
 <code>scripts/update_vulnerability_db.py</code> contra la API de consultas de OSV y abre
 una pull request cuando la respuesta ha cambiado. La actualización <strong>solo
 añade</strong>: un aviso que el canal ha olvidado se queda en el archivo, y una
-entrada escrita a mano se conserva. Eliminar una es una edición deliberada.</p>
+entrada escrita a mano se conserva. Una entrada solo se elimina a mano.</p>
 <p>Aun así, solo es tan completo como los canales a partir de los que se
 construye. <code>vulnerabilities: []</code> en un análisis significa <em>"nada de la base de
 datos que ha configurado coincide"</em>, no <em>"esta instancia no tiene
@@ -555,7 +555,7 @@ orígenes de mensajes de inserción con comodín hacen fallar
 origen explícito hace fallar <code>webEmbedDelegatedAuthenticationRestricted</code>, y un
 servicio de OpenCloud que responde en el puerto directo del backend hace fallar
 <code>backendPortClosed</code>.</p>
-<p>Conviene conocer algunas de ellas antes de activar <code>--check-hardening</code>:</p>
+<p>Tenga en cuenta lo siguiente antes de activar <code>--check-hardening</code>:</p>
 <ul>
 <li><strong><code>cspWithoutUnsafeInline</code> falla en un OpenCloud estándar.</strong> El <code>csp.yaml</code>
   predeterminado contiene <code>'unsafe-inline'</code> en <code>script-src</code> y <code>style-src</code>. Se
@@ -816,7 +816,7 @@ excusa. Las otras dos llevan siempre uno, de un conjunto cerrado:</p>
   aceptación está en <code>extraChecks[].ignored</code>, porque una exención es una
   decisión sobre las alertas y no sobre las pruebas.</li>
 </ul>
-<p>Un documento escrito antes de que existiera este bloque simplemente no tiene
+<p>Un documento escrito antes de que existiera este bloque no tiene
 la clave <code>coverage</code>, que es un informe que no dice lo que cubrió y no un
 análisis sin lagunas. Léalo con <code>coverage.coverage_of(result)</code>, que devuelve
 <code>None</code> tanto para un bloque ausente como para uno mal formado.</p>
@@ -902,9 +902,9 @@ resumen existente, y <code>--format json</code> los entrega como <code>explanati
 </tr>
 </tbody>
 </table>
-<p>La redacción es deliberadamente prudente. Un resumen distinto establece que los
+<p>La redacción es prudente. Un resumen distinto establece que los
 datos de referencia difirieron; no establece que eso hiciera moverse ninguna
-nota concreta, y la frase lo dice así. Varios cambios pueden contribuir sin que
+nota concreta, y la frase lo refleja. Varios cambios pueden contribuir sin que
 se elija uno como la causa.</p>
 <p><code>limitations</code> enumera lo que la comparación no pudo establecer, casi siempre que
 uno de los dos informes es anterior a estos bloques y por tanto no puede decir
@@ -934,7 +934,7 @@ por área, sin los valores de configuración originales. Véase
 }
 </code></pre>
 <p>Dos análisis con el mismo resumen de grupo vieron la misma configuración; dos
-que difieren, no. Eso es todo lo que se afirma, y estas reglas son las que lo
+que difieren, no. No se afirma nada más, y estas reglas son las que lo
 hacen útil:</p>
 <ul>
 <li><strong>Solo resúmenes, nunca la configuración.</strong> Una política de seguridad de

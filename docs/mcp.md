@@ -230,12 +230,12 @@ told a URL will work with
 ```
 
 or the same URL typed into a settings dialogue. If a client asks which
-transport, the answer is *streamable HTTP* (sometimes called "HTTP" or
-"remote"), not SSE and not stdio.
+transport, choose *streamable HTTP* (sometimes called "HTTP" or
+"remote") rather than SSE or stdio.
 
 An agent that has never heard of this service can find the endpoint itself:
 `https://scan.okxo.de/.well-known/ai.json` names it, alongside the OpenAPI and
-Arazzo documents. That is the whole point of the discovery document - see
+Arazzo documents. The discovery document exists for this - see
 [the API page](https://scan.okxo.de/api#api-agents). `https://scan.okxo.de/agents.txt`
 and `https://scan.okxo.de/llms.txt` point at the same document for a fetcher
 that goes looking for one of those two filenames first, in the informal
@@ -290,7 +290,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 The `mcp` extra is what mounts the endpoint. Without it the application starts
 perfectly well and `/mcp` answers **404**.
 
-Three settings are worth knowing:
+Three settings matter here:
 
 | Setting | Default | What it does |
 |:--------|:--------|:-------------|
@@ -304,8 +304,8 @@ page does not - an unbuffered response, because the endpoint streams.
 
 ## Turning MCP off
 
-An operator who does not want an agent interface can remove it. It is a
-setting, not a build:
+An operator who does not want an agent interface can remove it with a
+setting; no rebuild is needed:
 
 ```bash
 # docker/, without editing docker-compose.yml
@@ -354,8 +354,7 @@ were not there, which for that deployment it is not.
 
 **On a deployment that requires a sign-in** (below), the purge credential
 moves to `X-Purge-Authorization`: `Authorization` then carries the agent's
-identity token, and reading one as the other would compare a credential
-against a credential and answer 401 for a reason nobody could see.
+identity token, and mixing the two up would end in a 401 with no visible cause.
 
 ```json
 "headers": {

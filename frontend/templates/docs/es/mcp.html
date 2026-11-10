@@ -327,12 +327,12 @@ que admita una URL funcionará con</p>
 <pre><code class="language-json">{&quot;type&quot;: &quot;http&quot;, &quot;url&quot;: &quot;https://scan.okxo.de/mcp&quot;}
 </code></pre>
 <p>o con la misma URL escrita en un cuadro de diálogo de ajustes. Si un cliente
-pregunta por el transporte, la respuesta es <em>streamable HTTP</em> (a veces llamado
-"HTTP" o "remote"), no SSE ni stdio.</p>
+pregunta por el transporte, elija <em>streamable HTTP</em> (a veces llamado
+"HTTP" o "remote") en lugar de SSE o stdio.</p>
 <p>Un agente que nunca ha oído hablar de este servicio puede encontrar el punto de
 acceso por sí mismo: <code>https://scan.okxo.de/.well-known/ai.json</code> lo indica,
-junto con los documentos OpenAPI y Arazzo. Esa es precisamente la finalidad del
-documento de descubrimiento; consulte
+junto con los documentos OpenAPI y Arazzo. El documento de descubrimiento
+existe para eso; consulte
 <a href="https://scan.okxo.de/api#api-agents">la página de la API</a>.
 <code>https://scan.okxo.de/agents.txt</code> y <code>https://scan.okxo.de/llms.txt</code> apuntan al
 mismo documento para los programas que buscan primero uno de esos dos nombres
@@ -373,7 +373,7 @@ uvicorn webapp.app:app --host 127.0.0.1 --port 8811
 </code></pre>
 <p>El extra <code>mcp</code> es el que monta el punto de acceso. Sin él, la aplicación
 arranca sin problemas y <code>/mcp</code> responde <strong>404</strong>.</p>
-<p>Conviene conocer tres ajustes:</p>
+<p>Aquí importan tres ajustes:</p>
 <table>
 <thead>
 <tr>
@@ -405,8 +405,8 @@ arranca sin problemas y <code>/mcp</code> responde <strong>404</strong>.</p>
 una página normal no: una respuesta sin búfer, porque el punto de acceso
 transmite en flujo.</p>
 <h2 id="turning-mcp-off">Desactivar MCP</h2>
-<p>Un operador que no quiera una interfaz para agentes puede eliminarla. Es un
-ajuste, no una compilación:</p>
+<p>Un operador que no quiera una interfaz para agentes puede eliminarla con un
+ajuste, sin recompilar nada:</p>
 <pre><code class="language-bash"># docker/, without editing docker-compose.yml
 COS_WEB_ENABLE_MCP=false docker compose up -d
 </code></pre>
@@ -444,8 +444,8 @@ definido responde <strong>404</strong>, como si la función no existiera, que pa
 despliegue es el caso.</p>
 <p><strong>En un despliegue que exige iniciar sesión</strong> (véase más abajo), la credencial
 de purga pasa a <code>X-Purge-Authorization</code>: <code>Authorization</code> lleva entonces el
-token de identidad del agente, y leer uno como si fuera el otro compararía una
-credencial con otra y respondería 401 por un motivo que nadie podría ver.</p>
+token de identidad del agente, y confundir uno con el otro
+acabaría en un 401 sin causa visible.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;

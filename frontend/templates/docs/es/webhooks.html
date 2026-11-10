@@ -201,7 +201,7 @@ de un intento era correcta.</p>
 procesado: <code>await request.body()</code> en FastAPI, <code>request.get_data()</code> en Flask.
 Los frameworks que solo entregan un objeto ya procesado no pueden verificar
 esta firma. Lea el cuerpo sin procesar antes de convertirlo en un objeto.</p>
-<p>Tres cosas que conviene saber:</p>
+<p>Tres notas:</p>
 <ul>
 <li><strong>La firma cubre lo que se haya enviado</strong>, incluidos los documentos de chat
   y push que producen <code>--webhook-format slack</code>, <code>discord</code>, <code>ntfy</code> y <code>gotify</code>.
@@ -216,8 +216,8 @@ esta firma. Lea el cuerpo sin procesar antes de convertirlo en un objeto.</p>
 </ul>
 <h2 id="uptime-kuma">Uptime Kuma</h2>
 <p>Uptime Kuma no tiene sistema de complementos, pero su monitor <strong>Push</strong> es una
-URL que espera recibir llamadas periódicas, que es exactamente lo que hace el
-webhook. La comprobación se convierte en un monitor en tres pasos.</p>
+URL que espera recibir llamadas periódicas, y el webhook las
+hace. La comprobación se convierte en un monitor en tres pasos.</p>
 <p><strong>1. Cree el monitor.</strong> En Uptime Kuma elija <em>Add New Monitor</em>, tipo de
 monitor <strong>Push</strong>, y póngale el nombre de la instancia. Uptime Kuma muestra una
 <em>Push URL</em> con la forma <code>https://kuma.example.com/api/push/&lt;token&gt;</code>. Defina un
@@ -423,7 +423,7 @@ llegar antes de resolverlas:</p>
 <p>Envíe una alerta solo para los estados por los que quiera que se avise a
 alguien, y deje que caduque en lugar de intentar resolverla a mano: el
 siguiente análisis puede tardar hasta un día, y una alerta resuelta antes de
-tiempo es una alerta que deja de avisar en silencio sobre un servidor que
+tiempo deja de avisar sobre un servidor que
 sigue siendo vulnerable. Si ya envía métricas,
 <a href="/documentation/prometheus">Prometheus y Grafana</a> es la mejor vía hacia Alertmanager.</p>
 <h2 id="testing-a-receiver-without-an-instance">Probar un receptor sin una instancia</h2>

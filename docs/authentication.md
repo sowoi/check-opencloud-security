@@ -145,7 +145,7 @@ becoming a failure, as everywhere else in the scan.
 `OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS`,
 `OC_PASSWORD_POLICY_MIN_DIGITS` and
 `OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS` back to `1` or more. Each already
-defaults to `1`, so an instance that fails this had them lowered on purpose.
+defaults to `1`, so an instance that fails this has had them lowered.
 
 ## 6. Can the identity provider be found at all: `identityProviderDetected`
 
@@ -181,9 +181,9 @@ pointed at an external one.
 
 ## 7. What the discovery document says about how sign-in is protected
 
-The request above is already paid for. The document it returns is public
+The request above has already been made. The document it returns is public
 evidence in the sense [ADR 0022](../adr/0022-identity-provider-versions-require-public-evidence.md)
-means it - unauthenticated, read-only, published on purpose - and four of its
+means it - unauthenticated, read-only and meant to be public - and four of its
 fields say something an operator can act on. Reading them costs **no extra
 HTTP request**: the same response that yielded the issuer yields all four.
 

@@ -82,10 +82,10 @@ redirecciones que solo llega a HTTPS en el segundo salto. Un puerto 80 cerrado
 o filtrado **se supera**: no se puede hablar HTTP sin cifrar, que es la versión
 más estricta de exigir HTTPS.
 
-**`reverseProxyDetected`** es deliberadamente aproximado y nunca cambia la
+**`reverseProxyDetected`** es aproximado y nunca cambia la
 nota, porque Traefik y HAProxy no anuncian nada por defecto. Un despliegue bien
 configurado puede fallarlo sin que haya nada mal; tómelo como una invitación a
-confirmar que hay algo delante, no como un defecto. Si no lo hay, la
+confirmar que hay algo delante. Si no lo hay, la
 configuración siguiente es la forma habitual de ponerlo.
 
 ### nginx {#nginx}

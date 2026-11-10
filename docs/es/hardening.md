@@ -54,9 +54,9 @@ Nadie puede influir en dos de las filas anteriores:
 
 Se siguen registrando en el documento de resultado, porque la observación es
 real, pero **se excluyen de la línea "Missing hardening", de la métrica
-`hardenings_missing` y del webhook**. Una advertencia que nadie puede resolver
-es ruido, y el ruido es lo que hace que se ignoren los hallazgos reales.
-`--debug` los sigue mostrando, con su explicación.
+`hardenings_missing` y del webhook**. Nadie puede resolver esas advertencias,
+así que alertar sobre ellas solo distraería de los hallazgos que sí se pueden
+corregir. `--debug` los sigue mostrando, con su explicación.
 
 `cspWithoutUnsafeInline` es una versión más leve del mismo problema: la **CSP
 predeterminada de OpenCloud contiene `'unsafe-inline'`**, así que falla en una
@@ -77,8 +77,8 @@ Algunos hallazgos son reales pero no se pueden resolver en su entorno: una CSP
 que no puede endurecer sin romper la interfaz web, una cabecera HSTS que
 controla su proxy inverso o una autenticación básica que realmente necesita
 para una herramienta de migración. Si se dejan así, mantienen baja la nota y
-la comprobación en amarillo, y una comprobación que está siempre en amarillo es
-una comprobación que nadie lee.
+la comprobación siempre en amarillo, y se deja de mirar una comprobación que
+nunca cambia.
 
 `--ignore-hardening` acepta un hallazgo por su nombre. La nota se vuelve a
 calcular sin él, así que aceptar un hallazgo cambia realmente la calificación:
@@ -113,15 +113,15 @@ Un hallazgo excluido:
   `"ignored": true`, y aparece en la salida del complemento como
   `Ignored by configuration (n): ...`.
 
-Este último punto es deliberado. Una exclusión suprime una alerta, no la
+Una exclusión suprime la alerta y conserva la
 evidencia: el análisis sigue registrando lo que vio, `--debug` lo sigue
-explicando y cualquiera que lea la salida puede ver exactamente qué se omite.
+explicando y cualquiera que lea la salida puede ver qué se omite.
 
 Hay dos cosas que una exclusión no hace:
 
 - **No puede excluir algo que se supera.** Una exclusión solo se aplica a un
-  hallazgo que ha fallado realmente, así que no puede convertirse
-  silenciosamente en un punto ciego el día en que la medida retroceda.
+  hallazgo que ha fallado realmente, así que un retroceso posterior de la
+  medida no pasa desapercibido.
 - **No puede excluir una versión sin soporte.** Ejecutar una versión que no
   recibe correcciones de seguridad prevalece sobre cualquier otra señal,
   incluido `--ignore-hardening '*'`.

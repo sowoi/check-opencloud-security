@@ -203,8 +203,7 @@ de correo externo, los mensajes de recuperación se entregan localmente dentro
 del contenedor y no llegan a los buzones de los usuarios.</p>
 <p>Cada ajuste es una variable de <code>docker/.env</code>, y ambos servicios de Authentik
 las leen: el servidor envía el mensaje de prueba y el worker envía todo lo
-demás, así que configurar uno y no el otro funciona hasta el día en que
-importa:</p>
+demás, así que, con solo uno configurado, unos mensajes se envían y otros no:</p>
 <table>
 <thead>
 <tr>
@@ -342,7 +341,7 @@ que este servicio no acepta. El blueprint la define; si alguna vez vuelve a
 crear el proveedor a mano, defínala también.</p>
 <p><strong>El ID de cliente es la audiencia.</strong> Está en <code>.env</code>, que es de donde la
 aplicación web lo lee como <code>COS_WEB_MCP_AUTH_AUDIENCE</code>: ambas partes coinciden
-porque leen la misma línea, no porque usted haya copiado una en la otra.</p>
+porque leen la misma línea, así que no hay nada que copiar.</p>
 <p>El modo de emisor por proveedor da:</p>
 <table>
 <thead>
@@ -619,7 +618,7 @@ persona define su propia contraseña; caduca tras los minutos indicados.</p>
 sesión y Authentik muestra un error en lugar de devolverla:</p>
 <pre><code class="language-bash">docker compose exec authentik_worker ak shell -c &quot;from authentik.core.models import Group; g = Group.objects.get(name='opencloud-scanner-operators'); print('IN_GROUP', g.users.filter(username='scanokko').exists())&quot; 2&gt;&amp;1 | grep -E 'IN_GROUP|Error|DoesNotExist'
 </code></pre>
-<p>Y el caso negativo, que merece el minuto que cuesta: una cuenta que <em>no</em> está
+<p>Pruebe también el caso negativo: una cuenta que <em>no</em> está
 en el grupo debe recibir el error de Authentik, no el área. <strong>Events → Logs</strong>
 registra cada rechazo con la cuenta y la aplicación que se le denegó.</p>
 <h2 id="pointing-the-scanner-at-it">Apuntar el escáner a él</h2>
@@ -687,7 +686,7 @@ esta emite tokens para todas ellas, con el mismo emisor y la misma clave de
 firma, así que un <code>aud</code> que nunca se compara convierte cada uno de esos tokens
 en una llave de <code>/mcp</code>, incluido uno emitido para una aplicación que puede usar
 cualquiera del directorio. Dejar <code>COS_WEB_MCP_AUTH_AUDIENCE</code> vacío detiene por
-tanto el servicio en lugar de ampliarlo sin avisar, y un token sin ningún <code>aud</code>
+tanto el servicio en lugar de ampliar el acceso, y un token sin ningún <code>aud</code>
 se rechaza por el mismo motivo. La pila de
 <code>docker/docker-compose.authentik.yml</code> lo define a partir de
 <code>AUTHENTIK_CLIENT_ID</code> y no arranca sin él.</p>
@@ -706,8 +705,8 @@ toma en los dos pasos siguientes, y es el único lugar donde existe esa
 decisión.</p>
 <h3 id="a-group-and-the-binding-that-makes-it-mean-something">Un grupo, y la vinculación que le da sentido</h3>
 <p>Hágalo una vez, antes del primer usuario. Una vinculación a un grupo es una
-cosa que revisar más adelante; una vinculación por persona es una lista que
-nadie depura.</p>
+cosa que revisar más adelante; las vinculaciones por persona se acumulan y
+rara vez se depuran.</p>
 <ol>
 <li><strong>Directory → Groups → Create</strong>. Llámelo <code>opencloud-scanner</code>. Deje
    desactivado <em>Superuser privileges</em>: este grupo trata de una aplicación, y un
@@ -738,7 +737,7 @@ administrador.</p>
   enlace para entregarlo por otra vía cuando no hay servidor de correo.</li>
 <li><strong>Groups → Add to existing group</strong> → <code>opencloud-scanner</code>.</li>
 </ul>
-<p>Eso es todo para alguien que inicia sesión desde un navegador: su cliente MCP
+<p>Quien inicia sesión desde un navegador no necesita nada más: su cliente MCP
 lo lleva por Authentik, inicia sesión y el cliente obtiene un token. No hay que
 copiar nada, y no hay ninguna configuración por usuario en el lado del
 escáner.</p>
@@ -765,9 +764,8 @@ agente que se detiene sin motivo visible: emita una nueva desde <strong>Director
 Tokens and App passwords</strong> antes de esa fecha. Y una cuenta de servicio no
 puede usar la interfaz de administración ni la de usuario, que es justamente la
 idea: tiene credenciales y no tiene inicio de sesión.</p>
-<p>Dé una a cada llamante en lugar de compartir una. No cuestan nada, y la
-diferencia se nota el día en que necesita revocar exactamente una sin llamar
-por teléfono a todos los demás.</p>
+<p>Dé una a cada llamante en lugar de compartir una. No cuestan nada, y así
+puede revocar una sola sin afectar a las demás.</p>
 <h2 id="getting-a-token">Obtener un token</h2>
 <p>La credencial que usa quien llama depende de qué es, y las tres terminan en el
 mismo punto de acceso de tokens:</p>
@@ -929,9 +927,8 @@ punto de acceso abierto, viaja en <code>Authorization</code>, porque nada más u
 cabecera.</p>
 <p><strong>Con un inicio de sesión configurado, <code>Authorization</code> pertenece al proveedor
 de identidad, y la credencial de purga pasa a <code>X-Purge-Authorization</code>.</strong> No se
-mantiene el comportamiento anterior a propósito: leer el token de identidad de
-un agente como si fuera una credencial de operador es exactamente la confusión
-que conviene rechazar.</p>
+mantiene el comportamiento anterior, para que el token de identidad de
+un agente nunca se lea como una credencial de operador.</p>
 <pre><code class="language-json">&quot;headers&quot;: {
   &quot;Authorization&quot;: &quot;Bearer ${input:token}&quot;,
   &quot;X-Purge-Authorization&quot;: &quot;Bearer ${input:purge_token}&quot;
@@ -942,7 +939,7 @@ cabeceras de la solicitud, nunca como argumento.</p>
 <h2 id="behind-a-reverse-proxy">Detrás de un proxy inverso</h2>
 <p>Dos hosts, dos requisitos.</p>
 <p><strong>Authentik construye el emisor a partir de la cabecera <code>Host</code> que recibe.</strong> Un
-proxy que la reescribe da a cada token un <code>iss</code> que nadie aceptará, y el
+proxy que la reescribe da a cada token un <code>iss</code> que se rechaza, y el
 síntoma confunde porque todo lo demás funciona. Reenvíe <code>Host</code> y
 <code>X-Forwarded-Proto</code> sin cambios, y añada la dirección de salida del proxy a
 <code>AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS</code> si está fuera de los rangos privados.

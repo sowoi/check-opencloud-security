@@ -114,8 +114,8 @@ acompañan, así que no hay que editarlo para apuntarlo a su instancia:</p>
     /usr/lib/check_mk_agent/local/3600/opencloud_security
 </code></pre>
 <p><strong>Lo importante es el <code>3600</code>.</strong> Un script situado directamente en <code>local/</code> se
-ejecuta cada vez que se llama al agente, es decir, una vez por minuto, y eso
-supone un análisis por minuto contra la instancia de producción de alguien. El
+ejecuta cada vez que se llama al agente, es decir, una vez por minuto, lo que
+analizaría una instancia de producción cada minuto. El
 subdirectorio numérico es el intervalo de caché del agente en segundos: así el
 análisis se ejecuta como mucho una vez por hora, y cada llamada intermedia se
 responde con la línea guardada en caché. Elija el intervalo que realmente
@@ -147,7 +147,7 @@ nada:</p>
 línea, incluso cuando falta el complemento o el tiempo de espera del agente lo
 ha interrumpido. Una comprobación local que no imprime nada no pasa a UNKNOWN:
 <em>elimina su servicio del host</em>, lo que parece una comprobación que alguien
-desactivó a propósito y no una que se ha roto.</p>
+ha desactivado, aunque en realidad se ha roto.</p>
 <h3 id="the-metrics">Las métricas</h3>
 <p>Las mismas mediciones que los datos de rendimiento de Nagios, con los mismos
 nombres y dos diferencias que exige el formato:</p>
@@ -226,9 +226,9 @@ cualquier otro. Conviene configurar dos reglas:</p>
 <ul>
 <li>Alertar de inmediato en <strong>CRIT</strong>: una vulnerabilidad conocida o una versión
   sin soporte no son un problema para mañana.</li>
-<li>Representar <code>support_days_left</code> en un gráfico y fijarle un nivel. Es el único
-  número que empeora aunque nada cambie en la instancia, y el día en que pasa a
-  negativo la nota cae por sí sola a F.</li>
+<li>Representar <code>support_days_left</code> en un gráfico y fijarle un nivel. Baja aunque
+  nada cambie en la instancia, y cuando pasa a
+  negativo la nota cae a F.</li>
 </ul>
 <p><code>--baseline</code> y <code>--warn-on-new</code>
 (<a href="/documentation/baseline">Notificar solo lo que ha cambiado</a>) funcionan con ambas vías

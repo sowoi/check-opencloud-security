@@ -110,7 +110,7 @@ Useful flags:
 
 **A refresh only ever adds.** An advisory the feed no longer mentions stays in
 the file, because a feed that has forgotten a vulnerability has not fixed it.
-Removing an entry is a deliberate edit by a person — which is also the only
+An entry is only removed by hand, and a hand edit is also the only
 way something gets in that OSV does not know about.
 
 After running it, inspect the diff before committing. What you want to see is
@@ -144,15 +144,15 @@ generated block in `README.md` between
 - Never hand-edit that README block. The next refresh overwrites it, and
   `tests/test_update_script.py` fails when it does not match the schedule
   shipping beside it.
-- Removing the markers is an error, not a no-op — a README that quietly stops
-  updating is worse than one that never did.
+- Removing the markers is an error, because otherwise the README would stop
+  updating without anybody noticing.
 - The prose and worked examples *around* the block are hand-written and
   deliberately name older releases. Leave them alone.
 
 The lifecycle page is the only place the release *type* is stated. The GitHub
 release list cannot tell a rolling release from a production one, so if the
 lifecycle page is unavailable there is no fallback source — the schedule
-simply stays as it is.
+stays as it is.
 
 **Expect a newer version to be less supported than an older one.** Rolling,
 production and LTS ship side by side. That is not a bug to fix.
@@ -288,11 +288,11 @@ docker compose up --build
 ```
 
 The shipped `docker/docker-compose.yml` already builds from the repository
-root (`context: ..`), so this is the whole thing. Its one limitation for
-testing is the important one: it sets
+root (`context: ..`), so nothing else is needed. It has one limitation for
+testing: it sets
 `COS_WEB_ALLOW_PRIVATE_TARGETS: "false"`, so the SSRF guard refuses every
-private, loopback and link-local address — which is exactly where your test
-OpenCloud instance lives. You get the site, but you cannot complete a scan
+private, loopback and link-local address, and your test
+OpenCloud instance is on one of those. You get the site, but you cannot complete a scan
 against anything local.
 
 ### The wizard version, which is the one you want
@@ -375,7 +375,7 @@ Now a change to a template, to `app.css` or to anything under
 `frontend/static/js/` shows on the next page load. What still needs a restart:
 
 - anything under `webapp/` — the Python is baked into the image, and uvicorn
-  runs without `--reload` on purpose;
+  runs without `--reload`;
 - `frontend/static/llms.txt` and `llms-full.txt`, which are read once at
   startup;
 - `frontend/templates/docs/*.html`, which you regenerate with
@@ -399,7 +399,7 @@ connect completes as a *failed* scan and renders the failure page, which is
 itself worth looking at.
 
 `tests/fake_opencloud.py` is a real HTTP server driven by an
-`InstanceBehaviour` dataclass, and it is the honest way to render a *result*
+`InstanceBehaviour` dataclass, and it lets you render a real *result*
 page with findings on it without needing an OpenCloud deployment.
 
 ### Tearing it down
@@ -462,8 +462,7 @@ upstream published, not to relax the rule.
 
 ## The operator's area at /admin
 
-Optional, off by default, and worth knowing the shape of before you turn it
-on.
+Optional and off by default. Read this section before you turn it on.
 
 ```bash
 COS_WEB_ADMIN_ENABLED=true
@@ -481,7 +480,7 @@ adding it to the group by hand, getting into `akadmin` with a recovery key, and
 the second factor every sign-in requires are in
 [`docs/authentik.md`](docs/authentik.md#an-operator-for-admin).
 
-**Off means absent, not protected.** With `COS_WEB_ADMIN_ENABLED` unset the
+**Off means the area does not exist.** With `COS_WEB_ADMIN_ENABLED` unset the
 routes are never registered and `/admin` answers the same 404 as any other
 unknown path, so a deployment that does not use the area does not disclose
 that the area exists.
@@ -595,15 +594,15 @@ configuration rather than anybody's traffic; `/admin/state`, the document you
 copy into an issue report, carries only how many there are.
 
 **About the one control that writes.** Adding an exclusion is the only thing
-in the area that changes what the service does, and it is deliberately the
-safest possible shape of that:
+in the area that changes what the service does, and it is built to be as
+safe as possible:
 
 - it can only ever **refuse** a scan. Nothing here makes this service scan
   something, reach a target, or widen a limit, so the worst a stolen operator
   session achieves is a deployment that scans less than it could;
 - `COS_WEB_BLOCKED_TARGETS` is a **floor**. Those entries appear in the list
   with no control beside them, and trying to withdraw one is refused with a
-  pointer to the environment rather than quietly doing nothing - so your
+  pointer to the environment instead of doing nothing - so your
   compose file stays the truth about what it declares;
 - **entries added here live in Redis**, which means they are exactly as
   durable as your Redis. Anything that must outlive a flush belongs in
@@ -637,14 +636,14 @@ come back to it.
 **Two combinations on the exposure card carry the warning accent, and only
 two.** Neither setting is a mistake in itself, which is why they are marked
 rather than refused: `/mcp` served without a token is what a public scanner
-is for, and scanning private addresses is the whole point of a deployment
-watching its own estate. What is worth a second look is *the pair* -
+is for, and a deployment watching its own estate has to scan private addresses.
+What deserves a second look is *the pair* -
 `COS_WEB_ALLOW_PRIVATE_TARGETS` on a deployment that also asks to be indexed
-is a scanner strangers can find, pointed at the network it stands in. If that
-is deliberate, `COS_WEB_ALLOW_INDEXING=false` is almost certainly the setting
+is a scanner strangers can find, pointed at the network it stands in. In
+that case `COS_WEB_ALLOW_INDEXING=false` is almost certainly the setting
 that was meant.
 
-**A refresh that has stopped landing says so, and says which failure it is.**
+**A refresh that has stopped landing is reported, together with the kind of failure.**
 The two reference tiles age their own readings the way the card above them
 does: `checked 6h ago` rather than a stamp to subtract from today's date, the
 exact moment on the element for whoever wants it, and the accent past two
@@ -663,9 +662,9 @@ so it is available in the moment after a refresh failed. Beside them, *Read
 again*, *Copy diagnostics* (the `/admin/state` document on the clipboard, for
 an issue report) and the audit list's *Clear* change nothing anywhere.
 
-Two things the audit card will tell you that are worth knowing in advance.
-The stream is closed by the service after 30 minutes and says so, rather than
-going quiet - press *Follow* for another. And **without
+Two notes on the audit card.
+The service closes the stream after 30 minutes and shows a message when it
+does - press *Follow* for another. And **without
 `COS_WEB_AUDIT_LOG_FILE` the window is a ring in one process's memory**, so
 behind more than one replica you are watching the records of whichever
 replica answered; the card says so where that is the case. Configure the file
@@ -776,8 +775,8 @@ the GitHub rate limit on the update check.
 Almost everything this project knows about OpenCloud is anchored in links that
 are not under our control: the lifecycle page the schedule is generated from,
 the advisories, the source files that prove a hardening flag is hardcoded, the
-installation guides. When OpenCloud reorganises, those rot silently — and a
-finding explained with a dead link is a finding nobody can act on.
+installation guides. When OpenCloud reorganises, those break unnoticed, and a
+finding explained with a dead link leaves the reader without the fix.
 
 ```bash
 python scripts/check_documentation_links.py              # check and fail
@@ -833,8 +832,8 @@ When the check reports a rotted link:
 - **End of life overrides everything**, including a waiver. A release line
   receiving no security fixes is an `F` however clean the rest is.
 - **Results are ephemeral.** They live in memory for `COS_WEB_RESULT_TTL` and
-  are then gone. There is no listing endpoint, no history and no accounts —
-  by design. Nobody can recover an expired result, including you.
+  are then gone. There is no listing endpoint, no history and no accounts.
+  Nobody can recover an expired result, including you.
 - **The uuid is the entire authorisation.** Anyone holding a result link can
   read that report until it expires. That is why the share panel warns about
   posting one in a channel.

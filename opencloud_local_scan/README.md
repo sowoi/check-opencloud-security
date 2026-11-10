@@ -348,7 +348,7 @@ alone and logs a warning saying so. Note what that means: a host without the
 extra is not checking provenance at all, so install it wherever the refresh
 actually matters.
 
-With the extra installed, the three outcomes are deliberately different. A
+With the extra installed, there are three outcomes. A
 verified document is written. A signature that could not be *checked* - the
 attestation is not published yet, GitHub is unreachable, the trust root
 would not load - warns and falls back to the structural guards. A signature
@@ -365,7 +365,7 @@ OpenCloud, and is regenerated daily by
 `scripts/update_vulnerability_db.py` against the OSV query API and opens a
 pull request when the answer has changed. The refresh **only ever adds**: an
 advisory the feed has forgotten stays in the file, and a hand-written entry
-survives. Removing one is a deliberate edit.
+survives. An entry is only removed by hand.
 
 It is still only as complete as the feeds it is built from.
 `vulnerabilities: []` from a scan means *"nothing in the database you
@@ -452,7 +452,7 @@ authentication without an explicit origin fails
 `webEmbedDelegatedAuthenticationRestricted`, and a matching OpenCloud listener
 on the direct backend port fails `backendPortClosed`.
 
-Some of these are worth knowing about before you enable `--check-hardening`:
+Note the following before you enable `--check-hardening`:
 
 - **`cspWithoutUnsafeInline` fails on a stock OpenCloud.** The default
   `csp.yaml` contains `'unsafe-inline'` in `script-src` and `style-src`. It is
@@ -522,12 +522,12 @@ it without changing the result shape.
 
 ### What the scanner cannot measure
 
-Two questions come up often enough to be worth stating as non-goals:
+Two questions come up often and are out of scope:
 
 - **Audit logging cannot be checked.** OpenCloud's audit service consumes the
   internal event bus and exposes no HTTP surface; no capability, header or
-  unauthenticated document reveals whether it is running. There is no signal to
-  read, so no check exists and none can be added without credentials.
+  unauthenticated document reveals whether it is running. Without a
+  signal to read, no check exists and none can be added without credentials.
 - **"Configured correctly" is out of scope for the integrations above.** That a
   provider is registered says nothing about WOPI secrets, share permissions or
   the second service's own configuration, all of which sit behind a login.
@@ -616,8 +616,8 @@ require an operator’s choice before a usable snippet can be generated.
 
 ## What the scan covered
 
-A passed check and a check that never ran leave the same shape in this
-document: nothing. `coverage` is where the difference is written down. See
+Neither a passed check nor a check that never ran leaves a trace in this
+document. `coverage` records which of the two it was. See
 [ADR 0064](../adr/0064-a-scan-records-what-it-did-not-measure.md).
 
 ```json
@@ -669,7 +669,7 @@ Two properties matter here:
   acceptance is in `extraChecks[].ignored`, because a waiver is a decision
   about alerting and not about evidence.
 
-A document written before this block existed simply has no `coverage` key,
+A document written before this block existed has no `coverage` key,
 which is a report that does not say what it covered - not a scan without
 gaps. Read it with `coverage.coverage_of(result)`, which returns `None` for
 both a missing and a malformed block.
@@ -747,9 +747,9 @@ existing summary, and `--format json` carries them as `explanation`:
 | `policy` | A waiver expired, was added or was removed |
 | `unknown` | Something moved and nothing recorded accounts for it |
 
-The wording is deliberately conservative. A changed digest establishes that
+The wording is conservative. A changed digest establishes that
 the reference data differed; it does not establish that it caused any
-particular grade to move, and the sentence says so. Several changes may
+particular grade to move, and the sentence reflects that. Several changes may
 contribute without one being chosen as *the* cause.
 
 `--format json` also carries `findings`, one entry per finding in either

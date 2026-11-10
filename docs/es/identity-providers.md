@@ -55,7 +55,7 @@ También necesita:
   esa certeza.
 - **Un certificado real en ambos nombres.** El descubrimiento de OpenID
   Connect es una solicitud HTTPS de OpenCloud al proveedor; un certificado
-  autofirmado ahí falla de una forma cuyo mensaje de error rara vez lo dice.
+  autofirmado ahí falla con un mensaje de error que rara vez menciona el certificado.
 - **Que ambos nombres se resuelvan tanto desde dentro de la red de
   contenedores como desde fuera.** Es la causa más frecuente de "funciona en el
   navegador y el cliente de escritorio se queda colgado"; consulte
@@ -86,14 +86,14 @@ Hay tres cosas en esa tabla que son fundamentales:
 `oidc-callback.html` termina el inicio de sesión; `oidc-silent-redirect.html`
 es la forma en que la pestaña renueva un token sin devolver a nadie a una
 pantalla de inicio de sesión en mitad de una subida. Si registra solo la
-primera, el inicio de sesión funciona, pero las sesiones empiezan a morir con
-una frecuencia que nadie puede reproducir a propósito.
+primera, el inicio de sesión funciona, pero las sesiones terminan después a
+intervalos difíciles de reproducir.
 
 **Solo los clientes que no son navegador reciben `offline_access`.** Ese
 ámbito es el que emite el token de actualización que un cliente de escritorio
-o móvil necesita para sobrevivir a un reinicio. El navegador no lo tiene a
-propósito: un token de actualización en una pestaña es una credencial en un
-lugar que no puede protegerla.
+o móvil necesita para sobrevivir a un reinicio. El navegador no lo
+recibe, porque una pestaña no puede guardar un token de actualización de
+forma segura.
 
 **Los ID de cliente se pueden configurar, y las dos partes deben coincidir.**
 El proveedor los conoce porque usted los escribió allí; OpenCloud los publica
@@ -111,7 +111,7 @@ secreto, porque cualquier cosa que se distribuye a todos ellos es un secreto
 del que tienen copia todos sus usuarios.
 
 Por eso los cuatro son **clientes públicos que usan el flujo de código de
-autorización con PKCE**, y PKCE no es un adorno opcional: es lo que sustituye
+autorización con PKCE**, y PKCE es obligatorio: sustituye
 al secreto de cliente que esos clientes no pueden guardar. Defina el método de
 desafío como `S256`, nunca `plain`. No emita un secreto de cliente para ninguno
 de ellos: un proveedor que lo exige para un cliente público está mal

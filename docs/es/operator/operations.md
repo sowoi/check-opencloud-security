@@ -80,7 +80,7 @@ Opciones útiles:
 | `--check` | desactivado | Salir con código distinto de cero si el archivo está desactualizado; no escribe nada |
 | `--allow-failure` | desactivado | Salir con `0` si la fuente no responde (para ejecuciones programadas) |
 
-**Una actualización solo añade.** Un aviso que la fuente ya no menciona permanece en el archivo, porque una fuente que ha olvidado una vulnerabilidad no la ha corregido. Eliminar una entrada es una edición deliberada de una persona, que es también la única manera de incorporar algo que OSV no conoce.
+**Una actualización solo añade.** Un aviso que la fuente ya no menciona permanece en el archivo, porque una fuente que ha olvidado una vulnerabilidad no la ha corregido. Una entrada solo se elimina a mano, y una edición manual es también la única manera de incorporar algo que OSV no conoce.
 
 Después de ejecutarlo, revise el diff antes de confirmar. Lo esperable son entradas nuevas y rangos enriquecidos. Lo preocupante son entradas que desaparecen, o una entrada que no nombra ningún rango de versiones (coincidiría con todas las versiones publicadas).
 
@@ -105,10 +105,10 @@ python scripts/update_release_schedule.py --no-readme # leave the README block a
 Escribe **ambos**: `opencloud_local_scan/data/release_schedule.json` y el bloque generado de `README.md` entre `<!-- release-schedule:start -->` y `<!-- release-schedule:end -->`.
 
 - No edite nunca ese bloque del README a mano. La siguiente actualización lo sobrescribe y `tests/test_update_script.py` falla si no coincide con el calendario que se distribuye a su lado.
-- Eliminar los marcadores es un error, no una operación vacía: un README que deja de actualizarse sin avisar es peor que uno que nunca se actualizó.
+- Eliminar los marcadores es un error, porque de lo contrario el README dejaría de actualizarse sin que nadie lo notara.
 - El texto y los ejemplos *alrededor* del bloque están escritos a mano y nombran versiones antiguas a propósito. No los toque.
 
-La página del ciclo de vida es el único lugar donde se indica el *tipo* de versión. La lista de versiones de GitHub no distingue una versión rolling de una de producción, así que si la página no está disponible no hay fuente alternativa: el calendario simplemente se queda como está.
+La página del ciclo de vida es el único lugar donde se indica el *tipo* de versión. La lista de versiones de GitHub no distingue una versión rolling de una de producción, así que si la página no está disponible no hay fuente alternativa: el calendario se queda como está.
 
 **Es normal que una versión más nueva tenga menos soporte que una más antigua.** Rolling, producción y LTS se publican en paralelo. No es un error que haya que corregir.
 
@@ -271,7 +271,7 @@ docker compose -f docker-compose.local.yml -f docker-compose.override.yml up -d
 
 Ahora un cambio en una plantilla, en `app.css` o en cualquier archivo de `frontend/static/js/` se ve en la siguiente carga de página. Lo que sigue necesitando un reinicio:
 
-- cualquier cosa en `webapp/`: el Python está incluido en la imagen y uvicorn se ejecuta sin `--reload` a propósito;
+- cualquier cosa en `webapp/`: el Python está incluido en la imagen y uvicorn se ejecuta sin `--reload`;
 - `frontend/static/llms.txt` y `llms-full.txt`, que se leen una sola vez al arrancar;
 - `frontend/templates/docs/*.html`, que se regenera con `scripts/build_frontend_documentation.py` en lugar de editarse.
 
@@ -283,7 +283,7 @@ Los análisis se ejecutan **desde el contenedor del worker**, así que `localhos
 
 Sin una instancia real puede probar igualmente la mayor parte del frontend: el formulario, la validación, la cola y los estados de progreso, el 404 de un uuid caducado, el catálogo, las páginas de documentación y todas las páginas estáticas. Un análisis que no puede conectar termina como análisis *fallido* y muestra la página de error, que también merece un vistazo.
 
-`tests/fake_opencloud.py` es un servidor HTTP real controlado por una dataclass `InstanceBehaviour`, y es la forma honesta de mostrar una página de *resultados* con hallazgos sin necesitar un despliegue de OpenCloud.
+`tests/fake_opencloud.py` es un servidor HTTP real controlado por una dataclass `InstanceBehaviour`, y permite mostrar una página de *resultados* real con hallazgos sin necesitar un despliegue de OpenCloud.
 
 ### Desmontarla {#tearing-it-down}
 
@@ -330,7 +330,7 @@ Así que la respuesta correcta a «la actualización fue rechazada» es examinar
 
 ## El área de operación en /admin {#the-operators-area-at-admin}
 
-Opcional, desactivada por defecto, y conviene conocer su forma antes de activarla.
+Opcional y desactivada por defecto. Lea esta sección antes de activarla.
 
 ```bash
 COS_WEB_ADMIN_ENABLED=true
@@ -342,7 +342,7 @@ El asistente pregunta los tres valores (`docker/setup-wizard.py`, sección del �
 
 **Un operador es un nombre de usuario en dos lugares**: en `COS_WEB_ADMIN_USERS` y en el grupo `opencloud-scanner-operators` de Authentik, al que está vinculada la aplicación `/admin`. El enlace de inscripción del asistente hace ambas cosas; crear la cuenta y añadirla al grupo a mano, entrar en `akadmin` con una clave de recuperación y el segundo factor que exige cada inicio de sesión se explican en [`docs/authentik.md`](../../../docs/authentik.md#an-operator-for-admin).
 
-**Desactivada significa ausente, no protegida.** Sin `COS_WEB_ADMIN_ENABLED`, las rutas nunca se registran y `/admin` responde el mismo 404 que cualquier otra ruta desconocida, de modo que un despliegue que no usa el área no revela que existe.
+**Desactivada significa que el área no existe.** Sin `COS_WEB_ADMIN_ENABLED`, las rutas nunca se registran y `/admin` responde el mismo 404 que cualquier otra ruta desconocida, de modo que un despliegue que no usa el área no revela que existe.
 
 **El servicio no autentica a nadie.** Un proveedor proxy de Authentik inicia la sesión del operador y reenvía la identidad como cabeceras; el servicio solo confía en ellas porque el proxy también envía `COS_WEB_ADMIN_PROXY_SECRET` como `X-COS-Admin-Proxy`. Dos consecuencias que conviene interiorizar:
 
@@ -391,10 +391,10 @@ La pestaña Versiones solo cambia cuando se publica una versión: el workflow de
 
 Lo que deliberadamente no puede hacer: nombrar un destino, un uuid, un resultado o la dirección de un cliente. Las estadísticas son recuentos y ajustes, y la vista de auditoría muestra los registros seudonimizados que el log ya escribió: una huella es un HMAC truncado con una sal que conserva el proceso, y nada permite revertirla. La tarjeta de exclusiones es el único lugar donde aparecen direcciones, y son la configuración propia del operador, no tráfico de nadie; `/admin/state`, el documento que se copia en un informe de incidencia, solo indica cuántas hay.
 
-**Sobre el único control que escribe.** Añadir una exclusión es lo único del área que cambia lo que hace el servicio, y tiene deliberadamente la forma más segura posible:
+**Sobre el único control que escribe.** Añadir una exclusión es lo único del área que cambia lo que hace el servicio, y está diseñada para ser lo más segura posible:
 
 - solo puede **rechazar** un análisis. Nada aquí hace que el servicio analice algo, alcance un destino o amplíe un límite, así que lo peor que consigue una sesión de operador robada es un despliegue que analiza menos de lo que podría;
-- `COS_WEB_BLOCKED_TARGETS` es un **mínimo**. Esas entradas aparecen en la lista sin control al lado, e intentar retirar una se rechaza con una indicación hacia el entorno en lugar de no hacer nada en silencio, de modo que su archivo compose sigue siendo la verdad sobre lo que declara;
+- `COS_WEB_BLOCKED_TARGETS` es un **mínimo**. Esas entradas aparecen en la lista sin control al lado, e intentar retirar una se rechaza con una indicación hacia el entorno en lugar de no hacer nada, de modo que su archivo compose sigue siendo la verdad sobre lo que declara;
 - **las entradas añadidas aquí viven en Redis**, así que son exactamente tan duraderas como su Redis. Lo que deba sobrevivir a un vaciado pertenece a `COS_WEB_BLOCKED_TARGETS`; la tarjeta lo indica bajo la lista;
 - **una entrada tiene como máximo 253 caracteres**, la longitud máxima de un nombre de host, tanto en esta tarjeta como en `COS_WEB_BLOCKED_TARGETS`. Nada más largo podría coincidir con un destino que el servicio aceptara, así que se rechaza en lugar de guardarse como una exclusión que no excluye nada;
 - **las dos mitades se comparan analizadas, no como texto.** `Example.COM` en su archivo compose y `example.com` escrito aquí son una sola exclusión, no dos: la tarjeta no guarda lo que el entorno ya contiene y se niega a retirarlo se escriba como se escriba;
@@ -404,13 +404,13 @@ Consulte [ADR 0044](../../../adr/0044-the-operator-area-may-write-the-exclusions
 
 **Las lecturas indican su antigüedad.** Se consultan cada diez segundos, y una consulta que deja de responder sería indistinguible de un servicio sin actividad: los números simplemente dejan de moverse. Por eso la página marca la antigüedad de la última respuesta, la incrementa entre consultas y dice claramente cuando lo que está viendo es la última lectura que dio el servicio y no la actual. Una casilla se ilumina cuando cambia su valor. La página deja de consultar mientras su pestaña está en segundo plano y vuelve a leer en cuanto regresa a ella.
 
-**Dos combinaciones de la tarjeta de exposición llevan el acento de advertencia, y solo dos.** Ningún ajuste es un error por sí mismo, por eso se marcan en lugar de rechazarse: servir `/mcp` sin token es para lo que existe un analizador público, y analizar direcciones privadas es la razón de ser de un despliegue que vigila su propia infraestructura. Lo que merece una segunda mirada es *la pareja*: `COS_WEB_ALLOW_PRIVATE_TARGETS` en un despliegue que además pide ser indexado es un analizador que los desconocidos pueden encontrar, apuntando a la red en la que se encuentra. Si es deliberado, casi con seguridad el ajuste que se quería era `COS_WEB_ALLOW_INDEXING=false`.
+**Dos combinaciones de la tarjeta de exposición llevan el acento de advertencia, y solo dos.** Ningún ajuste es un error por sí mismo, por eso se marcan en lugar de rechazarse: servir `/mcp` sin token es para lo que existe un analizador público, y un despliegue que vigila su propia infraestructura tiene que analizar direcciones privadas. Lo que merece una segunda mirada es *la pareja*: `COS_WEB_ALLOW_PRIVATE_TARGETS` en un despliegue que además pide ser indexado es un analizador que los desconocidos pueden encontrar, apuntando a la red en la que se encuentra. En ese caso, casi con seguridad el ajuste que se quería era `COS_WEB_ALLOW_INDEXING=false`.
 
-**Una actualización que ha dejado de llegar lo dice, e indica qué fallo es.** Las dos casillas de referencia muestran la antigüedad de sus lecturas igual que la tarjeta superior: `checked 6h ago` en lugar de una marca que restar a la fecha de hoy, el momento exacto en el elemento para quien lo quiera y el acento pasados dos ciclos diarios. Si la última ejecución no tuvo éxito, la nota lo nombra (*no se pudo descargar* o *rechazado por las comprobaciones*), de modo que la distinción `*_failed` / `*_rejected` está en la página antes de que nadie pulse nada. Un despliegue que desactivó la actualización no se considera atrasado; no tiene nada para lo que llegar tarde.
+**Una actualización que ha dejado de llegar se notifica, junto con el tipo de fallo.** Las dos casillas de referencia muestran la antigüedad de sus lecturas igual que la tarjeta superior: `checked 6h ago` en lugar de una marca que restar a la fecha de hoy, el momento exacto en el elemento para quien lo quiera y el acento pasados dos ciclos diarios. Si la última ejecución no tuvo éxito, la nota lo nombra (*no se pudo descargar* o *rechazado por las comprobaciones*), de modo que la distinción `*_failed` / `*_rejected` está en la página antes de que nadie pulse nada. Un despliegue que desactivó la actualización no se considera atrasado; no tiene nada para lo que llegar tarde.
 
 **Probar las fuentes** es la ejecución de prueba junto a esos dos botones: realiza la misma descarga y las mismas comprobaciones y después descarta el resultado, de modo que puede distinguir un `failed` (inaccesible, o la página cambió de forma) de un `rejected` (se leyó bien y las comprobaciones lo rechazaron) sin aplicar nada. Contacta con la fuente, así que está limitado por `COS_WEB_ADMIN_REFRESH_COOLDOWN`, con su propia clave, para que esté disponible justo después de que falle una actualización. A su lado, *Leer de nuevo*, *Copiar diagnóstico* (el documento `/admin/state` en el portapapeles, para un informe de incidencia) y *Vaciar* de la lista de auditoría no cambian nada en ningún sitio.
 
-Dos cosas que le dirá la tarjeta de auditoría y que conviene saber de antemano. El servicio cierra la transmisión a los 30 minutos y lo indica, en lugar de quedarse en silencio: pulse *Ver en directo* para abrir otra. Y **sin `COS_WEB_AUDIT_LOG_FILE`, la ventana es un anillo en la memoria de un solo proceso**, así que detrás de más de una réplica está viendo los registros de la réplica que respondió; la tarjeta lo indica cuando es el caso. Configure el archivo si necesita el rastro completo.
+Dos notas sobre la tarjeta de auditoría. El servicio cierra la transmisión a los 30 minutos y lo indica, en lugar de quedarse en silencio: pulse *Ver en directo* para abrir otra. Y **sin `COS_WEB_AUDIT_LOG_FILE`, la ventana es un anillo en la memoria de un solo proceso**, así que detrás de más de una réplica está viendo los registros de la réplica que respondió; la tarjeta lo indica cuando es el caso. Configure el archivo si necesita el rastro completo.
 
 ![El área de operación: estado del servicio, las dos actualizaciones de datos de referencia y la comprobación del índice de búsqueda](../../../img/admin-area-dark.png)
 
@@ -497,7 +497,7 @@ Para el plugin, y no para el servicio, `docs/troubleshooting.md` cubre los estad
 
 ## Cuando OpenCloud mueve su documentación {#when-opencloud-moves-its-documentation}
 
-Casi todo lo que este proyecto sabe de OpenCloud está anclado en enlaces que no controlamos: la página del ciclo de vida de la que se genera el calendario, los avisos, los archivos fuente que demuestran que una opción de endurecimiento está fijada en el código, las guías de instalación. Cuando OpenCloud se reorganiza, esos enlaces se pudren en silencio, y un hallazgo explicado con un enlace roto es un hallazgo con el que nadie puede actuar.
+Casi todo lo que este proyecto sabe de OpenCloud está anclado en enlaces que no controlamos: la página del ciclo de vida de la que se genera el calendario, los avisos, los archivos fuente que demuestran que una opción de endurecimiento está fijada en el código, las guías de instalación. Cuando OpenCloud se reorganiza, esos enlaces se rompen sin que nadie lo note, y un hallazgo explicado con un enlace roto deja al lector sin la corrección.
 
 ```bash
 python scripts/check_documentation_links.py              # check and fail
@@ -525,7 +525,7 @@ Cuando la comprobación informa de un enlace roto:
 - **Algunos hallazgos no se pueden corregir nunca.** Varias opciones que OpenCloud fija en el código no son ajustes: `publicLinkExpirationEnforced` falla en todas las instancias existentes. Esas se marcan como no accionables y quedan fuera de la línea de alerta.
 - **Algunos hallazgos se informan pero nunca generan alertas.** Las cabeceras de aviso (`Permissions-Policy`, la familia `Cross-Origin-*`) evalúan cabeceras que *ninguna* instancia de OpenCloud envía, así que su ausencia es un hecho sobre OpenCloud y no sobre este despliegue.
 - **El fin de soporte prevalece sobre todo**, incluida una excepción. Una línea de versiones que no recibe correcciones de seguridad es una `F` por limpio que esté el resto.
-- **Los resultados son efímeros.** Viven en memoria durante `COS_WEB_RESULT_TTL` y después desaparecen. No hay endpoint de listado, ni historial, ni cuentas, por diseño. Nadie puede recuperar un resultado caducado, tampoco usted.
+- **Los resultados son efímeros.** Viven en memoria durante `COS_WEB_RESULT_TTL` y después desaparecen. No hay endpoint de listado, ni historial, ni cuentas. Nadie puede recuperar un resultado caducado, tampoco usted.
 - **El uuid es toda la autorización.** Cualquiera que tenga un enlace de resultado puede leer ese informe hasta que caduque. Por eso el panel de compartir advierte antes de publicarlo en un canal.
 - **Los datos incluidos envejecen entre versiones.** Un host de monitorización que nunca ejecuta `refresh-data` y nunca se actualiza califica con la base de datos que se distribuyó con su versión.
 - **El plugin no llama a casa.** Nunca pide un veredicto a un servicio remoto y, a propósito, no descarga la página del ciclo de vida en cada ejecución: una comprobación que se ejecuta cada pocos minutos no debe convertirse en una descarga de documentación.

@@ -267,10 +267,10 @@ connaît ; rien de ce qu’ajoute un visiteur ne peut devenir un chemin, un para
 ou une charge utile dans une requête sortante.</p>
 <p>Les exemptions sont vérifiées par rapport à une liste autorisée construite à partir
 du catalogue de durcissement : <code>*</code> et <code>debugPort:*</code> sont donc écartés au lieu
-d’être respectés. Une exemption générique sur un service public serait un bandeau
-sur les yeux avec un joli nom. Les indicateurs qu’OpenCloud code en dur ne sont pas
-proposés non plus : exempter un constat que personne ne peut corriger laisserait
-croire que quelqu’un le pourrait.</p>
+d’être respectés. Une exemption générique sur un service public masquerait tous les
+constats d’un coup. Les indicateurs qu’OpenCloud code en dur ne sont pas
+proposés non plus : personne ne peut corriger ces constats, et une exemption
+laisserait croire le contraire.</p>
 <h2 id="configuration">Configuration</h2>
 <p>Chaque paramètre est une variable d’environnement, lue une fois au démarrage.</p>
 <table>
@@ -659,7 +659,7 @@ croire que quelqu’un le pourrait.</p>
 </tr>
 </tbody>
 </table>
-<p><code>COS_WEB_RELEASES_MODE</code> vaut <code>off</code> par défaut, volontairement : un déploiement
+<p><code>COS_WEB_RELEASES_MODE</code> vaut <code>off</code> par défaut : un déploiement
 public qui interroge le flux des versions à chaque visiteur est limité en débit,
 et la vérification des mises à jour de tous les visiteurs échoue alors d’un coup.
 Le calendrier des versions décide toujours de la fin de vie sans lui.</p>
@@ -721,7 +721,7 @@ empêche que le résolveur derrière la protection SSRF serve d’amplificateur.
 délai de carence s’applique en dernier, pour qu’une requête qui allait de toute
 façon être refusée ne consomme pas le créneau d’une cible jamais analysée.</p>
 <h2 id="queueing-rather-than-refusing">Mettre en file d’attente plutôt que refuser</h2>
-<p>Plus de visiteurs que de workers, c’est une file d’attente, pas une panne. Chaque
+<p>Lorsqu’il y a plus de visiteurs que de workers, les requêtes sont mises en file d’attente. Chaque
 requête qui passe la validation reçoit un uuid et une réponse <strong>202</strong> (ou <strong>303</strong>
 depuis le formulaire), puis attend dans une file FIFO. La page d’analyse affiche
 la position - <em>« Analyse en file d’attente. Position : n° 2 sur 7 »</em> - et le
@@ -1011,7 +1011,7 @@ publique qu’elle paraisse :</p>
   Voir <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0043-an-operators-exclusion-outranks-every-allowance.md">l’ADR 0043</a> ;</li>
 <li>une entrée qui n’a aucune de ces quatre formes <strong>empêche le démarrage</strong>, dans le
   processus web comme dans le worker. Une faute de frappe serait sinon invisible :
-  le service démarre, répond normalement et analyse exactement ce qu’on lui avait
+  le service démarre, répond normalement et analyse les adresses qu’on lui avait
   demandé de ne pas analyser.</li>
 </ul>
 <p>Le refus que voit un visiteur indique seulement que le service a été prié de ne
@@ -1112,7 +1112,7 @@ opérateur qui cherche le point de terminaison qui fonctionne. L’absence de r�
 donne toujours lieu à une nouvelle tentative, car il peut ne s’agir que d’un
 certificat non reconnu.</p>
 <p>Un opérateur légitime dont l’instance est hors service peut lui aussi rencontrer
-le blocage, après cinq tentatives. C’est le compromis : le message en donne la
+le blocage, après cinq tentatives. Le message en donne la
 raison et suggère d’exécuter le scanner localement, ce qui n’a pas cette limite.</p>
 <p><strong>L’espace opérateur montre la protection à l’œuvre</strong> - réseaux actuellement
 bloqués, ainsi que blocages, infractions et plafonds quotidiens épuisés du jour et
@@ -1244,8 +1244,8 @@ volumes:
   renouvelées comprises. Un volume monté est lisible par quiconque accède à l’hôte
   qui l’héberge.</li>
 <li><strong>Un fichier impossible à écrire arrête le processus</strong>, avec le chemin dans le
-  message. Annoncer une piste d’audit qui ne mène discrètement nulle part est pire
-  que de ne pas en avoir, selon le même raisonnement que
+  message. Sinon, le service annoncerait une piste d’audit qui n’est pas écrite.
+  Le même raisonnement figure dans
   <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0008-refuse-to-start-without-the-encryption-key.md">l’ADR 0008</a>.</li>
 </ul>
 <p>Un volume nommé est la solution la plus simple, et celle que
@@ -1340,7 +1340,7 @@ ingress représente deux sauts et nécessite <code>COS_WEB_TRUSTED_PROXY_HOPS=2<
 <p>En compter trop peu est sans danger : l’adresse enregistrée est alors celle d’un
 proxy plutôt que celle du visiteur. Ce qu’il faut éviter, c’est d’en compter plus
 qu’il n’y en a réellement : la lecture remonte alors dans la partie de l’en-tête
-contrôlée par le client, ce qui est exactement la falsification que ce paramètre
+contrôlée par le client, ce qui permet la falsification que ce paramètre
 doit empêcher. En cas de doute, comptez les proxies que vous exploitez, et aucun
 autre.</p>
 <p>Une entrée qui n’est pas une adresse IP est ignorée plutôt que comptée, pour qu’un
@@ -1513,9 +1513,9 @@ uuid expiré. Il convient donc à un ticket, à un message de chat ou à un tabl
 bord d’état tant qu’un résultat est actuel, mais pas à un README - sauf si le
 déploiement qui le sert conserve les résultats bien plus longtemps, une décision
 qui a ses propres conséquences pour toutes les personnes dont il stocke les
-analyses. Il n’existe volontairement aucun point de terminaison qui produit un
+analyses. Aucun point de terminaison ne produit de
 badge pour un <em>nom d’hôte</em> : ce serait une poignée permanente et devinable sur
-l’instance de quelqu’un, et ce service n’en a aucune.</p>
+l’instance de quelqu’un, ce que ce service ne propose pas.</p>
 <p><strong>200</strong> avec <code>image/svg+xml</code> et <code>Cache-Control: no-store</code>, <strong>409</strong> tant que
 l’analyse n’est pas terminée, <strong>404</strong> pour un uuid inconnu ou expiré. <code>no-store</code>
 est la valeur par défaut de tout le service, à laquelle il ne déroge jamais ici :
@@ -1591,9 +1591,9 @@ aucun mécanisme de liste.</p>
 <h3 id="post-mcp"><code>POST /mcp</code></h3>
 <p>Le point de terminaison <a href="https://modelcontextprotocol.io">Model Context Protocol</a>,
 en streamable HTTP, sans état, avec des réponses JSON. C’est la couche
-d’exécution destinée aux agents, pas une seconde implémentation : chaque outil
+d’exécution destinée aux agents et ne réimplémente pas le service : chaque outil
 appelle dans le même processus l’API HTTP de cette application, si bien qu’un
-agent rencontre exactement les mêmes limites de débit, la même protection SSRF et
+agent rencontre les mêmes limites de débit, la même protection SSRF et
 la même autorisation d’effacement qu’un navigateur.</p>
 <p>Sept outils, un par tâche utilisateur plutôt qu’un par point de terminaison :
 <code>scan_instance</code>, <code>scan_instances</code>, <code>get_scan_result</code>, <code>plan_remediation</code>,

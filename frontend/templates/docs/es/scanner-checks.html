@@ -353,7 +353,7 @@ que solo añade un reenviador, como <code>Via</code>.</p>
 <pre><code class="language-json">{&quot;reverseProxy&quot;: {&quot;detected&quot;: true, &quot;vendor&quot;: &quot;Nginx&quot;, &quot;evidence&quot;: &quot;Server: nginx&quot;&#125;&#125;
 </code></pre>
 <p><code>reverseProxyDetected</code> falla cuando no se ha encontrado nada, y lo hace con
-gravedad <code>low</code> <strong>a propósito</strong>: Traefik y HAProxy no anuncian nada por
+gravedad <code>low</code> únicamente: Traefik y HAProxy no anuncian nada por
 defecto, y eliminar la cabecera <code>Server</code> es en sí una buena práctica, así que
 un despliegue bien gestionado puede parecer desnudo desde fuera. El hallazgo
 merece mostrarse, pero nunca merece restar nota.</p>
@@ -385,8 +385,8 @@ desconocidos lo resuelve; consulte
 predeterminado que rechaza un nombre no reconocido suele mostrar ese nombre en
 su página de error, y buscarlo en el cuerpo haría que el comportamiento
 correcto se notificara como hallazgo. Una instancia que no publica ningún
-documento de descubrimiento tampoco se evalúa en ningún sentido: dos errores
-significan que el análisis no ha averiguado nada, no que se haya superado.</p>
+documento de descubrimiento tampoco se evalúa en ningún sentido: con dos errores,
+el análisis no tiene nada que evaluar.</p>
 <h3 id="alternative-services-http3">Servicios alternativos (HTTP/3)</h3>
 <p><code>alternativeServices</code> registra lo que la instancia anuncia en su cabecera
 <code>Alt-Svc</code>. Una entrada <code>h3</code> indica a cada navegador que intente HTTP/3 sobre
@@ -398,7 +398,7 @@ decida.</p>
   &quot;header&quot;: &quot;h3=\&quot;:443\&quot;; ma=86400&quot;&#125;&#125;
 </code></pre>
 <p>Es una observación y nunca se califica: HTTP/3 no es una debilidad, solo algo
-que conviene abrir en el cortafuegos a propósito. El plugin muestra una línea
+que el cortafuegos debe tener en cuenta. El plugin muestra una línea
 de detalle cuando lo ve. La dirección anunciada nunca se sondea: es la palabra
 del objetivo, no un origen al que se apuntó el escaneo
 (<a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0036-a-companion-service-is-probed-only-where-the-scan-was-pointed.md">ADR 0036</a>).

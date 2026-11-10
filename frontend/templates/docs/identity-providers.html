@@ -102,7 +102,7 @@ session and every desktop client's stored token at once:</p>
   provider, and a half-built instance takes that certainty away.</li>
 <li><strong>A real certificate on both names.</strong> OpenID Connect discovery is an HTTPS
   request from OpenCloud to the provider; a self-signed certificate there
-  fails in a way whose error message rarely says so.</li>
+  fails with an error message that rarely names the certificate.</li>
 <li><strong>Both names resolving from inside the container network as well as
   outside.</strong> This is the single most common cause of "it works in the browser
   and the desktop client hangs" - see <a href="#troubleshooting">Troubleshooting</a>.</li>
@@ -156,12 +156,12 @@ failure whichever provider you chose. Configure these four, every time.</p>
 <p><strong>The web client needs all three redirect URIs.</strong> <code>oidc-callback.html</code> ends
 the sign-in; <code>oidc-silent-redirect.html</code> is how the tab renews a token without
 sending somebody back to a login screen mid-upload. Register only the first
-and sign-in works, then sessions start dying at an interval nobody can
-reproduce on purpose.</p>
+and sign-in works, but sessions later end at intervals that are hard to
+reproduce.</p>
 <p><strong>Only the non-browser clients get <code>offline_access</code>.</strong> That scope is what
 issues the refresh token a desktop or mobile client needs to survive a
-restart. The browser deliberately does not have one - a refresh token in a
-tab is a credential sitting in a place that cannot protect it.</p>
+restart. The browser does not get one, because a tab cannot store a refresh
+token safely.</p>
 <p><strong>The client IDs are configurable, and the two halves must agree.</strong> The
 provider knows them because you typed them there; OpenCloud publishes them to
 its own clients through WebFinger, from
@@ -174,8 +174,8 @@ the two mobile apps - runs entirely on somebody else's machine. None of them
 can keep a secret, because anything shipped to all of them is a secret every
 one of their users has a copy of.</p>
 <p>So all four are <strong>public clients using the authorization code flow with
-PKCE</strong>, and PKCE is not optional decoration: it is the thing that replaces
-the client secret those clients cannot hold. Set the challenge method to
+PKCE</strong>, and PKCE is required: it replaces the client secret those clients
+cannot hold. Set the challenge method to
 <code>S256</code>, never <code>plain</code>. Do not issue a client secret to any of them - a
 provider that requires one for a public client is configured wrong, and
 pasting a secret into a desktop app to satisfy it publishes that secret.</p>
@@ -508,8 +508,8 @@ are still in the first.</p>
 <li><strong>Then</strong> add <code>idp</code> to <code>OC_EXCLUDE_RUN_SERVICES</code> and restart.</li>
 <li><strong>Keep <code>PROXY_ENABLE_BASIC_AUTH=false</code>.</strong> WebDAV mounts, CalDAV clients and
    backup jobs authenticate with HTTP Basic and bypass the provider and every
-   second factor on it. Where something genuinely needs it, the answer is app
-   tokens rather than account passwords - see
+   second factor on it. Where something needs it, use app tokens rather than
+   account passwords - see
    <a href="/documentation/secure-deployment#basic-authentication-is-the-hole-in-all-of-this">secure-deployment.md</a>.</li>
 </ol>
 <h2 id="troubleshooting">Troubleshooting</h2>

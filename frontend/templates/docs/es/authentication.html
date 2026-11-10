@@ -179,7 +179,7 @@ análisis.</p>
 <code>OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS</code>,
 <code>OC_PASSWORD_POLICY_MIN_DIGITS</code> y
 <code>OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS</code> con <code>1</code> o más. Cada uno vale <code>1</code>
-por defecto, así que en una instancia que falla se redujeron a propósito.</p>
+por defecto, así que en una instancia que falla alguien los ha reducido.</p>
 <h2 id="6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. ¿Se puede encontrar el proveedor de identidad?: <code>identityProviderDetected</code></h2>
 <p>Todo lo anterior pregunta si se acepta una credencial. Esta comprobación hace
 la pregunta previa, <em>¿quién emite los tokens?</em>, y la responde leyendo una sola
@@ -212,7 +212,7 @@ proveedor y se puede apuntar a uno externo.</p>
 <p>La solicitud anterior ya está hecha. El documento que devuelve es evidencia
 pública en el sentido de
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0022-identity-provider-versions-require-public-evidence.md">ADR 0022</a>
-(sin autenticación, de solo lectura, publicado a propósito), y cuatro de sus
+(sin autenticación, de solo lectura y pensado para ser público), y cuatro de sus
 campos dicen algo sobre lo que un operador puede actuar. Leerlos <strong>no cuesta
 ninguna solicitud HTTP adicional</strong>: la misma respuesta que dio el emisor da los
 cuatro.</p>

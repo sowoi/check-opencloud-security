@@ -71,7 +71,7 @@ Docker, ...) consulte <a href="#installation">Instalación</a> más abajo.</p>
 <li><code>requests</code> y <code>PyYAML</code>, que pipx/uv/pip instalan automáticamente.</li>
 <li>Acceso de red desde el host de monitorización a la instancia de OpenCloud. A
   diferencia de un escáner alojado, este complemento necesita llegar a la
-  propia instancia, y eso es precisamente lo que le permite funcionar con
+  propia instancia, y por eso funciona también con
   instancias que no están en internet.</li>
 </ul>
 <h3 id="installation">Instalación</h3>
@@ -316,17 +316,17 @@ todos los requisitos conserva el que ya decidieron los umbrales, la
 protección, el ciclo de vida y la referencia, y la salida indica
 <code>Policy: every requirement met</code>. La carga del webhook y <code>--format json</code>
 llevan el mismo veredicto bajo <code>policy</code>.</p>
-<p>Conviene conocer dos reglas antes de escribir una:</p>
+<p>Al escribir una se aplican dos reglas:</p>
 <ul>
 <li><strong>Una exención no disculpa un requisito.</strong> <code>--ignore-hardening</code> y
   <code>--waive-until</code> son el operador local aceptando un hallazgo; una política es
   la organización diciendo que no puede aceptarse. Si una exención pudiera
-  silenciar una medida exigida, una política no describiría nada exigible.</li>
-<li><strong>Una errata es un error de uso, no una aprobación silenciosa.</strong> Una clave
+  silenciar una medida exigida, la política no se podría hacer cumplir.</li>
+<li><strong>Una errata es un error de uso.</strong> Una clave
   desconocida, una nota fuera de <code>0</code>-<code>5</code> o una medida que el catálogo no
-  conoce terminan la ejecución en <code>UNKNOWN</code> con el motivo. Una política existe
-  para hacer fallar despliegues: una regla que en silencio no exige nada sería
-  el peor resultado posible.</li>
+  conoce terminan la ejecución en <code>UNKNOWN</code> con el motivo. De lo contrario,
+  una regla mal escrita no exigiría nada y la política dejaría pasar
+  despliegues que debía hacer fallar.</li>
 </ul>
 <h3 id="prometheus-kubernetes-integration">Integración con Prometheus y Kubernetes</h3>
 <p><code>--format=prometheus</code> produce una carga de texto de una sola ejecución; el
@@ -1005,7 +1005,7 @@ umbrales inclusivos:</p>
 <p><strong>Un único hallazgo crítico no genera un aviso urgente por defecto.</strong> El peor
 hallazgo limita la nota en lugar de fijarla: critical la limita a <code>2</code> (<code>D</code>),
 que el valor predeterminado <code>--critical 1</code> sigue notificando como <code>WARNING</code>.
-Es deliberado: evita que una sola ruta expuesta sea indistinguible de una
+Así se evita que una sola ruta expuesta sea indistinguible de una
 instancia sin soporte. Si un hallazgo crítico debe despertar a alguien,
 ejecute con <code>--critical 2</code>.</p>
 </blockquote>
@@ -1127,8 +1127,8 @@ línea de versiones completa por detrás, <code>2</code> vulnerabilidades conoci
 vulnerabilidades críticas o altas, <code>0</code> fin de vida. Después, las
 comprobaciones adicionales fallidas la limitan según su gravedad: <code>critical</code> a
 <code>2</code>, <code>high</code> a <code>3</code>, <code>medium</code> a <code>4</code>, <code>low</code> a <code>5</code>. Una comprobación que falló pero
-no decidió el resultado se sigue mostrando, marcada como tal, para que nada
-parezca descartado en silencio.</p>
+no decidió el resultado se sigue mostrando, marcada como tal, para que la
+lista quede completa.</p>
 <p>Sin <code>--debug</code>, la salida mantiene el tamaño que quiere un sistema de
 monitorización. El mismo desglose está siempre presente en el resultado del
 análisis como <code>ratingExplanation</code>, así que se puede leer sin volver a ejecutar
@@ -1158,9 +1158,9 @@ Two fixes would raise this instance from 3/5 to 5/5.
     HTTP Basic authentication is enabled
     Fix: Set PROXY_ENABLE_BASIC_AUTH=false (the default) if nothing needs it ...
 </code></pre>
-<p>Conviene saber tres cosas sobre esa lista antes de actuar:</p>
+<p>Antes de actuar sobre esa lista, tenga en cuenta tres cosas:</p>
 <ul>
-<li><strong>El orden no es arbitrario.</strong> Los hallazgos de la misma gravedad comparten
+<li><strong>El orden importa.</strong> Los hallazgos de la misma gravedad comparten
   un mismo techo, así que corregir el primero de tres hallazgos medium no
   cambia nada. Los pasos que por sí solos no aportan nada se siguen mostrando
   (con <code>still 4/5</code> en lugar de <code>then 5/5</code>), porque omitirlos daría a entender
@@ -1174,8 +1174,8 @@ Two fixes would raise this instance from 3/5 to 5/5.
   hasta dónde puede llegar el plan. Consulte
   <a href="/documentation/hardening#measures-that-are-not-settings">Medidas que no son ajustes</a>.</li>
 </ul>
-<p>También se enumeran los hallazgos excluidos, marcados como tales: una
-exclusión silencia una alerta, no corrige nada, y el plan lo dice.</p>
+<p>También se enumeran los hallazgos excluidos, marcados como tales, porque una
+exclusión silencia una alerta sin corregir nada.</p>
 <p>El mismo plan aparece en el panel web, en las exportaciones JSON, CSV, SARIF y
 PDF, y como la herramienta MCP <code>plan_remediation</code>.</p>
 <h4 id="grouped-by-where-the-change-is-made">Agrupado por configuración</h4>

@@ -198,8 +198,8 @@ Hay dos cosas que conviene hacer bien:
   comprobación lo trataría como un host que nunca ha visto.
 
 Una versión que ha superado su fin de vida sigue generando alertas en cada
-ejecución, sea cual sea la línea base, y ese es el objetivo: no recibe
-correcciones de seguridad, así que empeora cada día que sigue en marcha.
+ejecución, sea cual sea la línea base, porque no recibe
+correcciones de seguridad y el riesgo crece mientras sigue en marcha.
 Consulte
 [Notificar solo lo que ha cambiado](../../README.md#reporting-only-what-changed).
 

@@ -33,7 +33,7 @@ Docker, pero ninguna cuenta en el servicio de análisis.</p>
 <pre><code class="language-shell">docker run --rm --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.example.com
 </code></pre>
-<p>Eso es todo. Imprime la misma línea que recibiría un sistema de
+<p>Imprime la misma línea que recibiría un sistema de
 monitorización:</p>
 <pre><code class="language-text">OK: Server is up to date. No known vulnerabilities.
 OpenCloud 7.2.3 on opencloud.example.com, rating: A+, last scanned: 2026-08-25 09:41:12
@@ -124,8 +124,8 @@ su propia red o uno detrás de un nombre que solo conoce su resolvedor:</p>
 <pre><code class="language-shell">docker run --rm --network host --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.internal.example.com
 </code></pre>
-<p>El servicio alojado rechaza las direcciones privadas a propósito; su propio
-equipo no tiene motivos para hacerlo.</p>
+<p>El servicio alojado rechaza las direcciones privadas. Un análisis desde su
+propio equipo no lo hace.</p>
 <p>Configurarlo con variables de entorno en lugar de opciones, lo que resulta más
 fácil de convertir en plantilla para una lista de hosts. Cada opción tiene una
 variable <code>COS_</code>, enumerada en el

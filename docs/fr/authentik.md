@@ -152,8 +152,8 @@ conteneur et n’atteignent pas les boîtes de réception des utilisateurs.
 
 Chaque paramètre est une variable de `docker/.env`, et les deux services
 Authentik les lisent : le serveur envoie le message de test, le worker envoie
-tout le reste. Configurer l’un sans l’autre fonctionne jusqu’au jour où cela
-compte.
+tout le reste. Si vous n’en configurez qu’un, certains messages partent et d’autres
+non.
 
 | Variable | Valeur par défaut | Ce que c’est |
 |:---------|:--------|:-----------|
@@ -237,8 +237,7 @@ fournisseur à la main, définissez-la aussi.
 
 **L’ID client est l’audience.** Il se trouve dans `.env`, où l’application web
 le lit sous le nom `COS_WEB_MCP_AUTH_AUDIENCE` : les deux côtés concordent parce
-qu’ils lisent la même ligne, et non parce que vous avez recopié l’un dans
-l’autre.
+qu’ils lisent la même ligne, et il n’y a rien à recopier.
 
 Le mode d’émetteur par fournisseur donne :
 
@@ -551,7 +550,7 @@ n’apprendrait qu’à désactiver le garde-fou.
 un `aud` jamais comparé ferait de chacun de ces jetons une clé pour `/mcp`, y
 compris un jeton émis pour une application que n’importe qui dans l’annuaire
 peut utiliser. Laisser `COS_WEB_MCP_AUTH_AUDIENCE` vide arrête donc le service
-au lieu d’élargir discrètement l’accès, et un jeton sans aucun `aud` est refusé
+au lieu d’élargir l’accès, et un jeton sans aucun `aud` est refusé
 pour la même raison. La pile de `docker/docker-compose.authentik.yml` la définit
 à partir de `AUTHENTIK_CLIENT_ID` et ne démarre pas sans elle.
 
@@ -574,8 +573,8 @@ ci-dessous, et c’est le seul endroit où cette décision existe.
 ### Un groupe, et l’association qui lui donne un sens {#a-group-and-the-binding-that-makes-it-mean-something}
 
 Faites-le une fois, avant le premier utilisateur. Une association sur un groupe
-est un seul élément à réexaminer plus tard ; une association par personne est
-une liste que personne ne nettoie.
+est un seul élément à réexaminer plus tard ; les associations par personne
+s’accumulent et sont rarement nettoyées.
 
 1. **Directory → Groups → Create**. Nommez-le `opencloud-scanner`. Laissez
    *Superuser privileges* désactivé : ce groupe concerne une application, et un
@@ -612,7 +611,7 @@ Ensuite, sur la page de l’utilisateur :
   lorsqu’il n’y a pas de serveur de messagerie.
 - **Groups → Add to existing group** → `opencloud-scanner`.
 
-C’est tout pour une personne qui se connecte dans un navigateur : son client MCP
+Une personne qui se connecte dans un navigateur n’a besoin de rien d’autre : son client MCP
 la conduit chez Authentik, elle se connecte, et le client obtient un jeton. Rien
 n’est à copier, et il n’y a aucune configuration par utilisateur côté scanner.
 
@@ -641,12 +640,11 @@ passe d’application **expire au bout de 360 jours** si vous ne décochez pas
 *Expiring* : un agent qui a fonctionné toute l’année s’arrête alors sans raison
 visible. Émettez-en un nouveau depuis **Directory → Tokens and App passwords**
 avant cette échéance. Et un compte de service ne peut utiliser ni l’interface
-d’administration ni l’interface utilisateur, et c’est tout l’intérêt : il a des
+d’administration ni l’interface utilisateur, et c’est voulu : il a des
 identifiants, pas de connexion.
 
 Donnez-en un à chaque appelant plutôt que d’en partager un. Ils ne coûtent rien,
-et la différence se voit le jour où vous devez en révoquer exactement un sans
-téléphoner à tous les autres.
+et vous pouvez ainsi en révoquer un seul sans toucher aux autres.
 
 ## Obtenir un jeton {#getting-a-token}
 
@@ -715,8 +713,8 @@ le point de terminaison. C’est un mauvais choix à long terme : tous les appel
 qui l’utilisent sont le même compte, en révoquer un les révoque tous, et
 l’identifiant qu’il active est le secret du fournisseur que lit aussi le service
 d’analyse. Une fois l’association ci-dessus en place, pensez à ajouter aussi ce
-compte généré au groupe, sinon ce chemin cesse de fonctionner - ce qui est le
-bon résultat, et le moment de passer à votre propre compte de service.
+compte généré au groupe, sinon ce chemin cesse de fonctionner. C’est le résultat
+attendu, et une bonne occasion de passer à votre propre compte de service.
 
 ### En tant que personne {#as-a-person}
 
@@ -805,9 +803,9 @@ n’utilise cet en-tête.
 
 **Lorsqu’une connexion est configurée, `Authorization` appartient au
 fournisseur d’identité, et l’identifiant d’effacement passe dans
-`X-Purge-Authorization`.** L’ancien comportement n’est volontairement pas
-conservé : lire le jeton d’identité d’un agent comme s’il s’agissait d’un
-identifiant d’opérateur est exactement la confusion qu’il faut refuser.
+`X-Purge-Authorization`.** L’ancien comportement n’est pas
+conservé, afin que le jeton d’identité d’un agent ne soit jamais lu comme un
+identifiant d’opérateur.
 
 ```json
 "headers": {
@@ -824,7 +822,7 @@ en-têtes de la requête, jamais dans un argument.
 Deux hôtes, deux exigences.
 
 **Authentik construit l’émetteur à partir de l’en-tête `Host` qu’il reçoit.** Un
-proxy qui le réécrit donne à chaque jeton un `iss` que personne n’acceptera, et
+proxy qui le réécrit donne à chaque jeton un `iss` qui sera refusé, et
 le symptôme est déroutant parce que tout le reste fonctionne. Transmettez `Host`
 et `X-Forwarded-Proto` sans modification, et ajoutez l’adresse de sortie du proxy
 à `AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS` si elle est en dehors des plages

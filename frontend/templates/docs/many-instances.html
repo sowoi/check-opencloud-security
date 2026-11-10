@@ -53,8 +53,8 @@ it found - see <a href="/documentation/reference#checking-multiple-hosts">Checki
   --host opencloud1.example.com,opencloud2.example.com:9200,[2001:db8::1]
 </code></pre>
 <p>This is the right answer when the instances are alike. Everything after
-<code>--host</code> applies to all of them, so the moment one instance needs <code>--insecure</code>
-or a waiver the others do not, you have outgrown it.</p>
+<code>--host</code> applies to all of them, so once one instance needs <code>--insecure</code>
+or a waiver the others do not, this form no longer fits.</p>
 <p>Aggregating also loses the per-host history your monitoring system would
 otherwise keep. If you want one red service per broken instance rather than
 one red service for the group, use one check per host instead.</p>
@@ -181,8 +181,8 @@ works the same way.</p>
   treat it as a host it has never seen.</li>
 </ul>
 <p>A release past its end of life keeps alerting on every run regardless of the
-baseline, which is the point: it receives no security fixes, so it gets worse
-every day it stays up. See
+baseline, because it receives no security fixes and the risk grows the longer
+it stays up. See
 <a href="/documentation/reference#reporting-only-what-changed">Reporting only what changed</a>.</p>
 <p>Add <code>--self-update-check</code> on one host in the fleet - not all of them - to be
 told when a newer plugin version is published. It is cached for a day and

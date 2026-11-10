@@ -10,7 +10,7 @@ docker run --rm --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.example.com
 ```
 
-Eso es todo. Imprime la misma línea que recibiría un sistema de
+Imprime la misma línea que recibiría un sistema de
 monitorización:
 
 ```text
@@ -114,8 +114,8 @@ docker run --rm --network host --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.internal.example.com
 ```
 
-El servicio alojado rechaza las direcciones privadas a propósito; su propio
-equipo no tiene motivos para hacerlo.
+El servicio alojado rechaza las direcciones privadas. Un análisis desde su
+propio equipo no lo hace.
 
 Configurarlo con variables de entorno en lugar de opciones, lo que resulta más
 fácil de convertir en plantilla para una lista de hosts. Cada opción tiene una

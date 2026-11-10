@@ -168,7 +168,7 @@ becoming a failure, as everywhere else in the scan.</p>
 <code>OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS</code>,
 <code>OC_PASSWORD_POLICY_MIN_DIGITS</code> and
 <code>OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS</code> back to <code>1</code> or more. Each already
-defaults to <code>1</code>, so an instance that fails this had them lowered on purpose.</p>
+defaults to <code>1</code>, so an instance that fails this has had them lowered.</p>
 <h2 id="6-can-the-identity-provider-be-found-at-all-identityproviderdetected">6. Can the identity provider be found at all: <code>identityProviderDetected</code></h2>
 <p>Everything above asks whether a credential is accepted. This one asks the
 prior question - <em>who issues the tokens?</em> - and answers it by reading
@@ -197,9 +197,9 @@ whatever issues tokens - see <a href="/documentation/reverse-proxy">Reverse prox
 genuinely is not configured, OpenCloud ships its own provider and can be
 pointed at an external one.</p>
 <h2 id="7-what-the-discovery-document-says-about-how-sign-in-is-protected">7. What the discovery document says about how sign-in is protected</h2>
-<p>The request above is already paid for. The document it returns is public
+<p>The request above has already been made. The document it returns is public
 evidence in the sense <a href="https://github.com/sowoi/check-opencloud-security/blob/main/adr/0022-identity-provider-versions-require-public-evidence.md">ADR 0022</a>
-means it - unauthenticated, read-only, published on purpose - and four of its
+means it - unauthenticated, read-only and meant to be public - and four of its
 fields say something an operator can act on. Reading them costs <strong>no extra
 HTTP request</strong>: the same response that yielded the issuer yields all four.</p>
 <table>

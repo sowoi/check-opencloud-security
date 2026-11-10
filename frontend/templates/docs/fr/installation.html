@@ -216,7 +216,7 @@ par la même attestation de provenance Sigstore que le wheel - voir
 Nagios utilisant <code>PluginDir + "/check_opencloud_security"</code> fonctionne sans autre
 configuration de chemin - voir <a href="#icinga2-nagios">Icinga2 / Nagios</a> ci-dessous.</p>
 <h3 id="configuring-it">Le configurer</h3>
-<p><strong>Le paquet ne configure volontairement rien.</strong> L’exemple de configuration
+<p><strong>Le paquet ne configure rien.</strong> L’exemple de configuration
 désigne un hôte qui n’est pas le vôtre, et
 <code>/etc/check-opencloud-security/config.yml</code> est un chemin que le plugin lit
 réellement : installer l’exemple à cet endroit donnerait à chaque appel sur
@@ -289,9 +289,9 @@ check-opencloud-security --host opencloud.example.com
 </code></pre>
 <p>La formule se trouve dans un tap plutôt que dans Homebrew core, qui impose des
 critères de notoriété que ce projet ne prétend pas remplir. <code>brew upgrade</code> la
-maintient à jour ; <code>--upgrade-self</code> refuse volontairement d’agir sur une
-installation Homebrew et l’indique, car pip écrirait dans le Cellar et la
-prochaine opération <code>brew</code> l’annulerait discrètement.</p>
+maintient à jour ; <code>--upgrade-self</code> refuse d’agir sur une
+installation Homebrew et explique pourquoi : pip écrirait dans le Cellar et la
+prochaine opération <code>brew</code> l’annulerait.</p>
 <p>La formule elle-même est générée à partir de ce que PyPI a publié, par
 <a href="https://github.com/sowoi/check-opencloud-security/blob/main/scripts/build_homebrew_formula.py"><code>scripts/build_homebrew_formula.py</code></a> -
 voir <a href="https://github.com/sowoi/check-opencloud-security/blob/main/packaging/README.md#homebrew"><code>packaging/README.md</code></a> si vous

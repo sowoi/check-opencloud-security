@@ -70,7 +70,7 @@ vigentes cuando se escribió esta página. Todo lo demás de esta sección,
 incluidos los ejemplos siguientes, está escrito a mano y puede mencionar
 versiones antiguas para ilustrar una idea.</p>
 <h2 id="what-the-bundled-schedule-can-and-cannot-tell-you">Qué puede y qué no puede decir el calendario incluido</h2>
-<p>Conviene saber dos cosas sobre el calendario incluido:</p>
+<p>El calendario incluido tiene estos límites:</p>
 <ul>
 <li><strong>Las versiones LTS solo están disponibles con suscripción</strong>, así que una
   línea LTS se reconoce a partir de la documentación, pero sus versiones puede
@@ -83,7 +83,7 @@ versiones antiguas para ilustrar una idea.</p>
   rapidez suele ser más reciente que los datos con los que se compara. Conserva
   su nota, no recibe ninguna recomendación de actualización y nunca se
   considera sin soporte por ello.</li>
-<li><strong>Lo indica cuando ocurre.</strong> Una versión posterior a la más reciente
+<li><strong>La salida lo notifica cuando ocurre.</strong> Una versión posterior a la más reciente
   registrada para su línea, o de una línea más reciente que todas las
   registradas, activa <code>lifecycle.scheduleStale</code> en el documento de resultado,
   rellena <code>scheduleNote</code>, <code>scheduleUpdated</code> y <code>scheduleSource</code>, y añade una
@@ -101,8 +101,8 @@ versiones antiguas para ilustrar una idea.</p>
 <h2 id="the-recommended-release-follows-your-track">La versión recomendada sigue su canal</h2>
 <p>Un canal de versiones solo conoce la versión más reciente <em>en general</em>, y en
 OpenCloud siempre es una rolling. Recomendarla a una instancia production o
-LTS la llevaría silenciosamente a un canal con un periodo de soporte de tres
-semanas, justo lo contrario de lo que eligió un operador del canal production.</p>
+LTS la llevaría a un canal con un periodo de soporte de tres
+semanas, algo que un operador del canal production no eligió.</p>
 <p>Por eso la comprobación de actualizaciones usa el
 <a href="/documentation/reference#end-of-life-detection">calendario de versiones</a> para elegir un
 destino dentro del propio canal de la instancia:</p>
@@ -152,8 +152,8 @@ prevalece el canal, porque es más actual que el calendario incluido.</p>
 pertenece una versión y la evalúa con la mayor generosidad que permiten los
 hechos: <code>7.2.3</code> aparece tanto en el canal rolling como en el production, así
 que se trata como versión production y se considera actual.</p>
-<p>Es la respuesta correcta cuando nadie ha dicho otra cosa, pero no lo es para
-todo el mundo. Si sigue deliberadamente el canal rolling, <code>7.2.3</code> perdió el
+<p>Es el valor predeterminado adecuado mientras no se declare un canal, pero no
+sirve para todas las instancias. Si sigue deliberadamente el canal rolling, <code>7.2.3</code> perdió el
 soporte el día en que se publicó <code>7.4.0</code>, y querrá saberlo.
 <code>--release-track</code> indica en qué canal está, y la versión se evalúa entonces
 solo en ese canal:</p>
@@ -206,7 +206,7 @@ configuración en instancias de canales distintos:</p>
 </tr>
 </tbody>
 </table>
-<p>Conviene conocer de antemano dos consecuencias:</p>
+<p>Esto tiene dos consecuencias:</p>
 <ul>
 <li><strong>Ir por delante de su canal no es un hallazgo.</strong> Una instancia production
   que ha pasado a la versión rolling actual tiene todo lo que incluye el canal
@@ -216,8 +216,8 @@ configuración en instancias de canales distintos:</p>
 <li><strong>La comprobación nunca recomienda volver a una versión anterior.</strong> Si el
   canal declarado no tiene ninguna versión a la que pueda <em>subir</em>, la
   recomendación de actualización queda vacía y el motivo explica la situación.
-  Pasar de <code>7.4.0</code> a <code>7.2.3</code> es una decisión para una persona, no para un
-  complemento de monitorización.</li>
+  Pasar de <code>7.4.0</code> a <code>7.2.3</code> es una decisión que el complemento le deja a
+  usted.</li>
 </ul>
 <p>El canal declarado también orienta la recomendación de actualización descrita
 en <a href="#the-recommended-release-follows-your-track">la sección anterior</a>, y la

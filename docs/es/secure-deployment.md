@@ -220,12 +220,12 @@ calendarios CalDAV y CardDAV, montajes WebDAV, trabajos de copia de seguridad.
 Esos se autentican con HTTP Basic, y `PROXY_ENABLE_BASIC_AUTH=true` vuelve a
 abrir una vía que elude su proveedor y todos sus segundos factores.
 
-Déjelo en `false` si nada lo necesita. Si algo lo necesita, la respuesta son
-**tokens de aplicación, no contraseñas de cuenta**: lo que se puede reutilizar
+Déjelo en `false` si nada lo necesita. Si algo lo necesita, use
+**tokens de aplicación en lugar de contraseñas de cuenta**: lo que se puede reutilizar
 es entonces revocable y nunca es la credencial que protege su proveedor de
 identidad. Este escáner notifica `basicAuthDisabled` como medium, o como low
-cuando ve un proveedor externo, precisamente porque a veces el compromiso es
-deliberado; consulte [Autenticación](../authentication.md).
+cuando ve un proveedor externo, porque a veces ese compromiso es
+intencionado; consulte [Autenticación](../authentication.md).
 
 ## 2. Active el registro de auditoría y después léalo {#2-turn-the-audit-log-on-then-read-it}
 
@@ -421,8 +421,8 @@ fundamental:
   nada.
 - **Cifrado de disco completo** en lo que contenga el almacenamiento, para que
   un disco retirado o robado no sea una fuga de datos.
-- **Copias de seguridad que ya ha restaurado.** Una copia que nadie ha probado
-  es una hipótesis. Guarde una copia fuera de línea o en almacenamiento de
+- **Copias de seguridad que ya ha restaurado.** Una copia sin probar puede
+  no restaurarse. Guarde una copia fuera de línea o en almacenamiento de
   escritura única: el ransomware busca primero la copia de seguridad.
 - **Privilegios mínimos para la cuenta de servicio.** Las unidades de systemd
   de [`contrib/systemd/`](../../contrib/systemd/) muestran el patrón:
@@ -437,8 +437,9 @@ fundamental:
 
 La mayoría de los incidentes reales en un servicio de archivos no son
 exploits. Alguien comparte la carpeta equivocada con un enlace público, o
-reutiliza una contraseña que estaba en una filtración. Es un problema de
-documentación y de valores predeterminados, no de parches.
+reutiliza una contraseña que estaba en una filtración. Los parches no evitan ninguna de
+las dos cosas; ambas dependen de la documentación y de los valores
+predeterminados.
 
 ### Para todas las personas con cuenta {#for-everybody-with-an-account}
 

@@ -226,8 +226,8 @@ Laissez-la à `false` si rien n’en a besoin. Si quelque chose en a besoin, la
 solution est **des jetons d’application, pas les mots de passe des comptes** :
 ce qui peut être rejoué est alors révocable et n’est jamais l’identifiant que
 protège votre fournisseur d’identité. Ce scanner signale `basicAuthDisabled`
-en medium, ou en low lorsqu’il voit un fournisseur externe, précisément parce
-que ce compromis est parfois délibéré - voir
+en medium, ou en low lorsqu’il voit un fournisseur externe, parce
+que ce compromis est parfois voulu - voir
 [Authentification](authentication.md).
 
 ## 2. Activer le journal d’audit, puis le lire {#2-turn-the-audit-log-on-then-read-it}
@@ -320,7 +320,7 @@ preuves :
 Le journal d’audit d’un service de fichiers indique qui a consulté quels
 documents, ce qui, dans la plupart des juridictions, constitue des données
 personnelles soumises à une durée de conservation limitée plutôt qu’à une
-conservation illimitée. Fixez cette durée délibérément, consignez-la et faites-la
+conservation illimitée. Fixez cette durée, consignez-la et faites-la
 appliquer par le collecteur. Si vous êtes soumis au RGPD, ce journal entre dans
 votre registre des activités de traitement.
 
@@ -344,7 +344,7 @@ votre pare-feu à votre place, depuis le seul point de vue qui compte.
 
 ### Un pare-feu d’hôte compatible avec Docker {#a-host-firewall-that-works-with-docker}
 
-L’erreur courante mérite d’être dite clairement : **Docker écrit ses propres
+L’erreur courante : **Docker écrit ses propres
 règles iptables, et elles sont évaluées avant celles d’UFW.** Un conteneur
 démarré avec `-p 9200:9200` est accessible depuis Internet, quoi qu’indique
 `ufw status`. Deux solutions, et il vous en faut une :
@@ -423,8 +423,8 @@ Brièvement, car rien de ceci n’est propre à OpenCloud et tout est essentiel 
   rien installer.
 - **Un chiffrement complet du disque** sur le support du stockage, pour qu’un
   disque mis au rebut ou volé ne soit pas une fuite de données.
-- **Des sauvegardes que vous avez déjà restaurées.** Une sauvegarde que personne
-  n’a testée est une hypothèse. Conservez une copie hors ligne ou sur un
+- **Des sauvegardes que vous avez déjà restaurées.** Une sauvegarde jamais
+  testée peut se révéler inutilisable. Conservez une copie hors ligne ou sur un
   stockage à écriture unique : un rançongiciel cherche d’abord la sauvegarde.
 - **Le moindre privilège pour le compte de service.** Les unités systemd de
   [`contrib/systemd/`](../../contrib/systemd/) montrent le principe :

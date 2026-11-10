@@ -32,8 +32,7 @@ website rate limit. You need Docker, but no account with the scan service.</p>
 <pre><code class="language-shell">docker run --rm --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.example.com
 </code></pre>
-<p>That is the whole thing. It prints the same line a monitoring system would
-get:</p>
+<p>It prints the same line a monitoring system would get:</p>
 <pre><code class="language-text">OK: Server is up to date. No known vulnerabilities.
 OpenCloud 7.2.3 on opencloud.example.com, rating: A+, last scanned: 2026-08-25 09:41:12
 Release lifecycle: 7.2 (production, track detected), current release
@@ -121,8 +120,8 @@ network, or one behind a name only your resolver knows:</p>
 <pre><code class="language-shell">docker run --rm --network host --entrypoint check-opencloud-security \
   okxo/opencloud-scanner:latest --host opencloud.internal.example.com
 </code></pre>
-<p>The hosted service refuses a private address on purpose; your own machine has
-no reason to.</p>
+<p>The hosted service refuses private addresses. A scan from your own machine
+does not.</p>
 <p>Configure it with environment variables instead of flags, which is easier to
 template over a list of hosts - every option has a <code>COS_</code> variable, listed in
 the <a href="/documentation/reference#environment-variables">main README</a>:</p>

@@ -158,7 +158,7 @@ exactly as before; it is never a hard dependency of a monitoring plugin.
 
 ## Debian, Ubuntu, RHEL, Fedora (.deb and .rpm)
 
-Use this on a monitoring host, where the point is that the check appears in the
+Use this on a monitoring host, where the check should appear in the
 package database like everything else on the machine: in the inventory, in the
 unattended-upgrade job, and answerable to `apt list --installed`. Every release
 carries both packages as assets. They are architecture-independent (`all` /
@@ -200,7 +200,7 @@ further path configuration - see [Icinga2 / Nagios](#icinga2--nagios) below.
 
 ### Configuring it
 
-**The package configures nothing on purpose.** The example configuration names
+**The package configures nothing.** The example configuration names
 a host that is not yours, and `/etc/check-opencloud-security/config.yml` is a
 path the plugin genuinely reads, so installing the example there would give
 every invocation on the host a default target nobody chose. Copy what you want:
@@ -293,9 +293,8 @@ check-opencloud-security --host opencloud.example.com
 
 The formula lives in a tap rather than in Homebrew core, which has notability
 requirements this project does not claim to meet. `brew upgrade` keeps it
-current; `--upgrade-self` deliberately refuses on a Homebrew installation and
-says so, because pip would write into the Cellar and the next `brew`
-operation would quietly undo it.
+current; `--upgrade-self` refuses on a Homebrew installation and prints why:
+pip would write into the Cellar and the next `brew` operation would undo it.
 
 The formula itself is generated from what PyPI published, by
 [`scripts/build_homebrew_formula.py`](../scripts/build_homebrew_formula.py) -

@@ -46,7 +46,7 @@
 </nav>
 
 <article class="docs-article card section-gap" data-reveal lang="de">
-<p>So ist das Repository aufgebaut, und deshalb verlaufen seine Grenzen genau hier. Die Regeln stehen in <a href="https://github.com/sowoi/check-opencloud-security/blob/main/AGENTS.md"><code>AGENTS.md</code></a>; die Entscheidungen und verworfenen Alternativen findest du unter <a href="{{ admin_path }}/decisions"><code>adr/</code></a>.</p>
+<p>Diese Seite beschreibt den Aufbau des Repositorys und begründet, wo seine Grenzen verlaufen. Die Regeln stehen in <a href="https://github.com/sowoi/check-opencloud-security/blob/main/AGENTS.md"><code>AGENTS.md</code></a>; die Entscheidungen und verworfenen Alternativen findest du unter <a href="{{ admin_path }}/decisions"><code>adr/</code></a>.</p>
 <h2 id="the-one-sentence-version">In einem Satz</h2>
 <p>Ein Monitoring-Plugin fragt eine OpenCloud-Instanz selbst ab, ermittelt daraus eine Bewertung von <code>0</code> bis <code>5</code> und beendet sich mit einem Nagios-Status. Dazu kommen die zugrunde liegende Bibliothek und ein Webdienst, der dieselbe Bibliothek ohne lokale Installation nutzbar macht.</p>
 <p>Es gibt keine externe Scan-API. Kein anderer Dienst liefert ein Urteil. Die Skala <code>0</code>–<code>5</code> entspricht nur deshalb der Nextcloud-Scan-API, damit bestehende Schwellenwerte, Diagramme und Alarmregeln ihre Bedeutung behalten.</p>
@@ -246,9 +246,9 @@ CLI flags    ───┘        (flat COS_ names)     (builds)       (dataclass
 <li><code>config.py</code> flacht verschachtelte Schlüssel ab: <code>scanner.target_port</code> wird zu <code>SCANNER_TARGET_PORT</code>, als Umgebungsvariable <code>COS_SCANNER_TARGET_PORT</code>. Listen werden mit <code>;</code> verbunden.</li>
 <li>Rangfolge: <strong>CLI-Flag &gt; Umgebungsvariable &gt; Datei &gt; Standardwert</strong>. Beide CLIs übergeben für nicht gesetzte Werte <code>None</code> an <code>factory.py</code>.</li>
 <li>Nur <code>factory.py</code> erzeugt die unveränderlichen <code>ScannerSettings</code> und <code>ReleaseSettings</code>.</li>
-<li><code>.json</code> wird als JSON gelesen, alles andere als YAML. Die Endung entscheidet, nicht der Inhalt.</li>
+<li><code>.json</code> wird als JSON gelesen, alles andere als YAML. Maßgeblich ist die Endung und nicht der Inhalt.</li>
 </ul>
-<p>Die Webanwendung nutzt diese Kette nicht. Ihre <code>COS_WEB_*</code>-Umgebungsvariablen werden einmal beim Start gelesen: Eine Anfrage darf das Ziel wählen, niemals die Last.</p>
+<p>Die Webanwendung nutzt diese Kette nicht. Ihre <code>COS_WEB_*</code>-Umgebungsvariablen werden einmal beim Start gelesen: Eine Anfrage darf das Ziel wählen, aber nicht die Last.</p>
 <h2 id="how-a-scan-flows-through-the-web-application">So durchläuft ein Scan die Webanwendung</h2>
 <pre><code class="language-text">POST /api/scans ──► client rate limit ──► SSRF guard ──► waiver allow-list
 POST /api/scans/batch  (per target, in order)                 │
@@ -360,7 +360,7 @@ POST /api/scans/batch  (per target, in order)                 │
 <li><strong>Das Supportende hat immer Vorrang</strong>, auch vor einer pauschalen Ausnahme. Ohne Sicherheitsupdates ist die Note F.</li>
 </ul>
 <p><code>remediation.py</code> berechnet, welche Behebung was verbessert, indem jeweils ein Befund aus derselben Berechnung entfernt wird. Der Plan wird aus dem Ergebnis abgeleitet, nirgends zusätzlich gespeichert und enthält nur Zahlen. Buchstaben ergänzt weiterhin die bewertende Schicht (<a href="{{ admin_path }}/decisions/0012-the-remediation-plan-is-derived-not-stored">ADR 0012</a>).</p>
-<p>Eine Ausnahme unterdrückt den Alarm, nicht die Belege. Der Befund bleibt mit <code>"ignored": true</code> im Ergebnis. Nur tatsächlich fehlgeschlagene Prüfungen lassen sich ausnehmen, damit eine spätere Verschlechterung nicht unbemerkt bleibt.</p>
+<p>Eine Ausnahme unterdrückt nur den Alarm. Der Befund bleibt mit <code>"ignored": true</code> im Ergebnis. Nur tatsächlich fehlgeschlagene Prüfungen lassen sich ausnehmen, damit eine spätere Verschlechterung nicht unbemerkt bleibt.</p>
 <p>Fest in OpenCloud codierte, nicht behebbare Befunde tragen in <code>hardening.py</code> <code>actionable=False</code>: im Ergebnis sichtbar, aber ohne Alarmzeile, <code>hardenings_missing</code>-Metrik oder Webhook.</p>
 <h2 id="the-release-lifecycle">Release-Lebenszyklus</h2>
 <p>OpenCloud veröffentlicht parallel Rolling (etwa alle drei Wochen), Production (etwa alle sechs Monate) und LTS (zwei Jahre). Releases bilden <strong>Versionslinien</strong> (<code>MAJOR.MINOR</code>); eine Linie kann mehreren Kanälen angehören.</p>

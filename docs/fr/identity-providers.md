@@ -54,7 +54,7 @@ Il vous faut aussi :
   de cette certitude.
 - **Un vrai certificat sur les deux noms.** La découverte OpenID Connect est
   une requête HTTPS d’OpenCloud vers le fournisseur ; un certificat auto-signé
-  à cet endroit échoue avec un message d’erreur qui le dit rarement.
+  à cet endroit échoue avec un message d’erreur qui mentionne rarement le certificat.
 - **Les deux noms résolus depuis le réseau des conteneurs comme depuis
   l’extérieur.** C’est la cause la plus fréquente du problème « ça fonctionne
   dans le navigateur mais le client de bureau reste bloqué » - voir
@@ -85,15 +85,14 @@ Trois éléments de ce tableau sont essentiels :
 **Le client web a besoin des trois URI de redirection.** `oidc-callback.html`
 termine la connexion ; `oidc-silent-redirect.html` permet à l’onglet de
 renouveler un jeton sans renvoyer quelqu’un vers un écran de connexion en plein
-téléversement. N’enregistrez que la première, et la connexion fonctionne, puis
-les sessions commencent à expirer à des intervalles que personne ne parvient à
-reproduire volontairement.
+téléversement. N’enregistrez que la première, et la connexion fonctionne, mais
+les sessions expirent ensuite à des intervalles difficiles à reproduire.
 
 **Seuls les clients hors navigateur reçoivent `offline_access`.** C’est cette
 portée qui délivre le jeton de rafraîchissement dont un client de bureau ou
-mobile a besoin pour survivre à un redémarrage. Le navigateur n’en a
-volontairement pas : un jeton de rafraîchissement dans un onglet est un
-identifiant stocké à un endroit incapable de le protéger.
+mobile a besoin pour survivre à un redémarrage. Le navigateur n’en
+reçoit pas, car un onglet ne peut pas stocker un jeton de rafraîchissement
+de manière sûre.
 
 **Les ID client sont configurables, et les deux côtés doivent concorder.** Le
 fournisseur les connaît parce que vous les y avez saisis ; OpenCloud les publie
@@ -111,8 +110,8 @@ qui leur est livré est un secret dont chacun de leurs utilisateurs possède une
 copie.
 
 Les quatre sont donc des **clients publics utilisant le flux par code
-d’autorisation avec PKCE**, et PKCE n’est pas une décoration facultative : c’est
-ce qui remplace le secret client que ces clients ne peuvent pas détenir.
+d’autorisation avec PKCE**, et PKCE est obligatoire : il remplace
+le secret client que ces clients ne peuvent pas détenir.
 Choisissez la méthode de challenge `S256`, jamais `plain`. Ne délivrez de secret
 client à aucun d’eux : un fournisseur qui en exige un pour un client public est
 mal configuré, et coller un secret dans une application de bureau pour le

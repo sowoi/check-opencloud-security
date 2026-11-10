@@ -124,7 +124,7 @@ WARNING: 1 previously measured check(s) are now inconclusive; the rating is unch
 Coverage regressed (1): previously measured, now inconclusive: caaRecord (timeout) - the rating is unaffected.
 ```
 
-Esto se mantiene separado de la calificación de seguridad a propósito. La
+Esto se mantiene separado de la calificación de seguridad. La
 calificación, los perfdata y los hallazgos siguen siendo los que dieron las
 mediciones; solo cambia el estado de alerta, y solo de `OK` a `WARNING`. Una
 ejecución que ya está en `WARNING` o `CRITICAL` conserva su mensaje y añade la

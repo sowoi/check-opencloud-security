@@ -89,8 +89,8 @@ sudo install -m 0755 contrib/checkmk/opencloud_security \
 ```
 
 **The `3600` is the important part.** A script in `local/` itself runs every
-time the agent is called - once a minute - and that is a scan a minute against
-somebody's production instance. The numeric subdirectory is the agent's cache
+time the agent is called - once a minute - which would scan a production
+instance every minute. The numeric subdirectory is the agent's cache
 interval in seconds: the scan then runs at most hourly, and every call in
 between is answered from the cached line. Pick the interval you actually want;
 `3600` is a good default for a rating.
@@ -126,8 +126,8 @@ end-of-life rules as everywhere else. Checkmk is not asked to judge anything:
 That last one is why the shipped script always prints a line, even when the
 plugin is missing or was killed by the agent's timeout. A local check that
 prints nothing does not go UNKNOWN - it *removes its service from the host*,
-which reads like a check somebody deliberately switched off rather than one
-that broke.
+which looks as if somebody had switched the check off, although it actually
+broke.
 
 ### The metrics
 
@@ -165,10 +165,10 @@ and acknowledgements work as they do for anything else. Two rules worth
 setting up:
 
 - Alert on **CRIT** immediately - a known vulnerability or an end-of-life
-  release is not a tomorrow problem.
-- Graph `support_days_left` and set a level on it. It is the one number that
-  gets worse while nothing about the instance changes, and the day it goes
-  negative the rating drops to F on its own.
+  release should not wait until the next day.
+- Graph `support_days_left` and set a level on it. It falls even when
+  nothing about the instance changes, and once it is negative the rating
+  drops to F.
 
 `--baseline` and `--warn-on-new` ([Reporting only what
 changed](baseline.md)) work under both routes and are worth having on a check

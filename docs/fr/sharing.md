@@ -46,7 +46,7 @@ Le champ `files_sharing.public.expire_date.enabled` du document de capacités es
 lu directement. Dans les versions actuelles d'OpenCloud, il s'agit d'un `false`
 figé dans le service frontend - une constante, non un réglage - si bien que
 toutes les instances renvoient la même valeur, quelle que soit leur
-configuration. **Ce contrôle ne déclenche jamais d'alerte**, précisément pour
+configuration. **Ce contrôle ne déclenche jamais d'alerte** pour
 cette raison : il est exclu de la ligne « Missing hardening », de la métrique
 `hardenings_missing` et de la charge utile du webhook, car un avertissement que
 aucun réglage ne permet de corriger risque de détourner l’attention des
@@ -56,7 +56,7 @@ l'afficher, avec l'explication.
 
 Il est conservé dans le catalogue plutôt que supprimé, afin qu'une future
 version d'OpenCloud rendant l'expiration automatique configurable soit détectée
-dès l'instant où le document de capacités renverra autre chose que `false` - le
+dès que le document de capacités renverra autre chose que `false` - le
 même raisonnement que celui documenté pour `userEnumerationRestricted` dans
 [Authentification](authentication.md#4-is-account-search-restricted-to-shared-groups-userenumerationrestricted).
 
