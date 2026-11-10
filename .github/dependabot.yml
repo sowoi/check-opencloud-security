@@ -16,6 +16,11 @@ updates:
     ignore:
       - dependency-name: "playwright"
         versions: [">=1.64"]
+      # arq requires redis[hiredis]<6, so redis 6 and later cannot resolve and
+      # every monthly run failed on it. Lift this when arq raises its bound,
+      # together with the "<6" in pyproject.toml.
+      - dependency-name: "redis"
+        versions: [">=6"]
 
   # Pinned actions go stale quietly, and the way that surfaces is a runner
   # deprecation warning on every job. Let Dependabot raise it instead.

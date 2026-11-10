@@ -12,6 +12,13 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dependabot no longer fails every month on `redis`.** It kept trying to
+  raise the Python client to 8.x, which `arq` forbids (`redis<6`), so the uv
+  update job failed each run. `.github/dependabot.yml` now ignores `redis`
+  6 and later, beside the existing `playwright` rule.
+
 ## [1.33.0] - 2026-11-10
 
 ### Changed
