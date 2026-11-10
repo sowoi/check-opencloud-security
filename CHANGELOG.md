@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-11-10
+
 ### Changed
 
 - **The bundled stacks run Valkey instead of Redis.** Every compose file, the
