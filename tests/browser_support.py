@@ -70,9 +70,17 @@ DESKTOP = {"width": 1280, "height": 900}
 PHONE = {"width": 390, "height": 844}
 
 
+# The hardened and the weak profile must differ by their configuration alone,
+# and the bundled advisory database only ever grows: the fake's stock 7.2.3
+# gained one in November 2026, which capped both at the same grade. They run
+# a release no bundled advisory covers; test_webapp_browser_e2e checks it.
+UNAFFECTED_RELEASE = "9.1.0"
+
+
 def instance(profile: str) -> FakeOpenCloud:
     """A fake OpenCloud instance playing a named profile (not started)."""
     behaviour = InstanceBehaviour()
+    behaviour.status_payload["productversion"] = UNAFFECTED_RELEASE
     if profile == "eol":
         behaviour.status_payload["productversion"] = "2.3.0"
     elif profile == "weak":

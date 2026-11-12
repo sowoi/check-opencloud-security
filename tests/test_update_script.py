@@ -425,3 +425,44 @@ def test_the_checked_in_readme_matches_the_checked_in_schedule():
     document = json.loads(script.TARGET.read_text(encoding="utf-8"))
 
     assert script.readme_is_current(document)
+
+
+def _committed_ahead_of_the_page(target):
+    """Write the page's schedule with a newer production release, as added by hand."""
+    script.main([])
+    document = json.loads(target.read_text())
+    document["latest_release"]["production"] = "7.2.9"
+    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return document
+
+
+def test_never_older_keeps_releases_the_page_does_not_list_yet(monkeypatch, tmp_path, capsys):
+    """A release cut while the lifecycle page lags must not roll back a hand-added release."""
+    target = _offline(monkeypatch, tmp_path)
+    committed = _committed_ahead_of_the_page(target)
+    capsys.readouterr()
+
+    assert script.main(["--never-older"]) == 0
+    assert json.loads(target.read_text()) == committed
+    assert "Kept the checked-in release schedule" in capsys.readouterr().out
+
+
+def test_without_never_older_the_page_still_wins(monkeypatch, tmp_path):
+    """The weekly refresh keeps following the page, so a wrong hand edit gets corrected."""
+    target = _offline(monkeypatch, tmp_path)
+    _committed_ahead_of_the_page(target)
+
+    assert script.main([]) == 0
+    assert json.loads(target.read_text())["latest_release"]["production"] == "7.2.4"
+
+
+def test_never_older_still_takes_a_newer_page(monkeypatch, tmp_path):
+    """Once the page catches up or moves past the file, the release picks it up."""
+    target = _offline(monkeypatch, tmp_path)
+    script.main([])
+    document = json.loads(target.read_text())
+    document["latest_release"]["production"] = "7.2.1"
+    target.write_text(json.dumps(document), encoding="utf-8")
+
+    assert script.main(["--never-older"]) == 0
+    assert json.loads(target.read_text())["latest_release"]["production"] == "7.2.4"

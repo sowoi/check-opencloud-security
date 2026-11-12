@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from opencloud_local_scan.hardening import catalogue_id
+from opencloud_local_scan.vulndb import load_database
 from tests.fake_opencloud import FakeOpenCloud, InstanceBehaviour
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     _isolated_backend,
@@ -31,6 +32,12 @@ from webapp.catalog import catalogue_anchor, catalogue_link, check_catalogue
 from webapp.tasks import run_scan
 
 IDENTIFIER = "b6f2c0c5-1c4b-4f4e-9a3b-0d3f8b7c1a20"
+
+# The report below must have no advisory section, and the bundled database
+# only ever grows: the fake's stock 7.2.3 gained one in November 2026. So the
+# instance runs a release no bundled advisory covers, and the test says so
+# plainly when that stops being true.
+UNAFFECTED_RELEASE = "9.1.0"
 
 
 @pytest.fixture
@@ -52,6 +59,7 @@ def pages() -> tuple[str, str]:
             # rather than only the plain identifiers.
             exposed_paths={"/config/opencloud.yaml", "/.env"},
         )
+        behaviour.status_payload["productversion"] = UNAFFECTED_RELEASE
         with FakeOpenCloud(behaviour) as instance:
             asyncio.run(
                 store.create(
@@ -126,6 +134,10 @@ def test_the_contents_list_names_only_sections_the_report_rendered(pages):
 
 def test_a_section_the_scan_did_not_produce_gets_no_contents_entry(pages):
     """This instance has no advisories, so the reader is not offered that jump."""
+    assert load_database().matches(UNAFFECTED_RELEASE) == [], (
+        f"a bundled advisory now covers {UNAFFECTED_RELEASE}; "
+        "move UNAFFECTED_RELEASE to a release no advisory covers"
+    )
     report, _ = pages
     contents = re.search(r'<nav class="docs-toc.*?</nav>', report, re.DOTALL)
     assert contents is not None

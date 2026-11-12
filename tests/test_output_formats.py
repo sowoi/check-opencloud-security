@@ -156,7 +156,10 @@ def test_sarif_advisory_names_the_affected_release_range():
     behaviour = InstanceBehaviour()
     behaviour.status_payload["productversion"] = "4.0.0"
     with FakeOpenCloud(behaviour) as instance:
-        result = run_plugin("-H", instance.host, "--format", "sarif")
+        # 4.0.0 is inside a bundled advisory's range; ranges only ever grow.
+        result = run_plugin(
+            "-H", instance.host, "--format", "sarif", env={"COS_SCANNER_BUNDLED_DB": "true"}
+        )
 
     run = json.loads(result.stdout)["runs"][0]
     advisories = [
@@ -464,8 +467,10 @@ def test_summary_new_column_reports_the_baseline_movement(tmp_path):
         assert _summary_table(first.stdout)[1][instance.host]["NEW"] == "new"
 
         behaviour.status_payload["productversion"] = "2.0.0"
+        # 2.0.0 is inside a bundled advisory's range, which is the movement.
         second = run_plugin(
-            "-H", instance.host, "--format", "summary", "--baseline", str(baseline)
+            "-H", instance.host, "--format", "summary", "--baseline", str(baseline),
+            env={"COS_SCANNER_BUNDLED_DB": "true"},
         )
 
     row = _summary_table(second.stdout)[1][instance.host]

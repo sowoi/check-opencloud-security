@@ -637,6 +637,9 @@ def test_extra_checks_can_be_excluded_from_the_rating():
         timeout=3,
         check_debug_ports=False,
         extra_checks_affect_rating=False,
+        # Only the extra check may be in play; an advisory for the fake's
+        # release would take the rating below 5 on its own.
+        include_bundled_db=False,
     )
 
     result = run_scan(behaviour, settings)

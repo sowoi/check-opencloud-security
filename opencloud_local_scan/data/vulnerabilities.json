@@ -65,8 +65,22 @@
       "severity": "medium",
       "url": "https://github.com/opencloud-eu/opencloud/security/advisories/GHSA-p6cc-4vh9-2hjq",
       "introduced": "1.0.0",
-      "fixed": "9.1.0",
-      "source": "https://api.github.com/repos/opencloud-eu/opencloud/security-advisories"
+      "fixed": "4.0.9",
+      "source": "https://api.github.com/repos/opencloud-eu/opencloud/security-advisories",
+      "ranges": [
+        {
+          "introduced": "1.0.0",
+          "fixed": "4.0.9"
+        },
+        {
+          "introduced": "4.1.0",
+          "fixed": "7.2.5"
+        },
+        {
+          "introduced": "7.3.0",
+          "fixed": "9.1.0"
+        }
+      ]
     }
   ]
 }

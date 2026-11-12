@@ -37,6 +37,11 @@ def run_plugin(*args: str, env: dict[str, str] | None = None) -> subprocess.Comp
         "COS_UPDATE_SOURCE": "off",
         "COS_SCANNER_SCHEME": "http",
         "COS_SCANNER_CHECK_DEBUG_PORTS": "false",
+        # The bundled advisory database only ever gains entries, and the fake
+        # runs a real release number. Without this, the next advisory
+        # published for 7.2.3 regrades every healthy instance in the suite.
+        # A test about advisories passes COS_SCANNER_BUNDLED_DB itself.
+        "COS_SCANNER_BUNDLED_DB": "false",
         **coverage_environment(),
         **(env or {}),
     }
@@ -61,6 +66,9 @@ def run_scanner(*args: str) -> subprocess.CompletedProcess:
         env={
             "PATH": "/usr/bin:/bin",
             "PYTHONPATH": str(REPO_ROOT),
+            # Same reason as run_plugin: no verdict here may hang on what
+            # OpenCloud published this week.
+            "COS_SCANNER_BUNDLED_DB": "false",
             **coverage_environment(),
         },
         check=False,

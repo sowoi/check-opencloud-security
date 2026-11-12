@@ -184,6 +184,11 @@ def _run_local_check(**environment: str) -> subprocess.CompletedProcess:
             "COS_UPDATE_SOURCE": "off",
             "COS_SCANNER_SCHEME": "http",
             "COS_SCANNER_CHECK_DEBUG_PORTS": "false",
+            # The bundled advisory database only ever gains entries, and the fake
+            # runs a real release number. Without this, the next advisory
+            # published for 7.2.3 regrades every healthy instance in the suite.
+            # A test about advisories passes COS_SCANNER_BUNDLED_DB itself.
+            "COS_SCANNER_BUNDLED_DB": "false",
             **coverage_environment(),
             **environment,
         },

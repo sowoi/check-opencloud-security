@@ -315,14 +315,31 @@ def repository_ranges(
     :data:`FIRST_RELEASE` up to 4.0.8, and from the line after 4.0 up to 7.2.0. Reading it as one range
     (the last bound wins) would report the fixed 4.0.8 as vulnerable. Prose
     yields nothing, and an entry that yields nothing is dropped by the caller.
+
+    OpenCloud also writes the same thing as ``< 9.1.0`` with the backports
+    only in the patched list (``9.1.0, 7.2.5, 4.0.9``). A patched version
+    below the upper bound is a fix on an older line and splits the range
+    the same way; ignoring it would report the patched 7.2.5 as vulnerable.
     """
     text = (expression or "").strip()
-    if not text and patched:
+    patched_bounds = [
+        f"< {item.strip()}"
+        for item in (patched or "").split(",")
+        if item.strip() and _BOUND_LIST.fullmatch(f"< {item.strip()}")
+    ]
+    if not text and patched_bounds:
         # No range at all but a patched list: every release before it.
-        text = ", ".join(f"< {item.strip()}" for item in patched.split(",") if item.strip())
+        text = ", ".join(patched_bounds)
     if not _BOUND_LIST.fullmatch(text):
         return []
     bounds = _BOUND_PART.findall(text)
+    if bounds and all(operator in {"<", "<="} for operator, _ in bounds):
+        highest = max((_upper_bound(o, v) for o, v in bounds), key=parse_version)
+        bounds.extend(
+            backport
+            for backport in (_BOUND_PART.findall(item)[0] for item in patched_bounds)
+            if parse_version(backport[1]) < parse_version(highest) and backport not in bounds
+        )
     if len(bounds) > 1 and all(operator in {"<", "<="} for operator, _ in bounds):
         fixes = sorted({_upper_bound(operator, version) for operator, version in bounds},
                        key=parse_version)
