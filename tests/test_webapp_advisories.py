@@ -32,6 +32,7 @@ from opencloud_local_scan.vulndb import (
     BUNDLED_DB,
     is_in_range,
     is_unbounded_advisory,
+    load_database,
 )
 from tests.webapp_support import (  # noqa: F401 - the fixtures are autouse
     MEMORY_URL,
@@ -52,6 +53,21 @@ from webapp.reference_data import ADVISORY_CHECKED_KEY, ADVISORY_DOCUMENT_KEY
 from webapp.tasks import reference_data_jobs
 
 BUNDLED = json.loads(BUNDLED_DB.read_text(encoding="utf-8"))
+
+# The made-up release lines the tests below invent advisories for. They sit
+# far beyond any real OpenCloud release, so a real advisory the daily refresh
+# adds to the bundled database cannot cover them and turn a test about the
+# refresh into a test about whatever OpenCloud published yesterday.
+SYNTHETIC_VERSIONS = (
+    "700.2.3",
+    "900.0.0",
+    "900.0.1",
+    "900.0.3",
+    "900.0.4",
+    "1000.0.0",
+    "1100.0.1",
+    "1100.0.2",
+)
 
 
 def osv_record(
@@ -149,13 +165,23 @@ def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.mark.parametrize("version", SYNTHETIC_VERSIONS)
+def test_no_real_advisory_covers_the_versions_these_tests_invent(version: str):
+    """A real advisory over a test version would make every assertion below lie."""
+    bundled = load_database(include_bundled=True)
+    assert [a.id for a in bundled.matches(version)] == [], (
+        f"a bundled advisory now covers {version}; move SYNTHETIC_VERSIONS "
+        "further out instead of changing the assertions"
+    )
+
+
 def test_an_advisory_published_today_reaches_a_scan_run_tomorrow():
     """The whole point: a finding newer than the image still gets reported."""
     store = memory_backend(MEMORY_URL)
-    record = osv_record("TEST-9001", [("9.0.0", "9.0.4")])
+    record = osv_record("TEST-9001", [("900.0.0", "900.0.4")])
 
     before = run(stored_database(store, refresh_settings()))
-    assert before.matches("9.0.1") == [], (
+    assert before.matches("900.0.1") == [], (
         "the bundled database must not already know this advisory, or the "
         "test would pass with the refresh removed"
     )
@@ -167,10 +193,10 @@ def test_an_advisory_published_today_reaches_a_scan_run_tomorrow():
 
     assert outcome == "updated"
     after = run(stored_database(store, refresh_settings()))
-    matched = after.matches("9.0.1")
+    matched = after.matches("900.0.1")
     assert [advisory.id for advisory in matched] == ["TEST-9001"]
-    assert matched[0].fixed == "9.0.4"
-    assert after.matches("9.0.4") == [], "the fixed release must come back clean"
+    assert matched[0].fixed == "900.0.4"
+    assert after.matches("900.0.4") == [], "the fixed release must come back clean"
 
 
 def test_a_refreshed_advisory_reaches_the_public_catalogue_the_same_way():
@@ -181,7 +207,7 @@ def test_a_refreshed_advisory_reaches_the_public_catalogue_the_same_way():
     already has, checked from the catalogue's side instead.
     """
     store = memory_backend(MEMORY_URL)
-    record = osv_record("TEST-9002", [("9.0.0", "9.0.4")])
+    record = osv_record("TEST-9002", [("900.0.0", "900.0.4")])
 
     with FakeAdvisoryFeed([record]) as feed:
         outcome = run(
@@ -209,7 +235,7 @@ def test_the_public_catalogue_never_renders_an_unsafe_advisory_url_as_a_link():
     result page already applies to this exact field.
     """
     store = memory_backend(MEMORY_URL)
-    record = osv_record("TEST-9099", [("9.0.0", "9.0.4")])
+    record = osv_record("TEST-9099", [("900.0.0", "900.0.4")])
     record["references"] = [{"type": "ADVISORY", "url": "javascript:alert(document.cookie)"}]
 
     with FakeAdvisoryFeed([record]) as feed:
@@ -234,17 +260,17 @@ def test_an_advisory_with_two_patched_lines_flags_both_of_them():
     about, so a real advisory cannot make this pass by accident.
     """
     store = memory_backend(MEMORY_URL)
-    record = osv_record("TEST-9002", [("9.0.0", "9.0.3"), ("11.0.0", "11.0.2")])
+    record = osv_record("TEST-9002", [("900.0.0", "900.0.3"), ("1100.0.0", "1100.0.2")])
 
     with FakeAdvisoryFeed([record]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     database = run(stored_database(store, refresh_settings()))
-    assert [a.fixed for a in database.matches("9.0.1")] == ["9.0.3"]
-    assert [a.fixed for a in database.matches("11.0.1")] == ["11.0.2"]
-    assert database.matches("9.0.3") == []
-    assert database.matches("11.0.2") == []
-    assert database.matches("10.0.0") == [], "the gap between the lines is untouched"
+    assert [a.fixed for a in database.matches("900.0.1")] == ["900.0.3"]
+    assert [a.fixed for a in database.matches("1100.0.1")] == ["1100.0.2"]
+    assert database.matches("900.0.3") == []
+    assert database.matches("1100.0.2") == []
+    assert database.matches("1000.0.0") == [], "the gap between the lines is untouched"
 
 
 def test_an_advisory_without_version_bounds_is_never_believed():
@@ -255,7 +281,7 @@ def test_an_advisory_without_version_bounds_is_never_believed():
     fix. It has to be dropped before it reaches a scan, because
     ``is_in_range`` with no bounds at either end is true of every version.
     """
-    assert is_in_range("7.2.3", None, None) is True, (
+    assert is_in_range("700.2.3", None, None) is True, (
         "if this ever stops being true the guard below is testing nothing"
     )
 
@@ -269,7 +295,7 @@ def test_an_advisory_without_version_bounds_is_never_believed():
 
     assert outcome in {"unchanged", "updated"}
     database = run(stored_database(store, refresh_settings()))
-    assert database.matches("7.2.3") == []
+    assert database.matches("700.2.3") == []
     assert "TEST-9003" not in {a.id for a in database.advisories}
 
 
@@ -301,14 +327,14 @@ def test_a_stored_document_carrying_an_unbounded_advisory_is_refused():
 
     run(store.set(ADVISORY_DOCUMENT_KEY, json.dumps(poisoned)))
     database = run(stored_database(store, refresh_settings()))
-    assert database.matches("7.2.3") == []
+    assert database.matches("700.2.3") == []
     assert "TEST-9004" not in {a.id for a in database.advisories}
 
 
 def test_a_feed_that_has_forgotten_an_advisory_never_removes_it():
     """A retracted feed entry does not make anybody's instance safer."""
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9005", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9005", [("900.0.0", "900.0.4")])]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     with FakeAdvisoryFeed([]) as empty:
@@ -320,7 +346,7 @@ def test_a_feed_that_has_forgotten_an_advisory_never_removes_it():
 
     assert outcome == "unchanged"
     database = run(stored_database(store, refresh_settings()))
-    assert [a.fixed for a in database.matches("9.0.1")] == ["9.0.4"]
+    assert [a.fixed for a in database.matches("900.0.1")] == ["900.0.4"]
 
 
 def test_a_revised_advisory_never_loses_an_earlier_affected_range():
@@ -331,8 +357,8 @@ def test_a_revised_advisory_never_loses_an_earlier_affected_range():
     reviewed the withdrawal; refreshes therefore retain both known bounds.
     """
     store = memory_backend(MEMORY_URL)
-    original = osv_record("TEST-9010", [("9.0.0", "9.0.4")])
-    revised = osv_record("TEST-9010", [("9.0.2", "9.0.4")])
+    original = osv_record("TEST-9010", [("900.0.0", "900.0.4")])
+    revised = osv_record("TEST-9010", [("900.0.2", "900.0.4")])
 
     with FakeAdvisoryFeed([original]) as feed:
         assert run(
@@ -344,9 +370,9 @@ def test_a_revised_advisory_never_loses_an_earlier_affected_range():
         ) == "updated"
 
     database = run(stored_database(store, refresh_settings()))
-    assert [advisory.id for advisory in database.matches("9.0.1")] == ["TEST-9010"]
-    assert [advisory.id for advisory in database.matches("9.0.3")] == ["TEST-9010"]
-    assert database.matches("9.0.4") == []
+    assert [advisory.id for advisory in database.matches("900.0.1")] == ["TEST-9010"]
+    assert [advisory.id for advisory in database.matches("900.0.3")] == ["TEST-9010"]
+    assert database.matches("900.0.4") == []
 
 
 def test_a_refresh_never_loses_the_advisories_that_shipped_in_the_image():
@@ -355,7 +381,7 @@ def test_a_refresh_never_loses_the_advisories_that_shipped_in_the_image():
     assert bundled_ids, "the bundled database has to contain something"
 
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9006", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9006", [("900.0.0", "900.0.4")])]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     stored = json.loads(run(store.get(ADVISORY_DOCUMENT_KEY)))
@@ -397,14 +423,14 @@ def test_two_names_for_one_advisory_are_reported_once():
     and the alias is the poorer record of the two.
     """
     store = memory_backend(MEMORY_URL)
-    ghsa = osv_record("TEST-GHSA-9007", [("9.0.0", "9.0.3"), ("11.0.0", "11.0.2")])
+    ghsa = osv_record("TEST-GHSA-9007", [("900.0.0", "900.0.3"), ("1100.0.0", "1100.0.2")])
     alias = osv_record("TEST-GO-9007", [("0", None)], aliases=["TEST-GHSA-9007"])
 
     with FakeAdvisoryFeed([ghsa, alias]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     database = run(stored_database(store, refresh_settings()))
-    matched = [a.id for a in database.matches("9.0.1")]
+    matched = [a.id for a in database.matches("900.0.1")]
     assert matched == ["TEST-GHSA-9007"]
 
 
@@ -414,7 +440,7 @@ def test_the_refresh_writes_nothing_into_the_repository():
     mtime = Path(BUNDLED_DB).stat().st_mtime
 
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9008", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9008", [("900.0.0", "900.0.4")])]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     assert BUNDLED_DB.read_bytes() == before
@@ -424,7 +450,7 @@ def test_the_refresh_writes_nothing_into_the_repository():
 def test_the_refresh_is_off_when_an_operator_turns_it_off():
     """An air-gapped deployment must not reach for a feed at all."""
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9009", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9009", [("900.0.0", "900.0.4")])]) as feed:
         off = refresh_settings(advisory_refresh=False, advisory_refresh_url=feed.url)
         assert run(refresh_advisories(store, off)) == "disabled"
         assert feed.requests == 0
@@ -458,7 +484,7 @@ def test_the_daily_job_exists_only_when_the_refresh_is_enabled():
 def test_the_health_probe_reports_counts_and_dates_but_no_advisory_text():
     """An unauthenticated probe says whether the refresh works, nothing more."""
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9010", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9010", [("900.0.0", "900.0.4")])]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
 
     state = run(advisory_state(store, refresh_settings()))
@@ -470,11 +496,11 @@ def test_the_health_probe_reports_counts_and_dates_but_no_advisory_text():
     )
 
 
-@pytest.mark.parametrize("version", ["9.0.0", "9.0.3"])
+@pytest.mark.parametrize("version", ["900.0.0", "900.0.3"])
 def test_the_refreshed_database_says_where_its_verdict_came_from(version: str):
     """A result document that cites no source cannot be checked by a reader."""
     store = memory_backend(MEMORY_URL)
-    with FakeAdvisoryFeed([osv_record("TEST-9011", [("9.0.0", "9.0.4")])]) as feed:
+    with FakeAdvisoryFeed([osv_record("TEST-9011", [("900.0.0", "900.0.4")])]) as feed:
         run(refresh_advisories(store, refresh_settings(advisory_refresh_url=feed.url)))
         database = run(stored_database(store, refresh_settings()))
         assert any(feed.url in source for source in database.sources)
