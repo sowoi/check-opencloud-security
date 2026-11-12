@@ -211,6 +211,22 @@ def _summary(document: dict[str, Any] | None) -> str:
     return f"{len(lines)} lines ({newest})"
 
 
+def _tracks_behind(schedule: dict[str, Any], current: dict[str, Any] | None) -> list[str]:
+    """The tracks whose current release on the page is older than in the file."""
+    if not current:
+        return []
+    page = schedule.get("latest_release") or {}
+    committed = current.get("latest_release") or {}
+    behind = []
+    for track, version in committed.items():
+        on_page = parse_version(str(page.get(track, "")))
+        in_file = parse_version(str(version))
+        # A version either side cannot read is no evidence the page is behind.
+        if on_page is not None and in_file is not None and on_page < in_file:
+            behind.append(track)
+    return sorted(behind)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description="Update the OpenCloud release schedule.")
@@ -228,6 +244,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Leave the generated block in README.md alone.",
     )
     parser.add_argument(
+        "--never-older",
+        action="store_true",
+        help=(
+            "Keep the checked-in schedule when the lifecycle page names an older "
+            "current release for a track than it does."
+        ),
+    )
+    parser.add_argument(
         "--allow-failure",
         action="store_true",
         help="Exit successfully when the lifecycle page cannot be read or parsed.",
@@ -243,6 +267,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if args.allow_failure else 1
 
     current = load_current()
+    behind = _tracks_behind(schedule, current) if args.never_older else []
+    if behind:
+        # The page lags GitHub by days at times, and a release made in that
+        # gap would otherwise roll back releases already added by hand -
+        # telling operators on the newest version that they are ahead of a
+        # track that has in fact moved on.
+        print(
+            "Kept the checked-in release schedule: the lifecycle page is behind it "
+            f"for {', '.join(behind)} ({_summary(schedule)} vs. {_summary(current)})"
+        )
+        return 0
     unchanged = (
         current is not None
         and current.get("lines") == schedule["lines"]

@@ -32,9 +32,16 @@ HTTPS_EDITOR = "https://collabora.example.com/browser/abc/cool.html?"
 HTTP_EDITOR = "http://collabora.example.com/browser/abc/cool.html?"
 
 
-def run_scan(behaviour: InstanceBehaviour) -> dict:
+# The fake runs a real release number and the bundled advisory database only
+# ever grows, so a test comparing ratings leaves the database out.
+NO_ADVISORIES = ScannerSettings(
+    scheme="http", timeout=3, check_debug_ports=False, include_bundled_db=False
+)
+
+
+def run_scan(behaviour: InstanceBehaviour, settings: ScannerSettings = SETTINGS) -> dict:
     with FakeOpenCloud(behaviour) as instance:
-        return scan(instance.host, settings=SETTINGS, release_settings=NO_UPDATES)
+        return scan(instance.host, settings=settings, release_settings=NO_UPDATES)
 
 
 def findings(result: dict) -> dict[str, dict]:
@@ -120,10 +127,10 @@ def test_a_reachable_console_caps_the_rating():
     """A finding that does not move the rating is a finding an operator never
     sees in a monitoring line."""
     exposed = run_scan(
-        InstanceBehaviour(wopi_urlsrc=HTTPS_EDITOR, wopi_admin_console=True)
+        InstanceBehaviour(wopi_urlsrc=HTTPS_EDITOR, wopi_admin_console=True), NO_ADVISORIES
     )
     protected = run_scan(
-        InstanceBehaviour(wopi_urlsrc=HTTPS_EDITOR, wopi_admin_console=False)
+        InstanceBehaviour(wopi_urlsrc=HTTPS_EDITOR, wopi_admin_console=False), NO_ADVISORIES
     )
 
     assert exposed["rating"] < protected["rating"]

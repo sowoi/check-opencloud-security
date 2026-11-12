@@ -20,8 +20,10 @@ from pathlib import Path
 
 import pytest
 
+from opencloud_local_scan.vulndb import load_database
 from tests.browser_support import (  # noqa: F401 - the fixtures register under their own names
     PHONE,
+    UNAFFECTED_RELEASE,
     PageWatch,
     browser_fixture,
     new_page,
@@ -67,6 +69,14 @@ def test_a_scan_from_the_form_ends_on_a_report_that_matches_the_api(page, site, 
     assert page.locator("#progress-card").is_hidden()
     assert shown_but_hidden(page) == []
     watch.assert_clean()
+
+
+def test_the_profiles_run_a_release_no_bundled_advisory_covers():
+    """An advisory over that release would cap both profiles and blur their grades."""
+    assert load_database().matches(UNAFFECTED_RELEASE) == [], (
+        f"a bundled advisory now covers {UNAFFECTED_RELEASE}; move "
+        "UNAFFECTED_RELEASE in tests/browser_support.py to a release no advisory covers"
+    )
 
 
 def test_the_grades_follow_the_rating_rules(ratings):

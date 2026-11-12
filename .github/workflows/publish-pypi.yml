@@ -88,9 +88,12 @@ jobs:
       # --allow-failure: the previously committed file stays in place.
       # The same run rewrites the generated release table in README.md, so the
       # documentation cannot quote a version that has already been superseded.
+      # --never-older keeps the committed file when the lifecycle page still
+      # names an older current release: the page lags GitHub by days at times,
+      # and releases added by hand in that gap must survive the release.
       - name: Refresh the OpenCloud release schedule
         if: steps.state.outputs.mode == 'release'
-        run: python scripts/update_release_schedule.py --allow-failure
+        run: python scripts/update_release_schedule.py --allow-failure --never-older
 
       # The version in pyproject.toml changed - it is only ever bumped by hand.
       # The changes collected under '## [Unreleased]' in CHANGELOG.md become

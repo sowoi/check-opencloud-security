@@ -125,6 +125,37 @@ def test_a_patched_list_alone_bounds_the_advisory():
     assert repository_ranges("", "4.0.8, 7.2.0") == [("1.0.0", "4.0.8"), ("4.1.0", "7.2.0")]
 
 
+def test_a_backport_named_only_in_the_patched_list_splits_the_range():
+    """GHSA-p6cc-4vh9-2hjq says '< 9.1.0' and lists 7.2.5 and 4.0.9 only as patched."""
+    ranges = repository_ranges("< 9.1.0", "9.1.0, 7.2.5, 4.0.9")
+
+    assert ranges == [("1.0.0", "4.0.9"), ("4.1.0", "7.2.5"), ("7.3.0", "9.1.0")]
+    advisory = parse_repository_advisory(
+        {
+            "ghsa_id": "GHSA-p6cc-4vh9-2hjq",
+            "state": "published",
+            "severity": "medium",
+            "vulnerabilities": [
+                {
+                    "package": {"name": "OpenCloud"},
+                    "vulnerable_version_range": "< 9.1.0",
+                    "patched_versions": "9.1.0, 7.2.5, 4.0.9",
+                }
+            ],
+        }
+    )
+    assert advisory is not None
+    for affected in ("4.0.8", "4.1.0", "7.2.4", "8.1.0", "9.0.0"):
+        assert advisory.affects(affected), affected
+    for fixed in ("4.0.9", "7.2.5", "9.1.0"):
+        assert not advisory.affects(fixed), fixed
+
+
+def test_a_patched_list_never_widens_a_range_with_a_lower_bound():
+    """'>= 7.0.0, < 7.1.2' stays one range, whatever older fix the patched list names."""
+    assert repository_ranges(">= 7.0.0, < 7.1.2", "7.1.2, 6.0.5") == [("7.0.0", "7.1.2")]
+
+
 def test_an_advisory_with_only_prose_ranges_is_dropped():
     """With nothing readable it would be unbounded, which matches every release."""
     assert parse_repository_advisory(PUBLIC_LINK) is None

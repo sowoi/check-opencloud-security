@@ -85,7 +85,9 @@ def test_a_real_scan_groups_missing_headers_into_one_proxy_change():
     with FakeOpenCloud(behaviour) as instance:
         result = scan(
             instance.host,
-            settings=ScannerSettings(scheme="http", timeout=3, check_debug_ports=False),
+            settings=ScannerSettings(
+                scheme="http", timeout=3, check_debug_ports=False, include_bundled_db=False
+            ),
             release_settings=ReleaseSettings(mode="off"),
         )
     grouped = result["remediationPlan"]

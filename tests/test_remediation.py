@@ -230,7 +230,9 @@ def test_a_real_scan_carries_a_plan_that_matches_its_own_rating():
     with FakeOpenCloud(behaviour) as instance:
         result = scan(
             instance.host,
-            ScannerSettings(scheme="http", check_debug_ports=False),
+            # An advisory for the fake's release adds a "versionCurrent" step
+            # that this test is not about.
+            ScannerSettings(scheme="http", check_debug_ports=False, include_bundled_db=False),
         )
 
     carried = result["remediationPlan"]

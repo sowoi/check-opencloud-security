@@ -332,6 +332,12 @@ workflow and the weekly schedule workflow commit the two together.
   `python scripts/update_release_schedule.py` to regenerate.
 - The prose and the worked examples around the block are hand-written and
   deliberately name older releases; leave them alone.
+- The release workflow runs the script with `--never-older`: when the
+  lifecycle page names an older current release for a track than the
+  checked-in file, the file is kept. The page sometimes lags GitHub by days,
+  and releases the maintainer added in that gap must survive a release. The
+  weekly workflow runs without the flag, so its pull request still proposes
+  whatever the page says.
 
 ## Working on the lifecycle
 

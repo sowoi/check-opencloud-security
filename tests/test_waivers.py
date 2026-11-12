@@ -333,7 +333,9 @@ def test_a_rolling_instance_is_end_of_life_once_the_next_release_ships():
 
 def test_the_same_version_is_current_on_the_production_track():
     """The declared track, not the version number, decides the support window."""
-    status = load_release_schedule().status_for("7.2.4", today=TODAY, track="production")
+    schedule = load_release_schedule()
+    current = schedule.latest_for("production")
+    status = schedule.status_for(current, today=TODAY, track="production")
 
     assert status.state == "supported"
     assert status.release_type == "production"
@@ -363,19 +365,21 @@ def test_a_release_behind_the_declared_track_is_still_end_of_life():
     behind = schedule.status_for("2.0.5", today=TODAY, track="production")
 
     assert behind.state == "endOfLife"
-    assert behind.upgrade_to == "7.2.4"
+    assert behind.upgrade_to == schedule.latest_for("production")
 
 
 def test_a_version_that_never_shipped_on_the_declared_track_says_so():
     """The reason has to explain a verdict the version number contradicts."""
-    behind = load_release_schedule().status_for("2.3.0", today=TODAY, track="production")
-    ahead = load_release_schedule().status_for("7.5.0", today=TODAY, track="production")
+    schedule = load_release_schedule()
+    current = schedule.latest_for("production")
+    behind = schedule.status_for("2.3.0", today=TODAY, track="production")
+    ahead = schedule.status_for("7.5.0", today=TODAY, track="production")
 
     assert "not published on the production track" in behind.reason
     assert "it is a rolling release" in behind.reason
-    assert "the current production release is 7.2.4" in behind.reason
+    assert f"the current production release is {current}" in behind.reason
     assert "ahead of the production track" in ahead.reason
-    assert "newer than the current production release 7.2.4" in ahead.reason
+    assert f"newer than the current production release {current}" in ahead.reason
 
 
 def test_the_auto_track_infers_instead_of_declaring():
@@ -485,4 +489,4 @@ def test_the_declared_track_steers_the_update_recommendation():
 
     result = run_scan(behaviour, release_track="production")
 
-    assert result["lifecycle"]["upgradeTo"] == "7.2.4"
+    assert result["lifecycle"]["upgradeTo"] == load_release_schedule().latest_for("production")
