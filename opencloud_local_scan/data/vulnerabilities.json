@@ -1,6 +1,6 @@
 {
   "$schema": "https://github.com/sowoi/check-opencloud-security/blob/main/opencloud_local_scan/data/vulnerabilities.schema.json",
-  "updated": "2026-09-19",
+  "updated": "2026-11-12",
   "source": "bundled",
   "comment": "Local advisory database used by the built-in scanner. Entries are matched against the detected OpenCloud version using the half-open range [introduced, fixed); an advisory that affects several release lines carries one entry per line in 'ranges'. Regenerate with scripts/update_vulnerability_db.py, which only ever adds to this file - a hand written entry is never removed by a refresh.",
   "advisories": [
@@ -56,6 +56,17 @@
           "fixed": "7.2.0"
         }
       ]
+    },
+    {
+      "id": "GHSA-p6cc-4vh9-2hjq",
+      "cwe": "",
+      "title": "DDoS Attac Vector through Crash in Search Service",
+      "description": "### Summary\r\n\r\nAn authenticated user can send a malicious search query to the OpenCloud search which makes the search service crash.\r\n\r\n### Details\r\n\r\nWith a special search phrase sent to the search service of OpenCloud, the service can be crashed, resulting in a DoS attack on the server.\r\n\r\n### Impact\r\n\r\nWith a simple script, the search service can be brought down continously. In case of the cloud running from a single binary, the whole service goes down, in other deployments only the search se",
+      "severity": "medium",
+      "url": "https://github.com/opencloud-eu/opencloud/security/advisories/GHSA-p6cc-4vh9-2hjq",
+      "introduced": "1.0.0",
+      "fixed": "9.1.0",
+      "source": "https://api.github.com/repos/opencloud-eu/opencloud/security-advisories"
     }
   ]
 }
