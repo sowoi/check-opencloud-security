@@ -12,6 +12,15 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **The advisory database knows GHSA-p6cc-4vh9-2hjq.** OpenCloud published
+  it as "DDoS Attac Vector through Crash in Search Service": an
+  authenticated user can crash the search service with a crafted search
+  query. When OpenCloud runs as a single binary, that takes down the whole
+  instance. It is rated medium and affects releases from 1.0.0 up to (but
+  not including) 9.1.0. The scanner now reports it for those versions.
+
 ### Fixed
 
 - **The daily advisory refresh no longer fails on a real advisory.** The
