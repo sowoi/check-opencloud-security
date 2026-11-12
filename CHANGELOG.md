@@ -12,6 +12,8 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+## [1.33.2] - 2026-11-12
+
 ### Changed
 
 - **The advisory database knows GHSA-p6cc-4vh9-2hjq.** OpenCloud published
