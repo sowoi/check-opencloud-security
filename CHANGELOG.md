@@ -12,6 +12,16 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The daily advisory refresh no longer fails on a real advisory.** The
+  refresh tests made up advisories for versions such as 9.0.1 and assumed no
+  real advisory covered them. GHSA-p6cc-4vh9-2hjq, published for 1.0.0 up to
+  9.1.0, did, so the refresh workflow failed before it could open its pull
+  request. The tests now use versions far beyond any real release, and a new
+  test fails with a clear message if a bundled advisory ever covers one of
+  them.
+
 ## [1.33.1] - 2026-11-10
 
 ### Changed
