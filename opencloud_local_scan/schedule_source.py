@@ -70,63 +70,100 @@ class _LifecycleParser(HTMLParser):
     with ``role="tab"`` and the tables live in sibling ``div`` elements with
     ``role="tabpanel"``, in the same order. Only the first two columns
     (version and release date) are of interest.
+
+    The published page is minified and leaves out every end tag HTML allows
+    to be left out - ``</li>``, ``</th>``, ``</td>``, ``</tr>`` - so nothing
+    here waits for one. A label, cell or row ends where a browser would end
+    it: at the next sibling, or at the end tag of its container. Each panel
+    takes the rows of the first table inside it and nothing after that
+    table, so content following the last panel cannot leak into it.
     """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.labels: list[str] = []
         self.panels: list[list[list[str]]] = []
-        self._tab_depth = 0
-        self._panel_depth = 0
-        self._cell_depth = 0
-        self._buffer: list[str] = []
-        self._row: list[str] = []
+        self._label: list[str] | None = None
+        self._awaiting_table = False
+        self._in_table = False
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+        self._cell_is_data = False
+
+    def _end_label(self) -> None:
+        if self._label is not None:
+            self.labels.append("".join(self._label).strip())
+            self._label = None
+
+    def _end_cell(self) -> None:
+        if self._cell is not None and self._row is not None and self._cell_is_data:
+            self._row.append("".join(self._cell).strip())
+        self._cell = None
+
+    def _end_row(self) -> None:
+        self._end_cell()
+        if self._row:
+            self.panels[-1].append(self._row)
+        self._row = None
+
+    def _end_table(self) -> None:
+        self._end_row()
+        self._in_table = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         role = dict(attrs).get("role")
-        if role == "tab":
-            self._tab_depth = 1
-            self._buffer = []
+        if tag == "li" or role == "tab":
+            # A new list item ends the previous one, tab or not.
+            self._end_label()
+            if role == "tab":
+                self._label = []
             return
         if role == "tabpanel":
-            self._panel_depth = 1
+            self._end_label()
+            self._end_table()
             self.panels.append([])
+            self._awaiting_table = True
             return
-        if self._tab_depth:
-            self._tab_depth += 1
-        if self._panel_depth:
+        if tag == "table" and self._awaiting_table:
+            self._awaiting_table = False
+            self._in_table = True
+            return
+        if not self._in_table:
+            return
+        if tag in ("tr", "thead", "tbody", "tfoot"):
+            self._end_row()
             if tag == "tr":
                 self._row = []
-            elif tag == "td":
-                self._cell_depth = 1
-                self._buffer = []
-            elif self._cell_depth:
-                self._cell_depth += 1
-            else:
-                self._panel_depth += 1
+        elif tag in ("td", "th"):
+            self._end_cell()
+            if self._row is None:
+                self._row = []
+            self._cell = []
+            self._cell_is_data = tag == "td"
 
     def handle_endtag(self, tag: str) -> None:
-        if self._cell_depth:
-            self._cell_depth -= 1
-            if self._cell_depth == 0:
-                self._row.append("".join(self._buffer).strip())
+        if tag in ("li", "ul", "ol"):
+            self._end_label()
             return
-        if self._tab_depth:
-            self._tab_depth -= 1
-            if self._tab_depth == 0:
-                self.labels.append("".join(self._buffer).strip())
+        if not self._in_table:
             return
-        if self._panel_depth:
-            if tag == "tr":
-                if self._row:
-                    self.panels[-1].append(self._row)
-                self._row = []
-                return
-            self._panel_depth -= 1
+        if tag in ("td", "th"):
+            self._end_cell()
+        elif tag in ("tr", "thead", "tbody", "tfoot"):
+            self._end_row()
+        elif tag == "table":
+            self._end_table()
 
     def handle_data(self, data: str) -> None:
-        if self._cell_depth or self._tab_depth:
-            self._buffer.append(data)
+        if self._label is not None:
+            self._label.append(data)
+        if self._cell is not None:
+            self._cell.append(data)
+
+    def close(self) -> None:
+        super().close()
+        self._end_label()
+        self._end_table()
 
 
 def fetch(url: str, timeout: int = 30) -> str:
@@ -181,6 +218,7 @@ def extract(html: str) -> dict[str, Any]:
     """Turn the lifecycle page into the release schedule document."""
     parser = _LifecycleParser()
     parser.feed(html)
+    parser.close()
 
     tracks: dict[str, list[tuple[tuple[int, int, int], str | None]]] = {}
     # Deliberately not strict: the two lists come from somebody else's

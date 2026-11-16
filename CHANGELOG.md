@@ -12,6 +12,29 @@ entry to `RELEASE.md` and uses it as the body of the GitHub release.
 
 ## [Unreleased]
 
+### Security
+
+- **The web container image ships dnspython 2.9.2.** `uv.lock` pinned
+  dnspython 2.9.0 (GHSA-vvf4-9x63-8xvv, CVE-2026-128089: excessive memory
+  and CPU use), and the web image installs exactly what `uv.lock` pins.
+  sigstore pulls it in for the `signing` extra through pydantic's `email`
+  extra and email-validator. The PyPI package does not pin dnspython and
+  picks up the fixed release on its own; the plugin image does not install
+  the `signing` extra. This also turns the Supply-chain checks green again.
+
+### Fixed
+
+- **The release schedule refresh reads the lifecycle page again.** The
+  OpenCloud documentation now serves that page minified, without the end
+  tags HTML lets a page leave out (`</li>`, `</th>`, `</td>`, `</tr>`). The
+  parser waited for them, kept only the last tab label and no table row, and
+  refused the page with "did not yield a rolling and a production release
+  table". Both the weekly `update_release_schedule.py` workflow and the web
+  application's daily refresh failed this way and kept the schedule they
+  had. A label, cell or row now ends where a browser ends it, and each tab
+  takes only the first table inside it, so a table further down the page
+  cannot leak into the LTS tab.
+
 ## [1.33.2] - 2026-11-12
 
 ### Changed
