@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from opencloud_local_scan import schedule_source
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "update_release_schedule", REPO_ROOT / "scripts" / "update_release_schedule.py"
@@ -212,6 +214,66 @@ def test_unknown_tabs_are_ignored():
     )
 
     assert "9.9" not in [entry["line"] for entry in schedule["lines"]]
+
+
+def minified_tab(label: str) -> str:
+    """One tab header as the published, minified page renders it: no ``</li>``."""
+    return f"<li role=tab tabindex=-1 aria-selected=false>{label}"
+
+
+def minified_panel(rows: list[tuple[str, str]], announce: str = "") -> str:
+    """One release table without ``</th>``, ``</td>`` and ``</tr>``, as published."""
+    body = "".join(
+        f"<tr><td style=text-align:left>{version}<td style=text-align:left>{released}"
+        f"<td style=text-align:left><a href=https://example.invalid/{version}"
+        " target=_blank>Details · Download</a>"
+        for version, released in rows
+    )
+    return (
+        "<div role=tabpanel class=tabItem hidden><table><thead><tr>"
+        "<th style=text-align:left>Version<th style=text-align:left>Release Date"
+        f"<th style=text-align:left>Release Notes<tbody>{announce}{body}</table></div>"
+    )
+
+
+MINIFIED_PAGE = (
+    "<div><ul role=tablist aria-orientation=horizontal class=tabs>"
+    + minified_tab("Rolling")
+    + minified_tab("Production")
+    + minified_tab("LTS")
+    + "</ul><div class=margin-top--md>"
+    + minified_panel(ROLLING)
+    + minified_panel(
+        PRODUCTION[1:],
+        announce="<tr><td style=text-align:left>-<td style=text-align:left>"
+        "2026 October 26<td style=text-align:left>Production Release",
+    )
+    + minified_panel(LTS)
+    + "</div></div><h2>Versioning Scheme</h2>"
+    "<table><tbody><tr><td>v99.0.0<td>2026 December 1</table>"
+)
+
+
+def test_a_minified_page_without_optional_end_tags_reads_like_the_full_one(schedule):
+    """The published page omits </li>, </td> and </tr>; that must not lose a track."""
+    minified = script.extract(MINIFIED_PAGE)
+
+    assert minified["lines"] == schedule["lines"]
+    assert minified["latest_release"] == schedule["latest_release"]
+    assert "lts" in next(line for line in minified["lines"] if line["line"] == "4.0")["tracks"]
+
+
+def test_a_minified_page_keeps_cells_apart_and_ignores_what_follows_the_tabs():
+    """Unclosed cells must not merge, and a later table is not part of the LTS tab."""
+    parser = schedule_source._LifecycleParser()
+    parser.feed(MINIFIED_PAGE)
+    parser.close()
+
+    assert parser.labels == ["Rolling", "Production", "LTS"]
+    assert parser.panels[1][0] == ["-", "2026 October 26", "Production Release"]
+    assert parser.panels[2] == [["v4.0.9", "TBD", "Details · Download"]]
+    assert all(len(row) == 3 for rows in parser.panels for row in rows)
+    assert "99.0" not in [line["line"] for line in script.extract(MINIFIED_PAGE)["lines"]]
 
 
 def test_build_document_is_self_describing(schedule):

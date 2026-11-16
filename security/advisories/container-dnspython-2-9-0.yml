@@ -1,0 +1,60 @@
+# A security advisory record. See AGENTS.md, "Security advisories".
+#
+# One file per bullet under a `### Security` heading in CHANGELOG.md.
+# `state` is the decision; `verified` is the evidence it rests on.
+
+slug: container-dnspython-2-9-0
+state: declined
+changelog_version: unreleased
+changelog_entry: "The web container image ships dnspython 2.9.2."
+shipped: true
+declined_because: |
+  A dependency update, not a defect in this project. The vulnerability is
+  dnspython's own (GHSA-vvf4-9x63-8xvv, CVE-2026-128089), and dnspython's
+  advisory already reaches everyone whose dependency scanner sees it,
+  including the SBOM of the web image. An advisory here would repeat theirs
+  for a package this project does not write. The PyPI package never pinned
+  dnspython, so a `pip install` resolves the fixed release on its own. An
+  operator on an affected image picks up the fix by pulling the next one.
+package: web
+severity: high
+cwe_ids:
+  - CWE-1395
+introduced: "1.31.1"
+fixed: unreleased
+summary: >-
+  The web container image installed dnspython releases before 2.9.2, which
+  have a known vulnerability, from uv.lock
+verified: |
+  git show v1.31.1:uv.lock | grep -A1 '^name = "dnspython"' -> version = "2.8.0";
+  v1.31.3, v1.32.0 and v1.33.2 -> version = "2.9.0". Both are inside the
+  affected range "< 2.9.2" of GHSA-vvf4-9x63-8xvv (Dependabot alert #24).
+  git show v1.31.1:docker/Dockerfile.web | grep -c 'extra signing' -> 1, and
+  0 in v1.31.0, so the web image installs the locked dnspython since 1.31.1.
+  uv tree --invert --package dnspython -> dnspython <- email-validator 2.3.0
+  <- pydantic[email] <- sigstore-rekor-types <- sigstore 4.5.1 <- the
+  `signing` extra only; docker/Dockerfile (the plugin image) does not
+  install it.
+  CI pip-audit (Supply-chain checks, 2026-11-16) reported CVE-2026-128089
+  against dnspython 2.9.0 with 2.9.2 as the fix. After
+  `uv lock --upgrade-package dnspython` the lock pins 2.9.2 and pip-audit on
+  the exported lock finds no known vulnerability.
+description: |
+  ### Impact
+
+  The web container images built from 1.31.1 up to 1.33.2 install the
+  dependency set `uv.lock` pins, and that lock pinned dnspython 2.8.0 and
+  later 2.9.0, which are affected by CVE-2026-128089 (excessive memory and
+  CPU use). sigstore pulls dnspython in for the `signing` extra, through
+  pydantic's `email` extra and email-validator.
+
+  PyPI installations are unaffected: the package does not pin dnspython. The
+  plugin image does not install the `signing` extra.
+
+  ### Patches
+
+  Fixed in the next release, whose `uv.lock` pins dnspython 2.9.2.
+
+  ### Workarounds
+
+  Rebuild the web image from a checkout of `main`.
